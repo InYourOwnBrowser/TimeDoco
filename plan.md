@@ -218,7 +218,7 @@ Since this was called out directly, here's the concrete flow:
 - [x] Entry edit UI (start/end/timecode/note), validation, audit trail, manual entry creation, forgot-to-stop detection prompt.
 
 **Phase 3 — Backup**
-- [ ] Export/import with checksum + schema version, backup reminder banner.
+- [x] Export/import with checksum + schema version, backup reminder banner.
 
 **Phase 4 — Analysis**
 - [ ] Date-range presets + custom range, Recharts-based charts, tables, CSV/PDF export.

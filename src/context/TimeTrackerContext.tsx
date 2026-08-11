@@ -1,5 +1,5 @@
 import React, { createContext, useContext, useState, useEffect, type ReactNode } from 'react';
-import type { Group, Timecode, Entry } from '../types';
+import type { Group, Timecode, Entry, Settings } from '../types';
 import * as db from '../db';
 import { differenceInSeconds } from 'date-fns';
 
@@ -20,6 +20,10 @@ interface TimeTrackerContextType {
   addManualEntry: (entryData: { startTime: string, endTime: string, timecodeId: string, note: string }) => Promise<void>;
   forgotToStopEntry: Entry | null;
   dismissForgotToStop: () => void;
+  settings: Settings | null;
+  updateSettings: (updates: Partial<Settings>) => Promise<void>;
+  exportData: () => Promise<void>;
+  importData: (file: File, mode: 'merge' | 'replace') => Promise<void>;
 }
 
 const TimeTrackerContext = createContext<TimeTrackerContextType | undefined>(undefined);
@@ -31,18 +35,34 @@ export const TimeTrackerProvider: React.FC<{ children: ReactNode }> = ({ childre
   const [entries, setEntries] = useState<Entry[]>([]);
   const [forgotToStopEntry, setForgotToStopEntry] = useState<Entry | null>(null);
   const [dismissedForgotToStopId, setDismissedForgotToStopId] = useState<string | null>(null);
+  const [settings, setSettings] = useState<Settings | null>(null);
 
   const refreshData = async () => {
     const loadedGroups = await db.getGroups();
     const loadedTimecodes = await db.getTimecodes();
     const loadedEntries = await db.getEntries();
     const loadedActiveEntry = await db.getActiveEntry();
+    let loadedSettings = await db.getSettings();
+
+    if (!loadedSettings) {
+      loadedSettings = {
+        id: 'user-settings',
+        lastBackupDate: null,
+        reminderIntervalDays: 7,
+        roundingRule: 'none',
+        idleThresholdMinutes: 15,
+        weeklyTargetHours: null,
+        encryptionEnabled: false,
+      };
+      await db.putSettings(loadedSettings);
+    }
 
     setGroups(loadedGroups);
     setTimecodes(loadedTimecodes);
     // Sort entries descending by startTime for the list
     setEntries(loadedEntries.sort((a, b) => new Date(b.startTime).getTime() - new Date(a.startTime).getTime()));
     setActiveEntry(loadedActiveEntry || null);
+    setSettings(loadedSettings);
 
     // "Forgot-to-stop" Detection
     if (loadedActiveEntry && loadedActiveEntry.id !== dismissedForgotToStopId) {
@@ -298,6 +318,125 @@ export const TimeTrackerProvider: React.FC<{ children: ReactNode }> = ({ childre
     await refreshData();
   };
 
+  const updateSettings = async (updates: Partial<Settings>) => {
+    if (!settings) return;
+    const newSettings = { ...settings, ...updates };
+    await db.putSettings(newSettings);
+    await refreshData();
+  };
+
+  const exportData = async () => {
+    const allGroups = await db.getGroups();
+    const allTimecodes = await db.getTimecodes();
+    const allEntries = await db.getEntries();
+    const currentSettings = await db.getSettings();
+
+    const dataToExport = {
+      schemaVersion: 1,
+      groups: allGroups,
+      timecodes: allTimecodes,
+      entries: allEntries,
+      settings: currentSettings,
+    };
+
+    const payloadString = JSON.stringify(dataToExport);
+
+    // Compute checksum
+    let checksum = '';
+    try {
+      const msgUint8 = new TextEncoder().encode(payloadString);
+      const hashBuffer = await crypto.subtle.digest('SHA-256', msgUint8);
+      const hashArray = Array.from(new Uint8Array(hashBuffer));
+      checksum = hashArray.map((b) => b.toString(16).padStart(2, '0')).join('');
+    } catch {
+      // Fallback simple hash if subtle crypto is not available (e.g., non-https local dev)
+      let hash = 0;
+      for (let i = 0; i < payloadString.length; i++) {
+        const char = payloadString.charCodeAt(i);
+        hash = (hash << 5) - hash + char;
+        hash = hash & hash;
+      }
+      checksum = hash.toString(16);
+    }
+
+    const finalExport = {
+      ...dataToExport,
+      checksum,
+    };
+
+    const blob = new Blob([JSON.stringify(finalExport, null, 2)], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    const dateStr = new Date().toISOString().split('T')[0];
+    a.download = `timetracker-backup-${dateStr}.json`;
+    a.click();
+    URL.revokeObjectURL(url);
+
+    if (currentSettings) {
+      await updateSettings({ lastBackupDate: new Date().toISOString() });
+    }
+  };
+
+  const importData = async (file: File, mode: 'merge' | 'replace') => {
+    return new Promise<void>((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onload = async (e) => {
+        try {
+          const content = e.target?.result as string;
+          const parsed = JSON.parse(content);
+
+          if (parsed.schemaVersion !== 1) {
+            throw new Error('Unsupported schema version');
+          }
+
+          if (!parsed.checksum) {
+            throw new Error('No checksum found in backup file');
+          }
+
+          const { checksum, ...dataToVerify } = parsed;
+          const payloadString = JSON.stringify(dataToVerify);
+
+          let expectedChecksum = '';
+          try {
+            const msgUint8 = new TextEncoder().encode(payloadString);
+            const hashBuffer = await crypto.subtle.digest('SHA-256', msgUint8);
+            const hashArray = Array.from(new Uint8Array(hashBuffer));
+            expectedChecksum = hashArray.map((b) => b.toString(16).padStart(2, '0')).join('');
+          } catch {
+            let hash = 0;
+            for (let i = 0; i < payloadString.length; i++) {
+              const char = payloadString.charCodeAt(i);
+              hash = (hash << 5) - hash + char;
+              hash = hash & hash;
+            }
+            expectedChecksum = hash.toString(16);
+          }
+
+          if (checksum !== expectedChecksum) {
+            throw new Error('Data corruption detected: Checksum mismatch');
+          }
+
+          await db.importBackup(
+            {
+              groups: parsed.groups || [],
+              timecodes: parsed.timecodes || [],
+              entries: parsed.entries || [],
+              settings: parsed.settings,
+            },
+            mode
+          );
+          await refreshData();
+          resolve();
+        } catch (error) {
+          reject(error);
+        }
+      };
+      reader.onerror = () => reject(new Error('Failed to read file'));
+      reader.readAsText(file);
+    });
+  };
+
   return (
     <TimeTrackerContext.Provider value={{
       groups,
@@ -316,6 +455,10 @@ export const TimeTrackerProvider: React.FC<{ children: ReactNode }> = ({ childre
       addManualEntry,
       forgotToStopEntry,
       dismissForgotToStop,
+      settings,
+      updateSettings,
+      exportData,
+      importData,
     }}>
       {children}
     </TimeTrackerContext.Provider>
