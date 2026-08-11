@@ -215,7 +215,7 @@ Since this was called out directly, here's the concrete flow:
 - [ ] Active timer session note functionality.
 
 **Phase 2 — Editing & correction**
-- [ ] Entry edit UI (start/end/timecode/note), validation, audit trail, manual entry creation, forgot-to-stop detection prompt.
+- [x] Entry edit UI (start/end/timecode/note), validation, audit trail, manual entry creation, forgot-to-stop detection prompt.
 
 **Phase 3 — Backup**
 - [ ] Export/import with checksum + schema version, backup reminder banner.
