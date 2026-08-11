@@ -5,10 +5,12 @@ import { EntryList } from './components/EntryList';
 import { ForgotToStopPrompt } from './components/ForgotToStopPrompt';
 import { BackupReminderBanner } from './components/BackupReminderBanner';
 import { SettingsModal } from './components/SettingsModal';
-import { Settings } from 'lucide-react';
+import { AnalysisView } from './components/AnalysisView';
+import { Settings, BarChart2, Clock } from 'lucide-react';
 
 function App() {
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
+  const [activeTab, setActiveTab] = useState<'tracker' | 'analysis'>('tracker');
 
   return (
     <TimeTrackerProvider>
@@ -31,14 +33,47 @@ function App() {
           <ForgotToStopPrompt />
         </div>
 
-        <header className="mb-12 text-center">
+        <header className="mb-8 text-center">
           <h1 className="text-3xl font-bold text-gray-900 mb-2 tracking-tight">Time Tracker</h1>
-          <p className="text-gray-500">100% Client-Side. Privacy First.</p>
+          <p className="text-gray-500 mb-6">100% Client-Side. Privacy First.</p>
+
+          <div className="flex justify-center mb-4">
+            <div className="bg-gray-200 p-1 rounded-lg inline-flex">
+              <button
+                onClick={() => setActiveTab('tracker')}
+                className={`flex items-center px-4 py-2 rounded-md text-sm font-medium transition-colors ${
+                  activeTab === 'tracker'
+                    ? 'bg-white text-gray-900 shadow-sm'
+                    : 'text-gray-600 hover:text-gray-900'
+                }`}
+              >
+                <Clock size={16} className="mr-2" />
+                Tracker
+              </button>
+              <button
+                onClick={() => setActiveTab('analysis')}
+                className={`flex items-center px-4 py-2 rounded-md text-sm font-medium transition-colors ${
+                  activeTab === 'analysis'
+                    ? 'bg-white text-gray-900 shadow-sm'
+                    : 'text-gray-600 hover:text-gray-900'
+                }`}
+              >
+                <BarChart2 size={16} className="mr-2" />
+                Analysis
+              </button>
+            </div>
+          </div>
         </header>
 
         <main className="w-full max-w-3xl flex flex-col items-center">
-          <ActiveTimer />
-          <EntryList />
+          {activeTab === 'tracker' ? (
+            <>
+              <ActiveTimer />
+              <EntryList />
+            </>
+          ) : (
+            <AnalysisView />
+          )}
         </main>
 
         {isSettingsOpen && <SettingsModal onClose={() => setIsSettingsOpen(false)} />}
