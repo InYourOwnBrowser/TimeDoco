@@ -1,0 +1,162 @@
+import React, { useState, useRef } from 'react';
+import { useTimeTracker } from '../context/TimeTrackerContext';
+import { X, Upload, Download, AlertTriangle, CheckCircle2 } from 'lucide-react';
+
+interface SettingsModalProps {
+  onClose: () => void;
+}
+
+export const SettingsModal: React.FC<SettingsModalProps> = ({ onClose }) => {
+  const { exportData, importData, settings } = useTimeTracker();
+  const fileInputRef = useRef<HTMLInputElement>(null);
+
+  const [importMode, setImportMode] = useState<'merge' | 'replace'>('merge');
+  const [statusMsg, setStatusMsg] = useState<{ type: 'error' | 'success'; text: string } | null>(null);
+  const [isProcessing, setIsProcessing] = useState(false);
+
+  const handleExport = async () => {
+    try {
+      setIsProcessing(true);
+      await exportData();
+      setStatusMsg({ type: 'success', text: 'Data exported successfully!' });
+    } catch {
+      setStatusMsg({ type: 'error', text: 'Failed to export data.' });
+    } finally {
+      setIsProcessing(false);
+    }
+  };
+
+  const handleImport = async () => {
+    if (!fileInputRef.current?.files?.length) {
+      setStatusMsg({ type: 'error', text: 'Please select a backup file first.' });
+      return;
+    }
+
+    const file = fileInputRef.current.files[0];
+
+    try {
+      setIsProcessing(true);
+      setStatusMsg(null);
+      await importData(file, importMode);
+      setStatusMsg({ type: 'success', text: 'Data imported successfully!' });
+
+      // Reset file input
+      if (fileInputRef.current) {
+        fileInputRef.current.value = '';
+      }
+    } catch (error: any) {
+      setStatusMsg({ type: 'error', text: error.message || 'Failed to import data.' });
+    } finally {
+      setIsProcessing(false);
+    }
+  };
+
+  return (
+    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
+      <div className="bg-white rounded-lg shadow-xl w-full max-w-md overflow-hidden flex flex-col">
+        <div className="px-6 py-4 border-b border-gray-200 flex justify-between items-center bg-gray-50">
+          <h2 className="text-lg font-semibold text-gray-900">Settings & Data Management</h2>
+          <button onClick={onClose} className="text-gray-400 hover:text-gray-600 transition-colors">
+            <X size={20} />
+          </button>
+        </div>
+
+        <div className="p-6 overflow-y-auto flex-1">
+          {statusMsg && (
+            <div className={`mb-6 p-3 rounded-md flex items-start gap-2 ${
+              statusMsg.type === 'error' ? 'bg-red-50 text-red-700 border border-red-100' : 'bg-green-50 text-green-700 border border-green-100'
+            }`}>
+              {statusMsg.type === 'error' ? <AlertTriangle size={18} className="mt-0.5 shrink-0" /> : <CheckCircle2 size={18} className="mt-0.5 shrink-0" />}
+              <span className="text-sm font-medium">{statusMsg.text}</span>
+            </div>
+          )}
+
+          <div className="space-y-6">
+            <section>
+              <h3 className="text-md font-semibold text-gray-800 mb-3 border-b pb-1">Export Data</h3>
+              <p className="text-sm text-gray-600 mb-3">
+                Download all your tracked time, groups, and settings as a secure local JSON file.
+              </p>
+
+              {settings?.lastBackupDate && (
+                <p className="text-xs text-gray-500 mb-3">
+                  Last backup: {new Date(settings.lastBackupDate).toLocaleDateString()}
+                </p>
+              )}
+
+              <button
+                onClick={handleExport}
+                disabled={isProcessing}
+                className="w-full flex items-center justify-center gap-2 bg-white border border-gray-300 text-gray-700 px-4 py-2 rounded hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:opacity-50 transition-colors"
+              >
+                <Download size={18} />
+                Export Backup File
+              </button>
+            </section>
+
+            <section>
+              <h3 className="text-md font-semibold text-gray-800 mb-3 border-b pb-1">Import / Restore Data</h3>
+              <p className="text-sm text-gray-600 mb-4">
+                Restore your data from a previously exported backup file.
+              </p>
+
+              <div className="space-y-4">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Select Backup File</label>
+                  <input
+                    type="file"
+                    accept=".json"
+                    ref={fileInputRef}
+                    className="block w-full text-sm text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded file:border-0 file:text-sm file:font-semibold file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100 border border-gray-300 rounded cursor-pointer"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">Import Mode</label>
+                  <div className="flex gap-4">
+                    <label className="flex items-center gap-2 cursor-pointer">
+                      <input
+                        type="radio"
+                        name="importMode"
+                        value="merge"
+                        checked={importMode === 'merge'}
+                        onChange={() => setImportMode('merge')}
+                        className="text-blue-600 focus:ring-blue-500"
+                      />
+                      <span className="text-sm text-gray-700">Merge (Safer)</span>
+                    </label>
+                    <label className="flex items-center gap-2 cursor-pointer">
+                      <input
+                        type="radio"
+                        name="importMode"
+                        value="replace"
+                        checked={importMode === 'replace'}
+                        onChange={() => setImportMode('replace')}
+                        className="text-blue-600 focus:ring-blue-500"
+                      />
+                      <span className="text-sm text-gray-700 text-red-600 font-medium">Replace All</span>
+                    </label>
+                  </div>
+                  <p className="text-xs text-gray-500 mt-1">
+                    {importMode === 'merge'
+                      ? 'Adds missing records and overwrites matching ones. Keeps newer data intact.'
+                      : 'WARNING: Completely wipes current data and replaces it with the backup file.'}
+                  </p>
+                </div>
+
+                <button
+                  onClick={handleImport}
+                  disabled={isProcessing}
+                  className="w-full flex items-center justify-center gap-2 bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:opacity-50 transition-colors"
+                >
+                  <Upload size={18} />
+                  Import Data
+                </button>
+              </div>
+            </section>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+};

@@ -130,3 +130,41 @@ export const putSettings = async (settings: Settings): Promise<string> => {
   const db = await getDB();
   return db.put('settings', settings);
 };
+
+// --- Import / Backup ---
+export const importBackup = async (
+  data: { groups: Group[]; timecodes: Timecode[]; entries: Entry[]; settings?: Settings },
+  mode: 'merge' | 'replace'
+): Promise<void> => {
+  const db = await getDB();
+  const tx = db.transaction(['groups', 'timecodes', 'entries', 'settings'], 'readwrite');
+
+  if (mode === 'replace') {
+    await tx.objectStore('groups').clear();
+    await tx.objectStore('timecodes').clear();
+    await tx.objectStore('entries').clear();
+    await tx.objectStore('settings').clear();
+  }
+
+  const groupStore = tx.objectStore('groups');
+  for (const g of data.groups) {
+    await groupStore.put(g);
+  }
+
+  const tcStore = tx.objectStore('timecodes');
+  for (const tc of data.timecodes) {
+    await tcStore.put(tc);
+  }
+
+  const entryStore = tx.objectStore('entries');
+  for (const e of data.entries) {
+    await entryStore.put(e);
+  }
+
+  if (data.settings) {
+    const settingsStore = tx.objectStore('settings');
+    await settingsStore.put(data.settings);
+  }
+
+  await tx.done;
+};
