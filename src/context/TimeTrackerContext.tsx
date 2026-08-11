@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useState, useEffect, type ReactNode } from 'react';
+import React, { createContext, useContext, useState, useEffect, useCallback, type ReactNode } from 'react';
 import type { Group, Timecode, Entry, Settings } from '../types';
 import * as db from '../db';
 import { differenceInSeconds } from 'date-fns';
@@ -12,7 +12,9 @@ interface TimeTrackerContextType {
   pauseTimer: () => Promise<void>;
   resumeTimer: () => Promise<void>;
   addGroup: (name: string, color: string) => Promise<Group>;
+  updateGroup: (id: string, updates: Partial<Group>) => Promise<void>;
   addTimecode: (name: string, color?: string, groupId?: string, hourlyRate?: number) => Promise<Timecode>;
+  updateTimecode: (id: string, updates: Partial<Timecode>) => Promise<void>;
   updateActiveNote: (note: string) => Promise<void>;
   refreshData: () => Promise<void>;
   entries: Entry[];
@@ -37,7 +39,7 @@ export const TimeTrackerProvider: React.FC<{ children: ReactNode }> = ({ childre
   const [dismissedForgotToStopId, setDismissedForgotToStopId] = useState<string | null>(null);
   const [settings, setSettings] = useState<Settings | null>(null);
 
-  const refreshData = async () => {
+  const refreshData = useCallback(async () => {
     const loadedGroups = await db.getGroups();
     const loadedTimecodes = await db.getTimecodes();
     const loadedEntries = await db.getEntries();
@@ -78,11 +80,11 @@ export const TimeTrackerProvider: React.FC<{ children: ReactNode }> = ({ childre
     } else {
       setForgotToStopEntry(null);
     }
-  };
+  }, [dismissedForgotToStopId]);
 
   useEffect(() => {
     refreshData();
-  }, []);
+  }, [refreshData]);
 
   const startTimer = async (timecodeId: string) => {
     if (activeEntry) {
@@ -203,6 +205,14 @@ export const TimeTrackerProvider: React.FC<{ children: ReactNode }> = ({ childre
     return newGroup;
   };
 
+  const updateGroup = async (id: string, updates: Partial<Group>) => {
+    const groupToUpdate = groups.find((g) => g.id === id);
+    if (!groupToUpdate) return;
+    const updatedGroup = { ...groupToUpdate, ...updates };
+    await db.putGroup(updatedGroup);
+    await refreshData();
+  };
+
   const addTimecode = async (name: string, color?: string, groupId?: string, hourlyRate?: number): Promise<Timecode> => {
     const newTimecode: Timecode = {
       id: crypto.randomUUID(),
@@ -215,6 +225,14 @@ export const TimeTrackerProvider: React.FC<{ children: ReactNode }> = ({ childre
     await db.putTimecode(newTimecode);
     await refreshData();
     return newTimecode;
+  };
+
+  const updateTimecode = async (id: string, updates: Partial<Timecode>) => {
+    const tcToUpdate = timecodes.find((t) => t.id === id);
+    if (!tcToUpdate) return;
+    const updatedTimecode = { ...tcToUpdate, ...updates };
+    await db.putTimecode(updatedTimecode);
+    await refreshData();
   };
 
   const dismissForgotToStop = () => {
@@ -447,7 +465,9 @@ export const TimeTrackerProvider: React.FC<{ children: ReactNode }> = ({ childre
       pauseTimer,
       resumeTimer,
       addGroup,
+      updateGroup,
       addTimecode,
+      updateTimecode,
       updateActiveNote,
       refreshData,
       entries,

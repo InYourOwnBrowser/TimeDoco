@@ -49,4 +49,5 @@ export interface Settings {
   idleThresholdMinutes: number;
   weeklyTargetHours: number | null;
   encryptionEnabled: boolean;
+  theme?: 'light' | 'dark' | 'system';
 }

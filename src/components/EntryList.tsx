@@ -33,19 +33,19 @@ export const EntryList: React.FC = () => {
   return (
     <div className="w-full max-w-3xl mx-auto mt-8">
       <div className="flex justify-between items-center mb-4">
-        <h2 className="text-xl font-semibold text-gray-900">Recent Entries</h2>
+        <h2 className="text-xl font-semibold text-gray-900 dark:text-white">Recent Entries</h2>
         <button
           onClick={() => setIsManualModalOpen(true)}
-          className="inline-flex items-center px-3 py-1.5 border border-gray-300 shadow-sm text-sm font-medium rounded text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
+          className="inline-flex items-center px-3 py-1.5 border border-gray-300 dark:border-gray-600 shadow-sm text-sm font-medium rounded text-gray-700 dark:text-gray-300 bg-white dark:bg-gray-800 hover:bg-gray-50 dark:hover:bg-gray-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 transition-colors"
         >
           Add Manual Entry
         </button>
       </div>
 
-      <div className="bg-white shadow overflow-hidden sm:rounded-md">
-        <ul className="divide-y divide-gray-200">
+      <div className="bg-white dark:bg-gray-800 shadow overflow-hidden sm:rounded-md border border-transparent dark:border-gray-700 transition-colors">
+        <ul className="divide-y divide-gray-200 dark:divide-gray-700">
           {entries.length === 0 ? (
-            <li className="px-4 py-8 text-center text-gray-500">
+            <li className="px-4 py-8 text-center text-gray-500 dark:text-gray-400">
               No entries yet. Start tracking!
             </li>
           ) : (
@@ -77,8 +77,8 @@ export const EntryList: React.FC = () => {
                         )}
                       </div>
                       <div className="mt-2 flex">
-                        <div className="flex items-center text-sm text-gray-500">
-                          <Clock className="flex-shrink-0 mr-1.5 h-4 w-4 text-gray-400" />
+                        <div className="flex items-center text-sm text-gray-500 dark:text-gray-400">
+                          <Clock className="flex-shrink-0 mr-1.5 h-4 w-4 text-gray-400 dark:text-gray-500" />
                           <p>
                             {format(parseISO(entry.startTime), 'h:mm a')}
                             {' - '}
@@ -87,19 +87,19 @@ export const EntryList: React.FC = () => {
                         </div>
                       </div>
                       {entry.note && (
-                        <div className="mt-2 text-sm text-gray-600 truncate max-w-sm">
+                        <div className="mt-2 text-sm text-gray-600 dark:text-gray-400 truncate max-w-sm">
                           {entry.note}
                         </div>
                       )}
                     </div>
                     <div className="mt-4 flex-shrink-0 sm:mt-0 sm:ml-5">
                       <div className="flex items-center space-x-4">
-                        <span className="text-lg font-mono font-medium text-gray-900">
+                        <span className="text-lg font-mono font-medium text-gray-900 dark:text-gray-100">
                           {formatDuration(entry.duration)}
                         </span>
                         <button
                           onClick={() => setEditingEntry(entry)}
-                          className="text-gray-400 hover:text-blue-600 focus:outline-none"
+                          className="text-gray-400 dark:text-gray-500 hover:text-blue-600 dark:hover:text-blue-400 focus:outline-none transition-colors"
                           title="Edit Entry"
                         >
                           <FileEdit className="h-5 w-5" />

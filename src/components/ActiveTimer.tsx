@@ -15,7 +15,7 @@ export const ActiveTimer: React.FC = () => {
     if (activeEntry && localNote !== activeEntry.note) {
       setLocalNote(activeEntry.note);
     }
-  }, [activeEntry?.id]);
+  }, [activeEntry?.id, activeEntry, localNote]);
 
   // Debounced save for the note
   useEffect(() => {
@@ -57,6 +57,8 @@ export const ActiveTimer: React.FC = () => {
     }
   }, [activeEntry]);
 
+  const activeTimecode = activeEntry ? timecodes.find(t => t.id === activeEntry.timecodeId) : null;
+
   const formatTime = (totalSeconds: number) => {
     const hrs = Math.floor(totalSeconds / 3600);
     const mins = Math.floor((totalSeconds % 3600) / 60);
@@ -70,18 +72,33 @@ export const ActiveTimer: React.FC = () => {
     return `${pad(mins)}:${pad(secs)}`;
   };
 
-  const activeTimecode = activeEntry ? timecodes.find(t => t.id === activeEntry.timecodeId) : null;
+  useEffect(() => {
+    if (activeEntry && activeTimecode) {
+      const timeStr = formatTime(elapsedSeconds);
+      if (activeEntry.isPaused) {
+        document.title = `⏸️ ${timeStr} - ${activeTimecode.name}`;
+      } else {
+        document.title = `🔴 ${timeStr} - ${activeTimecode.name}`;
+      }
+    } else {
+      document.title = 'Time Tracker';
+    }
+
+    return () => {
+      document.title = 'Time Tracker';
+    };
+  }, [activeEntry, activeTimecode, elapsedSeconds]);
 
   return (
-    <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-100 max-w-md w-full mx-auto flex flex-col items-center">
+    <div className="bg-white dark:bg-gray-800 p-6 rounded-xl shadow-sm border border-gray-100 dark:border-gray-700 max-w-md w-full mx-auto flex flex-col items-center transition-colors">
       {!activeEntry ? (
         <div className="w-full flex flex-col items-center gap-6">
-          <div className="text-5xl font-light text-gray-300 font-mono tracking-wider">
+          <div className="text-5xl font-light text-gray-300 dark:text-gray-600 font-mono tracking-wider">
             00:00
           </div>
 
           <div className="w-full relative z-20">
-            <label className="block text-sm font-medium text-gray-500 mb-2 text-center">What are you working on?</label>
+            <label className="block text-sm font-medium text-gray-500 dark:text-gray-400 mb-2 text-center">What are you working on?</label>
             <TimecodeSelector onSelect={setSelectedTimecodeId} />
           </div>
 
@@ -97,19 +114,19 @@ export const ActiveTimer: React.FC = () => {
         <div className="w-full flex flex-col items-center gap-4">
 
           <div className="flex flex-col items-center">
-            <span className="text-sm font-medium text-gray-500 mb-1">Currently Tracking</span>
+            <span className="text-sm font-medium text-gray-500 dark:text-gray-400 mb-1">Currently Tracking</span>
             <div className="flex items-center gap-2">
               <div
                 className="w-3 h-3 rounded-full"
                 style={{ backgroundColor: activeTimecode?.color || '#cbd5e1' }}
               ></div>
-              <span className="text-lg font-semibold text-gray-800">
+              <span className="text-lg font-semibold text-gray-800 dark:text-gray-200">
                 {activeTimecode?.name || 'Unknown Timecode'}
               </span>
             </div>
           </div>
 
-          <div className={`text-6xl font-light font-mono tracking-wider tabular-nums ${activeEntry.isPaused ? 'text-amber-500' : 'text-blue-600'}`}>
+          <div className={`text-6xl font-light font-mono tracking-wider tabular-nums ${activeEntry.isPaused ? 'text-amber-500 dark:text-amber-400' : 'text-blue-600 dark:text-blue-400'}`}>
             {formatTime(elapsedSeconds)}
           </div>
 
@@ -117,7 +134,7 @@ export const ActiveTimer: React.FC = () => {
             <input
               type="text"
               placeholder="What are you doing? (optional note)"
-              className="w-full text-center text-sm p-2 border border-transparent hover:border-gray-200 focus:border-blue-500 focus:ring-1 focus:ring-blue-500 rounded outline-none transition-colors bg-gray-50 focus:bg-white"
+              className="w-full text-center text-sm p-2 border border-transparent hover:border-gray-200 dark:hover:border-gray-600 focus:border-blue-500 dark:focus:border-blue-400 focus:ring-1 focus:ring-blue-500 dark:focus:ring-blue-400 rounded outline-none transition-colors bg-gray-50 dark:bg-gray-700 focus:bg-white dark:focus:bg-gray-800 text-gray-900 dark:text-white placeholder-gray-400 dark:placeholder-gray-500"
               value={localNote}
               onChange={(e) => setLocalNote(e.target.value)}
             />
@@ -127,7 +144,7 @@ export const ActiveTimer: React.FC = () => {
             {activeEntry.isPaused ? (
               <button
                 onClick={resumeTimer}
-                className="w-14 h-14 rounded-full bg-amber-100 text-amber-700 hover:bg-amber-200 flex items-center justify-center transition-colors"
+                className="w-14 h-14 rounded-full bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-400 hover:bg-amber-200 dark:hover:bg-amber-900/50 flex items-center justify-center transition-colors"
                 title="Resume"
               >
                 <Play size={20} className="ml-1" />
@@ -135,7 +152,7 @@ export const ActiveTimer: React.FC = () => {
             ) : (
               <button
                 onClick={pauseTimer}
-                className="w-14 h-14 rounded-full bg-gray-100 text-gray-700 hover:bg-gray-200 flex items-center justify-center transition-colors"
+                className="w-14 h-14 rounded-full bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600 flex items-center justify-center transition-colors"
                 title="Pause"
               >
                 <Pause size={20} />
