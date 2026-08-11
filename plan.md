@@ -210,19 +210,20 @@ Since this was called out directly, here's the concrete flow:
 ## 9. Suggested Build Phases
 
 **Phase 1 — Core loop**
-Project scaffold (Vite + React + TypeScript + Tailwind), data model + IndexedDB layer, start/stop/pause, live timer display, timecode dropdown with inline add.
+- [x] Project scaffold (Vite + React + TypeScript + Tailwind)
+- [ ] Data model + IndexedDB layer, start/stop/pause, live timer display, timecode dropdown with inline add.
 
 **Phase 2 — Editing & correction**
-Entry edit UI (start/end/timecode/note), validation, audit trail, manual entry creation, forgot-to-stop detection prompt.
+- [ ] Entry edit UI (start/end/timecode/note), validation, audit trail, manual entry creation, forgot-to-stop detection prompt.
 
 **Phase 3 — Backup**
-Export/import with checksum + schema version, backup reminder banner.
+- [ ] Export/import with checksum + schema version, backup reminder banner.
 
 **Phase 4 — Analysis**
-Date-range presets + custom range, Recharts-based charts, tables, CSV/PDF export.
+- [ ] Date-range presets + custom range, Recharts-based charts, tables, CSV/PDF export.
 
 **Phase 5 — Polish & extras**
-Grouping management page, idle detection, keyboard shortcuts, PWA packaging, tab-title live timer, dark mode, weekly summary view, chosen items from §8.
+- [ ] Grouping management page, idle detection, keyboard shortcuts, PWA packaging, tab-title live timer, dark mode, weekly summary view, chosen items from §8.
 
 ---
 
