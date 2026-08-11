@@ -211,7 +211,8 @@ Since this was called out directly, here's the concrete flow:
 
 **Phase 1 — Core loop**
 - [x] Project scaffold (Vite + React + TypeScript + Tailwind)
-- [ ] Data model + IndexedDB layer, start/stop/pause, live timer display, timecode dropdown with inline add.
+- [x] Data model + IndexedDB layer, start/stop/pause, live timer display, timecode dropdown with inline add.
+- [ ] Active timer session note functionality.
 
 **Phase 2 — Editing & correction**
 - [ ] Entry edit UI (start/end/timecode/note), validation, audit trail, manual entry creation, forgot-to-stop detection prompt.
