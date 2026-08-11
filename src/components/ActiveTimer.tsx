@@ -5,9 +5,28 @@ import { Play, Square, Pause } from 'lucide-react';
 import { TimecodeSelector } from './TimecodeSelector';
 
 export const ActiveTimer: React.FC = () => {
-  const { activeEntry, startTimer, stopTimer, pauseTimer, resumeTimer, timecodes } = useTimeTracker();
+  const { activeEntry, startTimer, stopTimer, pauseTimer, resumeTimer, timecodes, updateActiveNote } = useTimeTracker();
   const [elapsedSeconds, setElapsedSeconds] = useState(0);
   const [selectedTimecodeId, setSelectedTimecodeId] = useState<string | null>(null);
+  const [localNote, setLocalNote] = useState('');
+
+  // Sync local note when active entry changes (e.g. initial load)
+  useEffect(() => {
+    if (activeEntry && localNote !== activeEntry.note) {
+      setLocalNote(activeEntry.note);
+    }
+  }, [activeEntry?.id]);
+
+  // Debounced save for the note
+  useEffect(() => {
+    if (!activeEntry) return;
+    const handler = setTimeout(() => {
+      if (localNote !== activeEntry.note) {
+        updateActiveNote(localNote);
+      }
+    }, 1000);
+    return () => clearTimeout(handler);
+  }, [localNote, activeEntry, updateActiveNote]);
 
   useEffect(() => {
     if (!activeEntry) {
@@ -94,7 +113,17 @@ export const ActiveTimer: React.FC = () => {
             {formatTime(elapsedSeconds)}
           </div>
 
-          <div className="flex items-center gap-4 mt-4">
+          <div className="w-full mt-2 mb-2">
+            <input
+              type="text"
+              placeholder="What are you doing? (optional note)"
+              className="w-full text-center text-sm p-2 border border-transparent hover:border-gray-200 focus:border-blue-500 focus:ring-1 focus:ring-blue-500 rounded outline-none transition-colors bg-gray-50 focus:bg-white"
+              value={localNote}
+              onChange={(e) => setLocalNote(e.target.value)}
+            />
+          </div>
+
+          <div className="flex items-center gap-4 mt-2">
             {activeEntry.isPaused ? (
               <button
                 onClick={resumeTimer}

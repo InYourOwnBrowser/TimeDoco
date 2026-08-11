@@ -13,6 +13,7 @@ interface TimeTrackerContextType {
   resumeTimer: () => Promise<void>;
   addGroup: (name: string, color: string) => Promise<Group>;
   addTimecode: (name: string, color?: string, groupId?: string) => Promise<Timecode>;
+  updateActiveNote: (note: string) => Promise<void>;
   refreshData: () => Promise<void>;
 }
 
@@ -131,6 +132,18 @@ export const TimeTrackerProvider: React.FC<{ children: ReactNode }> = ({ childre
     await refreshData();
   };
 
+  const updateActiveNote = async (note: string) => {
+    if (!activeEntry) return;
+    const now = new Date().toISOString();
+    const updatedEntry: Entry = {
+      ...activeEntry,
+      note,
+      updatedAt: now,
+    };
+    await db.putEntry(updatedEntry);
+    await refreshData();
+  };
+
   const addGroup = async (name: string, color: string): Promise<Group> => {
     const newGroup: Group = {
       id: crypto.randomUUID(),
@@ -168,6 +181,7 @@ export const TimeTrackerProvider: React.FC<{ children: ReactNode }> = ({ childre
       resumeTimer,
       addGroup,
       addTimecode,
+      updateActiveNote,
       refreshData,
     }}>
       {children}
