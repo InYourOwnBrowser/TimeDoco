@@ -221,7 +221,7 @@ Since this was called out directly, here's the concrete flow:
 - [x] Export/import with checksum + schema version, backup reminder banner.
 
 **Phase 4 — Analysis**
-- [ ] Date-range presets + custom range, Recharts-based charts, tables, CSV/PDF export.
+- [x] Date-range presets + custom range, Recharts-based charts, tables, CSV/PDF export.
 
 **Phase 5 — Polish & extras**
 - [ ] Grouping management page, idle detection, keyboard shortcuts, PWA packaging, tab-title live timer, dark mode, weekly summary view, chosen items from §8.

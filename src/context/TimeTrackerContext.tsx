@@ -12,7 +12,7 @@ interface TimeTrackerContextType {
   pauseTimer: () => Promise<void>;
   resumeTimer: () => Promise<void>;
   addGroup: (name: string, color: string) => Promise<Group>;
-  addTimecode: (name: string, color?: string, groupId?: string) => Promise<Timecode>;
+  addTimecode: (name: string, color?: string, groupId?: string, hourlyRate?: number) => Promise<Timecode>;
   updateActiveNote: (note: string) => Promise<void>;
   refreshData: () => Promise<void>;
   entries: Entry[];
@@ -203,13 +203,13 @@ export const TimeTrackerProvider: React.FC<{ children: ReactNode }> = ({ childre
     return newGroup;
   };
 
-  const addTimecode = async (name: string, color?: string, groupId?: string): Promise<Timecode> => {
+  const addTimecode = async (name: string, color?: string, groupId?: string, hourlyRate?: number): Promise<Timecode> => {
     const newTimecode: Timecode = {
       id: crypto.randomUUID(),
       name,
       groupId: groupId || null,
       color,
-      hourlyRate: null,
+      hourlyRate: hourlyRate ?? null,
       archived: false,
     };
     await db.putTimecode(newTimecode);

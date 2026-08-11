@@ -16,6 +16,7 @@ export const TimecodeSelector: React.FC<TimecodeSelectorProps> = ({ onSelect }) 
   const [showAddForm, setShowAddForm] = useState(false);
   const [newColor, setNewColor] = useState(COLORS[0]);
   const [newGroupId, setNewGroupId] = useState<string>('');
+  const [newHourlyRate, setNewHourlyRate] = useState<string>('');
 
   const filteredTimecodes = useMemo(() => {
     if (!search) return timecodes;
@@ -44,7 +45,8 @@ export const TimecodeSelector: React.FC<TimecodeSelectorProps> = ({ onSelect }) 
 
   const handleCreate = async () => {
     if (!search.trim()) return;
-    const newTc = await addTimecode(search.trim(), newColor, newGroupId || undefined);
+    const rate = newHourlyRate ? parseFloat(newHourlyRate) : undefined;
+    const newTc = await addTimecode(search.trim(), newColor, newGroupId || undefined, isNaN(rate!) ? undefined : rate);
     onSelect(newTc.id);
     setIsOpen(false);
     setSearch('');
@@ -114,6 +116,22 @@ export const TimecodeSelector: React.FC<TimecodeSelectorProps> = ({ onSelect }) 
                     <option key={g.id} value={g.id}>{g.name}</option>
                   ))}
                 </select>
+              </div>
+
+              <div className="mb-3">
+                <label className="block text-xs text-gray-500 mb-1">Hourly Rate (optional)</label>
+                <div className="relative">
+                  <span className="absolute left-2.5 top-1.5 text-gray-400">$</span>
+                  <input
+                    type="number"
+                    min="0"
+                    step="0.01"
+                    placeholder="0.00"
+                    value={newHourlyRate}
+                    onChange={(e) => setNewHourlyRate(e.target.value)}
+                    className="w-full text-sm p-1.5 pl-6 border border-gray-300 rounded"
+                  />
+                </div>
               </div>
 
               <div className="flex justify-end gap-2">
