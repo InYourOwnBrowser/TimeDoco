@@ -1,14 +1,16 @@
 import React, { useState, useRef } from 'react';
 import { useTimeTracker } from '../context/TimeTrackerContext';
 import { X, Upload, Download, AlertTriangle, CheckCircle2 } from 'lucide-react';
+import Papa from 'papaparse';
 
 interface SettingsModalProps {
   onClose: () => void;
 }
 
 export const SettingsModal: React.FC<SettingsModalProps> = ({ onClose }) => {
-  const { exportData, importData, settings, updateSettings } = useTimeTracker();
+  const { exportData, importData, settings, updateSettings, addManualEntry, addTimecode, timecodes } = useTimeTracker();
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const csvInputRef = useRef<HTMLInputElement>(null);
 
   const [importMode, setImportMode] = useState<'merge' | 'replace'>('merge');
   const [statusMsg, setStatusMsg] = useState<{ type: 'error' | 'success'; text: string } | null>(null);
@@ -55,6 +57,63 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ onClose }) => {
     } finally {
       setIsProcessing(false);
     }
+  };
+
+  const handleImportCSV = async () => {
+    if (!csvInputRef.current?.files?.length) {
+      setStatusMsg({ type: 'error', text: 'Please select a CSV file first.' });
+      return;
+    }
+
+    const file = csvInputRef.current.files[0];
+    setIsProcessing(true);
+    setStatusMsg(null);
+
+    Papa.parse(file, {
+      header: true,
+      skipEmptyLines: true,
+      complete: async (results) => {
+        try {
+          let importedCount = 0;
+          const localTimecodes = [...timecodes];
+          for (const row of results.data as any[]) {
+            const startTime = row['Start Time'] || row.startTime || row.start;
+            const endTime = row['End Time'] || row.endTime || row.end;
+            const timecodeName = row['Timecode'] || row.timecode || row.name;
+            const note = row['Note'] || row.note || '';
+
+            if (!startTime || !endTime || !timecodeName) {
+              continue;
+            }
+
+            let tc = localTimecodes.find(t => t.name.toLowerCase() === timecodeName.toLowerCase());
+            if (!tc) {
+              tc = await addTimecode(timecodeName);
+              localTimecodes.push(tc);
+            }
+
+            await addManualEntry({
+              startTime: new Date(startTime).toISOString(),
+              endTime: new Date(endTime).toISOString(),
+              timecodeId: tc.id,
+              note
+            });
+            importedCount++;
+          }
+
+          setStatusMsg({ type: 'success', text: `Successfully imported ${importedCount} entries from CSV!` });
+          if (csvInputRef.current) csvInputRef.current.value = '';
+        } catch (error: any) {
+          setStatusMsg({ type: 'error', text: error.message || 'Failed to import CSV data.' });
+        } finally {
+          setIsProcessing(false);
+        }
+      },
+      error: (error) => {
+        setStatusMsg({ type: 'error', text: `CSV Parse Error: ${error.message}` });
+        setIsProcessing(false);
+      }
+    });
   };
 
   return (
@@ -235,6 +294,34 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ onClose }) => {
                 >
                   <Upload size={18} />
                   Import Data
+                </button>
+              </div>
+            </section>
+
+            <section>
+              <h3 className="text-md font-semibold text-gray-800 dark:text-gray-200 mb-3 border-b dark:border-gray-700 pb-1">Import CSV Data</h3>
+              <p className="text-sm text-gray-600 dark:text-gray-400 mb-4">
+                Import time entries from a generic CSV file. Ensure it has "Start Time", "End Time", and "Timecode" columns.
+              </p>
+
+              <div className="space-y-4">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Select CSV File</label>
+                  <input
+                    type="file"
+                    accept=".csv"
+                    ref={csvInputRef}
+                    className="block w-full text-sm text-gray-500 dark:text-gray-400 file:mr-4 file:py-2 file:px-4 file:rounded file:border-0 file:text-sm file:font-semibold file:bg-blue-50 dark:file:bg-blue-900/30 file:text-blue-700 dark:file:text-blue-400 hover:file:bg-blue-100 dark:hover:file:bg-blue-900/50 border border-gray-300 dark:border-gray-600 rounded cursor-pointer"
+                  />
+                </div>
+
+                <button
+                  onClick={handleImportCSV}
+                  disabled={isProcessing}
+                  className="w-full flex items-center justify-center gap-2 bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-200 px-4 py-2 rounded hover:bg-gray-50 dark:hover:bg-gray-600 focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:opacity-50 transition-colors"
+                >
+                  <Upload size={18} />
+                  Import CSV
                 </button>
               </div>
             </section>
