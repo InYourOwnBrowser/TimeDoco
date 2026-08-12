@@ -110,6 +110,50 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ onClose }) => {
                   When disabled, starting a new timer automatically stops any existing active timer.
                 </p>
               </div>
+              <div className="flex items-center justify-between mb-4">
+                <label className="text-sm font-medium text-gray-700 dark:text-gray-300">Weekly Target Hours</label>
+                <input
+                  type="number"
+                  min="0"
+                  value={settings?.weeklyTargetHours || ''}
+                  onChange={(e) => updateSettings({ weeklyTargetHours: e.target.value ? Number(e.target.value) : null })}
+                  placeholder="e.g. 40"
+                  className="w-24 px-3 py-1.5 border border-gray-300 dark:border-gray-600 rounded outline-none focus:ring-1 focus:ring-blue-500 text-sm bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
+                />
+              </div>
+              <div className="flex items-center justify-between mb-4">
+                <label className="text-sm font-medium text-gray-700 dark:text-gray-300">Idle Threshold (Minutes)</label>
+                <input
+                  type="number"
+                  min="1"
+                  value={settings?.idleThresholdMinutes || 5}
+                  onChange={(e) => updateSettings({ idleThresholdMinutes: Number(e.target.value) })}
+                  className="w-24 px-3 py-1.5 border border-gray-300 dark:border-gray-600 rounded outline-none focus:ring-1 focus:ring-blue-500 text-sm bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
+                />
+              </div>
+              <div className="flex items-center justify-between mb-4">
+                <label className="text-sm font-medium text-gray-700 dark:text-gray-300">Reminder Interval (Days)</label>
+                <input
+                  type="number"
+                  min="1"
+                  value={settings?.reminderIntervalDays || 7}
+                  onChange={(e) => updateSettings({ reminderIntervalDays: Number(e.target.value) })}
+                  className="w-24 px-3 py-1.5 border border-gray-300 dark:border-gray-600 rounded outline-none focus:ring-1 focus:ring-blue-500 text-sm bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
+                />
+              </div>
+              <div className="flex items-center justify-between mb-2">
+                <label className="text-sm font-medium text-gray-700 dark:text-gray-300">Rounding Rule</label>
+                <select
+                  value={settings?.roundingRule || 'none'}
+                  onChange={(e) => updateSettings({ roundingRule: e.target.value as 'none' | '5min' | '10min' | '15min' })}
+                  className="px-3 py-1.5 border border-gray-300 dark:border-gray-600 rounded outline-none focus:ring-1 focus:ring-blue-500 text-sm bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
+                >
+                  <option value="none">None</option>
+                  <option value="5min">Nearest 5 Minutes</option>
+                  <option value="10min">Nearest 10 Minutes</option>
+                  <option value="15min">Nearest 15 Minutes</option>
+                </select>
+              </div>
             </section>
 
             <section>

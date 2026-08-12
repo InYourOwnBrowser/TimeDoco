@@ -1,10 +1,10 @@
 import React, { useState } from 'react';
 import { useTimeTracker } from '../context/TimeTrackerContext';
-import { Edit2, Archive, ArchiveRestore, Check, X } from 'lucide-react';
+import { Edit2, Archive, ArchiveRestore, Check, X, Trash2 } from 'lucide-react';
 import type { Group, Timecode } from '../types';
 
 export const GroupingManagement: React.FC = () => {
-  const { groups, timecodes, updateGroup, updateTimecode, addGroup } = useTimeTracker();
+  const { groups, timecodes, addGroup, updateGroup, deleteGroup, updateTimecode, deleteTimecode } = useTimeTracker();
 
   const [editingGroupId, setEditingGroupId] = useState<string | null>(null);
   const [editingGroupData, setEditingGroupData] = useState<{ name: string; color: string }>({ name: '', color: '' });
@@ -103,6 +103,17 @@ export const GroupingManagement: React.FC = () => {
                       title={group.archived ? 'Restore' : 'Archive'}
                     >
                       {group.archived ? <ArchiveRestore size={16} /> : <Archive size={16} />}
+                    </button>
+                    <button
+                      onClick={() => {
+                        if (window.confirm('Are you sure you want to delete this group? This action cannot be undone.')) {
+                          deleteGroup(group.id);
+                        }
+                      }}
+                      className="p-1.5 text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/30 rounded transition-colors"
+                      title="Delete Group"
+                    >
+                      <Trash2 size={16} />
                     </button>
                   </div>
                 </>
@@ -203,6 +214,17 @@ export const GroupingManagement: React.FC = () => {
                         title={tc.archived ? 'Restore' : 'Archive'}
                       >
                         {tc.archived ? <ArchiveRestore size={16} /> : <Archive size={16} />}
+                      </button>
+                      <button
+                        onClick={() => {
+                          if (window.confirm('Are you sure you want to delete this timecode? This action cannot be undone.')) {
+                            deleteTimecode(tc.id);
+                          }
+                        }}
+                        className="p-1.5 text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/30 rounded transition-colors"
+                        title="Delete Timecode"
+                      >
+                        <Trash2 size={16} />
                       </button>
                     </div>
                   </>

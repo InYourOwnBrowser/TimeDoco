@@ -1,13 +1,13 @@
 import React, { useState } from 'react';
 import { useTimeTracker } from '../context/TimeTrackerContext';
 import { format, parseISO } from 'date-fns';
-import { Clock, FileEdit } from 'lucide-react';
+import { Clock, FileEdit, Trash2 } from 'lucide-react';
 import { EntryEditModal } from './EntryEditModal';
 import { ManualEntryModal } from './ManualEntryModal';
 import type { Entry } from '../types';
 
 export const EntryList: React.FC = () => {
-  const { entries, timecodes } = useTimeTracker();
+  const { entries, timecodes, deleteEntry } = useTimeTracker();
   const [editingEntry, setEditingEntry] = useState<Entry | null>(null);
   const [isManualModalOpen, setIsManualModalOpen] = useState(false);
 
@@ -103,6 +103,17 @@ export const EntryList: React.FC = () => {
                           title="Edit Entry"
                         >
                           <FileEdit className="h-5 w-5" />
+                        </button>
+                        <button
+                          onClick={() => {
+                            if (window.confirm('Are you sure you want to delete this entry?')) {
+                              deleteEntry(entry.id);
+                            }
+                          }}
+                          className="text-gray-400 dark:text-gray-500 hover:text-red-600 dark:hover:text-red-400 focus:outline-none transition-colors"
+                          title="Delete Entry"
+                        >
+                          <Trash2 className="h-5 w-5" />
                         </button>
                       </div>
                     </div>
