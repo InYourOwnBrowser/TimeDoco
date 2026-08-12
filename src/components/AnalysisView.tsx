@@ -25,8 +25,8 @@ export const AnalysisView: React.FC = () => {
       case 'custom':
       default:
         return {
-          start: startOfDay(new Date(customStart)),
-          end: endOfDay(new Date(customEnd))
+          start: startOfDay(new Date(customStart + 'T00:00:00')),
+          end: endOfDay(new Date(customEnd + 'T00:00:00'))
         };
     }
   }, [preset, customStart, customEnd]);
@@ -125,8 +125,8 @@ export const AnalysisView: React.FC = () => {
       const timecode = timecodes.find(t => t.id === tc.id);
       const groupName = timecode?.groupId ? groups.find(g => g.id === timecode.groupId)?.name || 'Unknown' : 'Ungrouped';
       return [
-        `"${tc.name}"`,
-        `"${groupName}"`,
+        `"${tc.name.replace(/"/g, '""')}"`,
+        `"${groupName.replace(/"/g, '""')}"`,
         tc.durationHours.toString(),
         tc.earnings.toFixed(2)
       ].join(',');

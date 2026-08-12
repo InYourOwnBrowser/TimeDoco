@@ -168,7 +168,7 @@ export const TimecodeSelector: React.FC<TimecodeSelectorProps> = ({ onSelect, se
                 </button>
               )}
 
-              {groups.length === 0 && !timecodes.length && !search && (
+              {!timecodes.length && !search && (
                 <div className="px-4 py-8 text-center text-gray-500 dark:text-gray-400 text-sm">
                   No timecodes yet. Type to create one.
                 </div>
