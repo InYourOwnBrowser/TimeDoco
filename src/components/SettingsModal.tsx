@@ -15,6 +15,8 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ onClose }) => {
   const [importMode, setImportMode] = useState<'merge' | 'replace'>('merge');
   const [statusMsg, setStatusMsg] = useState<{ type: 'error' | 'success'; text: string } | null>(null);
   const [isProcessing, setIsProcessing] = useState(false);
+  const [showReplaceConfirm, setShowReplaceConfirm] = useState(false);
+  const [replaceConfirmText, setReplaceConfirmText] = useState('');
 
   const handleExport = async () => {
     try {
@@ -34,10 +36,14 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ onClose }) => {
       return;
     }
 
-    if (importMode === 'replace') {
-      if (!window.confirm('WARNING: Completely wipes current data and replaces it with the backup file. Are you sure you want to proceed?')) {
-        return;
-      }
+    if (importMode === 'replace' && !showReplaceConfirm) {
+      setShowReplaceConfirm(true);
+      return;
+    }
+
+    if (importMode === 'replace' && replaceConfirmText !== 'REPLACE') {
+      setStatusMsg({ type: 'error', text: 'Please type REPLACE to confirm.' });
+      return;
     }
 
     const file = fileInputRef.current.files[0];
@@ -287,14 +293,49 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ onClose }) => {
                   </p>
                 </div>
 
-                <button
-                  onClick={handleImport}
-                  disabled={isProcessing}
-                  className="w-full flex items-center justify-center gap-2 bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:opacity-50 transition-colors"
-                >
-                  <Upload size={18} />
-                  Import Data
-                </button>
+                {importMode === 'replace' && showReplaceConfirm ? (
+                  <div className="bg-red-50 dark:bg-red-900/20 p-4 rounded-md border border-red-200 dark:border-red-800/30 mb-4">
+                    <p className="text-sm text-red-700 dark:text-red-400 font-medium mb-2">
+                      Type <strong>REPLACE</strong> below to confirm wiping all current data.
+                    </p>
+                    <input
+                      type="text"
+                      value={replaceConfirmText}
+                      onChange={(e) => setReplaceConfirmText(e.target.value)}
+                      placeholder="REPLACE"
+                      className="w-full text-sm p-2 border border-red-300 dark:border-red-700 rounded bg-white dark:bg-gray-800 text-gray-900 dark:text-white mb-3"
+                    />
+                    <div className="flex gap-2">
+                      <button
+                        onClick={() => {
+                          setShowReplaceConfirm(false);
+                          setReplaceConfirmText('');
+                          setStatusMsg(null);
+                        }}
+                        className="flex-1 px-3 py-2 text-sm text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 rounded transition-colors border border-gray-300 dark:border-gray-600"
+                      >
+                        Cancel
+                      </button>
+                      <button
+                        onClick={handleImport}
+                        disabled={isProcessing || replaceConfirmText !== 'REPLACE'}
+                        className="flex-1 flex items-center justify-center gap-2 bg-red-600 text-white px-3 py-2 rounded hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-red-500 disabled:opacity-50 transition-colors"
+                      >
+                        <Upload size={16} />
+                        Confirm Replace
+                      </button>
+                    </div>
+                  </div>
+                ) : (
+                  <button
+                    onClick={handleImport}
+                    disabled={isProcessing}
+                    className="w-full flex items-center justify-center gap-2 bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:opacity-50 transition-colors"
+                  >
+                    <Upload size={18} />
+                    Import Data
+                  </button>
+                )}
               </div>
             </section>
 

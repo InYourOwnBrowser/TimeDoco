@@ -1,6 +1,6 @@
 import React, { useState, useMemo } from 'react';
 import { useTimeTracker } from '../context/TimeTrackerContext';
-import { Plus, Check, ChevronDown } from 'lucide-react';
+import { Plus, Check, ChevronDown, X } from 'lucide-react';
 
 const COLORS = ['#ef4444', '#f97316', '#f59e0b', '#10b981', '#3b82f6', '#8b5cf6', '#ec4899', '#64748b'];
 
@@ -77,7 +77,22 @@ export const TimecodeSelector: React.FC<TimecodeSelectorProps> = ({ onSelect, se
             e.stopPropagation();
           }}
         />
-        <ChevronDown size={18} className="text-gray-400 dark:text-gray-500" />
+        <div className="flex items-center gap-1">
+          {selectedTimecode && !isOpen && (
+            <button
+              onClick={(e) => {
+                e.stopPropagation();
+                onSelect('');
+                setSearch('');
+              }}
+              className="p-1 rounded-full text-gray-400 hover:text-gray-600 dark:text-gray-500 dark:hover:text-gray-300 focus:outline-none transition-colors"
+              title="Clear selection"
+            >
+              <X size={16} />
+            </button>
+          )}
+          <ChevronDown size={18} className="text-gray-400 dark:text-gray-500" />
+        </div>
       </div>
 
       {isOpen && (
