@@ -16,18 +16,18 @@ export const ForgotToStopPrompt: React.FC = () => {
 
   return (
     <>
-      <div className="bg-yellow-50 border-l-4 border-yellow-400 p-4 w-full max-w-3xl mx-auto mt-4 rounded shadow-sm flex items-start justify-between">
+      <div className="bg-yellow-50 dark:bg-yellow-900/50 border-l-4 border-yellow-400 dark:border-yellow-700 p-4 w-full max-w-3xl mx-auto mt-4 rounded shadow-sm flex items-start justify-between">
         <div className="flex">
           <div className="flex-shrink-0">
-            <AlertCircle className="h-5 w-5 text-yellow-400" aria-hidden="true" />
+            <AlertCircle className="h-5 w-5 text-yellow-400 dark:text-yellow-400" aria-hidden="true" />
           </div>
           <div className="ml-3">
-            <p className="text-sm text-yellow-700">
+            <p className="text-sm text-yellow-700 dark:text-yellow-200">
               This timer has been running for {hoursElapsed} hours — did you forget to stop it?
               {' '}
               <button
                 onClick={() => setIsEditModalOpen(true)}
-                className="font-medium underline text-yellow-700 hover:text-yellow-600 focus:outline-none"
+                className="font-medium underline text-yellow-700 dark:text-yellow-200 hover:text-yellow-600 dark:hover:text-yellow-100 focus:outline-none"
               >
                 Click here to edit
               </button>
@@ -39,7 +39,7 @@ export const ForgotToStopPrompt: React.FC = () => {
             <button
               type="button"
               onClick={dismissForgotToStop}
-              className="inline-flex bg-yellow-50 rounded-md p-1.5 text-yellow-500 hover:bg-yellow-100 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-offset-yellow-50 focus:ring-yellow-600"
+              className="inline-flex bg-yellow-50 dark:bg-transparent rounded-md p-1.5 text-yellow-500 dark:text-yellow-400 hover:bg-yellow-100 dark:hover:bg-yellow-800/50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-offset-yellow-50 focus:ring-yellow-600"
             >
               <span className="sr-only">Dismiss</span>
               <X className="h-5 w-5" aria-hidden="true" />

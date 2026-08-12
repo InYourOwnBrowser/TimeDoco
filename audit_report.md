@@ -25,7 +25,7 @@ Every item below was independently re-verified (grepping actual usages, re-readi
 The plan checks off Phases 1–5 as complete, but several explicitly-scoped items are absent from the shipped code:
 
 - [x] **No delete for entries, timecodes, or groups.** The `db` layer only exposes `put*` functions — no `delete*`. §6.2 ("Delete with confirmation... soft-delete/trash") and §6.4 ("merge two timecodes") are entirely unimplemented. Once a duplicate timecode or mistaken entry is created, there is no way to remove it, only archive (and entries can't be archived at all).
-- [ ] **No long-duration edit warning.** §6.2 calls for a warning when a manually entered duration exceeds ~12 hours. Only the overlap warning exists in `EntryEditModal`/`ManualEntryModal`.
+- [x] **No long-duration edit warning.** §6.2 calls for a warning when a manually entered duration exceeds ~12 hours. Only the overlap warning exists in `EntryEditModal`/`ManualEntryModal`.
 - [ ] **No timeline/calendar day view** on the Analysis page (§6.5) — only bar/pie charts and a table. Spotting gaps or overlaps visually isn't possible.
 - [ ] **No overlap/gap detection on the Analysis page** (§8.13) — overlap checking only happens reactively while editing a single entry, not as a report.
 - [ ] **True PDF export is not implemented.** §6.5/§8.5 call for a generated PDF; the "PDF" button in `AnalysisView` just calls `window.print()`, relying on the browser's print-to-PDF rather than a real client-side PDF (no `jsPDF`/`pdf-lib` in `package.json`).
@@ -40,7 +40,7 @@ The plan checks off Phases 1–5 as complete, but several explicitly-scoped item
 
 ## 3. UI/UX Issues
 
-- [ ] **Dark mode is inconsistently applied.** `AnalysisView.tsx`, `EntryEditModal.tsx`, `ManualEntryModal.tsx`, `ForgotToStopPrompt.tsx`, and `BackupReminderBanner.tsx` have **zero** `dark:` Tailwind classes, while the rest of the app (and the theme switcher in Settings) fully supports dark mode. In dark mode, these five surfaces render as a jarring white/light modal or banner floating in an otherwise dark UI, with default black text that may lose contrast against the app's dark backdrop bleeding through edges.
+- [x] **Dark mode is inconsistently applied.** `AnalysisView.tsx`, `EntryEditModal.tsx`, `ManualEntryModal.tsx`, `ForgotToStopPrompt.tsx`, and `BackupReminderBanner.tsx` have **zero** `dark:` Tailwind classes, while the rest of the app (and the theme switcher in Settings) fully supports dark mode. In dark mode, these five surfaces render as a jarring white/light modal or banner floating in an otherwise dark UI, with default black text that may lose contrast against the app's dark backdrop bleeding through edges.
 - [ ] **No visible date on entries.** `EntryList` only shows `h:mm a` (e.g. "2:30 PM – Now") with no date. Once a user has more than a day of history, entries from different days are visually indistinguishable in the list.
 - [ ] **Unbounded entry list.** `EntryList` renders every single entry in `entries` with no pagination, virtualization, or date grouping. After months of daily use (the app's stated use case) this list — and the full `getAll('entries')` fetch on every `refreshData()` call — will grow large and degrade scroll/render performance.
 - [ ] **No filtering/search in the entry list** — no way to filter by timecode, group, or date range from the main Tracker tab; the user must go to the Analysis tab to slice data.
@@ -61,7 +61,7 @@ The core timer loop (start/stop/pause/resume, edit, manual entry, backup/restore
 - [x] Add a confirmation step before a destructive **Replace** import (1.2).
 - [x] Add delete/soft-delete for entries and timecodes — currently a one-way ratchet with no way to remove mistakes (§2).
 - [x] Expose the "orphaned" settings (weekly target, idle threshold, rounding rule, reminder interval) in the Settings modal — they already work, they're just unreachable.
-- [ ] Fix dark-mode coverage on the five components that lack it.
+- [x] Fix dark-mode coverage on the five components that lack it.
 - [ ] Add at least minimal unit test coverage for the duration/pause/overlap math, since that logic is the crux of the app's correctness and currently has zero tests.
 
 
