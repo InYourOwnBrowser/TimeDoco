@@ -58,7 +58,6 @@ export const TimeTrackerProvider: React.FC<{ children: ReactNode }> = ({ childre
         roundingRule: 'none',
         idleThresholdMinutes: 15,
         weeklyTargetHours: null,
-        encryptionEnabled: false,
         allowConcurrentTimers: false,
       };
       await db.putSettings(loadedSettings);

@@ -10,7 +10,7 @@ interface TimecodeSelectorProps {
 }
 
 export const TimecodeSelector: React.FC<TimecodeSelectorProps> = ({ onSelect, selectedId }) => {
-  const { timecodes, groups, addTimecode } = useTimeTracker();
+  const { timecodes, groups, addTimecode, entries } = useTimeTracker();
   const selectedTimecode = selectedId ? timecodes.find(t => t.id === selectedId) : null;
   const [isOpen, setIsOpen] = useState(false);
   const [search, setSearch] = useState('');
@@ -25,6 +25,20 @@ export const TimecodeSelector: React.FC<TimecodeSelectorProps> = ({ onSelect, se
     if (!search) return unarchived;
     return unarchived.filter(t => t.name.toLowerCase().includes(search.toLowerCase()));
   }, [timecodes, search]);
+
+
+  const recentTimecodes = useMemo(() => {
+    if (search) return [];
+
+    const unarchived = timecodes.filter(t => !t.archived);
+    const sortedEntries = [...entries].sort((a, b) => new Date(b.startTime).getTime() - new Date(a.startTime).getTime());
+    const recentIds = Array.from(new Set(sortedEntries.map(e => e.timecodeId)));
+
+    return recentIds
+      .map(id => unarchived.find(t => t.id === id))
+      .filter((t): t is typeof timecodes[0] => t !== undefined)
+      .slice(0, 3);
+  }, [entries, timecodes, search]);
 
   const exactMatch = filteredTimecodes.find(t => t.name.toLowerCase() === search.toLowerCase());
 
@@ -183,12 +197,38 @@ export const TimecodeSelector: React.FC<TimecodeSelectorProps> = ({ onSelect, se
                 </button>
               )}
 
-              {!timecodes.length && !search && (
+              {filteredTimecodes.length === 0 && !search && (
                 <div className="px-4 py-8 text-center text-gray-500 dark:text-gray-400 text-sm">
                   No timecodes yet. Type to create one.
                 </div>
               )}
 
+
+              {recentTimecodes.length > 0 && (
+                <div className="py-1 border-b border-gray-100 dark:border-gray-700/50">
+                  <div className="px-3 py-1 text-xs font-semibold text-gray-400 dark:text-gray-500 uppercase tracking-wider flex items-center gap-1.5">
+                    Recently Used
+                  </div>
+                  {recentTimecodes.map(tc => {
+                    const group = groups.find(g => g.id === tc.groupId);
+                    const color = tc.color || group?.color || '#9ca3af';
+                    return (
+                      <button
+                        key={`recent-${tc.id}`}
+                        onClick={() => handleSelect(tc.id)}
+                        className="w-full text-left px-4 py-2 text-sm text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700 flex items-center justify-between group-hover:bg-gray-50 dark:group-hover:bg-gray-800"
+                      >
+                        <div className="flex items-center gap-2">
+                          <div className="w-3 h-3 rounded-full" style={{ backgroundColor: color }}></div>
+                          <span>{tc.name}</span>
+                          {group && <span className="text-xs text-gray-400 dark:text-gray-500 ml-1">in {group.name}</span>}
+                        </div>
+                        {selectedId === tc.id && <Check size={16} className="text-blue-500" />}
+                      </button>
+                    );
+                  })}
+                </div>
+              )}
               {Array.from(groupedTimecodes.entries()).map(([gId, tcs]) => {
                 const group = groups.find(g => g.id === gId);
                 return (

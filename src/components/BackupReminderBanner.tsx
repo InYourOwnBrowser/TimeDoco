@@ -21,7 +21,21 @@ export const BackupReminderBanner: React.FC = () => {
     }
 
     // Check if dismissed in this session
-    const isDismissed = sessionStorage.getItem('backupReminderDismissed');
+    const dismissalData = localStorage.getItem('backupReminderDismissed');
+    let isDismissed = false;
+    if (dismissalData) {
+      try {
+        const { timestamp } = JSON.parse(dismissalData);
+        // Only keep dismissed if less than 24 hours ago
+        if (Date.now() - timestamp < 24 * 60 * 60 * 1000) {
+          isDismissed = true;
+        } else {
+          localStorage.removeItem('backupReminderDismissed');
+        }
+      } catch {
+        localStorage.removeItem('backupReminderDismissed');
+      }
+    }
     if (shouldShow && !isDismissed) {
       setIsVisible(true);
     } else {
@@ -30,7 +44,7 @@ export const BackupReminderBanner: React.FC = () => {
   }, [settings]);
 
   const handleDismiss = () => {
-    sessionStorage.setItem('backupReminderDismissed', 'true');
+    localStorage.setItem('backupReminderDismissed', JSON.stringify({ timestamp: Date.now() }));
     setIsVisible(false);
   };
 

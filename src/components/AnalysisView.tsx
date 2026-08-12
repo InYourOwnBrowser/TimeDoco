@@ -2,7 +2,7 @@ import React, { useState, useMemo } from 'react';
 import { useTimeTracker } from '../context/TimeTrackerContext';
 import { startOfDay, endOfDay, startOfWeek, endOfWeek, startOfMonth, endOfMonth, parseISO, format, differenceInSeconds } from 'date-fns';
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, PieChart, Pie, Cell, Legend } from 'recharts';
-import { Download, Printer } from 'lucide-react';
+import { Download, Printer, AlertTriangle } from 'lucide-react';
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
 
@@ -46,6 +46,34 @@ export const AnalysisView: React.FC = () => {
       return entryStart <= dateRange.end && entryEnd >= dateRange.start;
     });
   }, [entries, dateRange]);
+
+
+  // Detect overlaps in the filtered entries
+  const overlaps = useMemo(() => {
+    const overlappingPairs: { e1: typeof entries[0], e2: typeof entries[0] }[] = [];
+    const sorted = [...filteredEntries].sort((a, b) => new Date(a.startTime).getTime() - new Date(b.startTime).getTime());
+
+    for (let i = 0; i < sorted.length; i++) {
+      for (let j = i + 1; j < sorted.length; j++) {
+        const e1 = sorted[i];
+        const e2 = sorted[j];
+
+        const start1 = new Date(e1.startTime).getTime();
+        const end1 = e1.endTime ? new Date(e1.endTime).getTime() : Date.now();
+        const start2 = new Date(e2.startTime).getTime();
+        const end2 = e2.endTime ? new Date(e2.endTime).getTime() : Date.now();
+
+        if (start1 < end2 && start2 < end1) {
+          overlappingPairs.push({ e1, e2 });
+        } else if (start2 >= end1) {
+          // Since it's sorted by start time, if start2 >= end1,
+          // no subsequent entries will overlap with e1.
+          break;
+        }
+      }
+    }
+    return overlappingPairs;
+  }, [filteredEntries]);
 
   const { timecodeData, groupData, totalSeconds, totalEarnings } = useMemo(() => {
     let tSec = 0;
@@ -223,6 +251,72 @@ export const AnalysisView: React.FC = () => {
             </div>
           )}
         </div>
+
+
+        {overlaps.length > 0 && (
+          <div className="mb-8 p-4 bg-amber-50 dark:bg-amber-900/30 border border-amber-200 dark:border-amber-800 rounded-lg flex items-start gap-3">
+            <AlertTriangle className="text-amber-500 mt-0.5 shrink-0" size={20} />
+            <div>
+              <h4 className="font-medium text-amber-800 dark:text-amber-300">Overlapping Entries Detected</h4>
+              <p className="text-sm text-amber-700 dark:text-amber-400 mt-1">
+                There are {overlaps.length} overlapping time entries in this period. Review your history in the Tracker tab to ensure your tracked time is accurate.
+              </p>
+            </div>
+          </div>
+        )}
+
+
+        {/* Timeline View - Only show if range is exactly one day (e.g. preset 'today' or custom 1-day range) */}
+        {dateRange.start.getTime() === startOfDay(dateRange.start).getTime() &&
+         dateRange.end.getTime() === endOfDay(dateRange.start).getTime() && (
+          <div className="mb-8">
+            <h3 className="text-lg font-semibold text-gray-800 dark:text-white mb-4 text-center">Daily Timeline</h3>
+            <div className="relative h-12 bg-gray-200 dark:bg-gray-800 rounded-md overflow-hidden border border-gray-300 dark:border-gray-700">
+              {/* Hour markers */}
+              {Array.from({ length: 25 }).map((_, i) => (
+                <div
+                  key={i}
+                  className="absolute top-0 bottom-0 border-l border-gray-300 dark:border-gray-600/50"
+                  style={{ left: `${(i / 24) * 100}%` }}
+                >
+                  <span className="absolute top-full mt-1 -ml-3 text-[10px] text-gray-400">
+                    {i % 4 === 0 ? (i === 0 || i === 24 ? '12A' : i === 12 ? '12P' : i > 12 ? `${i - 12}P` : `${i}A`) : ''}
+                  </span>
+                </div>
+              ))}
+
+              {/* Time blocks */}
+              {filteredEntries.map(entry => {
+                const entryStart = parseISO(entry.startTime);
+                const entryEnd = entry.endTime ? parseISO(entry.endTime) : new Date();
+
+                const dayStart = dateRange.start;
+                const totalDaySeconds = 86400;
+
+                const startSeconds = Math.max(0, differenceInSeconds(entryStart, dayStart));
+                const endSeconds = Math.min(totalDaySeconds, differenceInSeconds(entryEnd, dayStart));
+
+                if (startSeconds >= totalDaySeconds || endSeconds <= 0) return null;
+
+                const leftPercent = (startSeconds / totalDaySeconds) * 100;
+                const widthPercent = ((endSeconds - startSeconds) / totalDaySeconds) * 100;
+
+                const tc = timecodes.find(t => t.id === entry.timecodeId);
+                const color = tc?.color || groups.find(g => g.id === tc?.groupId)?.color || '#cbd5e1';
+
+                return (
+                  <div
+                    key={entry.id}
+                    className="absolute top-0 bottom-0 opacity-80 hover:opacity-100 transition-opacity"
+                    style={{ left: `${leftPercent}%`, width: `${widthPercent}%`, backgroundColor: color }}
+                    title={`${tc?.name || 'Unknown'} (${format(entryStart, 'h:mm a')} - ${entry.endTime ? format(entryEnd, 'h:mm a') : 'Now'})`}
+                  ></div>
+                );
+              })}
+            </div>
+            <div className="h-6"></div> {/* Spacer for labels */}
+          </div>
+        )}
 
         {timecodeData.length > 0 ? (
           <>
