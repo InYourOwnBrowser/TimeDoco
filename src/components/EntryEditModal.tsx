@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useTimeTracker } from '../context/TimeTrackerContext';
 import { format, parseISO, differenceInSeconds } from 'date-fns';
 import { X, AlertCircle } from 'lucide-react';
+import { checkOverlap } from '../utils/timeUtils';
 import type { Entry } from '../types';
 
 interface EntryEditModalProps {
@@ -40,14 +41,7 @@ export const EntryEditModal: React.FC<EntryEditModalProps> = ({ entry, onClose }
       return;
     }
 
-    const overlapping = entries.find(e => {
-      if (e.id === entry.id || !e.endTime) return false;
-      const eStart = new Date(e.startTime);
-      const eEnd = new Date(e.endTime);
-
-      // Check overlap: newStart < eEnd AND newEnd > eStart
-      return start < eEnd && end > eStart;
-    });
+    const overlapping = checkOverlap(start, end, entries, entry.id);
 
     if (overlapping) {
       setWarning('Warning: This entry overlaps with an existing time entry.');

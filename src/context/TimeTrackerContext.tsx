@@ -2,6 +2,7 @@ import React, { createContext, useContext, useState, useEffect, useCallback, typ
 import type { Group, Timecode, Entry, Settings } from '../types';
 import * as db from '../db';
 import { differenceInSeconds } from 'date-fns';
+import { calculateDuration } from '../utils/timeUtils';
 
 interface TimeTrackerContextType {
   groups: Group[];
@@ -138,14 +139,6 @@ export const TimeTrackerProvider: React.FC<{ children: ReactNode }> = ({ childre
     const now = new Date();
     const endTimeIso = now.toISOString();
 
-    // Calculate total pause duration
-    let totalPauseSeconds = 0;
-    entry.pausedSegments.forEach(segment => {
-      const pStart = new Date(segment.pauseStart);
-      const pEnd = segment.pauseEnd ? new Date(segment.pauseEnd) : now;
-      totalPauseSeconds += differenceInSeconds(pEnd, pStart);
-    });
-
     // Close open pause segment if paused
     let newPausedSegments = [...entry.pausedSegments];
     if (entry.isPaused && newPausedSegments.length > 0) {
@@ -156,8 +149,7 @@ export const TimeTrackerProvider: React.FC<{ children: ReactNode }> = ({ childre
     }
 
     const start = new Date(entry.startTime);
-    let duration = differenceInSeconds(now, start) - totalPauseSeconds;
-    if (duration < 0) duration = 0;
+    const duration = calculateDuration(start, now, newPausedSegments);
 
     const updatedEntry: Entry = {
       ...entry,
@@ -321,17 +313,9 @@ export const TimeTrackerProvider: React.FC<{ children: ReactNode }> = ({ childre
         newIsPaused = false;
       }
 
-      let totalPauseSeconds = 0;
-      newPausedSegments.forEach(segment => {
-        const pStart = new Date(segment.pauseStart);
-        const pEnd = segment.pauseEnd ? new Date(segment.pauseEnd) : new Date(finalEndTime);
-        totalPauseSeconds += differenceInSeconds(pEnd, pStart);
-      });
-
       const start = new Date(finalStartTime);
       const end = new Date(finalEndTime);
-      newDuration = differenceInSeconds(end, start) - totalPauseSeconds;
-      if (newDuration < 0) newDuration = 0;
+      newDuration = calculateDuration(start, end, newPausedSegments);
     }
 
     const finalEntry: Entry = {

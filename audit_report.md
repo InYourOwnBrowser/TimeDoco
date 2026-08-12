@@ -33,7 +33,7 @@ The plan checks off Phases 1–5 as complete, but several explicitly-scoped item
 - [x] **Several `Settings` fields are unreachable from the UI.** `roundingRule`, `weeklyTargetHours`, `idleThresholdMinutes`, and `reminderIntervalDays` all exist in the data model and are actively used in logic (e.g. `WeeklySummary` silently renders nothing until `weeklyTargetHours` is set), but `SettingsModal.tsx` only exposes **Theme** and **Allow Concurrent Timers**. A user cannot set a weekly target, change the idle threshold, change the backup reminder interval, or choose a rounding rule without manually editing IndexedDB.
 - [ ] **No "most recently/frequently used" surfacing** in the timecode dropdown (§6.4) — timecodes are listed in raw DB insertion/group order only.
 - [ ] **No hourly-rate editing after creation.** Rate can only be set once, at timecode-creation time via `TimecodeSelector`'s inline form; `GroupingManagement.tsx`'s edit form has no rate field.
-- [ ] **No automated tests.** `plan.md` §4.8 specifies Vitest for duration/rounding/overlap logic and Playwright for the core loop; there isn't a single test file in the repo, and neither dependency is installed. This is risky given how much of the app depends on subtle date/duration arithmetic.
+- [x] **No automated tests.** `plan.md` §4.8 specifies Vitest for duration/rounding/overlap logic and Playwright for the core loop; there isn't a single test file in the repo, and neither dependency is installed. This is risky given how much of the app depends on subtle date/duration arithmetic.
 - [ ] **No encryption-at-rest** (§8.8/§4.7) — flagged as optional in the plan, but `encryptionEnabled` exists in `Settings` with no corresponding implementation anywhere, i.e. a setting that would silently do nothing if toggled (it isn't exposed in the UI, so currently harmless, but it's a latent trap).
 
 ---
@@ -62,7 +62,7 @@ The core timer loop (start/stop/pause/resume, edit, manual entry, backup/restore
 - [x] Add delete/soft-delete for entries and timecodes — currently a one-way ratchet with no way to remove mistakes (§2).
 - [x] Expose the "orphaned" settings (weekly target, idle threshold, rounding rule, reminder interval) in the Settings modal — they already work, they're just unreachable.
 - [x] Fix dark-mode coverage on the five components that lack it.
-- [ ] Add at least minimal unit test coverage for the duration/pause/overlap math, since that logic is the crux of the app's correctness and currently has zero tests.
+- [x] Add at least minimal unit test coverage for the duration/pause/overlap math, since that logic is the crux of the app's correctness and currently has zero tests.
 
 
 ---
