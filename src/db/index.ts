@@ -75,6 +75,11 @@ export const putGroup = async (group: Group): Promise<string> => {
   return db.put('groups', group);
 };
 
+export const deleteGroup = async (id: string): Promise<void> => {
+  const db = await getDB();
+  return db.delete('groups', id);
+};
+
 // --- Timecodes ---
 export const getTimecodes = async (): Promise<Timecode[]> => {
   const db = await getDB();
@@ -91,6 +96,11 @@ export const putTimecode = async (timecode: Timecode): Promise<string> => {
   return db.put('timecodes', timecode);
 };
 
+export const deleteTimecode = async (id: string): Promise<void> => {
+  const db = await getDB();
+  return db.delete('timecodes', id);
+};
+
 // --- Entries ---
 export const getEntries = async (): Promise<Entry[]> => {
   const db = await getDB();
@@ -105,6 +115,11 @@ export const getEntry = async (id: string): Promise<Entry | undefined> => {
 export const putEntry = async (entry: Entry): Promise<string> => {
   const db = await getDB();
   return db.put('entries', entry);
+};
+
+export const deleteEntry = async (id: string): Promise<void> => {
+  const db = await getDB();
+  return db.delete('entries', id);
 };
 
 export const getActiveEntry = async (): Promise<Entry | undefined> => {

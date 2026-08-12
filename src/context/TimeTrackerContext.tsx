@@ -13,12 +13,15 @@ interface TimeTrackerContextType {
   resumeTimer: (entryId: string) => Promise<void>;
   addGroup: (name: string, color: string) => Promise<Group>;
   updateGroup: (id: string, updates: Partial<Group>) => Promise<void>;
+  deleteGroup: (id: string) => Promise<void>;
   addTimecode: (name: string, color?: string, groupId?: string, hourlyRate?: number) => Promise<Timecode>;
   updateTimecode: (id: string, updates: Partial<Timecode>) => Promise<void>;
+  deleteTimecode: (id: string) => Promise<void>;
   updateActiveNote: (entryId: string, note: string) => Promise<void>;
   refreshData: () => Promise<void>;
   entries: Entry[];
   updateEntry: (id: string, updates: Partial<Entry>) => Promise<void>;
+  deleteEntry: (id: string) => Promise<void>;
   addManualEntry: (entryData: { startTime: string, endTime: string, timecodeId: string, note: string }) => Promise<void>;
   forgotToStopEntry: Entry | null;
   dismissForgotToStop: () => void;
@@ -241,6 +244,16 @@ export const TimeTrackerProvider: React.FC<{ children: ReactNode }> = ({ childre
     await refreshData();
   };
 
+  const deleteGroup = async (id: string) => {
+    // Cascading: set groupId to null for all timecodes in this group
+    const timecodesToUpdate = timecodes.filter((tc) => tc.groupId === id);
+    for (const tc of timecodesToUpdate) {
+      await db.putTimecode({ ...tc, groupId: null });
+    }
+    await db.deleteGroup(id);
+    await refreshData();
+  };
+
   const addTimecode = async (name: string, color?: string, groupId?: string, hourlyRate?: number): Promise<Timecode> => {
     const newTimecode: Timecode = {
       id: crypto.randomUUID(),
@@ -364,10 +377,25 @@ export const TimeTrackerProvider: React.FC<{ children: ReactNode }> = ({ childre
     await refreshData();
   };
 
+  const deleteTimecode = async (id: string) => {
+    // Cascading: delete all entries associated with this timecode
+    const entriesToDelete = entries.filter((e) => e.timecodeId === id);
+    for (const entry of entriesToDelete) {
+      await db.deleteEntry(entry.id);
+    }
+    await db.deleteTimecode(id);
+    await refreshData();
+  };
+
   const updateSettings = async (updates: Partial<Settings>) => {
     if (!settings) return;
     const newSettings = { ...settings, ...updates };
     await db.putSettings(newSettings);
+    await refreshData();
+  };
+
+  const deleteEntry = async (id: string) => {
+    await db.deleteEntry(id);
     await refreshData();
   };
 
@@ -494,12 +522,15 @@ export const TimeTrackerProvider: React.FC<{ children: ReactNode }> = ({ childre
       resumeTimer,
       addGroup,
       updateGroup,
+      deleteGroup,
       addTimecode,
       updateTimecode,
+      deleteTimecode,
       updateActiveNote,
       refreshData,
       entries,
       updateEntry,
+      deleteEntry,
       addManualEntry,
       forgotToStopEntry,
       dismissForgotToStop,
