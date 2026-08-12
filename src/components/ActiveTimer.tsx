@@ -100,7 +100,7 @@ export const ActiveTimer: React.FC<{ activeEntry: Entry | null }> = ({ activeEnt
 
           <div className="w-full relative z-20">
             <label className="block text-sm font-medium text-gray-500 dark:text-gray-400 mb-2 text-center">What are you working on?</label>
-            <TimecodeSelector onSelect={setSelectedTimecodeId} />
+            <TimecodeSelector onSelect={setSelectedTimecodeId} selectedId={selectedTimecodeId} />
           </div>
 
           <button

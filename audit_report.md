@@ -9,8 +9,8 @@ Every item below was independently re-verified (grepping actual usages, re-readi
 
 ## 1. Bugs
 
-- [ ] **Bug 1.1** (**High**) in ``TimecodeSelector.tsx``: After picking a timecode, `handleSelect` clears `search` to `''`. The selector has no `value`/controlled display of the current selection, so the input box goes blank instead of showing the chosen timecode name. Users have no visual confirmation of what they selected before pressing Start.
-- [ ] **Bug 1.2** (**High**) in ``SettingsModal.tsx``: Clicking **Import Data** with **Replace All** selected wipes the entire database immediately — no `confirm()` / secondary confirmation dialog, despite the UI's own red "WARNING" text right next to the button. One misclick destroys all history.
+- [x] **Bug 1.1** (**High**) in ``TimecodeSelector.tsx``: After picking a timecode, `handleSelect` clears `search` to `''`. The selector has no `value`/controlled display of the current selection, so the input box goes blank instead of showing the chosen timecode name. Users have no visual confirmation of what they selected before pressing Start.
+- [x] **Bug 1.2** (**High**) in ``SettingsModal.tsx``: Clicking **Import Data** with **Replace All** selected wipes the entire database immediately — no `confirm()` / secondary confirmation dialog, despite the UI's own red "WARNING" text right next to the button. One misclick destroys all history.
 - [ ] **Bug 1.3** (**Medium**) in ``AnalysisView.tsx` (custom range)`: `new Date(customStart)` / `new Date(customEnd)` parse `yyyy-MM-dd` strings as **UTC midnight**. Verified with `TZ=America/New_York`: picking "Aug 12" as the start date actually filters from Aug 11 local time. **Only affects timezones behind UTC** (Americas, etc.) — verified `TZ=Pacific/Auckland` (ahead of UTC) does *not* trigger it, so this won't reproduce for every user, but is a real bug for a large share of the potential user base.
 - [ ] **Bug 1.4** (**Medium**) in ``index.html``: `<title>temp</title>` — leftover Vite scaffold title. Only overwritten once `ActiveTimer` mounts and sets `document.title`; visible in browser tabs/bookmarks/link previews before JS runs or if JS fails.
 - [ ] **Bug 1.5** (**Cosmetic**) in ``vite.config.ts``: `includeAssets: ['favicon.svg', 'apple-touch-icon.png', 'masked-icon.svg']` — the latter two files don't exist in `public/` and are silently dropped by the build (no warning, no crash). Verified this is **inert, not functionally broken**: `index.html` has no `<link rel="apple-touch-icon">` tag, and the generated `manifest.webmanifest` only lists the two SVG icons that *do* exist and build correctly — so install/home-screen icons work fine. This is just dead config worth cleaning up, not a user-facing bug.
@@ -57,8 +57,8 @@ The plan checks off Phases 1–5 as complete, but several explicitly-scoped item
 
 The core timer loop (start/stop/pause/resume, edit, manual entry, backup/restore, analysis charts) is solid, type-safe, and matches the plan's data model well. The most impactful fixes, roughly in priority order, are:
 
-- [ ] Fix the Timecode Selector to display the current selection (1.1) — this is a first-impression, everyday-use bug.
-- [ ] Add a confirmation step before a destructive **Replace** import (1.2).
+- [x] Fix the Timecode Selector to display the current selection (1.1) — this is a first-impression, everyday-use bug.
+- [x] Add a confirmation step before a destructive **Replace** import (1.2).
 - [ ] Add delete/soft-delete for entries and timecodes — currently a one-way ratchet with no way to remove mistakes (§2).
 - [ ] Expose the "orphaned" settings (weekly target, idle threshold, rounding rule, reminder interval) in the Settings modal — they already work, they're just unreachable.
 - [ ] Fix dark-mode coverage on the five components that lack it.
