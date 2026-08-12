@@ -6,10 +6,12 @@ const COLORS = ['#ef4444', '#f97316', '#f59e0b', '#10b981', '#3b82f6', '#8b5cf6'
 
 interface TimecodeSelectorProps {
   onSelect: (timecodeId: string) => void;
+  selectedId?: string | null;
 }
 
-export const TimecodeSelector: React.FC<TimecodeSelectorProps> = ({ onSelect }) => {
+export const TimecodeSelector: React.FC<TimecodeSelectorProps> = ({ onSelect, selectedId }) => {
   const { timecodes, groups, addTimecode } = useTimeTracker();
+  const selectedTimecode = selectedId ? timecodes.find(t => t.id === selectedId) : null;
   const [isOpen, setIsOpen] = useState(false);
   const [search, setSearch] = useState('');
 
@@ -64,7 +66,7 @@ export const TimecodeSelector: React.FC<TimecodeSelectorProps> = ({ onSelect }) 
           type="text"
           className="w-full bg-transparent outline-none cursor-pointer text-gray-900 dark:text-white placeholder-gray-500 dark:placeholder-gray-400"
           placeholder="Select or type to create..."
-          value={search}
+          value={isOpen ? search : (selectedTimecode?.name || search)}
           onChange={(e) => {
             setSearch(e.target.value);
             setIsOpen(true);
@@ -82,7 +84,11 @@ export const TimecodeSelector: React.FC<TimecodeSelectorProps> = ({ onSelect }) 
         <div className="absolute z-10 w-full mt-1 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-md shadow-lg max-h-96 overflow-y-auto">
 
           {/* Backdrop for click outside */}
-          <div className="fixed inset-0 z-[-1]" onClick={() => setIsOpen(false)}></div>
+          <div className="fixed inset-0 z-[-1]" onClick={() => {
+            setIsOpen(false);
+            setSearch('');
+            setShowAddForm(false);
+          }}></div>
 
           {showAddForm ? (
             <div className="p-4 bg-gray-50 dark:bg-gray-800 border-b border-gray-100 dark:border-gray-700">

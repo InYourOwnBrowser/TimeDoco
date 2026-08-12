@@ -32,6 +32,12 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ onClose }) => {
       return;
     }
 
+    if (importMode === 'replace') {
+      if (!window.confirm('WARNING: Completely wipes current data and replaces it with the backup file. Are you sure you want to proceed?')) {
+        return;
+      }
+    }
+
     const file = fileInputRef.current.files[0];
 
     try {
