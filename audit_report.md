@@ -40,7 +40,7 @@ The plan checks off Phases 1–5 as complete, but several explicitly-scoped item
 
 ## 3. UI/UX Issues
 
-- [ ] **Dark mode is inconsistently applied.** `AnalysisView.tsx`, `EntryEditModal.tsx`, `ManualEntryModal.tsx`, `ForgotToStopPrompt.tsx`, and `BackupReminderBanner.tsx` have **zero** `dark:` Tailwind classes, while the rest of the app (and the theme switcher in Settings) fully supports dark mode. In dark mode, these five surfaces render as a jarring white/light modal or banner floating in an otherwise dark UI, with default black text that may lose contrast against the app's dark backdrop bleeding through edges.
+- [x] **Dark mode is inconsistently applied.** `AnalysisView.tsx`, `EntryEditModal.tsx`, `ManualEntryModal.tsx`, `ForgotToStopPrompt.tsx`, and `BackupReminderBanner.tsx` have **zero** `dark:` Tailwind classes, while the rest of the app (and the theme switcher in Settings) fully supports dark mode. In dark mode, these five surfaces render as a jarring white/light modal or banner floating in an otherwise dark UI, with default black text that may lose contrast against the app's dark backdrop bleeding through edges.
 - [ ] **No visible date on entries.** `EntryList` only shows `h:mm a` (e.g. "2:30 PM – Now") with no date. Once a user has more than a day of history, entries from different days are visually indistinguishable in the list.
 - [ ] **Unbounded entry list.** `EntryList` renders every single entry in `entries` with no pagination, virtualization, or date grouping. After months of daily use (the app's stated use case) this list — and the full `getAll('entries')` fetch on every `refreshData()` call — will grow large and degrade scroll/render performance.
 - [ ] **No filtering/search in the entry list** — no way to filter by timecode, group, or date range from the main Tracker tab; the user must go to the Analysis tab to slice data.
@@ -61,7 +61,7 @@ The core timer loop (start/stop/pause/resume, edit, manual entry, backup/restore
 - [x] Add a confirmation step before a destructive **Replace** import (1.2).
 - [x] Add delete/soft-delete for entries and timecodes — currently a one-way ratchet with no way to remove mistakes (§2).
 - [x] Expose the "orphaned" settings (weekly target, idle threshold, rounding rule, reminder interval) in the Settings modal — they already work, they're just unreachable.
-- [ ] Fix dark-mode coverage on the five components that lack it.
+- [x] Fix dark-mode coverage on the five components that lack it.
 - [ ] Add at least minimal unit test coverage for the duration/pause/overlap math, since that logic is the crux of the app's correctness and currently has zero tests.
 
 
