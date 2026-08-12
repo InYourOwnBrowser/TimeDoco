@@ -10,7 +10,7 @@ export const GroupingManagement: React.FC = () => {
   const [editingGroupData, setEditingGroupData] = useState<{ name: string; color: string }>({ name: '', color: '' });
 
   const [editingTimecodeId, setEditingTimecodeId] = useState<string | null>(null);
-  const [editingTimecodeData, setEditingTimecodeData] = useState<{ name: string; color: string; groupId: string }>({ name: '', color: '', groupId: '' });
+  const [editingTimecodeData, setEditingTimecodeData] = useState<{ name: string; color: string; groupId: string; hourlyRate: string }>({ name: '', color: '', groupId: '', hourlyRate: '' });
 
   const [newGroupName, setNewGroupName] = useState('');
   const [newGroupColor, setNewGroupColor] = useState('#3b82f6'); // blue-500
@@ -32,15 +32,18 @@ export const GroupingManagement: React.FC = () => {
       name: tc.name,
       color: tc.color || '',
       groupId: tc.groupId || '',
+      hourlyRate: tc.hourlyRate ? tc.hourlyRate.toString() : '',
     });
   };
 
   const handleEditTimecodeSave = async (id: string) => {
     if (!editingTimecodeData.name.trim()) return;
+    const parsedRate = parseFloat(editingTimecodeData.hourlyRate);
     await updateTimecode(id, {
       name: editingTimecodeData.name,
       color: editingTimecodeData.color || undefined,
       groupId: editingTimecodeData.groupId || null,
+      hourlyRate: isNaN(parsedRate) ? null : parsedRate,
     });
     setEditingTimecodeId(null);
   };
@@ -98,7 +101,11 @@ export const GroupingManagement: React.FC = () => {
                       <Edit2 size={16} />
                     </button>
                     <button
-                      onClick={() => updateGroup(group.id, { archived: !group.archived })}
+                      onClick={() => {
+                          if (group.archived || window.confirm('Are you sure you want to archive this group? It will be hidden from selection.')) {
+                            updateGroup(group.id, { archived: !group.archived });
+                          }
+                        }}
                       className={`p-1.5 rounded transition-colors ${group.archived ? 'text-green-600 dark:text-green-400 hover:bg-green-50 dark:hover:bg-green-900/30' : 'text-amber-600 dark:text-amber-400 hover:bg-amber-50 dark:hover:bg-amber-900/30'}`}
                       title={group.archived ? 'Restore' : 'Archive'}
                     >
@@ -181,6 +188,15 @@ export const GroupingManagement: React.FC = () => {
                           <option key={g.id} value={g.id}>{g.name}</option>
                         ))}
                       </select>
+                      <input
+                        type="number"
+                        placeholder="Rate (opt)"
+                        value={editingTimecodeData.hourlyRate}
+                        onChange={(e) => setEditingTimecodeData({ ...editingTimecodeData, hourlyRate: e.target.value })}
+                        className="w-24 px-3 py-1 border border-gray-300 dark:border-gray-600 rounded outline-none focus:ring-1 focus:ring-blue-500 bg-white dark:bg-gray-700 text-gray-900 dark:text-white text-sm"
+                        min="0"
+                        step="0.01"
+                      />
                       <button onClick={() => handleEditTimecodeSave(tc.id)} className="p-1 text-green-600 dark:text-green-400 hover:text-green-800 dark:hover:text-green-300 transition-colors">
                         <Check size={18} />
                       </button>
@@ -209,7 +225,11 @@ export const GroupingManagement: React.FC = () => {
                         <Edit2 size={16} />
                       </button>
                       <button
-                        onClick={() => updateTimecode(tc.id, { archived: !tc.archived })}
+                        onClick={() => {
+                            if (tc.archived || window.confirm('Are you sure you want to archive this timecode? It will be hidden from selection.')) {
+                              updateTimecode(tc.id, { archived: !tc.archived });
+                            }
+                          }}
                         className={`p-1.5 rounded transition-colors ${tc.archived ? 'text-green-600 dark:text-green-400 hover:bg-green-50 dark:hover:bg-green-900/30' : 'text-amber-600 dark:text-amber-400 hover:bg-amber-50 dark:hover:bg-amber-900/30'}`}
                         title={tc.archived ? 'Restore' : 'Archive'}
                       >

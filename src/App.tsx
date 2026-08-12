@@ -1,12 +1,12 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, Suspense, lazy } from 'react';
 import { TimeTrackerProvider } from './context/TimeTrackerContext';
 import { ActiveTimer } from './components/ActiveTimer';
 import { EntryList } from './components/EntryList';
 import { ForgotToStopPrompt } from './components/ForgotToStopPrompt';
 import { BackupReminderBanner } from './components/BackupReminderBanner';
 import { SettingsModal } from './components/SettingsModal';
-import { AnalysisView } from './components/AnalysisView';
-import { GroupingManagement } from './components/GroupingManagement';
+const AnalysisView = lazy(() => import('./components/AnalysisView').then(module => ({ default: module.AnalysisView })));
+const GroupingManagement = lazy(() => import('./components/GroupingManagement').then(module => ({ default: module.GroupingManagement })));
 import { WeeklySummary } from './components/WeeklySummary';
 import { IdleDetector } from './components/IdleDetector';
 import { Settings, BarChart2, Clock, ListTree } from 'lucide-react';
@@ -17,6 +17,13 @@ const AppContent = () => {
   const { activeEntries, stopTimer, startTimer, timecodes, entries, settings } = useTimeTracker();
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
   const [activeTab, setActiveTab] = useState<'tracker' | 'analysis' | 'management'>('tracker');
+  const [showNewTimer, setShowNewTimer] = useState(false);
+
+
+  // Reset new timer form when a timer starts or concurrent is disabled
+  useEffect(() => {
+    setShowNewTimer(false);
+  }, [activeEntries.length, settings?.allowConcurrentTimers]);
 
   useEffect(() => {
     const root = window.document.documentElement;
@@ -141,13 +148,23 @@ const AppContent = () => {
               {activeEntries.map(entry => (
                 <ActiveTimer key={entry.id} activeEntry={entry} />
               ))}
-              <ActiveTimer activeEntry={null} />
+              {(activeEntries.length === 0 || showNewTimer) && (
+                <ActiveTimer activeEntry={null} />
+              )}
+              {activeEntries.length > 0 && !showNewTimer && settings?.allowConcurrentTimers && (
+                <button
+                  onClick={() => setShowNewTimer(true)}
+                  className="mb-8 px-4 py-2 text-sm font-medium text-blue-600 dark:text-blue-400 bg-blue-50 dark:bg-blue-900/30 hover:bg-blue-100 dark:hover:bg-blue-900/50 rounded-lg transition-colors border border-blue-200 dark:border-blue-800"
+                >
+                  + Start Another Timer
+                </button>
+              )}
               <WeeklySummary />
               <EntryList />
             </>
           )}
-          {activeTab === 'analysis' && <AnalysisView />}
-          {activeTab === 'management' && <GroupingManagement />}
+          {activeTab === 'analysis' && <Suspense fallback={<div className="p-8 text-center text-gray-500">Loading analysis...</div>}><AnalysisView /></Suspense>}
+          {activeTab === 'management' && <Suspense fallback={<div className="p-8 text-center text-gray-500">Loading management...</div>}><GroupingManagement /></Suspense>}
         </main>
 
         {isSettingsOpen && <SettingsModal onClose={() => setIsSettingsOpen(false)} />}

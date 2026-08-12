@@ -48,7 +48,6 @@ export interface Settings {
   roundingRule: 'none' | '5min' | '10min' | '15min';
   idleThresholdMinutes: number;
   weeklyTargetHours: number | null;
-  encryptionEnabled: boolean;
   theme?: 'light' | 'dark' | 'system';
   allowConcurrentTimers: boolean;
 }
