@@ -115,7 +115,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ onClose }) => {
                 <input
                   type="number"
                   min="0"
-                  value={settings?.weeklyTargetHours || ''}
+                  value={settings?.weeklyTargetHours ?? ''}
                   onChange={(e) => updateSettings({ weeklyTargetHours: e.target.value ? Number(e.target.value) : null })}
                   placeholder="e.g. 40"
                   className="w-24 px-3 py-1.5 border border-gray-300 dark:border-gray-600 rounded outline-none focus:ring-1 focus:ring-blue-500 text-sm bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
@@ -126,7 +126,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ onClose }) => {
                 <input
                   type="number"
                   min="1"
-                  value={settings?.idleThresholdMinutes || 5}
+                  value={settings?.idleThresholdMinutes ?? 5}
                   onChange={(e) => updateSettings({ idleThresholdMinutes: Number(e.target.value) })}
                   className="w-24 px-3 py-1.5 border border-gray-300 dark:border-gray-600 rounded outline-none focus:ring-1 focus:ring-blue-500 text-sm bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
                 />
@@ -136,7 +136,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ onClose }) => {
                 <input
                   type="number"
                   min="1"
-                  value={settings?.reminderIntervalDays || 7}
+                  value={settings?.reminderIntervalDays ?? 7}
                   onChange={(e) => updateSettings({ reminderIntervalDays: Number(e.target.value) })}
                   className="w-24 px-3 py-1.5 border border-gray-300 dark:border-gray-600 rounded outline-none focus:ring-1 focus:ring-blue-500 text-sm bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
                 />
@@ -144,7 +144,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ onClose }) => {
               <div className="flex items-center justify-between mb-2">
                 <label className="text-sm font-medium text-gray-700 dark:text-gray-300">Rounding Rule</label>
                 <select
-                  value={settings?.roundingRule || 'none'}
+                  value={settings?.roundingRule ?? 'none'}
                   onChange={(e) => updateSettings({ roundingRule: e.target.value as 'none' | '5min' | '10min' | '15min' })}
                   className="px-3 py-1.5 border border-gray-300 dark:border-gray-600 rounded outline-none focus:ring-1 focus:ring-blue-500 text-sm bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
                 >
