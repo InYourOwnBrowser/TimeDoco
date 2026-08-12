@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useTimeTracker } from '../context/TimeTrackerContext';
-import { format, parseISO } from 'date-fns';
+import { format, parseISO, differenceInSeconds } from 'date-fns';
 import { X, AlertCircle } from 'lucide-react';
 import type { Entry } from '../types';
 
@@ -51,6 +51,8 @@ export const EntryEditModal: React.FC<EntryEditModalProps> = ({ entry, onClose }
 
     if (overlapping) {
       setWarning('Warning: This entry overlaps with an existing time entry.');
+    } else if (differenceInSeconds(end, start) > 12 * 3600) {
+      setWarning('Warning: This entry duration exceeds 12 hours.');
     } else {
       setWarning(null);
     }

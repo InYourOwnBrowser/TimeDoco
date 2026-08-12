@@ -25,7 +25,7 @@ Every item below was independently re-verified (grepping actual usages, re-readi
 The plan checks off Phases 1–5 as complete, but several explicitly-scoped items are absent from the shipped code:
 
 - [x] **No delete for entries, timecodes, or groups.** The `db` layer only exposes `put*` functions — no `delete*`. §6.2 ("Delete with confirmation... soft-delete/trash") and §6.4 ("merge two timecodes") are entirely unimplemented. Once a duplicate timecode or mistaken entry is created, there is no way to remove it, only archive (and entries can't be archived at all).
-- [ ] **No long-duration edit warning.** §6.2 calls for a warning when a manually entered duration exceeds ~12 hours. Only the overlap warning exists in `EntryEditModal`/`ManualEntryModal`.
+- [x] **No long-duration edit warning.** §6.2 calls for a warning when a manually entered duration exceeds ~12 hours. Only the overlap warning exists in `EntryEditModal`/`ManualEntryModal`.
 - [ ] **No timeline/calendar day view** on the Analysis page (§6.5) — only bar/pie charts and a table. Spotting gaps or overlaps visually isn't possible.
 - [ ] **No overlap/gap detection on the Analysis page** (§8.13) — overlap checking only happens reactively while editing a single entry, not as a report.
 - [ ] **True PDF export is not implemented.** §6.5/§8.5 call for a generated PDF; the "PDF" button in `AnalysisView` just calls `window.print()`, relying on the browser's print-to-PDF rather than a real client-side PDF (no `jsPDF`/`pdf-lib` in `package.json`).
