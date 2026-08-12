@@ -89,6 +89,24 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ onClose }) => {
             </section>
 
             <section>
+              <h3 className="text-md font-semibold text-gray-800 dark:text-gray-200 mb-3 border-b dark:border-gray-700 pb-1">Behavior</h3>
+              <div className="flex flex-col mb-4">
+                <label className="flex items-center gap-2 cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={settings?.allowConcurrentTimers || false}
+                    onChange={(e) => updateSettings({ allowConcurrentTimers: e.target.checked })}
+                    className="w-4 h-4 text-blue-600 rounded border-gray-300 focus:ring-blue-500"
+                  />
+                  <span className="text-sm font-medium text-gray-700 dark:text-gray-300">Allow Multiple Concurrent Timers</span>
+                </label>
+                <p className="text-xs text-gray-500 dark:text-gray-400 mt-1 pl-6">
+                  When disabled, starting a new timer automatically stops any existing active timer.
+                </p>
+              </div>
+            </section>
+
+            <section>
               <h3 className="text-md font-semibold text-gray-800 dark:text-gray-200 mb-3 border-b dark:border-gray-700 pb-1">Export Data</h3>
               <p className="text-sm text-gray-600 dark:text-gray-400 mb-3">
                 Download all your tracked time, groups, and settings as a secure local JSON file.

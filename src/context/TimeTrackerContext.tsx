@@ -6,16 +6,16 @@ import { differenceInSeconds } from 'date-fns';
 interface TimeTrackerContextType {
   groups: Group[];
   timecodes: Timecode[];
-  activeEntry: Entry | null;
+  activeEntries: Entry[];
   startTimer: (timecodeId: string) => Promise<void>;
-  stopTimer: () => Promise<void>;
-  pauseTimer: () => Promise<void>;
-  resumeTimer: () => Promise<void>;
+  stopTimer: (entryId: string) => Promise<void>;
+  pauseTimer: (entryId: string) => Promise<void>;
+  resumeTimer: (entryId: string) => Promise<void>;
   addGroup: (name: string, color: string) => Promise<Group>;
   updateGroup: (id: string, updates: Partial<Group>) => Promise<void>;
   addTimecode: (name: string, color?: string, groupId?: string, hourlyRate?: number) => Promise<Timecode>;
   updateTimecode: (id: string, updates: Partial<Timecode>) => Promise<void>;
-  updateActiveNote: (note: string) => Promise<void>;
+  updateActiveNote: (entryId: string, note: string) => Promise<void>;
   refreshData: () => Promise<void>;
   entries: Entry[];
   updateEntry: (id: string, updates: Partial<Entry>) => Promise<void>;
@@ -33,7 +33,7 @@ const TimeTrackerContext = createContext<TimeTrackerContextType | undefined>(und
 export const TimeTrackerProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
   const [groups, setGroups] = useState<Group[]>([]);
   const [timecodes, setTimecodes] = useState<Timecode[]>([]);
-  const [activeEntry, setActiveEntry] = useState<Entry | null>(null);
+  const [activeEntries, setActiveEntries] = useState<Entry[]>([]);
   const [entries, setEntries] = useState<Entry[]>([]);
   const [forgotToStopEntry, setForgotToStopEntry] = useState<Entry | null>(null);
   const [dismissedForgotToStopId, setDismissedForgotToStopId] = useState<string | null>(null);
@@ -43,7 +43,7 @@ export const TimeTrackerProvider: React.FC<{ children: ReactNode }> = ({ childre
     const loadedGroups = await db.getGroups();
     const loadedTimecodes = await db.getTimecodes();
     const loadedEntries = await db.getEntries();
-    const loadedActiveEntry = await db.getActiveEntry();
+    const loadedActiveEntries = await db.getActiveEntries();
     let loadedSettings = await db.getSettings();
 
     if (!loadedSettings) {
@@ -55,6 +55,7 @@ export const TimeTrackerProvider: React.FC<{ children: ReactNode }> = ({ childre
         idleThresholdMinutes: 15,
         weeklyTargetHours: null,
         encryptionEnabled: false,
+        allowConcurrentTimers: false,
       };
       await db.putSettings(loadedSettings);
     }
@@ -63,20 +64,25 @@ export const TimeTrackerProvider: React.FC<{ children: ReactNode }> = ({ childre
     setTimecodes(loadedTimecodes);
     // Sort entries descending by startTime for the list
     setEntries(loadedEntries.sort((a, b) => new Date(b.startTime).getTime() - new Date(a.startTime).getTime()));
-    setActiveEntry(loadedActiveEntry || null);
+    setActiveEntries(loadedActiveEntries);
     setSettings(loadedSettings);
 
     // "Forgot-to-stop" Detection
-    if (loadedActiveEntry && loadedActiveEntry.id !== dismissedForgotToStopId) {
-      const start = new Date(loadedActiveEntry.startTime);
-      const now = new Date();
-      const hoursElapsed = differenceInSeconds(now, start) / 3600;
+    if (loadedActiveEntries.length > 0) {
+      let foundForgot = false;
+      for (const entry of loadedActiveEntries) {
+        if (entry.id === dismissedForgotToStopId) continue;
+        const start = new Date(entry.startTime);
+        const now = new Date();
+        const hoursElapsed = differenceInSeconds(now, start) / 3600;
 
-      if (hoursElapsed > 10 || (hoursElapsed > 0 && start.getDate() !== now.getDate())) {
-        setForgotToStopEntry(loadedActiveEntry);
-      } else {
-        setForgotToStopEntry(null);
+        if (hoursElapsed > 10 || (hoursElapsed > 0 && start.getDate() !== now.getDate())) {
+          setForgotToStopEntry(entry);
+          foundForgot = true;
+          break;
+        }
       }
+      if (!foundForgot) setForgotToStopEntry(null);
     } else {
       setForgotToStopEntry(null);
     }
@@ -87,9 +93,23 @@ export const TimeTrackerProvider: React.FC<{ children: ReactNode }> = ({ childre
   }, [refreshData]);
 
   const startTimer = async (timecodeId: string) => {
-    if (activeEntry) {
-      await stopTimer();
+    const isConcurrentAllowed = settings?.allowConcurrentTimers ?? false;
+    const currentActive = await db.getActiveEntries();
+
+    if (!isConcurrentAllowed) {
+      // Stop all running timers
+      for (const entry of currentActive) {
+        await stopTimerById(entry.id);
+      }
+    } else {
+      // Stop timer for the exact same timecode if it exists to prevent duplicates
+      for (const entry of currentActive) {
+        if (entry.timecodeId === timecodeId) {
+          await stopTimerById(entry.id);
+        }
+      }
     }
+
     const now = new Date().toISOString();
     const newEntry: Entry = {
       id: crypto.randomUUID(),
@@ -109,34 +129,35 @@ export const TimeTrackerProvider: React.FC<{ children: ReactNode }> = ({ childre
     await refreshData();
   };
 
-  const stopTimer = async () => {
-    if (!activeEntry) return;
+  const stopTimerById = async (entryId: string) => {
+    const entry = await db.getEntry(entryId);
+    if (!entry || !entry.isRunning) return;
     const now = new Date();
     const endTimeIso = now.toISOString();
 
     // Calculate total pause duration
     let totalPauseSeconds = 0;
-    activeEntry.pausedSegments.forEach(segment => {
+    entry.pausedSegments.forEach(segment => {
       const pStart = new Date(segment.pauseStart);
       const pEnd = segment.pauseEnd ? new Date(segment.pauseEnd) : now;
       totalPauseSeconds += differenceInSeconds(pEnd, pStart);
     });
 
     // Close open pause segment if paused
-    let newPausedSegments = [...activeEntry.pausedSegments];
-    if (activeEntry.isPaused && newPausedSegments.length > 0) {
+    let newPausedSegments = [...entry.pausedSegments];
+    if (entry.isPaused && newPausedSegments.length > 0) {
       newPausedSegments[newPausedSegments.length - 1] = {
         ...newPausedSegments[newPausedSegments.length - 1],
         pauseEnd: endTimeIso,
       };
     }
 
-    const start = new Date(activeEntry.startTime);
+    const start = new Date(entry.startTime);
     let duration = differenceInSeconds(now, start) - totalPauseSeconds;
     if (duration < 0) duration = 0;
 
     const updatedEntry: Entry = {
-      ...activeEntry,
+      ...entry,
       endTime: endTimeIso,
       duration,
       isRunning: false,
@@ -145,26 +166,32 @@ export const TimeTrackerProvider: React.FC<{ children: ReactNode }> = ({ childre
       updatedAt: endTimeIso,
     };
     await db.putEntry(updatedEntry);
+  };
+
+  const stopTimer = async (entryId: string) => {
+    await stopTimerById(entryId);
     await refreshData();
   };
 
-  const pauseTimer = async () => {
-    if (!activeEntry || activeEntry.isPaused) return;
+  const pauseTimer = async (entryId: string) => {
+    const entry = await db.getEntry(entryId);
+    if (!entry || !entry.isRunning || entry.isPaused) return;
     const now = new Date().toISOString();
     const updatedEntry: Entry = {
-      ...activeEntry,
+      ...entry,
       isPaused: true,
-      pausedSegments: [...activeEntry.pausedSegments, { pauseStart: now }],
+      pausedSegments: [...entry.pausedSegments, { pauseStart: now }],
       updatedAt: now,
     };
     await db.putEntry(updatedEntry);
     await refreshData();
   };
 
-  const resumeTimer = async () => {
-    if (!activeEntry || !activeEntry.isPaused) return;
+  const resumeTimer = async (entryId: string) => {
+    const entry = await db.getEntry(entryId);
+    if (!entry || !entry.isRunning || !entry.isPaused) return;
     const now = new Date().toISOString();
-    const newPausedSegments = [...activeEntry.pausedSegments];
+    const newPausedSegments = [...entry.pausedSegments];
     if (newPausedSegments.length > 0) {
       newPausedSegments[newPausedSegments.length - 1] = {
         ...newPausedSegments[newPausedSegments.length - 1],
@@ -172,7 +199,7 @@ export const TimeTrackerProvider: React.FC<{ children: ReactNode }> = ({ childre
       };
     }
     const updatedEntry: Entry = {
-      ...activeEntry,
+      ...entry,
       isPaused: false,
       pausedSegments: newPausedSegments,
       updatedAt: now,
@@ -181,11 +208,12 @@ export const TimeTrackerProvider: React.FC<{ children: ReactNode }> = ({ childre
     await refreshData();
   };
 
-  const updateActiveNote = async (note: string) => {
-    if (!activeEntry) return;
+  const updateActiveNote = async (entryId: string, note: string) => {
+    const entry = await db.getEntry(entryId);
+    if (!entry || !entry.isRunning) return;
     const now = new Date().toISOString();
     const updatedEntry: Entry = {
-      ...activeEntry,
+      ...entry,
       note,
       updatedAt: now,
     };
@@ -459,7 +487,7 @@ export const TimeTrackerProvider: React.FC<{ children: ReactNode }> = ({ childre
     <TimeTrackerContext.Provider value={{
       groups,
       timecodes,
-      activeEntry,
+      activeEntries,
       startTimer,
       stopTimer,
       pauseTimer,

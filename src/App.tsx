@@ -8,12 +8,13 @@ import { SettingsModal } from './components/SettingsModal';
 import { AnalysisView } from './components/AnalysisView';
 import { GroupingManagement } from './components/GroupingManagement';
 import { WeeklySummary } from './components/WeeklySummary';
+import { IdleDetector } from './components/IdleDetector';
 import { Settings, BarChart2, Clock, ListTree } from 'lucide-react';
 import { useTimeTracker } from './context/TimeTrackerContext';
 
 // Extracted inner component so we can use TimeTrackerContext
 const AppContent = () => {
-  const { activeEntry, stopTimer, startTimer, timecodes, entries, settings } = useTimeTracker();
+  const { activeEntries, stopTimer, startTimer, timecodes, entries, settings } = useTimeTracker();
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
   const [activeTab, setActiveTab] = useState<'tracker' | 'analysis' | 'management'>('tracker');
 
@@ -42,8 +43,8 @@ const AppContent = () => {
       if ((e.ctrlKey || e.metaKey) && e.shiftKey && e.key.toLowerCase() === 's') {
         e.preventDefault();
 
-        if (activeEntry) {
-          stopTimer();
+        if (activeEntries && activeEntries.length > 0) {
+          stopTimer(activeEntries[activeEntries.length - 1].id);
         } else {
           // Find most recent timecode used
           const sortedEntries = [...entries].sort((a, b) => new Date(b.startTime).getTime() - new Date(a.startTime).getTime());
@@ -69,7 +70,7 @@ const AppContent = () => {
 
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [activeEntry, entries, timecodes, startTimer, stopTimer]);
+  }, [activeEntries, entries, timecodes, startTimer, stopTimer]);
 
   return (
       <div className="min-h-screen bg-gray-50 dark:bg-gray-900 flex flex-col items-center pt-12 px-4 font-sans text-gray-900 dark:text-gray-100 pb-24 relative">
@@ -137,7 +138,10 @@ const AppContent = () => {
         <main className="w-full max-w-3xl flex flex-col items-center">
           {activeTab === 'tracker' && (
             <>
-              <ActiveTimer />
+              {activeEntries.map(entry => (
+                <ActiveTimer key={entry.id} activeEntry={entry} />
+              ))}
+              <ActiveTimer activeEntry={null} />
               <WeeklySummary />
               <EntryList />
             </>
@@ -147,6 +151,8 @@ const AppContent = () => {
         </main>
 
         {isSettingsOpen && <SettingsModal onClose={() => setIsSettingsOpen(false)} />}
+
+        <IdleDetector />
       </div>
   );
 };

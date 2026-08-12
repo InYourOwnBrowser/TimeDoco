@@ -50,4 +50,5 @@ export interface Settings {
   weeklyTargetHours: number | null;
   encryptionEnabled: boolean;
   theme?: 'light' | 'dark' | 'system';
+  allowConcurrentTimers: boolean;
 }

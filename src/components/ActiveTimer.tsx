@@ -3,9 +3,10 @@ import { useTimeTracker } from '../context/TimeTrackerContext';
 import { differenceInSeconds } from 'date-fns';
 import { Play, Square, Pause } from 'lucide-react';
 import { TimecodeSelector } from './TimecodeSelector';
+import { type Entry } from '../types';
 
-export const ActiveTimer: React.FC = () => {
-  const { activeEntry, startTimer, stopTimer, pauseTimer, resumeTimer, timecodes, updateActiveNote } = useTimeTracker();
+export const ActiveTimer: React.FC<{ activeEntry: Entry | null }> = ({ activeEntry }) => {
+  const { startTimer, stopTimer, pauseTimer, resumeTimer, timecodes, updateActiveNote } = useTimeTracker();
   const [elapsedSeconds, setElapsedSeconds] = useState(0);
   const [selectedTimecodeId, setSelectedTimecodeId] = useState<string | null>(null);
   const [localNote, setLocalNote] = useState('');
@@ -22,7 +23,7 @@ export const ActiveTimer: React.FC = () => {
     if (!activeEntry) return;
     const handler = setTimeout(() => {
       if (localNote !== activeEntry.note) {
-        updateActiveNote(localNote);
+        updateActiveNote(activeEntry.id, localNote);
       }
     }, 1000);
     return () => clearTimeout(handler);
@@ -143,7 +144,7 @@ export const ActiveTimer: React.FC = () => {
           <div className="flex items-center gap-4 mt-2">
             {activeEntry.isPaused ? (
               <button
-                onClick={resumeTimer}
+                onClick={() => resumeTimer(activeEntry.id)}
                 className="w-14 h-14 rounded-full bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-400 hover:bg-amber-200 dark:hover:bg-amber-900/50 flex items-center justify-center transition-colors"
                 title="Resume"
               >
@@ -151,7 +152,7 @@ export const ActiveTimer: React.FC = () => {
               </button>
             ) : (
               <button
-                onClick={pauseTimer}
+                onClick={() => pauseTimer(activeEntry.id)}
                 className="w-14 h-14 rounded-full bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600 flex items-center justify-center transition-colors"
                 title="Pause"
               >
@@ -160,7 +161,7 @@ export const ActiveTimer: React.FC = () => {
             )}
 
             <button
-              onClick={stopTimer}
+              onClick={() => stopTimer(activeEntry.id)}
               className="w-16 h-16 rounded-full bg-red-600 hover:bg-red-700 text-white flex items-center justify-center shadow-lg transition-colors"
               title="Stop"
             >
