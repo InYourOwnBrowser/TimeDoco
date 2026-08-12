@@ -3,6 +3,8 @@ import { useTimeTracker } from '../context/TimeTrackerContext';
 import { startOfDay, endOfDay, startOfWeek, endOfWeek, startOfMonth, endOfMonth, parseISO, format, differenceInSeconds } from 'date-fns';
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, PieChart, Pie, Cell, Legend } from 'recharts';
 import { Download, Printer } from 'lucide-react';
+import jsPDF from 'jspdf';
+import autoTable from 'jspdf-autotable';
 
 type DatePreset = 'today' | 'week' | 'month' | 'custom';
 
@@ -145,7 +147,19 @@ export const AnalysisView: React.FC = () => {
   };
 
   const handlePrint = () => {
-    window.print();
+    const doc = new jsPDF();
+    const tableData = timecodeData.map(tc => {
+      const timecode = timecodes.find(t => t.id === tc.id);
+      const groupName = timecode?.groupId ? groups.find(g => g.id === timecode.groupId)?.name || 'Unknown' : 'Ungrouped';
+      return [tc.name, groupName, tc.durationHours.toString(), tc.earnings.toFixed(2)];
+    });
+
+    autoTable(doc, {
+      head: [['Timecode', 'Group', 'Duration (Hours)', 'Earnings']],
+      body: tableData,
+    });
+
+    doc.save(`time-report-${format(dateRange.start, 'yyyy-MM-dd')}.pdf`);
   };
 
   return (
