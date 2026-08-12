@@ -109,15 +109,14 @@ export const putEntry = async (entry: Entry): Promise<string> => {
 
 export const getActiveEntry = async (): Promise<Entry | undefined> => {
   const db = await getDB();
-  // idb supports indexing by boolean, but sometimes we need to check carefully
-  // The 'is-running' index will map true/false. Since we are looking for isRunning: true
-  // Let's use index and fallback if IDB behaves weirdly with booleans.
-  // We can just iterate or fetch all running.
-
-  // Actually, boolean keys in IDB indexes are valid in modern browsers, but can be tricky.
-  // A safer approach: fetch all and filter, or just use getAll and filter since running entries should be 1.
   const allEntries = await db.getAll('entries');
   return allEntries.find((e) => e.isRunning === true);
+};
+
+export const getActiveEntries = async (): Promise<Entry[]> => {
+  const db = await getDB();
+  const allEntries = await db.getAll('entries');
+  return allEntries.filter((e) => e.isRunning === true);
 };
 
 // --- Settings ---
