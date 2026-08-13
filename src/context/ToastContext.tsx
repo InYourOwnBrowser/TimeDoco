@@ -5,10 +5,14 @@ interface Toast {
   id: string;
   message: string;
   type: 'info' | 'success' | 'error';
+  action?: {
+    label: string;
+    onClick: () => void;
+  };
 }
 
 interface ToastContextType {
-  addToast: (message: string, type?: 'info' | 'success' | 'error') => void;
+  addToast: (message: string, type?: 'info' | 'success' | 'error', action?: { label: string, onClick: () => void }, duration?: number) => void;
 }
 
 const ToastContext = createContext<ToastContextType | undefined>(undefined);
@@ -25,13 +29,13 @@ export const useToast = () => {
 export const ToastProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
   const [toasts, setToasts] = useState<Toast[]>([]);
 
-  const addToast = useCallback((message: string, type: 'info' | 'success' | 'error' = 'info') => {
+  const addToast = useCallback((message: string, type: 'info' | 'success' | 'error' = 'info', action?: { label: string, onClick: () => void }, duration: number = 3000) => {
     const id = Math.random().toString(36).substring(2, 9);
-    setToasts((prev) => [...prev, { id, message, type }]);
+    setToasts((prev) => [...prev, { id, message, type, action }]);
 
     setTimeout(() => {
       setToasts((prev) => prev.filter((t) => t.id !== id));
-    }, 3000); // Auto-dismiss after 3 seconds
+    }, duration);
   }, []);
 
   const removeToast = (id: string) => {
@@ -54,6 +58,17 @@ export const ToastProvider: React.FC<{ children: ReactNode }> = ({ children }) =
             }`}
           >
             <span className="text-sm font-medium">{toast.message}</span>
+            {toast.action && (
+              <button
+                onClick={() => {
+                  toast.action!.onClick();
+                  removeToast(toast.id);
+                }}
+                className="text-sm font-semibold underline hover:text-white/90 ml-2"
+              >
+                {toast.action.label}
+              </button>
+            )}
             <button
               onClick={() => removeToast(toast.id)}
               className="ml-auto text-white/80 hover:text-white transition-colors"
