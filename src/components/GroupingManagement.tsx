@@ -225,7 +225,10 @@ export const GroupingManagement: React.FC = () => {
                         type="number"
                         placeholder="Rate (opt)"
                         value={editingTimecodeData.hourlyRate}
-                        onChange={(e) => setEditingTimecodeData({ ...editingTimecodeData, hourlyRate: e.target.value })}
+                        onChange={(e) => {
+                          const val = e.target.value;
+                          setEditingTimecodeData({ ...editingTimecodeData, hourlyRate: val !== '' && Number(val) < 0 ? '0' : val });
+                        }}
                         className="w-24 px-3 py-1 border border-gray-300 dark:border-gray-600 rounded outline-none focus:ring-1 focus:ring-blue-500 bg-white dark:bg-gray-700 text-gray-900 dark:text-white text-sm"
                         min="0"
                         step="0.01"
@@ -360,7 +363,10 @@ export const GroupingManagement: React.FC = () => {
             type="number"
             placeholder="Rate (opt)"
             value={newTimecodeRate}
-            onChange={(e) => setNewTimecodeRate(e.target.value)}
+            onChange={(e) => {
+              const val = e.target.value;
+              setNewTimecodeRate(val !== '' && Number(val) < 0 ? '0' : val);
+            }}
             className="w-24 px-3 py-2 border border-gray-300 dark:border-gray-600 rounded outline-none focus:ring-1 focus:ring-blue-500 text-sm bg-white dark:bg-gray-700 text-gray-900 dark:text-white placeholder-gray-400 dark:placeholder-gray-500"
             min="0"
             step="0.01"

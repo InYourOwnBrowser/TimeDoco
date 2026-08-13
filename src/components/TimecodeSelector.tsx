@@ -192,7 +192,10 @@ export const TimecodeSelector: React.FC<TimecodeSelectorProps> = ({ onSelect, se
                     step="0.01"
                     placeholder="0.00"
                     value={newHourlyRate}
-                    onChange={(e) => setNewHourlyRate(e.target.value)}
+                    onChange={(e) => {
+                      const val = e.target.value;
+                      setNewHourlyRate(val !== '' && Number(val) < 0 ? '0' : val);
+                    }}
                     className="w-full text-sm p-1.5 pl-6 border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-gray-700 text-gray-900 dark:text-white placeholder-gray-400 dark:placeholder-gray-500"
                   />
                 </div>

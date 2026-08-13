@@ -61,7 +61,7 @@
 
 - [ ] **3.7 No indication of unsaved state / dirty-check before closing modals.** Related to 1.6 — none of the edit modals warn on close-with-unsaved-changes.
 
-- [ ] **3.8 Numeric inputs don't enforce their own `min`.** Hourly rate, weekly target hours, idle threshold, and reminder interval all use `<input type="number" min="0">`, but nothing stops a user from typing a negative number directly (browser `min` attribute only affects the spinner/native validation UI, not free typing without a `<form>` submit). A `-5` hourly rate or `-1` weekly target will silently be stored and produce nonsensical output (negative earnings, `Math.min` guard shows odd progress bars, etc.).
+- [x] **3.8 Numeric inputs don't enforce their own `min`.** Hourly rate, weekly target hours, idle threshold, and reminder interval all use `<input type="number" min="0">`, but nothing stops a user from typing a negative number directly (browser `min` attribute only affects the spinner/native validation UI, not free typing without a `<form>` submit). A `-5` hourly rate or `-1` weekly target will silently be stored and produce nonsensical output (negative earnings, `Math.min` guard shows odd progress bars, etc.).
 
 - [ ] **3.9 Week start is hard-coded to Monday.** `WeeklySummary` and `AnalysisView`'s "This Week" preset both hard-code `weekStartsOn: 1`. Reasonable default, but there's no setting for users/locales that expect a Sunday-start week — worth a one-line settings toggle since the plumbing (`date-fns`) already supports it.
 
@@ -105,7 +105,7 @@
 
 **High (correctness / data trust):**
 - [x] 1. Fix the concurrent-timer `document.title` race (1.1)
-- [ ] 2. Guard against silent negative numeric inputs (3.8)
+- [x] 2. Guard against silent negative numeric inputs (3.8)
 - [ ] 3. Add a confirm step for saves that already show an overlap/12h+ warning (1.4)
 
 **Medium (polish / scale):**
