@@ -3,8 +3,6 @@ import { useTimeTracker } from '../context/TimeTrackerContext';
 import { startOfDay, endOfDay, startOfWeek, endOfWeek, startOfMonth, endOfMonth, parseISO, format, differenceInSeconds } from 'date-fns';
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, PieChart, Pie, Cell, Legend } from 'recharts';
 import { Download, Printer, AlertTriangle } from 'lucide-react';
-import jsPDF from 'jspdf';
-import autoTable from 'jspdf-autotable';
 import { applyRounding } from '../utils/timeUtils';
 
 type DatePreset = 'today' | 'week' | 'month' | 'custom';
@@ -177,7 +175,10 @@ export const AnalysisView: React.FC = () => {
     URL.revokeObjectURL(url);
   };
 
-  const handlePrint = () => {
+  const handlePrint = async () => {
+    const { default: jsPDF } = await import('jspdf');
+    const { default: autoTable } = await import('jspdf-autotable');
+
     const doc = new jsPDF();
     const tableData = timecodeData.map(tc => {
       const timecode = timecodes.find(t => t.id === tc.id);

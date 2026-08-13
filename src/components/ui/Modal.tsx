@@ -27,7 +27,7 @@ export const Modal: React.FC<ModalProps> = ({ onClose, children, className = '' 
         const lastElement = focusableElements[focusableElements.length - 1] as HTMLElement;
 
         if (e.shiftKey) {
-          if (document.activeElement === firstElement) {
+          if (document.activeElement === firstElement || document.activeElement === modalRef.current) {
             e.preventDefault();
             lastElement.focus();
           }

@@ -82,16 +82,16 @@ Additional gaps not called out in the plan but worth noting:
 - [x] **3.4 Modal viewport overflow on small screens**
   `ManualEntryModal` and `EntryEditModal` have no `max-height`/`overflow-y-auto` on their content area (unlike `SettingsModal`, which does). On short viewports, or with the mobile on-screen keyboard open while editing the datetime fields, the Save/Cancel footer can be pushed off-screen with no way to scroll to it.
 
-- [ ] **3.5 Bundle size on the Analysis tab**
+- [x] **3.5 Bundle size on the Analysis tab**
   `AnalysisView` lazy-chunk is **~822 KB (≈251 KB gzipped)** — by far the largest chunk in the app, driven mainly by `jsPDF` + `jspdf-autotable` (plus `html2canvas` pulled in transitively) and `recharts`. It's already code-split via `React.lazy`, which helps the initial load, but the first time a user opens the Analysis tab, especially on mobile data, there will be a noticeable stall.
   **Suggestion:** further split the PDF export path (`jsPDF`/`autoTable`) into its own dynamically-imported chunk that only loads when "PDF / Print" is actually clicked, rather than bundling it with the whole Analysis view.
 
-- [ ] **3.6 Backup banner UX vs. Forgot-to-Stop banner UX are inconsistent**
+- [x] **3.6 Backup banner UX vs. Forgot-to-Stop banner UX are inconsistent**
   `BackupReminderBanner`'s dismissal persists for 24h via `localStorage`. `ForgotToStopPrompt`'s dismissal (`dismissedForgotToStopId`) lives only in React state, so it resets on every page refresh — meaning a user who dismisses "did you forget to stop this?" and then reloads the tab (or the PWA restarts) sees the same nag reappear immediately, which risks feeling naggy rather than forgiving. Consider persisting this dismissal the same way the backup banner does, perhaps re-showing only if the timer is *still* running some hours later.
 
-- [ ] **3.7 Minor polish items**
-  - [ ] `idleThresholdMinutes` input in `SettingsModal` falls back to a placeholder default of `5` (`settings?.idleThresholdMinutes ?? 5`) while the actual app default (set in `TimeTrackerContext`) is `15` — cosmetically inconsistent, though not user-visible in practice since settings are always populated on load.
-  - [ ] 15 one-off `patch_*.py` scripts are committed at the repo root (`patch_banner.py`, `patch_encryption.py`, `patch_timeline.py`, etc.). These appear to be scratch scripts used to make individual code edits and aren't part of the app; leaving them in the repo root is confusing for new contributors and should be deleted or moved outside version control.
+- [x] **3.7 Minor polish items**
+  - [x] `idleThresholdMinutes` input in `SettingsModal` falls back to a placeholder default of `5` (`settings?.idleThresholdMinutes ?? 5`) while the actual app default (set in `TimeTrackerContext`) is `15` — cosmetically inconsistent, though not user-visible in practice since settings are always populated on load.
+  - [x] 15 one-off `patch_*.py` scripts are committed at the repo root (`patch_banner.py`, `patch_encryption.py`, `patch_timeline.py`, etc.). These appear to be scratch scripts used to make individual code edits and aren't part of the app; leaving them in the repo root is confusing for new contributors and should be deleted or moved outside version control.
 
 ---
 
@@ -106,8 +106,8 @@ Additional gaps not called out in the plan but worth noting:
 **Medium priority (trust / polish):**
 - [x] 5. Add focus-trap + Escape handling to modals (3.1)
 - [x] 6. Fix idle-detection back-dating so pauses reflect actual idle start (1.4)
-- [ ] 7. Persist Forgot-to-Stop dismissal like the backup banner does (3.6)
-- [ ] 8. Split jsPDF out of the Analysis chunk (3.5)
+- [x] 7. Persist Forgot-to-Stop dismissal like the backup banner does (3.6)
+- [x] 8. Split jsPDF out of the Analysis chunk (3.5)
 
 **Lower priority (nice-to-have, roadmap items already scoped in `plan.md`):**
 - [ ] 9. Timecode merge tool, entry splitting, soft-delete/trash, recurring entries, gap detection
