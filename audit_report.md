@@ -55,9 +55,9 @@ Stack: React 19 + TypeScript + Vite + IndexedDB (`idb`) + Tailwind + Recharts + 
 | - [ ] Passphrase encryption at rest (§8.8) | Not implemented — actively removed (`patch_encryption.py` strips `encryptionEnabled` from types/context/db) |
 | - [ ] Soft-delete / trash with restore window (§8.12) | Not implemented — deletes are immediate and permanent, gated only by `window.confirm` |
 | - [ ] Recurring/template entries (§8.11) | Not implemented |
-| - [x] Timecode merge tool (§6.4) | Not implemented |
-| - [x] Entry splitting across timecodes (§7.5) | Not implemented |
-| - [x] Gap detection on Analysis page (§8.13, "overlaps *or* gaps") | Only overlap detection shipped; no unexplained-gap flagging |
+| - [x] Timecode merge tool (§6.4) | Implemented in Management tab |
+| - [x] Entry splitting across timecodes (§7.5) | Implemented via Scissors icon in EntryList |
+| - [x] Gap detection on Analysis page (§8.13, "overlaps *or* gaps") | Implemented gap detection > 15m |
 | - [ ] Toast/micro-feedback on actions (§5) | Not implemented — no confirmation toasts on start/stop/save |
 | - [ ] Rounding rule applied at report time (§6.5) | Setting exists but is inert — see Bug 1.1 |
 

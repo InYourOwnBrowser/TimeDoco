@@ -90,7 +90,7 @@ export const AnalysisView: React.FC = () => {
 
       // If entry spans multiple days, split it for gap detection purposes (simplified: just use start day)
       // For accurate intra-day gap detection, we group by start date string
-      const dateStr = start.toISOString().split('T')[0];
+      const dateStr = format(start, 'yyyy-MM-dd');
       if (!entriesByDay.has(dateStr)) {
         entriesByDay.set(dateStr, []);
       }
