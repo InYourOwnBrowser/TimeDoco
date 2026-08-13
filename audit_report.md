@@ -10,7 +10,7 @@
 
 ## 1. Bugs
 
-- [ ] **1.1 Document title races when multiple concurrent timers are active.** `ActiveTimer.tsx` sets `document.title` in a `useEffect`, and `App.tsx` renders one `<ActiveTimer>` per entry in `activeEntries`. With "Allow Multiple Concurrent Timers" on and 2+ timers running, each mounted instance fights over `document.title` every second, and each instance's cleanup resets it to `'Time Tracker'` on unmount — the tab title will flicker/thrash unpredictably. Title-updating should be lifted to a single place (e.g. one effect in `App.tsx` driven by `activeEntries`, showing a count or the most-recently-started timer) rather than living in a component that can have multiple instances.
+- [x] **1.1 Document title races when multiple concurrent timers are active.** `ActiveTimer.tsx` sets `document.title` in a `useEffect`, and `App.tsx` renders one `<ActiveTimer>` per entry in `activeEntries`. With "Allow Multiple Concurrent Timers" on and 2+ timers running, each mounted instance fights over `document.title` every second, and each instance's cleanup resets it to `'Time Tracker'` on unmount — the tab title will flicker/thrash unpredictably. Title-updating should be lifted to a single place (e.g. one effect in `App.tsx` driven by `activeEntries`, showing a count or the most-recently-started timer) rather than living in a component that can have multiple instances.
 
 - [ ] **1.2 `entries.is-running` IndexedDB index is dead/broken.** In `db/index.ts`:
   ```ts
@@ -104,7 +104,7 @@
 ## 5. Suggested Priorities
 
 **High (correctness / data trust):**
-- [ ] 1. Fix the concurrent-timer `document.title` race (1.1)
+- [x] 1. Fix the concurrent-timer `document.title` race (1.1)
 - [ ] 2. Guard against silent negative numeric inputs (3.8)
 - [ ] 3. Add a confirm step for saves that already show an overlap/12h+ warning (1.4)
 

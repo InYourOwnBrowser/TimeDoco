@@ -14,6 +14,8 @@ import { useTimeTracker } from './context/TimeTrackerContext';
 import { UndoToast } from './components/UndoToast';
 import { ToastProvider } from './context/ToastContext';
 
+import { differenceInSeconds } from 'date-fns';
+
 // Extracted inner component so we can use TimeTrackerContext
 const AppContent = () => {
   const { activeEntries, stopTimer, startTimer, timecodes, entries, settings } = useTimeTracker();
@@ -21,6 +23,60 @@ const AppContent = () => {
   const [activeTab, setActiveTab] = useState<'tracker' | 'analysis' | 'management'>('tracker');
   const [showNewTimer, setShowNewTimer] = useState(false);
 
+  // Calculate elapsed time for document title
+  useEffect(() => {
+    if (activeEntries.length === 0) {
+      document.title = 'Time Tracker';
+      return;
+    }
+
+    // Pick the most recently started entry (last in the array usually, or sort by start time)
+    const primaryEntry = [...activeEntries].sort((a, b) => new Date(b.startTime).getTime() - new Date(a.startTime).getTime())[0];
+    const activeTimecode = timecodes.find(t => t.id === primaryEntry.timecodeId);
+
+    const calculateElapsed = () => {
+      const now = new Date();
+      const start = new Date(primaryEntry.startTime);
+
+      let totalPauseSeconds = 0;
+      primaryEntry.pausedSegments.forEach(segment => {
+        const pStart = new Date(segment.pauseStart);
+        const pEnd = segment.pauseEnd ? new Date(segment.pauseEnd) : now;
+        totalPauseSeconds += differenceInSeconds(pEnd, pStart);
+      });
+
+      const total = differenceInSeconds(now, start) - totalPauseSeconds;
+      return total > 0 ? total : 0;
+    };
+
+    const updateTitle = () => {
+      const elapsed = calculateElapsed();
+
+      if (activeTimecode) {
+        const hrs = Math.floor(elapsed / 3600);
+        const mins = Math.floor((elapsed % 3600) / 60);
+        const secs = elapsed % 60;
+        const pad = (num: number) => num.toString().padStart(2, '0');
+        const timeStr = hrs > 0 ? `${hrs}:${pad(mins)}:${pad(secs)}` : `${pad(mins)}:${pad(secs)}`;
+
+        let prefix = primaryEntry.isPaused ? '⏸️' : '🔴';
+        if (activeEntries.length > 1) {
+          prefix = `[${activeEntries.length}] ${prefix}`;
+        }
+        document.title = `${prefix} ${timeStr} - ${activeTimecode.name}`;
+      } else {
+         document.title = 'Time Tracker';
+      }
+    };
+
+    updateTitle();
+
+    // Only set interval if the primary entry is running
+    if (!primaryEntry.isPaused) {
+      const interval = setInterval(updateTitle, 1000);
+      return () => clearInterval(interval);
+    }
+  }, [activeEntries, timecodes]);
 
   // Reset new timer form when a timer starts or concurrent is disabled
   useEffect(() => {
