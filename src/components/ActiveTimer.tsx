@@ -73,23 +73,6 @@ export const ActiveTimer: React.FC<{ activeEntry: Entry | null }> = ({ activeEnt
     return `${pad(mins)}:${pad(secs)}`;
   };
 
-  useEffect(() => {
-    if (activeEntry && activeTimecode) {
-      const timeStr = formatTime(elapsedSeconds);
-      if (activeEntry.isPaused) {
-        document.title = `⏸️ ${timeStr} - ${activeTimecode.name}`;
-      } else {
-        document.title = `🔴 ${timeStr} - ${activeTimecode.name}`;
-      }
-    } else {
-      document.title = 'Time Tracker';
-    }
-
-    return () => {
-      document.title = 'Time Tracker';
-    };
-  }, [activeEntry, activeTimecode, elapsedSeconds]);
-
   return (
     <div className="bg-white dark:bg-gray-800 p-6 rounded-xl shadow-sm border border-gray-100 dark:border-gray-700 max-w-md w-full mx-auto flex flex-col items-center transition-colors">
       {!activeEntry ? (
