@@ -230,6 +230,34 @@ export const AnalysisView: React.FC = () => {
     URL.revokeObjectURL(url);
   };
 
+  const handleExportRawCSV = () => {
+    const headers = ['Date', 'Timecode', 'Group', 'Start', 'End', 'Duration (h)', 'Note'];
+    const rows = filteredEntries.map(e => {
+      const tc = timecodes.find(t => t.id === e.timecodeId);
+      const grp = groups.find(g => g.id === tc?.groupId);
+      return [
+        format(parseISO(e.startTime), 'yyyy-MM-dd'),
+        `"${(tc?.name ?? 'Unknown').replace(/"/g, '""')}"`,
+        `"${(grp?.name ?? 'Ungrouped').replace(/"/g, '""')}"`,
+        format(parseISO(e.startTime), 'HH:mm:ss'),
+        e.endTime ? format(parseISO(e.endTime), 'HH:mm:ss') : '',
+        (applyRounding(e.duration, settings?.roundingRule ?? 'none') / 3600).toFixed(2),
+        `"${e.note.replace(/"/g, '""')}"`,
+      ].join(',');
+    });
+
+    const csvContent = [headers.join(','), ...rows].join('\n');
+    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.setAttribute('download', `time-entries-${format(dateRange.start, 'yyyy-MM-dd')}.csv`);
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    URL.revokeObjectURL(url);
+  };
+
   const handlePrint = async () => {
     const { default: jsPDF } = await import('jspdf');
     const { default: autoTable } = await import('jspdf-autotable');
@@ -255,8 +283,11 @@ export const AnalysisView: React.FC = () => {
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-4">
           <h2 className="text-xl font-bold text-gray-900 dark:text-white">Analysis & Reports</h2>
           <div className="flex gap-2">
-            <button onClick={handleExportCSV} className="flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-md hover:bg-gray-50 dark:bg-gray-700 dark:text-gray-200 dark:border-gray-600 dark:hover:bg-gray-600">
-              <Download size={16} /> CSV
+            <button onClick={handleExportCSV} className="flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-md hover:bg-gray-50 dark:bg-gray-700 dark:text-gray-200 dark:border-gray-600 dark:hover:bg-gray-600" title="Summary CSV">
+              <Download size={16} /> Summary CSV
+            </button>
+            <button onClick={handleExportRawCSV} className="flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-md hover:bg-gray-50 dark:bg-gray-700 dark:text-gray-200 dark:border-gray-600 dark:hover:bg-gray-600" title="Detailed Entries CSV">
+              <Download size={16} /> Raw CSV
             </button>
             <button onClick={handlePrint} className="flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-md hover:bg-gray-50 dark:bg-gray-700 dark:text-gray-200 dark:border-gray-600 dark:hover:bg-gray-600">
               <Printer size={16} /> PDF / Print
