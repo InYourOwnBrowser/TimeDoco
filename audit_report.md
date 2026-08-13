@@ -58,8 +58,8 @@ Stack: React 19 + TypeScript + Vite + IndexedDB (`idb`) + Tailwind + Recharts + 
 | - [x] Timecode merge tool (§6.4) | Implemented in Management tab |
 | - [x] Entry splitting across timecodes (§7.5) | Implemented via Scissors icon in EntryList |
 | - [x] Gap detection on Analysis page (§8.13, "overlaps *or* gaps") | Implemented gap detection > 15m |
-| - [ ] Toast/micro-feedback on actions (§5) | Not implemented — no confirmation toasts on start/stop/save |
-| - [ ] Rounding rule applied at report time (§6.5) | Setting exists but is inert — see Bug 1.1 |
+| - [x] Toast/micro-feedback on actions (§5) | Not implemented — no confirmation toasts on start/stop/save |
+| - [x] Rounding rule applied at report time (§6.5) | Setting exists but is inert — see Bug 1.1 |
 
 Additional gaps not called out in the plan but worth noting:
 - [x] **No "Add Timecode" button in the Management tab.** New timecodes can only be created inline from the tracker's search box; the Management page can only edit/archive/delete existing ones. Anyone wanting to pre-configure timecodes before tracking has to fake it through the tracker UI first.

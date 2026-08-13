@@ -5,6 +5,7 @@ import { X, AlertCircle } from 'lucide-react';
 import { checkOverlap } from '../utils/timeUtils';
 import type { Entry } from '../types';
 import { Modal } from './ui/Modal';
+import { useToast } from '../context/ToastContext';
 
 interface EntryEditModalProps {
   entry: Entry;
@@ -13,6 +14,7 @@ interface EntryEditModalProps {
 
 export const EntryEditModal: React.FC<EntryEditModalProps> = ({ entry, onClose }) => {
   const { updateEntry, timecodes, entries, settings } = useTimeTracker();
+  const { addToast } = useToast();
   const [startTime, setStartTime] = useState('');
   const [endTime, setEndTime] = useState('');
   const [timecodeId, setTimecodeId] = useState(entry.timecodeId);
@@ -86,6 +88,7 @@ export const EntryEditModal: React.FC<EntryEditModalProps> = ({ entry, onClose }
     }
 
     await updateEntry(entry.id, updates);
+    addToast('Changes saved', 'success');
     onClose();
   };
 

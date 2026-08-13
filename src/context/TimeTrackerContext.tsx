@@ -3,6 +3,7 @@ import type { Group, Timecode, Entry, Settings } from '../types';
 import * as db from '../db';
 import { differenceInSeconds } from 'date-fns';
 import { calculateDuration } from '../utils/timeUtils';
+import { useToast } from './ToastContext';
 
 interface TimeTrackerContextType {
   groups: Group[];
@@ -40,6 +41,7 @@ interface TimeTrackerContextType {
 const TimeTrackerContext = createContext<TimeTrackerContextType | undefined>(undefined);
 
 export const TimeTrackerProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
+  const { addToast } = useToast();
   const [groups, setGroups] = useState<Group[]>([]);
   const [timecodes, setTimecodes] = useState<Timecode[]>([]);
   const [activeEntries, setActiveEntries] = useState<Entry[]>([]);
@@ -159,6 +161,7 @@ export const TimeTrackerProvider: React.FC<{ children: ReactNode }> = ({ childre
     };
     await db.putEntry(newEntry);
     await refreshData();
+    addToast('Timer started', 'success');
   };
 
   const stopTimerById = async (entryId: string) => {
@@ -189,6 +192,7 @@ export const TimeTrackerProvider: React.FC<{ children: ReactNode }> = ({ childre
       updatedAt: endTimeIso,
     };
     await db.putEntry(updatedEntry);
+    addToast('Timer stopped', 'success');
   };
 
   const stopTimer = async (entryId: string) => {
@@ -213,6 +217,7 @@ export const TimeTrackerProvider: React.FC<{ children: ReactNode }> = ({ childre
     };
     await db.putEntry(updatedEntry);
     await refreshData();
+    addToast('Timer paused', 'info');
   };
 
   const resumeTimer = async (entryId: string) => {
@@ -234,6 +239,7 @@ export const TimeTrackerProvider: React.FC<{ children: ReactNode }> = ({ childre
     };
     await db.putEntry(updatedEntry);
     await refreshData();
+    addToast('Timer resumed', 'success');
   };
 
   const updateActiveNote = async (entryId: string, note: string) => {
