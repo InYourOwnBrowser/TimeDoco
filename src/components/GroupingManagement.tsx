@@ -4,7 +4,7 @@ import { Edit2, Archive, ArchiveRestore, Check, X, Trash2 } from 'lucide-react';
 import type { Group, Timecode } from '../types';
 
 export const GroupingManagement: React.FC = () => {
-  const { groups, timecodes, addGroup, updateGroup, deleteGroup, updateTimecode, deleteTimecode } = useTimeTracker();
+  const { groups, timecodes, entries, addGroup, updateGroup, deleteGroup, updateTimecode, deleteTimecode } = useTimeTracker();
 
   const [editingGroupId, setEditingGroupId] = useState<string | null>(null);
   const [editingGroupData, setEditingGroupData] = useState<{ name: string; color: string }>({ name: '', color: '' });
@@ -237,8 +237,15 @@ export const GroupingManagement: React.FC = () => {
                       </button>
                       <button
                         onClick={() => {
-                          if (window.confirm('Are you sure you want to delete this timecode? This action cannot be undone.')) {
-                            deleteTimecode(tc.id);
+                          const associatedEntriesCount = entries.filter(e => e.timecodeId === tc.id).length;
+                          if (associatedEntriesCount > 0) {
+                            if (window.confirm(`Are you sure you want to delete this timecode? WARNING: This will also permanently delete ${associatedEntriesCount} associated time entries! We recommend Archiving instead. Continue anyway?`)) {
+                              deleteTimecode(tc.id);
+                            }
+                          } else {
+                            if (window.confirm('Are you sure you want to delete this timecode? This action cannot be undone.')) {
+                              deleteTimecode(tc.id);
+                            }
                           }
                         }}
                         className="p-1.5 text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/30 rounded transition-colors"
