@@ -4,7 +4,7 @@ import { Edit2, Archive, ArchiveRestore, Check, X, Trash2 } from 'lucide-react';
 import type { Group, Timecode } from '../types';
 
 export const GroupingManagement: React.FC = () => {
-  const { groups, timecodes, entries, addGroup, updateGroup, deleteGroup, updateTimecode, deleteTimecode } = useTimeTracker();
+  const { groups, timecodes, entries, addGroup, updateGroup, deleteGroup, addTimecode, updateTimecode, deleteTimecode } = useTimeTracker();
 
   const [editingGroupId, setEditingGroupId] = useState<string | null>(null);
   const [editingGroupData, setEditingGroupData] = useState<{ name: string; color: string }>({ name: '', color: '' });
@@ -14,6 +14,11 @@ export const GroupingManagement: React.FC = () => {
 
   const [newGroupName, setNewGroupName] = useState('');
   const [newGroupColor, setNewGroupColor] = useState('#3b82f6'); // blue-500
+
+  const [newTimecodeName, setNewTimecodeName] = useState('');
+  const [newTimecodeColor, setNewTimecodeColor] = useState('#94a3b8'); // slate-400
+  const [newTimecodeGroupId, setNewTimecodeGroupId] = useState('');
+  const [newTimecodeRate, setNewTimecodeRate] = useState('');
 
   const handleEditGroupStart = (group: Group) => {
     setEditingGroupId(group.id);
@@ -52,6 +57,20 @@ export const GroupingManagement: React.FC = () => {
     if (!newGroupName.trim()) return;
     await addGroup(newGroupName, newGroupColor);
     setNewGroupName('');
+  };
+
+  const handleCreateTimecode = async () => {
+    if (!newTimecodeName.trim()) return;
+    const parsedRate = parseFloat(newTimecodeRate);
+    await addTimecode(
+      newTimecodeName,
+      newTimecodeColor,
+      newTimecodeGroupId || undefined,
+      isNaN(parsedRate) ? undefined : parsedRate
+    );
+    setNewTimecodeName('');
+    setNewTimecodeRate('');
+    // Leave the selected color and group in case they want to add multiple timecodes for the same group/color
   };
 
   return (
@@ -259,6 +278,49 @@ export const GroupingManagement: React.FC = () => {
               </div>
             );
           })}
+        </div>
+
+        <div className="flex items-center gap-3 mt-4 pt-4 border-t border-gray-100 dark:border-gray-700 flex-wrap">
+          <input
+            type="color"
+            value={newTimecodeColor}
+            onChange={(e) => setNewTimecodeColor(e.target.value)}
+            className="w-8 h-8 rounded cursor-pointer border-0 p-0"
+            title="Timecode Color"
+          />
+          <input
+            type="text"
+            placeholder="New Timecode Name"
+            value={newTimecodeName}
+            onChange={(e) => setNewTimecodeName(e.target.value)}
+            className="flex-1 min-w-[150px] px-3 py-2 border border-gray-300 dark:border-gray-600 rounded outline-none focus:ring-1 focus:ring-blue-500 text-sm bg-white dark:bg-gray-700 text-gray-900 dark:text-white placeholder-gray-400 dark:placeholder-gray-500"
+          />
+          <select
+            value={newTimecodeGroupId}
+            onChange={(e) => setNewTimecodeGroupId(e.target.value)}
+            className="px-3 py-2 border border-gray-300 dark:border-gray-600 rounded outline-none focus:ring-1 focus:ring-blue-500 text-sm bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
+          >
+            <option value="">No Group</option>
+            {groups.map(g => (
+              <option key={g.id} value={g.id}>{g.name}</option>
+            ))}
+          </select>
+          <input
+            type="number"
+            placeholder="Rate (opt)"
+            value={newTimecodeRate}
+            onChange={(e) => setNewTimecodeRate(e.target.value)}
+            className="w-24 px-3 py-2 border border-gray-300 dark:border-gray-600 rounded outline-none focus:ring-1 focus:ring-blue-500 text-sm bg-white dark:bg-gray-700 text-gray-900 dark:text-white placeholder-gray-400 dark:placeholder-gray-500"
+            min="0"
+            step="0.01"
+          />
+          <button
+            onClick={handleCreateTimecode}
+            disabled={!newTimecodeName.trim()}
+            className="px-4 py-2 bg-blue-600 dark:bg-blue-700 text-white rounded text-sm font-medium hover:bg-blue-700 dark:hover:bg-blue-600 disabled:opacity-50 transition-colors"
+          >
+            Add Timecode
+          </button>
         </div>
       </section>
     </div>
