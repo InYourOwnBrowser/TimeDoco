@@ -10,6 +10,16 @@ export const Modal: React.FC<ModalProps> = ({ onClose, children, className = '' 
   const modalRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
+    // Scroll lock
+    const originalStyle = window.getComputedStyle(document.body).overflow;
+    document.body.style.overflow = 'hidden';
+
+    return () => {
+      document.body.style.overflow = originalStyle;
+    };
+  }, []);
+
+  useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
       if (e.key === 'Escape') {
         onClose();
@@ -59,11 +69,18 @@ export const Modal: React.FC<ModalProps> = ({ onClose, children, className = '' 
     };
   }, [onClose]);
 
+  const handleBackdropClick = (e: React.MouseEvent<HTMLDivElement>) => {
+    if (e.target === e.currentTarget) {
+      onClose();
+    }
+  };
+
   return (
     <div
-      className={`fixed inset-0 bg-black/50 flex items-center justify-center p-4 z-50 ${className}`}
+      className={`fixed inset-0 bg-black/50 flex items-center justify-center p-4 z-50 overflow-y-auto ${className}`}
       role="dialog"
       aria-modal="true"
+      onClick={handleBackdropClick}
     >
       <div
         ref={modalRef}
