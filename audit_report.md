@@ -22,7 +22,7 @@
 
 - [x] **1.4 Warnings never block saving overlapping/absurd entries.** `checkOverlap` and the 12-hour-duration check in `ManualEntryModal`/`EntryEditModal` are advisory only — `handleSave` never reads `warning` before calling `addManualEntry`/`updateEntry`. This is a defensible product choice ("forgiving, not blocking" per `plan.md`), but it means a typo'd date (e.g. wrong AM/PM, wrong year) creating a 9,000-hour entry saves silently and will visibly wreck the Analysis totals until manually found. Consider a lighter-weight "Save anyway?" confirmation specifically for the >12h/overlap cases rather than zero friction.
 
-- [ ] **1.5 `Modal` has no backdrop-click-to-close and no scroll lock.** `components/ui/Modal.tsx` implements `Escape` and a focus trap, but clicking the dark backdrop does nothing (inconsistent with `TimecodeSelector`'s own dropdown, which *does* close on outside click), and `document.body` isn't given `overflow: hidden` while a modal is open, so the page behind a modal can still scroll on touch devices.
+- [x] **1.5 `Modal` has no backdrop-click-to-close and no scroll lock.** `components/ui/Modal.tsx` implements `Escape` and a focus trap, but clicking the dark backdrop does nothing (inconsistent with `TimecodeSelector`'s own dropdown, which *does* close on outside click), and `document.body` isn't given `overflow: hidden` while a modal is open, so the page behind a modal can still scroll on touch devices.
 
 - [ ] **1.6 Accidental data loss via `Escape`.** Because `Modal`'s `Escape` handler always calls `onClose()` with no dirty-check, a user who has typed a note or adjusted times in `EntryEditModal`/`ManualEntryModal` and reflexively hits `Esc` loses the edit with no warning — the opposite of the app's "forgiving" intent elsewhere (undo toast on stop, non-blocking warnings, etc.).
 
@@ -111,7 +111,7 @@
 **Medium (polish / scale):**
 - [ ] 4. Consolidate the two toast systems (3.2)
 - [ ] 5. Add raw entry-level CSV export (missing feature, §2)
-- [ ] 6. Add backdrop-click-to-close + scroll lock to `Modal` (1.5)
+- [x] 6. Add backdrop-click-to-close + scroll lock to `Modal` (1.5)
 - [ ] 7. Batch CSV-import writes instead of refreshing per row (§4)
 
 **Lower (nice-to-have / roadmap):**
