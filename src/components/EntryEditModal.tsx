@@ -107,8 +107,10 @@ export const EntryEditModal: React.FC<EntryEditModalProps> = ({ entry, onClose }
               className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-1 focus:ring-blue-500 focus:border-blue-500 sm:text-sm dark:bg-gray-700 dark:border-gray-600 dark:text-white"
             >
               <option value="" disabled>Select a timecode</option>
-              {timecodes.filter(tc => !tc.archived).map(tc => (
-                <option key={tc.id} value={tc.id}>{tc.name}</option>
+              {timecodes.filter(tc => !tc.archived || tc.id === entry.timecodeId).map(tc => (
+                <option key={tc.id} value={tc.id}>
+                  {tc.name} {tc.archived ? '(archived)' : ''}
+                </option>
               ))}
             </select>
           </div>

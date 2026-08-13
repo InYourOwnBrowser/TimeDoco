@@ -79,16 +79,18 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ onClose }) => {
       header: true,
       skipEmptyLines: true,
       complete: async (results) => {
-        try {
-          let importedCount = 0;
-          const localTimecodes = [...timecodes];
-          for (const row of results.data as any[]) {
+        let importedCount = 0;
+        let skippedCount = 0;
+        const localTimecodes = [...timecodes];
+        for (const row of results.data as any[]) {
+          try {
             const startTime = row['Start Time'] || row.startTime || row.start;
             const endTime = row['End Time'] || row.endTime || row.end;
             const timecodeName = row['Timecode'] || row.timecode || row.name;
             const note = row['Note'] || row.note || '';
 
             if (!startTime || !endTime || !timecodeName) {
+              skippedCount++;
               continue;
             }
 
@@ -98,22 +100,33 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ onClose }) => {
               localTimecodes.push(tc);
             }
 
+            // Validating the date parsed successfully to prevent RangeError inside addManualEntry
+            const startISO = new Date(startTime).toISOString();
+            const endISO = new Date(endTime).toISOString();
+
             await addManualEntry({
-              startTime: new Date(startTime).toISOString(),
-              endTime: new Date(endTime).toISOString(),
+              startTime: startISO,
+              endTime: endISO,
               timecodeId: tc.id,
               note
             });
             importedCount++;
+          } catch (error) {
+            console.warn('Skipping malformed CSV row:', row, error);
+            skippedCount++;
           }
-
-          setStatusMsg({ type: 'success', text: `Successfully imported ${importedCount} entries from CSV!` });
-          if (csvInputRef.current) csvInputRef.current.value = '';
-        } catch (error: any) {
-          setStatusMsg({ type: 'error', text: error.message || 'Failed to import CSV data.' });
-        } finally {
-          setIsProcessing(false);
         }
+
+        if (importedCount > 0 && skippedCount === 0) {
+          setStatusMsg({ type: 'success', text: `Successfully imported all ${importedCount} entries from CSV.` });
+        } else if (importedCount > 0 && skippedCount > 0) {
+          setStatusMsg({ type: 'error', text: `Imported ${importedCount} entries, skipped ${skippedCount} malformed rows.` }); // Note: Using 'error' styled toast to indicate partial failure visually
+        } else {
+          setStatusMsg({ type: 'error', text: 'Failed to import any entries. Please check the CSV format.' });
+        }
+
+        setIsProcessing(false);
+        if (csvInputRef.current) csvInputRef.current.value = '';
       },
       error: (error) => {
         setStatusMsg({ type: 'error', text: `CSV Parse Error: ${error.message}` });

@@ -61,10 +61,20 @@ export const TimecodeSelector: React.FC<TimecodeSelectorProps> = ({ onSelect, se
   };
 
   const handleCreate = async () => {
-    if (!search.trim()) return;
-    const rate = newHourlyRate ? parseFloat(newHourlyRate) : undefined;
-    const newTc = await addTimecode(search.trim(), newColor, newGroupId || undefined, isNaN(rate!) ? undefined : rate);
-    onSelect(newTc.id);
+    const trimmedSearch = search.trim();
+    if (!trimmedSearch) return;
+
+    // Prevent duplicates: case-insensitive match check
+    const existingTc = timecodes.find(tc => tc.name.toLowerCase() === trimmedSearch.toLowerCase());
+
+    if (existingTc) {
+      onSelect(existingTc.id);
+    } else {
+      const rate = newHourlyRate ? parseFloat(newHourlyRate) : undefined;
+      const newTc = await addTimecode(trimmedSearch, newColor, newGroupId || undefined, isNaN(rate!) ? undefined : rate);
+      onSelect(newTc.id);
+    }
+
     setIsOpen(false);
     setSearch('');
     setShowAddForm(false);

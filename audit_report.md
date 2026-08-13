@@ -35,15 +35,15 @@ Stack: React 19 + TypeScript + Vite + IndexedDB (`idb`) + Tailwind + Recharts + 
   The net effect is that the entire idle window is still counted as tracked/billable time unless the user manually edits the entry afterward — which defeats the main purpose of idle detection.
   **Fix:** on "No, pause timers," insert a `pauseStart` equal to `now - idleThresholdMinutes` (bounded by the timer's own start) instead of `now`.
 
-- [ ] **1.5 Editing an entry whose Timecode is archived shows a broken dropdown**
+- [x] **1.5 Editing an entry whose Timecode is archived shows a broken dropdown**
   `EntryEditModal`'s timecode `<select>` only lists non-archived timecodes, but a historical entry can legitimately point at one that's since been archived. The `value={timecodeId}` won't match any rendered `<option>`, so the select renders effectively blank/unselected even though a real value is set underneath. Users can be misled into thinking the entry has no timecode and change it unnecessarily.
   **Fix:** always include the entry's current timecode in the option list (flagged as "(archived)") even if it's archived elsewhere.
 
-- [ ] **1.6 CSV import has no per-row validation or error isolation**
+- [x] **1.6 CSV import has no per-row validation or error isolation**
   `SettingsModal.handleImportCSV` runs one big `for` loop and only has a single top-level `try/catch`. A malformed date (`new Date(badString).toISOString()`) throws `RangeError` mid-loop, aborting the whole import — any rows already imported stay imported, later rows are silently dropped, and the user sees a generic "Failed to import CSV data" message with no indication of which row failed or how many entries actually made it in.
   **Fix:** wrap each row in its own try/catch, collect skipped-row reasons, and report `"Imported 42, skipped 3 (see details)"`.
 
-- [ ] **1.7 No duplicate-timecode-name protection**
+- [x] **1.7 No duplicate-timecode-name protection**
   Timecodes created via the "type to create" flow in `TimecodeSelector` are never checked against existing names (case-insensitive matching only happens on the separate CSV-import path). It's easy to end up with two "Client A" timecodes that silently split reporting totals, and there's no "merge timecodes" tool to fix it after the fact (this was explicitly called out as a needed feature in the project's own `plan.md` §6.4).
 
 ---
@@ -101,7 +101,7 @@ Additional gaps not called out in the plan but worth noting:
 - [x] 1. Fix or disclose the cascading delete on Timecodes (1.3)
 - [x] 2. Make the Rounding Rule setting actually do something, or remove it from the UI until it does (1.1)
 - [x] 3. Scope overlap detection to concurrent-timer mode correctly (1.2)
-- [ ] 4. Add per-row error handling to CSV import (1.6)
+- [x] 4. Add per-row error handling to CSV import (1.6)
 
 **Medium priority (trust / polish):**
 - [ ] 5. Add focus-trap + Escape handling to modals (3.1)
