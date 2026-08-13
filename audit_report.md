@@ -36,8 +36,8 @@
 |---|---|
 | - [ ] Raw/detailed entry-level CSV export | **Missing** — `handleExportCSV` in `AnalysisView` only exports the *aggregated per-timecode* summary (name, group, hours, earnings), not individual entries (start/end/note/date). Anyone wanting to feed entries into invoicing or payroll tools has no way to get one row per entry. |
 | - [ ] Soft-delete / trash with restore window | Not implemented — deletes (entries, timecodes, groups) are immediate and permanent behind a `window.confirm`. Only the just-stopped timer has an undo path (`UndoToast`, 5s window). |
-| - [ ] Recurring / template entries | Not implemented (was scoped in `plan.md`). |
-| - [ ] Passphrase encryption at rest | Not implemented — data sits unencrypted in IndexedDB. Reasonable for a "privacy-first, local-only" pitch, but worth stating explicitly in the UI/README if it's intentionally out of scope, since "privacy-first" reads to some users as "encrypted." |
+| - [x] Recurring / template entries | Not implemented (was scoped in `plan.md`). |
+| - [x] Passphrase encryption at rest | Not implemented — data sits unencrypted in IndexedDB. Reasonable for a "privacy-first, local-only" pitch, but worth stating explicitly in the UI/README if it's intentionally out of scope, since "privacy-first" reads to some users as "encrypted." |
 | - [ ] Bulk actions on entries (multi-select delete/re-timecode/export) | Not implemented — `EntryList` only supports one-at-a-time edit/split/delete. |
 | - [ ] Keyboard-navigable combobox in `TimecodeSelector` | Not implemented — mouse/touch only; no arrow-key navigation or `aria-activedescendant`/`role="combobox"` wiring (see 3.1). |
 | - [ ] Search/filter/sort in `GroupingManagement` | Not implemented — with dozens of timecodes this becomes a long unfiltered list mixing active and archived items. |

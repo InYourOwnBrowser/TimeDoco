@@ -44,6 +44,14 @@ export interface Entry {
   deletedAt?: string;
 }
 
+export interface EntryTemplate {
+  id: string; // UUID
+  title: string;
+  timecodeId: string;
+  durationMinutes: number;
+  note: string;
+}
+
 export interface Settings {
   id: string; // 'user-settings'
   lastBackupDate: string | null; // ISO datetime
@@ -53,4 +61,5 @@ export interface Settings {
   weeklyTargetHours: number | null;
   theme?: 'light' | 'dark' | 'system';
   allowConcurrentTimers: boolean;
+  templates?: EntryTemplate[];
 }
