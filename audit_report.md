@@ -20,7 +20,7 @@
 
 - [ ] **1.3 Overlap/duration checks in modals are minute-resolution, entries are second-resolution.** `datetime-local` inputs in `ManualEntryModal`, `EntryEditModal`, and `EntrySplitModal` only carry HH:MM. For entries shorter than 60s (fine-grained corrections), the computed `min`/`max` for the split time can equal the start/end minute, making a legal split impossible via the UI. Low-frequency edge case, but worth a `step="1"` + seconds field or at least a friendlier error than a disabled-looking control.
 
-- [ ] **1.4 Warnings never block saving overlapping/absurd entries.** `checkOverlap` and the 12-hour-duration check in `ManualEntryModal`/`EntryEditModal` are advisory only — `handleSave` never reads `warning` before calling `addManualEntry`/`updateEntry`. This is a defensible product choice ("forgiving, not blocking" per `plan.md`), but it means a typo'd date (e.g. wrong AM/PM, wrong year) creating a 9,000-hour entry saves silently and will visibly wreck the Analysis totals until manually found. Consider a lighter-weight "Save anyway?" confirmation specifically for the >12h/overlap cases rather than zero friction.
+- [x] **1.4 Warnings never block saving overlapping/absurd entries.** `checkOverlap` and the 12-hour-duration check in `ManualEntryModal`/`EntryEditModal` are advisory only — `handleSave` never reads `warning` before calling `addManualEntry`/`updateEntry`. This is a defensible product choice ("forgiving, not blocking" per `plan.md`), but it means a typo'd date (e.g. wrong AM/PM, wrong year) creating a 9,000-hour entry saves silently and will visibly wreck the Analysis totals until manually found. Consider a lighter-weight "Save anyway?" confirmation specifically for the >12h/overlap cases rather than zero friction.
 
 - [ ] **1.5 `Modal` has no backdrop-click-to-close and no scroll lock.** `components/ui/Modal.tsx` implements `Escape` and a focus trap, but clicking the dark backdrop does nothing (inconsistent with `TimecodeSelector`'s own dropdown, which *does* close on outside click), and `document.body` isn't given `overflow: hidden` while a modal is open, so the page behind a modal can still scroll on touch devices.
 
@@ -106,7 +106,7 @@
 **High (correctness / data trust):**
 - [x] 1. Fix the concurrent-timer `document.title` race (1.1)
 - [x] 2. Guard against silent negative numeric inputs (3.8)
-- [ ] 3. Add a confirm step for saves that already show an overlap/12h+ warning (1.4)
+- [x] 3. Add a confirm step for saves that already show an overlap/12h+ warning (1.4)
 
 **Medium (polish / scale):**
 - [ ] 4. Consolidate the two toast systems (3.2)
