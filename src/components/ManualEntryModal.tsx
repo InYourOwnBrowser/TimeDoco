@@ -20,6 +20,8 @@ export const ManualEntryModal: React.FC<ManualEntryModalProps> = ({ onClose }) =
   const [error, setError] = useState<string | null>(null);
   const [warning, setWarning] = useState<string | null>(null);
 
+  const isDirty = startTime !== '' || endTime !== '' || timecodeId !== '' || note !== '';
+
   useEffect(() => {
     if (!startTime || !endTime) {
       setWarning(null);
@@ -84,7 +86,7 @@ export const ManualEntryModal: React.FC<ManualEntryModalProps> = ({ onClose }) =
   };
 
   return (
-    <Modal onClose={onClose}>
+    <Modal onClose={onClose} isDirty={isDirty}>
       <div className="bg-white dark:bg-gray-800 rounded-lg shadow-xl w-full max-w-md max-h-[90vh] overflow-hidden flex flex-col">
         <div className="flex justify-between items-center p-4 border-b border-gray-200 dark:border-gray-700">
           <h2 className="text-lg font-semibold text-gray-900 dark:text-white">Add Manual Entry</h2>

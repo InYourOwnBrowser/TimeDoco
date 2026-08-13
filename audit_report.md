@@ -24,9 +24,9 @@
 
 - [x] **1.5 `Modal` has no backdrop-click-to-close and no scroll lock.** `components/ui/Modal.tsx` implements `Escape` and a focus trap, but clicking the dark backdrop does nothing (inconsistent with `TimecodeSelector`'s own dropdown, which *does* close on outside click), and `document.body` isn't given `overflow: hidden` while a modal is open, so the page behind a modal can still scroll on touch devices.
 
-- [ ] **1.6 Accidental data loss via `Escape`.** Because `Modal`'s `Escape` handler always calls `onClose()` with no dirty-check, a user who has typed a note or adjusted times in `EntryEditModal`/`ManualEntryModal` and reflexively hits `Esc` loses the edit with no warning — the opposite of the app's "forgiving" intent elsewhere (undo toast on stop, non-blocking warnings, etc.).
+- [x] **1.6 Accidental data loss via `Escape`.** Because `Modal`'s `Escape` handler always calls `onClose()` with no dirty-check, a user who has typed a note or adjusted times in `EntryEditModal`/`ManualEntryModal` and reflexively hits `Esc` loses the edit with no warning — the opposite of the app's "forgiving" intent elsewhere (undo toast on stop, non-blocking warnings, etc.).
 
-- [ ] **1.7 `oxlint` warning on `ToastContext.tsx`.** `useToast` triggers the same `react-refresh/only-export-components` warning that `TimeTrackerContext.tsx` already silences with `// eslint-disable-next-line`. Trivial, but CI currently shows 1 warning that could be zero.
+- [x] **1.7 `oxlint` warning on `ToastContext.tsx`.** `useToast` triggers the same `react-refresh/only-export-components` warning that `TimeTrackerContext.tsx` already silences with `// eslint-disable-next-line`. Trivial, but CI currently shows 1 warning that could be zero.
 
 ---
 
@@ -59,7 +59,7 @@
 
 - [ ] **3.6 `AnalysisView` chunk remains large.** Confirmed via build: the lazily-loaded `AnalysisView` chunk is ~394 KB (~113 KB gzip) even with `jsPDF`/`jspdf-autotable` already split into their own dynamically-imported chunk (~430 KB combined, loaded only on "PDF / Print" click). The remaining weight is largely `recharts`. First visit to the Analysis tab will still cost a real download on slow connections — consider a lighter charting approach (or lazy-loading the charts specifically, keeping the summary numbers/table instant) if this matters for the target audience.
 
-- [ ] **3.7 No indication of unsaved state / dirty-check before closing modals.** Related to 1.6 — none of the edit modals warn on close-with-unsaved-changes.
+- [x] **3.7 No indication of unsaved state / dirty-check before closing modals.** Related to 1.6 — none of the edit modals warn on close-with-unsaved-changes.
 
 - [x] **3.8 Numeric inputs don't enforce their own `min`.** Hourly rate, weekly target hours, idle threshold, and reminder interval all use `<input type="number" min="0">`, but nothing stops a user from typing a negative number directly (browser `min` attribute only affects the spinner/native validation UI, not free typing without a `<form>` submit). A `-5` hourly rate or `-1` weekly target will silently be stored and produce nonsensical output (negative earnings, `Math.min` guard shows odd progress bars, etc.).
 
