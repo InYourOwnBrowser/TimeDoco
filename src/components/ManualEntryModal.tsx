@@ -4,6 +4,7 @@ import { differenceInSeconds } from 'date-fns';
 import { X, AlertCircle } from 'lucide-react';
 import { checkOverlap } from '../utils/timeUtils';
 import { Modal } from './ui/Modal';
+import { useToast } from '../context/ToastContext';
 
 interface ManualEntryModalProps {
   onClose: () => void;
@@ -11,6 +12,7 @@ interface ManualEntryModalProps {
 
 export const ManualEntryModal: React.FC<ManualEntryModalProps> = ({ onClose }) => {
   const { addManualEntry, timecodes, entries, settings } = useTimeTracker();
+  const { addToast } = useToast();
   const [startTime, setStartTime] = useState('');
   const [endTime, setEndTime] = useState('');
   const [timecodeId, setTimecodeId] = useState('');
@@ -71,6 +73,7 @@ export const ManualEntryModal: React.FC<ManualEntryModalProps> = ({ onClose }) =
       note,
     });
 
+    addToast('Entry added successfully', 'success');
     onClose();
   };
 

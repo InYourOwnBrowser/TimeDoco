@@ -12,6 +12,7 @@ import { IdleDetector } from './components/IdleDetector';
 import { Settings, BarChart2, Clock, ListTree } from 'lucide-react';
 import { useTimeTracker } from './context/TimeTrackerContext';
 import { UndoToast } from './components/UndoToast';
+import { ToastProvider } from './context/ToastContext';
 
 // Extracted inner component so we can use TimeTrackerContext
 const AppContent = () => {
@@ -183,9 +184,11 @@ const AppContent = () => {
 
 function App() {
   return (
-    <TimeTrackerProvider>
-      <AppContent />
-    </TimeTrackerProvider>
+    <ToastProvider>
+      <TimeTrackerProvider>
+        <AppContent />
+      </TimeTrackerProvider>
+    </ToastProvider>
   );
 }
 

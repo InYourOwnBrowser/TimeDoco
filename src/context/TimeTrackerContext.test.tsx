@@ -2,6 +2,7 @@ import React, { useEffect } from 'react';
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, act, waitFor } from '@testing-library/react';
 import { TimeTrackerProvider, useTimeTracker } from './TimeTrackerContext';
+import { ToastProvider } from './ToastContext';
 
 // Clear DB between tests to ensure a clean state
 const DB_NAME = 'time-tracker-db';
@@ -35,9 +36,9 @@ describe('TimeTrackerContext Reducer Logic', () => {
     let ctx: ReturnType<typeof useTimeTracker> | undefined;
 
     render(
-      <TimeTrackerProvider>
+      <ToastProvider><TimeTrackerProvider>
         <TestConsumer onReady={(c) => (ctx = c)} />
-      </TimeTrackerProvider>
+      </TimeTrackerProvider></ToastProvider>
     );
 
     // Wait for context to initialize
@@ -93,9 +94,9 @@ describe('TimeTrackerContext Reducer Logic', () => {
     vi.useFakeTimers({ shouldAdvanceTime: true });
 
     render(
-      <TimeTrackerProvider>
+      <ToastProvider><TimeTrackerProvider>
         <TestConsumer onReady={(c) => (ctx = c)} />
-      </TimeTrackerProvider>
+      </TimeTrackerProvider></ToastProvider>
     );
 
     await waitFor(() => expect(ctx?.groups).toBeDefined());
