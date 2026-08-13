@@ -62,9 +62,9 @@ Stack: React 19 + TypeScript + Vite + IndexedDB (`idb`) + Tailwind + Recharts + 
 | - [ ] Rounding rule applied at report time (§6.5) | Setting exists but is inert — see Bug 1.1 |
 
 Additional gaps not called out in the plan but worth noting:
-- [ ] **No "Add Timecode" button in the Management tab.** New timecodes can only be created inline from the tracker's search box; the Management page can only edit/archive/delete existing ones. Anyone wanting to pre-configure timecodes before tracking has to fake it through the tracker UI first.
+- [x] **No "Add Timecode" button in the Management tab.** New timecodes can only be created inline from the tracker's search box; the Management page can only edit/archive/delete existing ones. Anyone wanting to pre-configure timecodes before tracking has to fake it through the tracker UI first.
 - [ ] **No component/integration test coverage.** `vitest` only covers `timeUtils.ts` (overlap + duration math). None of the context reducer logic (start/stop/pause math, cascading deletes, import/export checksum flow) or the Analysis page's proportional-duration aggregation — the parts most likely to contain subtle date-math bugs — have any automated tests.
-- [ ] **CI doesn't gate on tests or lint.** `.github/workflows/*.yml` runs `npm run build` and deploys straight to GitHub Pages; it never runs `npm run test` or `npm run lint`, so a red test suite wouldn't block a production deploy.
+- [x] **CI doesn't gate on tests or lint.** `.github/workflows/*.yml` runs `npm run build` and deploys straight to GitHub Pages; it never runs `npm run test` or `npm run lint`, so a red test suite wouldn't block a production deploy.
 
 ---
 
@@ -111,4 +111,4 @@ Additional gaps not called out in the plan but worth noting:
 
 **Lower priority (nice-to-have, roadmap items already scoped in `plan.md`):**
 - [ ] 9. Timecode merge tool, entry splitting, soft-delete/trash, recurring entries, gap detection
-- [ ] 10. Repo cleanup: remove `patch_*.py` scripts, add `test`/`lint` steps to the deploy workflow
+- [x] 10. Repo cleanup: remove `patch_*.py` scripts, add `test`/`lint` steps to the deploy workflow
