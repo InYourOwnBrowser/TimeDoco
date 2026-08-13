@@ -14,7 +14,6 @@ export default defineConfig({
         name: 'Time Tracker',
         short_name: 'Time Tracker',
         description: 'Privacy-first, 100% client-side Time Tracker App',
-        theme_color: '#ffffff',
         icons: [
           {
             src: 'pwa-192x192.svg',
