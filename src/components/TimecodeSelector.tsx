@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import { useTimeTracker } from '../context/TimeTrackerContext';
 import { Plus, Check, ChevronDown, X } from 'lucide-react';
 
@@ -59,6 +59,24 @@ export const TimecodeSelector: React.FC<TimecodeSelectorProps> = ({ onSelect, se
     setIsOpen(false);
     setSearch('');
   };
+
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape' && isOpen) {
+        setIsOpen(false);
+        setSearch('');
+        setShowAddForm(false);
+      }
+    };
+
+    if (isOpen) {
+      document.addEventListener('keydown', handleKeyDown);
+    }
+
+    return () => {
+      document.removeEventListener('keydown', handleKeyDown);
+    };
+  }, [isOpen]);
 
   const handleCreate = async () => {
     const trimmedSearch = search.trim();

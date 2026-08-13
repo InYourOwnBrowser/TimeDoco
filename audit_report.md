@@ -70,10 +70,10 @@ Additional gaps not called out in the plan but worth noting:
 
 ## 3. UI/UX Issues & Improvements
 
-- [ ] **3.1 Accessibility gaps on all overlay/modal components**
+- [x] **3.1 Accessibility gaps on all overlay/modal components**
   None of the five overlay-style components (`SettingsModal`, `ManualEntryModal`, `EntryEditModal`, the idle-detector prompt, `TimecodeSelector`'s dropdown) implement `role="dialog"` / `aria-modal="true"`, a focus trap, or an `Escape`-to-close handler. Keyboard and screen-reader users can tab focus behind the overlay into the page underneath, and there's no standard way to dismiss with `Esc`. Given four of these are true full-screen modals, this is worth fixing as a shared `<Modal>` wrapper rather than per-component patches.
 
-- [ ] **3.2 No confirmation or undo on "Stop"**
+- [x] **3.2 No confirmation or undo on "Stop"**
   Deleting an entry asks for confirmation; stopping a running timer does not, even though a mis-click ends an active tracking session with no way to resume the exact same session (only edit the resulting entry after the fact). A lightweight "Timer stopped — Undo" toast (few seconds) would match the app's otherwise forgiving philosophy ("Forgiving, never blocking" is literally a stated design principle in `plan.md`) better than the current silent stop.
 
 - [ ] **3.3 PWA status bar ignores dark mode**
@@ -104,7 +104,7 @@ Additional gaps not called out in the plan but worth noting:
 - [x] 4. Add per-row error handling to CSV import (1.6)
 
 **Medium priority (trust / polish):**
-- [ ] 5. Add focus-trap + Escape handling to modals (3.1)
+- [x] 5. Add focus-trap + Escape handling to modals (3.1)
 - [x] 6. Fix idle-detection back-dating so pauses reflect actual idle start (1.4)
 - [ ] 7. Persist Forgot-to-Stop dismissal like the backup banner does (3.6)
 - [ ] 8. Split jsPDF out of the Analysis chunk (3.5)
