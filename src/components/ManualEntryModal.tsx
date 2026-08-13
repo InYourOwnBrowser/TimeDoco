@@ -113,6 +113,7 @@ export const ManualEntryModal: React.FC<ManualEntryModalProps> = ({ onClose }) =
               <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Start Time</label>
               <input
                 type="datetime-local"
+                step="1"
                 value={startTime}
                 onChange={(e) => { setStartTime(e.target.value); setError(null); }}
                 className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-1 focus:ring-blue-500 focus:border-blue-500 sm:text-sm dark:bg-gray-700 dark:border-gray-600 dark:text-white"
@@ -122,6 +123,7 @@ export const ManualEntryModal: React.FC<ManualEntryModalProps> = ({ onClose }) =
               <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">End Time</label>
               <input
                 type="datetime-local"
+                step="1"
                 value={endTime}
                 onChange={(e) => { setEndTime(e.target.value); setError(null); }}
                 className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-1 focus:ring-blue-500 focus:border-blue-500 sm:text-sm dark:bg-gray-700 dark:border-gray-600 dark:text-white"

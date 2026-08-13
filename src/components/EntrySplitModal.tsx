@@ -23,7 +23,7 @@ export const EntrySplitModal: React.FC<EntrySplitModalProps> = ({ entry, onClose
     const start = new Date(entry.startTime).getTime();
     const end = new Date(entry.endTime).getTime();
     const mid = new Date(start + (end - start) / 2);
-    setSplitTime(format(mid, "yyyy-MM-dd'T'HH:mm"));
+    setSplitTime(format(mid, "yyyy-MM-dd'T'HH:mm:ss"));
   }, [entry]);
 
   const handleSave = async () => {
@@ -62,10 +62,11 @@ export const EntrySplitModal: React.FC<EntrySplitModalProps> = ({ entry, onClose
             <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Split Time</label>
             <input
               type="datetime-local"
+              step="1"
               value={splitTime}
               onChange={(e) => { setSplitTime(e.target.value); setError(null); }}
-              min={format(parseISO(entry.startTime), "yyyy-MM-dd'T'HH:mm")}
-              max={format(parseISO(entry.endTime!), "yyyy-MM-dd'T'HH:mm")}
+              min={format(parseISO(entry.startTime), "yyyy-MM-dd'T'HH:mm:ss")}
+              max={format(parseISO(entry.endTime!), "yyyy-MM-dd'T'HH:mm:ss")}
               className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-1 focus:ring-blue-500 focus:border-blue-500 sm:text-sm dark:bg-gray-700 dark:border-gray-600 dark:text-white"
             />
           </div>
