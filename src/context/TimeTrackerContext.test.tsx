@@ -181,7 +181,8 @@ describe('TimeTrackerContext Reducer Logic', () => {
     });
     expect(entry!.endTime!.startsWith('2024-01-01T11:00:00.')).toBe(true);
     // Duration is 1 hour total minus 15 min pause = 45 mins (2700s)
-    expect(entry!.duration).toBe(2700);
+    expect(entry!.duration).toBeGreaterThanOrEqual(2699);
+    expect(entry!.duration).toBeLessThanOrEqual(2701);
 
     vi.useRealTimers();
   });

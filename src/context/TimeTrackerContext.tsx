@@ -35,7 +35,16 @@ interface TimeTrackerContextType {
   importData: (file: File, mode: 'merge' | 'replace') => Promise<void>;
   lastStoppedEntry: Entry | null;
   undoStopTimer: () => Promise<void>;
-  clearLastStoppedEntry: () => void;
+clearLastStoppedEntry: () => void;
+  deletedGroups: Group[];
+  deletedTimecodes: Timecode[];
+  deletedEntries: Entry[];
+  restoreGroup: (id: string) => Promise<void>;
+  restoreTimecode: (id: string) => Promise<void>;
+  restoreEntry: (id: string) => Promise<void>;
+  hardDeleteGroup: (id: string) => Promise<void>;
+  hardDeleteTimecode: (id: string) => Promise<void>;
+  hardDeleteEntry: (id: string) => Promise<void>;
 }
 
 const TimeTrackerContext = createContext<TimeTrackerContextType | undefined>(undefined);
@@ -43,9 +52,12 @@ const TimeTrackerContext = createContext<TimeTrackerContextType | undefined>(und
 export const TimeTrackerProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
   const { addToast } = useToast();
   const [groups, setGroups] = useState<Group[]>([]);
+  const [deletedGroups, setDeletedGroups] = useState<Group[]>([]);
   const [timecodes, setTimecodes] = useState<Timecode[]>([]);
+  const [deletedTimecodes, setDeletedTimecodes] = useState<Timecode[]>([]);
   const [activeEntries, setActiveEntries] = useState<Entry[]>([]);
   const [entries, setEntries] = useState<Entry[]>([]);
+  const [deletedEntries, setDeletedEntries] = useState<Entry[]>([]);
   const [forgotToStopEntry, setForgotToStopEntry] = useState<Entry | null>(null);
   const [dismissedForgotToStopId, setDismissedForgotToStopId] = useState<string | null>(() => {
     return localStorage.getItem('dismissedForgotToStopId');
@@ -94,10 +106,13 @@ export const TimeTrackerProvider: React.FC<{ children: ReactNode }> = ({ childre
       await db.putSettings(loadedSettings);
     }
 
-    setGroups(loadedGroups);
-    setTimecodes(loadedTimecodes);
+    setGroups(loadedGroups.filter(g => !g.deletedAt));
+    setDeletedGroups(loadedGroups.filter(g => g.deletedAt));
+    setTimecodes(loadedTimecodes.filter(t => !t.deletedAt));
+    setDeletedTimecodes(loadedTimecodes.filter(t => t.deletedAt));
     // Sort entries descending by startTime for the list
-    setEntries(loadedEntries.sort((a, b) => new Date(b.startTime).getTime() - new Date(a.startTime).getTime()));
+    setEntries(loadedEntries.filter(e => !e.deletedAt).sort((a, b) => new Date(b.startTime).getTime() - new Date(a.startTime).getTime()));
+    setDeletedEntries(loadedEntries.filter(e => e.deletedAt));
     setActiveEntries(loadedActiveEntries);
     setSettings(loadedSettings);
 
@@ -276,12 +291,29 @@ export const TimeTrackerProvider: React.FC<{ children: ReactNode }> = ({ childre
   };
 
   const deleteGroup = async (id: string) => {
+    const group = await db.getGroup(id);
+    if (group) {
+      await db.putGroup({ ...group, deletedAt: new Date().toISOString() });
+    }
+    await refreshData();
+  };
+
+  const hardDeleteGroup = async (id: string) => {
     // Cascading: set groupId to null for all timecodes in this group
-    const timecodesToUpdate = timecodes.filter((tc) => tc.groupId === id);
+    const timecodesToUpdate = [...timecodes, ...deletedTimecodes].filter((tc) => tc.groupId === id);
     for (const tc of timecodesToUpdate) {
       await db.putTimecode({ ...tc, groupId: null });
     }
     await db.deleteGroup(id);
+    await refreshData();
+  };
+
+  const restoreGroup = async (id: string) => {
+    const group = await db.getGroup(id);
+    if (group) {
+      group.deletedAt = undefined;
+      await db.putGroup(group);
+    }
     await refreshData();
   };
 
@@ -432,12 +464,34 @@ export const TimeTrackerProvider: React.FC<{ children: ReactNode }> = ({ childre
   };
 
   const deleteTimecode = async (id: string) => {
-    // Cascading: delete all entries associated with this timecode
-    const entriesToDelete = entries.filter((e) => e.timecodeId === id);
+    // Cascading: soft-delete all entries associated with this timecode
+    const entriesToDelete = [...entries, ...deletedEntries].filter((e) => e.timecodeId === id && !e.deletedAt);
+    const now = new Date().toISOString();
+    for (const entry of entriesToDelete) {
+      await db.putEntry({ ...entry, deletedAt: now });
+    }
+    const tc = await db.getTimecode(id);
+    if (tc) {
+      await db.putTimecode({ ...tc, deletedAt: now });
+    }
+    await refreshData();
+  };
+
+  const hardDeleteTimecode = async (id: string) => {
+    const entriesToDelete = [...entries, ...deletedEntries].filter((e) => e.timecodeId === id);
     for (const entry of entriesToDelete) {
       await db.deleteEntry(entry.id);
     }
     await db.deleteTimecode(id);
+    await refreshData();
+  };
+
+  const restoreTimecode = async (id: string) => {
+    const tc = await db.getTimecode(id);
+    if (tc) {
+      tc.deletedAt = undefined;
+      await db.putTimecode(tc);
+    }
     await refreshData();
   };
 
@@ -509,8 +563,25 @@ export const TimeTrackerProvider: React.FC<{ children: ReactNode }> = ({ childre
   };
 
   const deleteEntry = async (id: string) => {
+    const entry = await db.getEntry(id);
+    if (entry) {
+      await db.putEntry({ ...entry, deletedAt: new Date().toISOString() });
+      await refreshData();
+    }
+  };
+
+  const hardDeleteEntry = async (id: string) => {
     await db.deleteEntry(id);
     await refreshData();
+  };
+
+  const restoreEntry = async (id: string) => {
+    const entry = await db.getEntry(id);
+    if (entry) {
+      entry.deletedAt = undefined;
+      await db.putEntry(entry);
+      await refreshData();
+    }
   };
 
   const exportData = async () => {
@@ -657,6 +728,15 @@ export const TimeTrackerProvider: React.FC<{ children: ReactNode }> = ({ childre
       lastStoppedEntry,
       undoStopTimer,
       clearLastStoppedEntry,
+      deletedGroups,
+      deletedTimecodes,
+      deletedEntries,
+      restoreGroup,
+      restoreTimecode,
+      restoreEntry,
+      hardDeleteGroup,
+      hardDeleteTimecode,
+      hardDeleteEntry,
     }}>
       {children}
     </TimeTrackerContext.Provider>

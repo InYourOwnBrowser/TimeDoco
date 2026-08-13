@@ -3,6 +3,7 @@ export interface Group {
   name: string;
   color: string; // hex
   archived: boolean;
+  deletedAt?: string;
 }
 
 export interface Timecode {
@@ -12,6 +13,7 @@ export interface Timecode {
   color?: string; // hex, optional override
   hourlyRate: number | null;
   archived: boolean;
+  deletedAt?: string;
 }
 
 export interface PauseSegment {
@@ -39,6 +41,7 @@ export interface Entry {
   editHistory: EditHistory[];
   createdAt: string; // ISO datetime
   updatedAt: string; // ISO datetime
+  deletedAt?: string;
 }
 
 export interface Settings {

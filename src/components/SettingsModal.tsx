@@ -9,7 +9,7 @@ interface SettingsModalProps {
 }
 
 export const SettingsModal: React.FC<SettingsModalProps> = ({ onClose }) => {
-  const { exportData, importData, settings, updateSettings, addManualEntry, addTimecode, timecodes } = useTimeTracker();
+  const { exportData, importData, settings, updateSettings, addManualEntry, addTimecode, timecodes, deletedEntries, restoreEntry, hardDeleteEntry, deletedTimecodes, restoreTimecode, hardDeleteTimecode, deletedGroups, restoreGroup, hardDeleteGroup } = useTimeTracker();
   const fileInputRef = useRef<HTMLInputElement>(null);
   const csvInputRef = useRef<HTMLInputElement>(null);
 
@@ -18,6 +18,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ onClose }) => {
   const [isProcessing, setIsProcessing] = useState(false);
   const [showReplaceConfirm, setShowReplaceConfirm] = useState(false);
   const [replaceConfirmText, setReplaceConfirmText] = useState('');
+  const [activeTab, setActiveTab] = useState<'general' | 'data' | 'trash'>('general');
 
   const handleExport = async () => {
     try {
@@ -146,6 +147,27 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ onClose }) => {
           </button>
         </div>
 
+        <div className="flex border-b border-gray-200 dark:border-gray-700 shrink-0">
+          <button
+            onClick={() => setActiveTab('general')}
+            className={`flex-1 py-2 text-sm font-medium text-center ${activeTab === 'general' ? 'border-b-2 border-blue-500 text-blue-600 dark:text-blue-400' : 'text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-300'}`}
+          >
+            General
+          </button>
+          <button
+            onClick={() => setActiveTab('data')}
+            className={`flex-1 py-2 text-sm font-medium text-center ${activeTab === 'data' ? 'border-b-2 border-blue-500 text-blue-600 dark:text-blue-400' : 'text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-300'}`}
+          >
+            Data
+          </button>
+          <button
+            onClick={() => setActiveTab('trash')}
+            className={`flex-1 py-2 text-sm font-medium text-center ${activeTab === 'trash' ? 'border-b-2 border-blue-500 text-blue-600 dark:text-blue-400' : 'text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-300'}`}
+          >
+            Trash
+          </button>
+        </div>
+
         <div className="p-6 overflow-y-auto flex-1">
           {statusMsg && (
             <div className={`mb-6 p-3 rounded-md flex items-start gap-2 ${
@@ -157,6 +179,8 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ onClose }) => {
           )}
 
           <div className="space-y-6">
+          {activeTab === 'general' && (
+            <>
             <section>
               <h3 className="text-md font-semibold text-gray-800 dark:text-gray-200 mb-3 border-b dark:border-gray-700 pb-1">Appearance</h3>
               <div className="flex items-center justify-between mb-2">
@@ -234,7 +258,10 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ onClose }) => {
                 </select>
               </div>
             </section>
-
+            </>
+          )}
+          {activeTab === 'data' && (
+            <>
             <section>
               <h3 className="text-md font-semibold text-gray-800 dark:text-gray-200 mb-3 border-b dark:border-gray-700 pb-1">Export Data</h3>
               <p className="text-sm text-gray-600 dark:text-gray-400 mb-3">
@@ -380,6 +407,46 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ onClose }) => {
                 </button>
               </div>
             </section>
+            </>
+          )}
+          {activeTab === 'trash' && (
+            <div className="space-y-4">
+              <h3 className="text-md font-semibold text-gray-800 dark:text-gray-200 border-b dark:border-gray-700 pb-1">Recently Deleted</h3>
+              {deletedEntries.length === 0 && deletedTimecodes.length === 0 && deletedGroups.length === 0 ? (
+                <p className="text-sm text-gray-500">Trash is empty.</p>
+              ) : (
+                <div className="space-y-2">
+                  {deletedEntries.map(e => (
+                    <div key={e.id} className="flex justify-between items-center bg-gray-50 dark:bg-gray-700/50 p-2 rounded text-sm">
+                      <span className="truncate flex-1 text-gray-700 dark:text-gray-300">Entry: {e.note || 'No note'}</span>
+                      <div className="flex gap-2 shrink-0 ml-2">
+                        <button onClick={() => restoreEntry(e.id)} className="text-blue-600 dark:text-blue-400 hover:underline">Restore</button>
+                        <button onClick={() => hardDeleteEntry(e.id)} className="text-red-600 dark:text-red-400 hover:underline">Delete</button>
+                      </div>
+                    </div>
+                  ))}
+                  {deletedTimecodes.map(tc => (
+                    <div key={tc.id} className="flex justify-between items-center bg-gray-50 dark:bg-gray-700/50 p-2 rounded text-sm">
+                      <span className="truncate flex-1 text-gray-700 dark:text-gray-300">Timecode: {tc.name}</span>
+                      <div className="flex gap-2 shrink-0 ml-2">
+                        <button onClick={() => restoreTimecode(tc.id)} className="text-blue-600 dark:text-blue-400 hover:underline">Restore</button>
+                        <button onClick={() => hardDeleteTimecode(tc.id)} className="text-red-600 dark:text-red-400 hover:underline">Delete</button>
+                      </div>
+                    </div>
+                  ))}
+                  {deletedGroups.map(g => (
+                    <div key={g.id} className="flex justify-between items-center bg-gray-50 dark:bg-gray-700/50 p-2 rounded text-sm">
+                      <span className="truncate flex-1 text-gray-700 dark:text-gray-300">Group: {g.name}</span>
+                      <div className="flex gap-2 shrink-0 ml-2">
+                        <button onClick={() => restoreGroup(g.id)} className="text-blue-600 dark:text-blue-400 hover:underline">Restore</button>
+                        <button onClick={() => hardDeleteGroup(g.id)} className="text-red-600 dark:text-red-400 hover:underline">Delete</button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
           </div>
         </div>
       </div>
