@@ -5,11 +5,12 @@ import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, PieChart, Pi
 import { Download, Printer, AlertTriangle } from 'lucide-react';
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
+import { applyRounding } from '../utils/timeUtils';
 
 type DatePreset = 'today' | 'week' | 'month' | 'custom';
 
 export const AnalysisView: React.FC = () => {
-  const { entries, timecodes, groups } = useTimeTracker();
+  const { entries, timecodes, groups, settings } = useTimeTracker();
 
   const [preset, setPreset] = useState<DatePreset>('today');
   const [customStart, setCustomStart] = useState<string>(format(startOfWeek(new Date(), { weekStartsOn: 1 }), 'yyyy-MM-dd'));
@@ -96,9 +97,11 @@ export const AnalysisView: React.FC = () => {
       const rawFullDuration = differenceInSeconds(entryEnd, entryStart);
       const rawOverlapDuration = Math.max(0, differenceInSeconds(effectiveEnd, effectiveStart));
 
-      const actualDuration = rawFullDuration > 0 && entry.duration > 0
+      let actualDuration = rawFullDuration > 0 && entry.duration > 0
         ? Math.round(entry.duration * (rawOverlapDuration / rawFullDuration))
         : rawOverlapDuration;
+
+      actualDuration = applyRounding(actualDuration, settings?.roundingRule || 'none');
 
       if (actualDuration <= 0) return;
 
@@ -141,7 +144,7 @@ export const AnalysisView: React.FC = () => {
     }).sort((a, b) => b.durationHours - a.durationHours);
 
     return { timecodeData: formattedTcData, groupData: formattedGrpData, totalSeconds: tSec, totalEarnings: tEarn };
-  }, [filteredEntries, dateRange, timecodes, groups]);
+  }, [filteredEntries, dateRange, timecodes, groups, settings?.roundingRule]);
 
   const formatDuration = (seconds: number) => {
     const hrs = Math.floor(seconds / 3600);

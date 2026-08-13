@@ -9,7 +9,7 @@ interface ManualEntryModalProps {
 }
 
 export const ManualEntryModal: React.FC<ManualEntryModalProps> = ({ onClose }) => {
-  const { addManualEntry, timecodes, entries } = useTimeTracker();
+  const { addManualEntry, timecodes, entries, settings } = useTimeTracker();
   const [startTime, setStartTime] = useState('');
   const [endTime, setEndTime] = useState('');
   const [timecodeId, setTimecodeId] = useState('');
@@ -31,7 +31,7 @@ export const ManualEntryModal: React.FC<ManualEntryModalProps> = ({ onClose }) =
       return;
     }
 
-    const overlapping = checkOverlap(start, end, entries);
+    const overlapping = checkOverlap(start, end, entries, undefined, timecodeId, settings?.allowConcurrentTimers);
 
     if (overlapping) {
       setWarning('Warning: This entry overlaps with an existing time entry.');
@@ -40,7 +40,7 @@ export const ManualEntryModal: React.FC<ManualEntryModalProps> = ({ onClose }) =
     } else {
       setWarning(null);
     }
-  }, [startTime, endTime, entries]);
+  }, [startTime, endTime, entries, timecodeId, settings?.allowConcurrentTimers]);
 
   const handleSave = async () => {
     setError(null);
