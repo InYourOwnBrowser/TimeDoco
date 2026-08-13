@@ -263,6 +263,15 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ onClose }) => {
           {activeTab === 'data' && (
             <>
             <section>
+              <div className="mb-6 bg-yellow-50 dark:bg-yellow-900/30 border border-yellow-200 dark:border-yellow-700 rounded-md p-3">
+                <h4 className="text-sm font-semibold text-yellow-800 dark:text-yellow-400 flex items-center gap-1.5 mb-1">
+                  <AlertTriangle size={16} /> Privacy Note
+                </h4>
+                <p className="text-xs text-yellow-700 dark:text-yellow-500">
+                  While this app is local-only, your data is <strong>not encrypted at rest</strong> in your browser's local storage. Anyone with access to your device profile can read it.
+                </p>
+              </div>
+
               <h3 className="text-md font-semibold text-gray-800 dark:text-gray-200 mb-3 border-b dark:border-gray-700 pb-1">Export Data</h3>
               <p className="text-sm text-gray-600 dark:text-gray-400 mb-3">
                 Download all your tracked time, groups, and settings as a secure local JSON file.

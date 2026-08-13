@@ -3,6 +3,7 @@ import { TimeTrackerProvider } from './context/TimeTrackerContext';
 import { ActiveTimer } from './components/ActiveTimer';
 import { EntryList } from './components/EntryList';
 import { ForgotToStopPrompt } from './components/ForgotToStopPrompt';
+import { TemplateList } from './components/TemplateList';
 import { BackupReminderBanner } from './components/BackupReminderBanner';
 import { SettingsModal } from './components/SettingsModal';
 const AnalysisView = lazy(() => import('./components/AnalysisView').then(module => ({ default: module.AnalysisView })));
@@ -222,6 +223,7 @@ const AppContent = () => {
                   + Start Another Timer
                 </button>
               )}
+              <TemplateList />
               <WeeklySummary />
               <EntryList />
             </>
