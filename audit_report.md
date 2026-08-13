@@ -76,10 +76,10 @@ Additional gaps not called out in the plan but worth noting:
 - [x] **3.2 No confirmation or undo on "Stop"**
   Deleting an entry asks for confirmation; stopping a running timer does not, even though a mis-click ends an active tracking session with no way to resume the exact same session (only edit the resulting entry after the fact). A lightweight "Timer stopped — Undo" toast (few seconds) would match the app's otherwise forgiving philosophy ("Forgiving, never blocking" is literally a stated design principle in `plan.md`) better than the current silent stop.
 
-- [ ] **3.3 PWA status bar ignores dark mode**
+- [x] **3.3 PWA status bar ignores dark mode**
   `vite.config.ts` hardcodes `theme_color: '#ffffff'` in the manifest, and there's no dynamic `<meta name="theme-color">` swap in `index.html`/`App.tsx`. A user who sets the in-app theme to Dark still gets a white OS status bar / browser chrome when the app is installed as a PWA — a small but visible inconsistency for a "dark mode from day one" product.
 
-- [ ] **3.4 Modal viewport overflow on small screens**
+- [x] **3.4 Modal viewport overflow on small screens**
   `ManualEntryModal` and `EntryEditModal` have no `max-height`/`overflow-y-auto` on their content area (unlike `SettingsModal`, which does). On short viewports, or with the mobile on-screen keyboard open while editing the datetime fields, the Save/Cancel footer can be pushed off-screen with no way to scroll to it.
 
 - [ ] **3.5 Bundle size on the Analysis tab**

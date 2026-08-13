@@ -84,7 +84,7 @@ export const ManualEntryModal: React.FC<ManualEntryModalProps> = ({ onClose }) =
           </button>
         </div>
 
-        <div className="p-4 space-y-4">
+        <div className="p-4 space-y-4 overflow-y-auto">
           <div>
             <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Timecode</label>
             <select
