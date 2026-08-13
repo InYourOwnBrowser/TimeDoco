@@ -195,7 +195,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ onClose }) => {
                   type="number"
                   min="0"
                   value={settings?.weeklyTargetHours ?? ''}
-                  onChange={(e) => updateSettings({ weeklyTargetHours: e.target.value ? Number(e.target.value) : null })}
+                  onChange={(e) => updateSettings({ weeklyTargetHours: e.target.value ? Math.max(0, Number(e.target.value)) : null })}
                   placeholder="e.g. 40"
                   className="w-24 px-3 py-1.5 border border-gray-300 dark:border-gray-600 rounded outline-none focus:ring-1 focus:ring-blue-500 text-sm bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
                 />
@@ -206,7 +206,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ onClose }) => {
                   type="number"
                   min="1"
                   value={settings?.idleThresholdMinutes ?? 15}
-                  onChange={(e) => updateSettings({ idleThresholdMinutes: Number(e.target.value) })}
+                  onChange={(e) => updateSettings({ idleThresholdMinutes: Math.max(0, Number(e.target.value)) })}
                   className="w-24 px-3 py-1.5 border border-gray-300 dark:border-gray-600 rounded outline-none focus:ring-1 focus:ring-blue-500 text-sm bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
                 />
               </div>
@@ -216,7 +216,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ onClose }) => {
                   type="number"
                   min="1"
                   value={settings?.reminderIntervalDays ?? 7}
-                  onChange={(e) => updateSettings({ reminderIntervalDays: Number(e.target.value) })}
+                  onChange={(e) => updateSettings({ reminderIntervalDays: Math.max(0, Number(e.target.value)) })}
                   className="w-24 px-3 py-1.5 border border-gray-300 dark:border-gray-600 rounded outline-none focus:ring-1 focus:ring-blue-500 text-sm bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
                 />
               </div>
