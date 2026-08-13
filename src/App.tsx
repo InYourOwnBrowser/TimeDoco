@@ -12,7 +12,6 @@ import { WeeklySummary } from './components/WeeklySummary';
 import { IdleDetector } from './components/IdleDetector';
 import { Settings, BarChart2, Clock, ListTree } from 'lucide-react';
 import { useTimeTracker } from './context/TimeTrackerContext';
-import { UndoToast } from './components/UndoToast';
 import { ToastProvider } from './context/ToastContext';
 
 import { differenceInSeconds } from 'date-fns';
@@ -235,8 +234,7 @@ const AppContent = () => {
         {isSettingsOpen && <SettingsModal onClose={() => setIsSettingsOpen(false)} />}
 
         <IdleDetector />
-        <UndoToast />
-      </div>
+        </div>
   );
 };
 

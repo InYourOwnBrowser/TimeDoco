@@ -14,6 +14,7 @@ export const TimecodeSelector: React.FC<TimecodeSelectorProps> = ({ onSelect, se
   const selectedTimecode = selectedId ? timecodes.find(t => t.id === selectedId) : null;
   const [isOpen, setIsOpen] = useState(false);
   const [search, setSearch] = useState('');
+  const [activeIndex, setActiveIndex] = useState(-1);
 
   const [showAddForm, setShowAddForm] = useState(false);
   const [newColor, setNewColor] = useState(COLORS[0]);
@@ -54,29 +55,86 @@ export const TimecodeSelector: React.FC<TimecodeSelectorProps> = ({ onSelect, se
     return grouped;
   }, [filteredTimecodes]);
 
+
+  const flattenedOptions = useMemo(() => {
+    if (showAddForm) return [];
+    const options: { id: string, type: 'create' | 'recent' | 'timecode', tc?: any, search?: string }[] = [];
+    if (search && !exactMatch) {
+      options.push({ id: 'create-new', type: 'create', search });
+    }
+    recentTimecodes.forEach(tc => {
+      options.push({ id: `recent-${tc.id}`, type: 'recent', tc });
+    });
+    Array.from(groupedTimecodes.entries()).forEach(([_gId, tcs]) => {
+      tcs.forEach(tc => {
+        options.push({ id: `tc-${tc.id}`, type: 'timecode', tc });
+      });
+    });
+    return options;
+  }, [showAddForm, search, exactMatch, recentTimecodes, groupedTimecodes]);
+
+  useEffect(() => {
+    setActiveIndex(search && !exactMatch ? 0 : -1);
+  }, [search, exactMatch]);
+
+  const activeId = useMemo(() => flattenedOptions[activeIndex]?.id, [activeIndex, flattenedOptions]);
+
+  useEffect(() => {
+    if (activeId) {
+      const el = document.getElementById(`option-${activeId}`);
+      if (el) {
+        el.scrollIntoView({ block: 'nearest' });
+      }
+    }
+  }, [activeId]);
+
+
   const handleSelect = (id: string) => {
     onSelect(id);
     setIsOpen(false);
     setSearch('');
   };
 
-  useEffect(() => {
-    const handleKeyDown = (e: KeyboardEvent) => {
-      if (e.key === 'Escape' && isOpen) {
+  const handleKeyDown = (e: React.KeyboardEvent) => {
+    if (e.key === 'Escape') {
+      if (isOpen) {
         setIsOpen(false);
         setSearch('');
         setShowAddForm(false);
+        e.preventDefault();
+        e.stopPropagation();
       }
-    };
-
-    if (isOpen) {
-      document.addEventListener('keydown', handleKeyDown);
+      return;
     }
 
-    return () => {
-      document.removeEventListener('keydown', handleKeyDown);
-    };
-  }, [isOpen]);
+    if (!isOpen) {
+      if (e.key === 'ArrowDown' || e.key === 'ArrowUp' || e.key === 'Enter') {
+        setIsOpen(true);
+        e.preventDefault();
+      }
+      return;
+    }
+
+    if (showAddForm) return;
+
+    if (e.key === 'ArrowDown') {
+      e.preventDefault();
+      setActiveIndex(prev => (prev < flattenedOptions.length - 1 ? prev + 1 : prev));
+    } else if (e.key === 'ArrowUp') {
+      e.preventDefault();
+      setActiveIndex(prev => (prev > 0 ? prev - 1 : prev));
+    } else if (e.key === 'Enter') {
+      e.preventDefault();
+      if (activeIndex >= 0 && activeIndex < flattenedOptions.length) {
+        const selected = flattenedOptions[activeIndex];
+        if (selected.type === 'create') {
+          setShowAddForm(true);
+        } else if (selected.tc) {
+          handleSelect(selected.tc.id);
+        }
+      }
+    }
+  };
 
   const handleCreate = async () => {
     const trimmedSearch = search.trim();
@@ -99,13 +157,17 @@ export const TimecodeSelector: React.FC<TimecodeSelectorProps> = ({ onSelect, se
   };
 
   return (
-    <div className="relative w-full max-w-sm">
+    <div className="relative w-full max-w-sm" onKeyDown={handleKeyDown}>
       <div
         className="flex items-center justify-between px-4 py-2 bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-md shadow-sm cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-600 focus-within:ring-2 focus-within:ring-blue-500 focus-within:border-blue-500 transition-colors"
         onClick={() => !isOpen && setIsOpen(true)}
       >
         <input
           type="text"
+          role="combobox"
+          aria-expanded={isOpen}
+          aria-controls="timecode-listbox"
+          aria-activedescendant={activeId ? `option-${activeId}` : undefined}
           className="w-full bg-transparent outline-none cursor-pointer text-gray-900 dark:text-white placeholder-gray-500 dark:placeholder-gray-400"
           placeholder="Select or type to create..."
           value={isOpen ? search : (selectedTimecode?.name || search)}
@@ -138,7 +200,7 @@ export const TimecodeSelector: React.FC<TimecodeSelectorProps> = ({ onSelect, se
       </div>
 
       {isOpen && (
-        <div className="absolute z-10 w-full mt-1 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-md shadow-lg max-h-96 overflow-y-auto">
+        <div id="timecode-listbox" role="listbox" className="absolute z-10 w-full mt-1 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-md shadow-lg max-h-96 overflow-y-auto">
 
           {/* Backdrop for click outside */}
           <div className="fixed inset-0 z-[-1]" onClick={() => {
@@ -220,7 +282,10 @@ export const TimecodeSelector: React.FC<TimecodeSelectorProps> = ({ onSelect, se
             <>
               {search && !exactMatch && (
                 <button
-                  className="w-full flex items-center gap-2 px-4 py-3 text-left text-blue-600 dark:text-blue-400 hover:bg-blue-50 dark:hover:bg-gray-700 border-b border-gray-100 dark:border-gray-700 transition-colors"
+                  id="option-create-new"
+                  role="option"
+                  aria-selected={activeId === 'create-new'}
+                  className={`w-full flex items-center gap-2 px-4 py-3 text-left text-blue-600 dark:text-blue-400 border-b border-gray-100 dark:border-gray-700 transition-colors ${activeId === 'create-new' ? 'bg-blue-50 dark:bg-gray-700' : 'hover:bg-blue-50 dark:hover:bg-gray-700'}`}
                   onClick={() => setShowAddForm(true)}
                 >
                   <Plus size={16} />
@@ -247,7 +312,10 @@ export const TimecodeSelector: React.FC<TimecodeSelectorProps> = ({ onSelect, se
                       <button
                         key={`recent-${tc.id}`}
                         onClick={() => handleSelect(tc.id)}
-                        className="w-full text-left px-4 py-2 text-sm text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700 flex items-center justify-between group-hover:bg-gray-50 dark:group-hover:bg-gray-800"
+                        id={`option-recent-${tc.id}`}
+                        role="option"
+                        aria-selected={activeId === `recent-${tc.id}`}
+                        className={`w-full text-left px-4 py-2 text-sm flex items-center justify-between ${activeId === `recent-${tc.id}` ? 'bg-gray-100 dark:bg-gray-700 text-gray-900 dark:text-white' : 'text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700'}`}
                       >
                         <div className="flex items-center gap-2">
                           <div className="w-3 h-3 rounded-full" style={{ backgroundColor: color }}></div>
@@ -275,7 +343,10 @@ export const TimecodeSelector: React.FC<TimecodeSelectorProps> = ({ onSelect, se
                       return (
                         <button
                           key={tc.id}
-                          className="w-full flex items-center gap-2 px-4 py-2 text-left hover:bg-gray-50 dark:hover:bg-gray-700 focus:bg-gray-50 dark:focus:bg-gray-700 outline-none text-gray-900 dark:text-gray-200 transition-colors"
+                          id={`option-tc-${tc.id}`}
+                          role="option"
+                          aria-selected={activeId === `tc-${tc.id}`}
+                          className={`w-full flex items-center gap-2 px-4 py-2 text-left outline-none transition-colors ${activeId === `tc-${tc.id}` ? 'bg-gray-50 dark:bg-gray-700 text-blue-600 dark:text-blue-400' : 'text-gray-900 dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-gray-700 focus:bg-gray-50 dark:focus:bg-gray-700'}`}
                           onClick={() => handleSelect(tc.id)}
                         >
                           <div className="w-3 h-3 rounded-full flex-shrink-0" style={{ backgroundColor: color }}></div>

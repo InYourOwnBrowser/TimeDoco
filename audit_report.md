@@ -39,7 +39,7 @@
 | - [x] Recurring / template entries | Not implemented (was scoped in `plan.md`). |
 | - [x] Passphrase encryption at rest | Not implemented — data sits unencrypted in IndexedDB. Reasonable for a "privacy-first, local-only" pitch, but worth stating explicitly in the UI/README if it's intentionally out of scope, since "privacy-first" reads to some users as "encrypted." |
 | - [ ] Bulk actions on entries (multi-select delete/re-timecode/export) | Not implemented — `EntryList` only supports one-at-a-time edit/split/delete. |
-| - [ ] Keyboard-navigable combobox in `TimecodeSelector` | Not implemented — mouse/touch only; no arrow-key navigation or `aria-activedescendant`/`role="combobox"` wiring (see 3.1). |
+| - [x] Keyboard-navigable combobox in `TimecodeSelector` | Not implemented — mouse/touch only; no arrow-key navigation or `aria-activedescendant`/`role="combobox"` wiring (see 3.1). |
 | - [ ] Search/filter/sort in `GroupingManagement` | Not implemented — with dozens of timecodes this becomes a long unfiltered list mixing active and archived items. |
 | - [ ] Tests beyond `timeUtils` + 2 context tests | Coverage is thin for a codebase this UI-heavy: no tests for `AnalysisView`'s proportional-duration aggregation, gap/overlap detection, import/export checksum round-trip, or any component-level rendering test. |
 
@@ -47,9 +47,9 @@
 
 ## 3. UI/UX Issues
 
-- [ ] **3.1 `TimecodeSelector` isn't a real accessible combobox.** No `role="combobox"`/`aria-expanded`/`aria-controls`, no arrow-key traversal of the list, no `aria-activedescendant`. It's the single most-used control in the app (the entry point for starting every timer) and is currently mouse/touch-only for selection.
+- [x] **3.1 `TimecodeSelector` isn't a real accessible combobox.** No `role="combobox"`/`aria-expanded`/`aria-controls`, no arrow-key traversal of the list, no `aria-activedescendant`. It's the single most-used control in the app (the entry point for starting every timer) and is currently mouse/touch-only for selection.
 
-- [ ] **3.2 Two toast systems coexist.** `ToastContext` renders generic toasts top-right; `UndoToast` is a separate, hand-rolled fixed-bottom-center element for the stop-timer undo. They don't collide visually today, but it's two parallel notification mechanisms to maintain, and a "Timer stopped" toast (from `addToast` in `stopTimerById`... actually from `stopTimer`) fires *at the same time* as the bottom "Timer stopped — Undo" toast — the user sees the same message twice in two different places. Consolidate into one toast system that supports action buttons.
+- [x] **3.2 Two toast systems coexist.** `ToastContext` renders generic toasts top-right; `UndoToast` is a separate, hand-rolled fixed-bottom-center element for the stop-timer undo. They don't collide visually today, but it's two parallel notification mechanisms to maintain, and a "Timer stopped" toast (from `addToast` in `stopTimerById`... actually from `stopTimer`) fires *at the same time* as the bottom "Timer stopped — Undo" toast — the user sees the same message twice in two different places. Consolidate into one toast system that supports action buttons.
 
 - [ ] **3.3 PWA manifest has no `theme_color`/`background_color`.** `vite.config.ts`'s `VitePWA` `manifest` block only sets `name`/`short_name`/`description`/`icons` — no `theme_color` or `background_color`, so an installed PWA's splash screen and OS chrome fall back to browser defaults rather than matching the app, and won't reflect the in-app dark/light theme choice either way (this is a static manifest limitation; the best fix is a sensible default plus documenting that OS chrome won't track the in-app toggle).
 
@@ -69,8 +69,8 @@
 
 ## 4. UI/UX Improvements (suggestions, not defects)
 
-- [ ] **Consolidate toast systems** (see 3.2) into a single `ToastContext` that supports an optional action button, and use it for the stop-timer undo instead of a bespoke component.
-- [ ] **Add a real combobox** to `TimecodeSelector` (arrow keys, `Enter` to select, proper ARIA) — this is the highest-leverage accessibility fix given how central the control is.
+- [x] **Consolidate toast systems** (see 3.2) into a single `ToastContext` that supports an optional action button, and use it for the stop-timer undo instead of a bespoke component.
+- [x] **Add a real combobox** to `TimecodeSelector` (arrow keys, `Enter` to select, proper ARIA) — this is the highest-leverage accessibility fix given how central the control is.
 - [ ] **Add a raw entry-level CSV export** next to the existing summary export, e.g.:
   ```ts
   const handleExportRawCSV = () => {
@@ -109,12 +109,12 @@
 - [x] 3. Add a confirm step for saves that already show an overlap/12h+ warning (1.4)
 
 **Medium (polish / scale):**
-- [ ] 4. Consolidate the two toast systems (3.2)
+- [x] 4. Consolidate the two toast systems (3.2)
 - [ ] 5. Add raw entry-level CSV export (missing feature, §2)
 - [x] 6. Add backdrop-click-to-close + scroll lock to `Modal` (1.5)
 - [ ] 7. Batch CSV-import writes instead of refreshing per row (§4)
 
 **Lower (nice-to-have / roadmap):**
-- [ ] 8. Accessible combobox for `TimecodeSelector` (3.1)
+- [x] 8. Accessible combobox for `TimecodeSelector` (3.1)
 - [ ] 9. Soft-delete/trash, bulk entry actions, recurring entries (§2)
 - [ ] 10. Expand automated test coverage beyond `timeUtils` (§2)
