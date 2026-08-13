@@ -1,10 +1,10 @@
 import React, { useState } from 'react';
 import { useTimeTracker } from '../context/TimeTrackerContext';
-import { Edit2, Archive, ArchiveRestore, Check, X, Trash2 } from 'lucide-react';
+import { Edit2, Archive, ArchiveRestore, Check, X, Trash2, Merge } from 'lucide-react';
 import type { Group, Timecode } from '../types';
 
 export const GroupingManagement: React.FC = () => {
-  const { groups, timecodes, entries, addGroup, updateGroup, deleteGroup, addTimecode, updateTimecode, deleteTimecode } = useTimeTracker();
+  const { groups, timecodes, entries, addGroup, updateGroup, deleteGroup, addTimecode, updateTimecode, deleteTimecode, mergeTimecodes } = useTimeTracker();
 
   const [editingGroupId, setEditingGroupId] = useState<string | null>(null);
   const [editingGroupData, setEditingGroupData] = useState<{ name: string; color: string }>({ name: '', color: '' });
@@ -20,6 +20,10 @@ export const GroupingManagement: React.FC = () => {
   const [newTimecodeGroupId, setNewTimecodeGroupId] = useState('');
   const [newTimecodeRate, setNewTimecodeRate] = useState('');
 
+  const [mergingTimecodeId, setMergingTimecodeId] = useState<string | null>(null);
+  const [mergeDestId, setMergeDestId] = useState<string>('');
+
+
   const handleEditGroupStart = (group: Group) => {
     setEditingGroupId(group.id);
     setEditingGroupData({ name: group.name, color: group.color });
@@ -29,6 +33,16 @@ export const GroupingManagement: React.FC = () => {
     if (!editingGroupData.name.trim()) return;
     await updateGroup(id, { name: editingGroupData.name, color: editingGroupData.color });
     setEditingGroupId(null);
+  };
+
+
+  const handleMergeSave = async (sourceId: string) => {
+    if (!mergeDestId || mergeDestId === sourceId) return;
+    if (window.confirm('Are you sure you want to merge these timecodes? All entries from the source will be moved to the destination, and the source timecode will be deleted. This cannot be undone.')) {
+      await mergeTimecodes(sourceId, mergeDestId);
+      setMergingTimecodeId(null);
+      setMergeDestId('');
+    }
   };
 
   const handleEditTimecodeStart = (tc: Timecode) => {
@@ -223,6 +237,32 @@ export const GroupingManagement: React.FC = () => {
                         <X size={18} />
                       </button>
                    </div>
+
+                ) : mergingTimecodeId === tc.id ? (
+                  <div className="flex items-center gap-3 w-full flex-wrap">
+                    <span className="font-medium text-gray-800 dark:text-gray-200">Merge "{tc.name}" into:</span>
+                    <select
+                      value={mergeDestId}
+                      onChange={(e) => setMergeDestId(e.target.value)}
+                      className="flex-1 min-w-[150px] px-3 py-1 border border-gray-300 dark:border-gray-600 rounded outline-none focus:ring-1 focus:ring-blue-500 bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
+                    >
+                      <option value="" disabled>Select destination</option>
+                      {timecodes.filter(t => t.id !== tc.id).map(t => (
+                        <option key={t.id} value={t.id}>{t.name} {t.archived ? '(archived)' : ''}</option>
+                      ))}
+                    </select>
+                    <button
+                      onClick={() => handleMergeSave(tc.id)}
+                      disabled={!mergeDestId}
+                      className="px-3 py-1 bg-blue-600 text-white rounded text-sm hover:bg-blue-700 disabled:opacity-50 transition-colors"
+                    >
+                      Confirm Merge
+                    </button>
+                    <button onClick={() => { setMergingTimecodeId(null); setMergeDestId(''); }} className="p-1 text-gray-600 dark:text-gray-400 hover:text-gray-800 dark:hover:text-gray-300 transition-colors">
+                      <X size={18} />
+                    </button>
+                  </div>
+
                 ) : (
                   <>
                     <div className="flex flex-col">
@@ -243,6 +283,17 @@ export const GroupingManagement: React.FC = () => {
                       >
                         <Edit2 size={16} />
                       </button>
+                      <button
+                        onClick={() => {
+                          setMergingTimecodeId(tc.id);
+                          setMergeDestId('');
+                        }}
+                        className="p-1.5 text-purple-600 dark:text-purple-400 hover:bg-purple-50 dark:hover:bg-purple-900/30 rounded transition-colors"
+                        title="Merge Timecode"
+                      >
+                        <Merge size={16} />
+                      </button>
+
                       <button
                         onClick={() => {
                             if (tc.archived || window.confirm('Are you sure you want to archive this timecode? It will be hidden from selection.')) {

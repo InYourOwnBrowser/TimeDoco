@@ -1,8 +1,9 @@
 import React, { useState } from 'react';
 import { useTimeTracker } from '../context/TimeTrackerContext';
 import { format, parseISO } from 'date-fns';
-import { Clock, FileEdit, Trash2 } from 'lucide-react';
+import { Clock, FileEdit, Trash2, Scissors } from 'lucide-react';
 import { EntryEditModal } from './EntryEditModal';
+import { EntrySplitModal } from './EntrySplitModal';
 import { ManualEntryModal } from './ManualEntryModal';
 import type { Entry } from '../types';
 import { applyRounding } from '../utils/timeUtils';
@@ -10,6 +11,7 @@ import { applyRounding } from '../utils/timeUtils';
 export const EntryList: React.FC = () => {
   const { entries, timecodes, deleteEntry, settings } = useTimeTracker();
   const [editingEntry, setEditingEntry] = useState<Entry | null>(null);
+  const [splittingEntry, setSplittingEntry] = useState<Entry | null>(null);
   const [isManualModalOpen, setIsManualModalOpen] = useState(false);
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedTimecodeId, setSelectedTimecodeId] = useState<string>('all');
@@ -171,6 +173,16 @@ export const EntryList: React.FC = () => {
                             <span className="text-lg font-mono font-medium text-gray-900 dark:text-gray-100">
                               {formatDuration(applyRounding(entry.duration, settings?.roundingRule || 'none'))}
                             </span>
+
+                            {!entry.isRunning && entry.duration > 60 && (
+                              <button
+                                onClick={() => setSplittingEntry(entry)}
+                                className="text-gray-400 dark:text-gray-500 hover:text-purple-600 dark:hover:text-purple-400 focus:outline-none transition-colors"
+                                title="Split Entry"
+                              >
+                                <Scissors className="h-5 w-5" />
+                              </button>
+                            )}
                             <button
                               onClick={() => setEditingEntry(entry)}
                               className="text-gray-400 dark:text-gray-500 hover:text-blue-600 dark:hover:text-blue-400 focus:outline-none transition-colors"
@@ -210,6 +222,10 @@ export const EntryList: React.FC = () => {
             Load More
           </button>
         </div>
+      )}
+
+      {splittingEntry && (
+        <EntrySplitModal entry={splittingEntry} onClose={() => setSplittingEntry(null)} />
       )}
 
       {editingEntry && (

@@ -18,11 +18,13 @@ interface TimeTrackerContextType {
   addTimecode: (name: string, color?: string, groupId?: string, hourlyRate?: number) => Promise<Timecode>;
   updateTimecode: (id: string, updates: Partial<Timecode>) => Promise<void>;
   deleteTimecode: (id: string) => Promise<void>;
+  mergeTimecodes: (sourceId: string, destId: string) => Promise<void>;
   updateActiveNote: (entryId: string, note: string) => Promise<void>;
   refreshData: () => Promise<void>;
   entries: Entry[];
   updateEntry: (id: string, updates: Partial<Entry>) => Promise<void>;
   deleteEntry: (id: string) => Promise<void>;
+  splitEntry: (entryId: string, splitTime: string, newTimecodeId?: string) => Promise<void>;
   addManualEntry: (entryData: { startTime: string, endTime: string, timecodeId: string, note: string }) => Promise<void>;
   forgotToStopEntry: Entry | null;
   dismissForgotToStop: () => void;
@@ -400,6 +402,29 @@ export const TimeTrackerProvider: React.FC<{ children: ReactNode }> = ({ childre
     await refreshData();
   };
 
+
+  const mergeTimecodes = async (sourceId: string, destId: string) => {
+    // 1. Update all entries referencing sourceId to point to destId
+    const entriesToUpdate = entries.filter((e) => e.timecodeId === sourceId);
+    for (const entry of entriesToUpdate) {
+      await db.putEntry({ ...entry, timecodeId: destId, updatedAt: new Date().toISOString() });
+    }
+
+    // 2. Update active entries as well, if any are running on the source timecode
+    const currentActive = await db.getActiveEntries();
+    for (const entry of currentActive) {
+      if (entry.timecodeId === sourceId) {
+        await db.putEntry({ ...entry, timecodeId: destId, updatedAt: new Date().toISOString() });
+      }
+    }
+
+    // 3. Delete the source timecode
+    await db.deleteTimecode(sourceId);
+
+    // 4. Refresh everything
+    await refreshData();
+  };
+
   const deleteTimecode = async (id: string) => {
     // Cascading: delete all entries associated with this timecode
     const entriesToDelete = entries.filter((e) => e.timecodeId === id);
@@ -414,6 +439,66 @@ export const TimeTrackerProvider: React.FC<{ children: ReactNode }> = ({ childre
     if (!settings) return;
     const newSettings = { ...settings, ...updates };
     await db.putSettings(newSettings);
+    await refreshData();
+  };
+
+
+  const splitEntry = async (entryId: string, splitTime: string, newTimecodeId?: string) => {
+    const entry = await db.getEntry(entryId);
+    if (!entry || !entry.endTime) return; // Can only split completed entries
+
+    const splitDate = new Date(splitTime);
+    const startDate = new Date(entry.startTime);
+    const endDate = new Date(entry.endTime);
+
+    if (splitDate <= startDate || splitDate >= endDate) return;
+
+    // Filter paused segments for both halves
+    const pausedSegments1: any[] = [];
+    const pausedSegments2: any[] = [];
+
+    for (const seg of entry.pausedSegments) {
+      const pStart = new Date(seg.pauseStart);
+      const pEnd = seg.pauseEnd ? new Date(seg.pauseEnd) : endDate;
+
+      if (pEnd <= splitDate) {
+        pausedSegments1.push(seg);
+      } else if (pStart >= splitDate) {
+        pausedSegments2.push(seg);
+      } else {
+        // Segment crosses the split time
+        pausedSegments1.push({ pauseStart: seg.pauseStart, pauseEnd: splitDate.toISOString() });
+        pausedSegments2.push({ pauseStart: splitDate.toISOString(), pauseEnd: seg.pauseEnd });
+      }
+    }
+
+    const duration1 = calculateDuration(startDate, splitDate, pausedSegments1);
+    const duration2 = calculateDuration(splitDate, endDate, pausedSegments2);
+
+    const now = new Date().toISOString();
+
+    const entry1: Entry = {
+      ...entry,
+      endTime: splitDate.toISOString(),
+      duration: duration1,
+      pausedSegments: pausedSegments1,
+      updatedAt: now,
+    };
+
+    const entry2: Entry = {
+      ...entry,
+      id: crypto.randomUUID(),
+      timecodeId: newTimecodeId || entry.timecodeId,
+      startTime: splitDate.toISOString(),
+      duration: duration2,
+      pausedSegments: pausedSegments2,
+      createdAt: now,
+      updatedAt: now,
+      editHistory: [],
+    };
+
+    await db.putEntry(entry1);
+    await db.putEntry(entry2);
     await refreshData();
   };
 
@@ -549,11 +634,13 @@ export const TimeTrackerProvider: React.FC<{ children: ReactNode }> = ({ childre
       addTimecode,
       updateTimecode,
       deleteTimecode,
+      mergeTimecodes,
       updateActiveNote,
       refreshData,
       entries,
       updateEntry,
       deleteEntry,
+      splitEntry,
       addManualEntry,
       forgotToStopEntry,
       dismissForgotToStop,

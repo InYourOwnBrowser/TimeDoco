@@ -74,6 +74,61 @@ export const AnalysisView: React.FC = () => {
     return overlappingPairs;
   }, [filteredEntries]);
 
+
+  // Detect gaps > 15 minutes within the same day
+  const gaps = useMemo(() => {
+    const detectedGaps: { start: Date, end: Date, durationMins: number }[] = [];
+    const GAP_THRESHOLD_MINS = 15;
+
+    // Group entries by day first
+    const entriesByDay = new Map<string, typeof filteredEntries>();
+
+    filteredEntries.forEach(entry => {
+      if (!entry.endTime) return; // Only consider completed entries for gap detection
+
+      const start = new Date(entry.startTime);
+
+      // If entry spans multiple days, split it for gap detection purposes (simplified: just use start day)
+      // For accurate intra-day gap detection, we group by start date string
+      const dateStr = format(start, 'yyyy-MM-dd');
+      if (!entriesByDay.has(dateStr)) {
+        entriesByDay.set(dateStr, []);
+      }
+      entriesByDay.get(dateStr)!.push(entry);
+    });
+
+    entriesByDay.forEach((dayEntries) => {
+      // Sort by start time
+      const sorted = [...dayEntries].sort((a, b) => new Date(a.startTime).getTime() - new Date(b.startTime).getTime());
+
+      // Merge overlapping/adjacent entries to find true gaps
+      if (sorted.length < 2) return;
+
+      let currentEnd = new Date(sorted[0].endTime!);
+
+      for (let i = 1; i < sorted.length; i++) {
+        const nextStart = new Date(sorted[i].startTime);
+        const nextEnd = new Date(sorted[i].endTime!);
+
+        if (nextStart > currentEnd) {
+          // We have a gap
+          const gapMs = nextStart.getTime() - currentEnd.getTime();
+          const gapMins = gapMs / (1000 * 60);
+
+          if (gapMins >= GAP_THRESHOLD_MINS) {
+            detectedGaps.push({ start: currentEnd, end: nextStart, durationMins: Math.round(gapMins) });
+          }
+        }
+
+        if (nextEnd > currentEnd) {
+          currentEnd = nextEnd;
+        }
+      }
+    });
+
+    return detectedGaps;
+  }, [filteredEntries]);
+
   const { timecodeData, groupData, totalSeconds, totalEarnings } = useMemo(() => {
     let tSec = 0;
     let tEarn = 0;
@@ -256,6 +311,19 @@ export const AnalysisView: React.FC = () => {
           )}
         </div>
 
+
+
+        {gaps.length > 0 && (
+          <div className="mb-8 p-4 bg-blue-50 dark:bg-blue-900/30 border border-blue-200 dark:border-blue-800 rounded-lg flex items-start gap-3">
+            <AlertTriangle className="text-blue-500 mt-0.5 shrink-0" size={20} />
+            <div>
+              <h4 className="font-medium text-blue-800 dark:text-blue-300">Untracked Time Gaps Detected</h4>
+              <p className="text-sm text-blue-700 dark:text-blue-400 mt-1">
+                There are {gaps.length} gaps of 15+ minutes between time entries during this period.
+              </p>
+            </div>
+          </div>
+        )}
 
         {overlaps.length > 0 && (
           <div className="mb-8 p-4 bg-amber-50 dark:bg-amber-900/30 border border-amber-200 dark:border-amber-800 rounded-lg flex items-start gap-3">
