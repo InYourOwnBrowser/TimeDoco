@@ -77,6 +77,12 @@ export const EntryEditModal: React.FC<EntryEditModalProps> = ({ entry, onClose }
         return;
     }
 
+    if (warning) {
+      if (!window.confirm(`${warning}\n\nSave anyway?`)) {
+        return;
+      }
+    }
+
     const updates: Partial<Entry> = {
       timecodeId,
       note,

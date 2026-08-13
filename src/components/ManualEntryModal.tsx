@@ -66,6 +66,12 @@ export const ManualEntryModal: React.FC<ManualEntryModalProps> = ({ onClose }) =
       return;
     }
 
+    if (warning) {
+      if (!window.confirm(`${warning}\n\nSave anyway?`)) {
+        return;
+      }
+    }
+
     await addManualEntry({
       timecodeId,
       startTime: start.toISOString(),
