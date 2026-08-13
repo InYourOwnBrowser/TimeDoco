@@ -3,6 +3,7 @@ import { useTimeTracker } from '../context/TimeTrackerContext';
 import { differenceInSeconds } from 'date-fns';
 import { X, AlertCircle } from 'lucide-react';
 import { checkOverlap } from '../utils/timeUtils';
+import { Modal } from './ui/Modal';
 
 interface ManualEntryModalProps {
   onClose: () => void;
@@ -74,8 +75,8 @@ export const ManualEntryModal: React.FC<ManualEntryModalProps> = ({ onClose }) =
   };
 
   return (
-    <div className="fixed inset-0 bg-black/50 flex items-center justify-center p-4 z-50">
-      <div className="bg-white dark:bg-gray-800 rounded-lg shadow-xl w-full max-w-md overflow-hidden flex flex-col">
+    <Modal onClose={onClose}>
+      <div className="bg-white dark:bg-gray-800 rounded-lg shadow-xl w-full max-w-md max-h-[90vh] overflow-hidden flex flex-col">
         <div className="flex justify-between items-center p-4 border-b border-gray-200 dark:border-gray-700">
           <h2 className="text-lg font-semibold text-gray-900 dark:text-white">Add Manual Entry</h2>
           <button onClick={onClose} className="text-gray-400 hover:text-gray-600 dark:text-gray-400 dark:hover:text-gray-300">
@@ -159,6 +160,6 @@ export const ManualEntryModal: React.FC<ManualEntryModalProps> = ({ onClose }) =
           </button>
         </div>
       </div>
-    </div>
+    </Modal>
   );
 };

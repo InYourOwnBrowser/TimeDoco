@@ -30,6 +30,9 @@ interface TimeTrackerContextType {
   updateSettings: (updates: Partial<Settings>) => Promise<void>;
   exportData: () => Promise<void>;
   importData: (file: File, mode: 'merge' | 'replace') => Promise<void>;
+  lastStoppedEntry: Entry | null;
+  undoStopTimer: () => Promise<void>;
+  clearLastStoppedEntry: () => void;
 }
 
 const TimeTrackerContext = createContext<TimeTrackerContextType | undefined>(undefined);
@@ -42,6 +45,28 @@ export const TimeTrackerProvider: React.FC<{ children: ReactNode }> = ({ childre
   const [forgotToStopEntry, setForgotToStopEntry] = useState<Entry | null>(null);
   const [dismissedForgotToStopId, setDismissedForgotToStopId] = useState<string | null>(null);
   const [settings, setSettings] = useState<Settings | null>(null);
+  const [lastStoppedEntry, setLastStoppedEntry] = useState<Entry | null>(null);
+
+  const clearLastStoppedEntry = useCallback(() => {
+    setLastStoppedEntry(null);
+  }, []);
+
+  const undoStopTimer = async () => {
+    if (!lastStoppedEntry) return;
+
+    // Remove endTime and duration, set isRunning back to true
+    const updatedEntry: Entry = {
+      ...lastStoppedEntry,
+      endTime: null,
+      duration: 0,
+      isRunning: true,
+      updatedAt: new Date().toISOString(),
+    };
+
+    await db.putEntry(updatedEntry);
+    setLastStoppedEntry(null);
+    await refreshData();
+  };
 
   const refreshData = useCallback(async () => {
     const loadedGroups = await db.getGroups();
@@ -163,7 +188,11 @@ export const TimeTrackerProvider: React.FC<{ children: ReactNode }> = ({ childre
   };
 
   const stopTimer = async (entryId: string) => {
+    const entry = await db.getEntry(entryId);
     await stopTimerById(entryId);
+    if (entry) {
+      setLastStoppedEntry(entry);
+    }
     await refreshData();
   };
 
@@ -522,6 +551,9 @@ export const TimeTrackerProvider: React.FC<{ children: ReactNode }> = ({ childre
       updateSettings,
       exportData,
       importData,
+      lastStoppedEntry,
+      undoStopTimer,
+      clearLastStoppedEntry,
     }}>
       {children}
     </TimeTrackerContext.Provider>

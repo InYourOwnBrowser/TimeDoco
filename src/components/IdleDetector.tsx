@@ -1,5 +1,6 @@
 import React, { useEffect, useState, useRef, useCallback } from 'react';
 import { useTimeTracker } from '../context/TimeTrackerContext';
+import { Modal } from './ui/Modal';
 
 export const IdleDetector: React.FC = () => {
   const { activeEntries, settings, pauseTimer } = useTimeTracker();
@@ -91,7 +92,7 @@ export const IdleDetector: React.FC = () => {
   if (!showPrompt) return null;
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
+    <Modal onClose={handleKeepRunning}>
       <div className="bg-white dark:bg-gray-800 rounded-xl shadow-xl max-w-md w-full p-6 animate-in fade-in zoom-in-95 duration-200">
         <h2 className="text-xl font-semibold text-gray-900 dark:text-white mb-2">Still working?</h2>
         <p className="text-gray-600 dark:text-gray-400 mb-6">
@@ -112,6 +113,6 @@ export const IdleDetector: React.FC = () => {
           </button>
         </div>
       </div>
-    </div>
+    </Modal>
   );
 };
