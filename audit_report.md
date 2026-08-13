@@ -63,7 +63,7 @@ Stack: React 19 + TypeScript + Vite + IndexedDB (`idb`) + Tailwind + Recharts + 
 
 Additional gaps not called out in the plan but worth noting:
 - [x] **No "Add Timecode" button in the Management tab.** New timecodes can only be created inline from the tracker's search box; the Management page can only edit/archive/delete existing ones. Anyone wanting to pre-configure timecodes before tracking has to fake it through the tracker UI first.
-- [ ] **No component/integration test coverage.** `vitest` only covers `timeUtils.ts` (overlap + duration math). None of the context reducer logic (start/stop/pause math, cascading deletes, import/export checksum flow) or the Analysis page's proportional-duration aggregation — the parts most likely to contain subtle date-math bugs — have any automated tests.
+- [x] **No component/integration test coverage.** `vitest` only covers `timeUtils.ts` (overlap + duration math). None of the context reducer logic (start/stop/pause math, cascading deletes, import/export checksum flow) or the Analysis page's proportional-duration aggregation — the parts most likely to contain subtle date-math bugs — have any automated tests.
 - [x] **CI doesn't gate on tests or lint.** `.github/workflows/*.yml` runs `npm run build` and deploys straight to GitHub Pages; it never runs `npm run test` or `npm run lint`, so a red test suite wouldn't block a production deploy.
 
 ---
