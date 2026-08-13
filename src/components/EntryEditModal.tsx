@@ -11,7 +11,7 @@ interface EntryEditModalProps {
 }
 
 export const EntryEditModal: React.FC<EntryEditModalProps> = ({ entry, onClose }) => {
-  const { updateEntry, timecodes, entries } = useTimeTracker();
+  const { updateEntry, timecodes, entries, settings } = useTimeTracker();
   const [startTime, setStartTime] = useState('');
   const [endTime, setEndTime] = useState('');
   const [timecodeId, setTimecodeId] = useState(entry.timecodeId);
@@ -41,7 +41,7 @@ export const EntryEditModal: React.FC<EntryEditModalProps> = ({ entry, onClose }
       return;
     }
 
-    const overlapping = checkOverlap(start, end, entries, entry.id);
+    const overlapping = checkOverlap(start, end, entries, entry.id, timecodeId, settings?.allowConcurrentTimers);
 
     if (overlapping) {
       setWarning('Warning: This entry overlaps with an existing time entry.');
@@ -50,7 +50,7 @@ export const EntryEditModal: React.FC<EntryEditModalProps> = ({ entry, onClose }
     } else {
       setWarning(null);
     }
-  }, [startTime, endTime, entries, entry.id]);
+  }, [startTime, endTime, entries, entry.id, timecodeId, settings?.allowConcurrentTimers]);
 
   const handleSave = async () => {
     setError(null);

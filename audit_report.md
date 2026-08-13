@@ -9,12 +9,12 @@ Stack: React 19 + TypeScript + Vite + IndexedDB (`idb`) + Tailwind + Recharts + 
 
 ## 1. Bugs
 
-- [ ] **1.1 Rounding Rule setting does nothing (dead feature)**
+- [x] **1.1 Rounding Rule setting does nothing (dead feature)**
   `Settings.roundingRule` (`none/5min/10min/15min`) is set in `SettingsModal.tsx` and persisted, but it is **never read anywhere** — not in `calculateDuration()`, not in `EntryList`, not in `AnalysisView`, not in CSV/PDF export. A user can pick "Nearest 15 Minutes" and see zero effect on any displayed time or export.
   `grep -rn "roundingRule" src/` only appears in SettingsModal.tsx and the default-settings object
   **Fix:** apply rounding at the display/export layer only (as `plan.md` §6.5 specifies), e.g. a `applyRounding(seconds, rule)` helper used in `AnalysisView`'s aggregation and `EntryList`'s `formatDuration`.
 
-- [ ] **1.2 Overlap detection ignores concurrent-timer mode**
+- [x] **1.2 Overlap detection ignores concurrent-timer mode**
   `checkOverlap()` (`utils/timeUtils.ts`) flags an overlap against **every** entry regardless of timecode. Once "Allow Multiple Concurrent Timers" is enabled (a supported, documented mode), any second simultaneous entry will always trigger the "This entry overlaps..." warning in `ManualEntryModal` / `EntryEditModal`, even though overlapping is the expected, valid behavior in that mode. The warning becomes noise and trains users to ignore it — including for genuine accidental overlaps in single-timer mode.
   **Fix:** pass `settings.allowConcurrentTimers` in and only flag overlaps between entries on the *same* timecode when concurrent mode is on.
 
@@ -99,8 +99,8 @@ Additional gaps not called out in the plan but worth noting:
 
 **High priority (data-safety / correctness):**
 - [ ] 1. Fix or disclose the cascading delete on Timecodes (1.3)
-- [ ] 2. Make the Rounding Rule setting actually do something, or remove it from the UI until it does (1.1)
-- [ ] 3. Scope overlap detection to concurrent-timer mode correctly (1.2)
+- [x] 2. Make the Rounding Rule setting actually do something, or remove it from the UI until it does (1.1)
+- [x] 3. Scope overlap detection to concurrent-timer mode correctly (1.2)
 - [ ] 4. Add per-row error handling to CSV import (1.6)
 
 **Medium priority (trust / polish):**

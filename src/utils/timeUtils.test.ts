@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { checkOverlap, calculateDuration } from './timeUtils';
+import { checkOverlap, calculateDuration, applyRounding } from './timeUtils';
 import type { Entry, PauseSegment } from '../types';
 
 describe('timeUtils', () => {
@@ -63,6 +63,51 @@ describe('timeUtils', () => {
       const start = new Date('2023-10-27T10:00:00Z');
       const end = new Date('2023-10-27T11:00:00Z');
       expect(checkOverlap(start, end, entries, 'e1')).toBe(false);
+    });
+
+    it('returns false when concurrent mode is on and timecodes differ', () => {
+      const start = new Date('2023-10-27T10:00:00Z');
+      const end = new Date('2023-10-27T11:00:00Z');
+      // Overlaps with e1 in time, but timecodeId is different and concurrent mode is true
+      expect(checkOverlap(start, end, entries, undefined, 'tc2', true)).toBe(false);
+    });
+
+    it('returns true when concurrent mode is on and timecodes are the same', () => {
+      const start = new Date('2023-10-27T10:00:00Z');
+      const end = new Date('2023-10-27T11:00:00Z');
+      // Overlaps with e1 in time, and timecodeId is the same
+      expect(checkOverlap(start, end, entries, undefined, 'tc1', true)).toBe(true);
+    });
+  });
+
+  describe('applyRounding', () => {
+    it('returns original seconds if rounding rule is none', () => {
+      expect(applyRounding(100, 'none')).toBe(100);
+    });
+
+    it('rounds to nearest 5 minutes', () => {
+      // 2.5 mins = 150 seconds. Under 150 -> 0. 150+ -> 300.
+      expect(applyRounding(149, '5min')).toBe(0);
+      expect(applyRounding(150, '5min')).toBe(300); // 5 mins
+      expect(applyRounding(300, '5min')).toBe(300);
+      expect(applyRounding(449, '5min')).toBe(300);
+      expect(applyRounding(450, '5min')).toBe(600); // 10 mins
+    });
+
+    it('rounds to nearest 10 minutes', () => {
+      // 5 mins = 300 seconds.
+      expect(applyRounding(299, '10min')).toBe(0);
+      expect(applyRounding(300, '10min')).toBe(600); // 10 mins
+      expect(applyRounding(899, '10min')).toBe(600);
+      expect(applyRounding(900, '10min')).toBe(1200); // 20 mins
+    });
+
+    it('rounds to nearest 15 minutes', () => {
+      // 7.5 mins = 450 seconds.
+      expect(applyRounding(449, '15min')).toBe(0);
+      expect(applyRounding(450, '15min')).toBe(900); // 15 mins
+      expect(applyRounding(1349, '15min')).toBe(900);
+      expect(applyRounding(1350, '15min')).toBe(1800); // 30 mins
     });
   });
 

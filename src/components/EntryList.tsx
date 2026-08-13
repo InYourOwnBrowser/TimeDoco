@@ -5,9 +5,10 @@ import { Clock, FileEdit, Trash2 } from 'lucide-react';
 import { EntryEditModal } from './EntryEditModal';
 import { ManualEntryModal } from './ManualEntryModal';
 import type { Entry } from '../types';
+import { applyRounding } from '../utils/timeUtils';
 
 export const EntryList: React.FC = () => {
-  const { entries, timecodes, deleteEntry } = useTimeTracker();
+  const { entries, timecodes, deleteEntry, settings } = useTimeTracker();
   const [editingEntry, setEditingEntry] = useState<Entry | null>(null);
   const [isManualModalOpen, setIsManualModalOpen] = useState(false);
   const [searchTerm, setSearchTerm] = useState('');
@@ -168,7 +169,7 @@ export const EntryList: React.FC = () => {
                         <div className="mt-4 flex-shrink-0 sm:mt-0 sm:ml-5">
                           <div className="flex items-center space-x-4">
                             <span className="text-lg font-mono font-medium text-gray-900 dark:text-gray-100">
-                              {formatDuration(entry.duration)}
+                              {formatDuration(applyRounding(entry.duration, settings?.roundingRule || 'none'))}
                             </span>
                             <button
                               onClick={() => setEditingEntry(entry)}
