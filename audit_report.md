@@ -12,7 +12,7 @@
 
 - [x] **1.1 Document title races when multiple concurrent timers are active.** `ActiveTimer.tsx` sets `document.title` in a `useEffect`, and `App.tsx` renders one `<ActiveTimer>` per entry in `activeEntries`. With "Allow Multiple Concurrent Timers" on and 2+ timers running, each mounted instance fights over `document.title` every second, and each instance's cleanup resets it to `'Time Tracker'` on unmount — the tab title will flicker/thrash unpredictably. Title-updating should be lifted to a single place (e.g. one effect in `App.tsx` driven by `activeEntries`, showing a count or the most-recently-started timer) rather than living in a component that can have multiple instances.
 
-- [ ] **1.2 `entries.is-running` IndexedDB index is dead/broken.** In `db/index.ts`:
+- [x] **1.2 `entries.is-running` IndexedDB index is dead/broken.** In `db/index.ts`:
   ```ts
   entryStore.createIndex('is-running', 'isRunning');
   ```

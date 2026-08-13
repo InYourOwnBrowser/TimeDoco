@@ -16,7 +16,6 @@ interface TimeTrackerDB extends DBSchema {
     value: Entry;
     indexes: {
       'by-timecode': string;
-      'is-running': string;
     };
   };
   settings: {
@@ -26,14 +25,14 @@ interface TimeTrackerDB extends DBSchema {
 }
 
 const DB_NAME = 'time-tracker-db';
-const DB_VERSION = 1;
+const DB_VERSION = 2;
 
 let dbPromise: Promise<IDBPDatabase<TimeTrackerDB>> | null = null;
 
 export const initDB = () => {
   if (!dbPromise) {
     dbPromise = openDB<TimeTrackerDB>(DB_NAME, DB_VERSION, {
-      upgrade(db) {
+      upgrade(db, oldVersion, _newVersion, transaction) {
         if (!db.objectStoreNames.contains('groups')) {
           db.createObjectStore('groups', { keyPath: 'id' });
         }
@@ -44,7 +43,12 @@ export const initDB = () => {
         if (!db.objectStoreNames.contains('entries')) {
           const entryStore = db.createObjectStore('entries', { keyPath: 'id' });
           entryStore.createIndex('by-timecode', 'timecodeId');
-          entryStore.createIndex('is-running', 'isRunning');
+        } else if (oldVersion < 2) {
+          // Remove the invalid boolean index from v1
+          const entryStore = transaction.objectStore('entries');
+          if (entryStore.indexNames.contains('is-running' as any)) {
+            entryStore.deleteIndex('is-running' as any);
+          }
         }
         if (!db.objectStoreNames.contains('settings')) {
           db.createObjectStore('settings', { keyPath: 'id' });
