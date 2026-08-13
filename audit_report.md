@@ -18,7 +18,7 @@ Stack: React 19 + TypeScript + Vite + IndexedDB (`idb`) + Tailwind + Recharts + 
   `checkOverlap()` (`utils/timeUtils.ts`) flags an overlap against **every** entry regardless of timecode. Once "Allow Multiple Concurrent Timers" is enabled (a supported, documented mode), any second simultaneous entry will always trigger the "This entry overlaps..." warning in `ManualEntryModal` / `EntryEditModal`, even though overlapping is the expected, valid behavior in that mode. The warning becomes noise and trains users to ignore it — including for genuine accidental overlaps in single-timer mode.
   **Fix:** pass `settings.allowConcurrentTimers` in and only flag overlaps between entries on the *same* timecode when concurrent mode is on.
 
-- [ ] **1.3 Deleting a Timecode silently deletes all its history**
+- [x] **1.3 Deleting a Timecode silently deletes all its history**
   ```ts
   const deleteTimecode = async (id: string) => {
     const entriesToDelete = entries.filter((e) => e.timecodeId === id);
@@ -98,7 +98,7 @@ Additional gaps not called out in the plan but worth noting:
 ## 4. Summary of Recommended Priorities
 
 **High priority (data-safety / correctness):**
-- [ ] 1. Fix or disclose the cascading delete on Timecodes (1.3)
+- [x] 1. Fix or disclose the cascading delete on Timecodes (1.3)
 - [x] 2. Make the Rounding Rule setting actually do something, or remove it from the UI until it does (1.1)
 - [x] 3. Scope overlap detection to concurrent-timer mode correctly (1.2)
 - [ ] 4. Add per-row error handling to CSV import (1.6)
