@@ -16,15 +16,17 @@ export const EntrySplitModal: React.FC<EntrySplitModalProps> = ({ entry, onClose
   const [newTimecodeId, setNewTimecodeId] = useState(entry.timecodeId);
   const [error, setError] = useState<string | null>(null);
 
+  const start = new Date(entry.startTime).getTime();
+  const end = entry.endTime ? new Date(entry.endTime).getTime() : start;
+  const mid = new Date(start + (end - start) / 2);
+  const initialSplitTime = entry.endTime ? format(mid, "yyyy-MM-dd'T'HH:mm:ss") : '';
+
+  const isDirty = splitTime !== initialSplitTime || newTimecodeId !== entry.timecodeId;
+
   useEffect(() => {
     if (!entry.endTime) return;
-
-    // Set default split time to halfway
-    const start = new Date(entry.startTime).getTime();
-    const end = new Date(entry.endTime).getTime();
-    const mid = new Date(start + (end - start) / 2);
-    setSplitTime(format(mid, "yyyy-MM-dd'T'HH:mm:ss"));
-  }, [entry]);
+    setSplitTime(initialSplitTime);
+  }, [entry, initialSplitTime]);
 
   const handleSave = async () => {
     if (!entry.endTime) return;
@@ -43,7 +45,7 @@ export const EntrySplitModal: React.FC<EntrySplitModalProps> = ({ entry, onClose
   };
 
   return (
-    <Modal onClose={onClose}>
+    <Modal onClose={onClose} isDirty={isDirty}>
       <div className="bg-white dark:bg-gray-800 rounded-lg shadow-xl w-full max-w-md max-h-[90vh] overflow-hidden flex flex-col">
         <div className="flex justify-between items-center p-4 border-b border-gray-200 dark:border-gray-700">
           <h2 className="text-lg font-semibold text-gray-900 dark:text-white">Split Time Entry</h2>

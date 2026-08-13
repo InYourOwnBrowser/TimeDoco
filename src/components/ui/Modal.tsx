@@ -4,9 +4,10 @@ interface ModalProps {
   onClose: () => void;
   children: React.ReactNode;
   className?: string; // Optional class for the overlay container if needed
+  isDirty?: boolean;
 }
 
-export const Modal: React.FC<ModalProps> = ({ onClose, children, className = '' }) => {
+export const Modal: React.FC<ModalProps> = ({ onClose, children, className = '', isDirty = false }) => {
   const modalRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -22,7 +23,13 @@ export const Modal: React.FC<ModalProps> = ({ onClose, children, className = '' 
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
       if (e.key === 'Escape') {
-        onClose();
+        if (isDirty) {
+          if (window.confirm('You have unsaved changes. Are you sure you want to close?')) {
+            onClose();
+          }
+        } else {
+          onClose();
+        }
       } else if (e.key === 'Tab') {
         // Focus trap
         if (!modalRef.current) return;
@@ -67,11 +74,17 @@ export const Modal: React.FC<ModalProps> = ({ onClose, children, className = '' 
     return () => {
       document.removeEventListener('keydown', handleKeyDown);
     };
-  }, [onClose]);
+  }, [onClose, isDirty]);
 
   const handleBackdropClick = (e: React.MouseEvent<HTMLDivElement>) => {
     if (e.target === e.currentTarget) {
-      onClose();
+      if (isDirty) {
+        if (window.confirm('You have unsaved changes. Are you sure you want to close?')) {
+          onClose();
+        }
+      } else {
+        onClose();
+      }
     }
   };
 

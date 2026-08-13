@@ -22,13 +22,21 @@ export const EntryEditModal: React.FC<EntryEditModalProps> = ({ entry, onClose }
   const [error, setError] = useState<string | null>(null);
   const [warning, setWarning] = useState<string | null>(null);
 
+  const initialStartTime = format(parseISO(entry.startTime), "yyyy-MM-dd'T'HH:mm:ss");
+  const initialEndTime = entry.endTime ? format(parseISO(entry.endTime), "yyyy-MM-dd'T'HH:mm:ss") : '';
+
+  const isDirty = startTime !== initialStartTime ||
+    endTime !== initialEndTime ||
+    timecodeId !== entry.timecodeId ||
+    note !== entry.note;
+
   useEffect(() => {
     // Initialize formats for datetime-local inputs
-    setStartTime(format(parseISO(entry.startTime), "yyyy-MM-dd'T'HH:mm:ss"));
+    setStartTime(initialStartTime);
     if (entry.endTime) {
-      setEndTime(format(parseISO(entry.endTime), "yyyy-MM-dd'T'HH:mm:ss"));
+      setEndTime(initialEndTime);
     }
-  }, [entry]);
+  }, [entry, initialStartTime, initialEndTime]);
 
   useEffect(() => {
     if (!startTime || !endTime) {
@@ -99,7 +107,7 @@ export const EntryEditModal: React.FC<EntryEditModalProps> = ({ entry, onClose }
   };
 
   return (
-    <Modal onClose={onClose}>
+    <Modal onClose={onClose} isDirty={isDirty}>
       <div className="bg-white dark:bg-gray-800 rounded-lg shadow-xl w-full max-w-md max-h-[90vh] overflow-hidden flex flex-col">
         <div className="flex justify-between items-center p-4 border-b border-gray-200 dark:border-gray-700">
           <h2 className="text-lg font-semibold text-gray-900 dark:text-white">Edit Time Entry</h2>
