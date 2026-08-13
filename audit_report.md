@@ -29,7 +29,7 @@ Stack: React 19 + TypeScript + Vite + IndexedDB (`idb`) + Tailwind + Recharts + 
   The confirm dialog in `GroupingManagement.tsx` only says *"Are you sure you want to delete this timecode? This action cannot be undone."* — it never discloses that every associated time entry is being cascade-deleted too. A user trying to tidy up an unused timecode can unknowingly wipe months of tracked history. Archiving already covers the "hide it" use case, so this cascade is rarely what anyone wants.
   **Fix:** either (a) block delete entirely when entries exist and require archiving instead, or (b) show the entry count in the confirmation ("This will also delete 214 time entries").
 
-- [ ] **1.4 Idle detection doesn't back-date the pause**
+- [x] **1.4 Idle detection doesn't back-date the pause**
   When the "Still working?" prompt fires and the user clicks "No, pause timers," the pause is recorded starting **at the moment they click**, not at the moment they actually went idle (`idleThresholdMinutes` earlier). The code comment even acknowledges this:
   `// A more advanced implementation would edit their endTime backward, but pausing is safer since they can edit the duration later...`
   The net effect is that the entire idle window is still counted as tracked/billable time unless the user manually edits the entry afterward — which defeats the main purpose of idle detection.
@@ -105,7 +105,7 @@ Additional gaps not called out in the plan but worth noting:
 
 **Medium priority (trust / polish):**
 - [ ] 5. Add focus-trap + Escape handling to modals (3.1)
-- [ ] 6. Fix idle-detection back-dating so pauses reflect actual idle start (1.4)
+- [x] 6. Fix idle-detection back-dating so pauses reflect actual idle start (1.4)
 - [ ] 7. Persist Forgot-to-Stop dismissal like the backup banner does (3.6)
 - [ ] 8. Split jsPDF out of the Analysis chunk (3.5)
 

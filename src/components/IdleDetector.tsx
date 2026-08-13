@@ -74,14 +74,16 @@ export const IdleDetector: React.FC = () => {
   const handleStopWorking = async () => {
     setShowPrompt(false);
 
-    // The user was idle for `idleThresholdMinutes` before the prompt appeared.
-    // They stopped working, which means they likely stopped working exactly when they went idle.
-    // To represent this, we can pause the currently running timers.
-    // (A more advanced implementation would edit their endTime backward,
-    // but pausing is safer since they can edit the duration later or resume if they want).
+    const thresholdMinutes = settings?.idleThresholdMinutes || 15;
+    const now = new Date();
+    const idleStartTime = new Date(now.getTime() - thresholdMinutes * 60000);
+
     for (const entry of activeEntries) {
       if (!entry.isPaused) {
-        await pauseTimer(entry.id);
+        // Ensure we don't backdate the pause to before the timer even started
+        const entryStartTime = new Date(entry.startTime);
+        const effectivePauseStart = idleStartTime < entryStartTime ? entryStartTime : idleStartTime;
+        await pauseTimer(entry.id, effectivePauseStart.toISOString());
       }
     }
   };

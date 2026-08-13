@@ -10,7 +10,7 @@ interface TimeTrackerContextType {
   activeEntries: Entry[];
   startTimer: (timecodeId: string) => Promise<void>;
   stopTimer: (entryId: string) => Promise<void>;
-  pauseTimer: (entryId: string) => Promise<void>;
+  pauseTimer: (entryId: string, pauseStartTime?: string) => Promise<void>;
   resumeTimer: (entryId: string) => Promise<void>;
   addGroup: (name: string, color: string) => Promise<Group>;
   updateGroup: (id: string, updates: Partial<Group>) => Promise<void>;
@@ -167,14 +167,15 @@ export const TimeTrackerProvider: React.FC<{ children: ReactNode }> = ({ childre
     await refreshData();
   };
 
-  const pauseTimer = async (entryId: string) => {
+  const pauseTimer = async (entryId: string, pauseStartTime?: string) => {
     const entry = await db.getEntry(entryId);
     if (!entry || !entry.isRunning || entry.isPaused) return;
     const now = new Date().toISOString();
+    const startOfPause = pauseStartTime || now;
     const updatedEntry: Entry = {
       ...entry,
       isPaused: true,
-      pausedSegments: [...entry.pausedSegments, { pauseStart: now }],
+      pausedSegments: [...entry.pausedSegments, { pauseStart: startOfPause }],
       updatedAt: now,
     };
     await db.putEntry(updatedEntry);
