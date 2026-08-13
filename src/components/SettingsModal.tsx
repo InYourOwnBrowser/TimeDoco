@@ -205,7 +205,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ onClose }) => {
                 <input
                   type="number"
                   min="1"
-                  value={settings?.idleThresholdMinutes ?? 5}
+                  value={settings?.idleThresholdMinutes ?? 15}
                   onChange={(e) => updateSettings({ idleThresholdMinutes: Number(e.target.value) })}
                   className="w-24 px-3 py-1.5 border border-gray-300 dark:border-gray-600 rounded outline-none focus:ring-1 focus:ring-blue-500 text-sm bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
                 />

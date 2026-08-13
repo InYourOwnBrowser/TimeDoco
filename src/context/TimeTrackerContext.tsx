@@ -43,7 +43,9 @@ export const TimeTrackerProvider: React.FC<{ children: ReactNode }> = ({ childre
   const [activeEntries, setActiveEntries] = useState<Entry[]>([]);
   const [entries, setEntries] = useState<Entry[]>([]);
   const [forgotToStopEntry, setForgotToStopEntry] = useState<Entry | null>(null);
-  const [dismissedForgotToStopId, setDismissedForgotToStopId] = useState<string | null>(null);
+  const [dismissedForgotToStopId, setDismissedForgotToStopId] = useState<string | null>(() => {
+    return localStorage.getItem('dismissedForgotToStopId');
+  });
   const [settings, setSettings] = useState<Settings | null>(null);
   const [lastStoppedEntry, setLastStoppedEntry] = useState<Entry | null>(null);
 
@@ -299,7 +301,9 @@ export const TimeTrackerProvider: React.FC<{ children: ReactNode }> = ({ childre
 
   const dismissForgotToStop = () => {
     if (forgotToStopEntry) {
-      setDismissedForgotToStopId(forgotToStopEntry.id);
+      const id = forgotToStopEntry.id;
+      setDismissedForgotToStopId(id);
+      localStorage.setItem('dismissedForgotToStopId', id);
       setForgotToStopEntry(null);
     }
   };
@@ -361,7 +365,13 @@ export const TimeTrackerProvider: React.FC<{ children: ReactNode }> = ({ childre
     await db.putEntry(finalEntry);
 
     if (forgotToStopEntry && forgotToStopEntry.id === id && updates.endTime) {
-      dismissForgotToStop();
+      setForgotToStopEntry(null);
+      setDismissedForgotToStopId(null);
+      localStorage.removeItem('dismissedForgotToStopId');
+    } else if (dismissedForgotToStopId === id && updates.endTime) {
+      // Clear it from storage if the user addresses it without the banner active
+      setDismissedForgotToStopId(null);
+      localStorage.removeItem('dismissedForgotToStopId');
     }
 
     await refreshData();
