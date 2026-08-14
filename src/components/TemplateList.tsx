@@ -136,6 +136,15 @@ export const TemplateList: React.FC = () => {
                 key={template.id}
                 className="group relative flex items-center bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-full shadow-sm hover:shadow-md hover:border-blue-300 dark:hover:border-blue-600 transition-all cursor-pointer pr-1"
                 onClick={() => handleLogTemplate(template)}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter' || e.key === ' ') {
+                    e.preventDefault();
+                    handleLogTemplate(template);
+                  }
+                }}
+                role="button"
+                tabIndex={0}
+                aria-label={`Log ${template.title}`}
               >
                 <div
                   className="w-3 h-3 rounded-full ml-3 mr-2 shrink-0"
@@ -148,15 +157,17 @@ export const TemplateList: React.FC = () => {
                 <div className="flex items-center opacity-0 group-hover:opacity-100 transition-opacity ml-2">
                   <button
                     onClick={(e) => { e.stopPropagation(); handleOpenModal(template); }}
-                    className="p-1.5 text-gray-400 hover:text-blue-600 dark:hover:text-blue-400 rounded-full"
+                    className="p-1.5 text-gray-400 hover:text-blue-600 dark:hover:text-blue-400 rounded-full focus:outline-none focus:ring-2 focus:ring-blue-500"
                     title="Edit template"
+                    aria-label="Edit template"
                   >
                     <Edit2 size={12} />
                   </button>
                   <button
                     onClick={(e) => handleDelete(e, template.id)}
-                    className="p-1.5 text-gray-400 hover:text-red-600 dark:hover:text-red-400 rounded-full mr-1"
+                    className="p-1.5 text-gray-400 hover:text-red-600 dark:hover:text-red-400 rounded-full mr-1 focus:outline-none focus:ring-2 focus:ring-red-500"
                     title="Delete template"
+                    aria-label="Delete template"
                   >
                     <Trash2 size={12} />
                   </button>

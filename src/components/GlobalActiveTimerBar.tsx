@@ -47,6 +47,7 @@ export const GlobalActiveTimerBar: React.FC = () => {
              onClick={() => resumeTimer(primaryEntry.id)}
              className="w-10 h-10 rounded-full bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-400 hover:bg-amber-200 dark:hover:bg-amber-900/50 flex items-center justify-center transition-colors shrink-0"
              title="Resume"
+             aria-label="Resume Timer"
            >
              <Play size={16} className="ml-1" />
            </button>
@@ -55,6 +56,7 @@ export const GlobalActiveTimerBar: React.FC = () => {
              onClick={() => pauseTimer(primaryEntry.id)}
              className="w-10 h-10 rounded-full bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600 flex items-center justify-center transition-colors shrink-0"
              title="Pause"
+             aria-label="Pause Timer"
            >
              <Pause size={16} />
            </button>
@@ -81,6 +83,7 @@ export const GlobalActiveTimerBar: React.FC = () => {
           onClick={() => stopTimer(primaryEntry.id)}
           className="w-10 h-10 rounded-full bg-red-100 dark:bg-red-900/30 text-red-600 dark:text-red-400 hover:bg-red-200 hover:text-red-700 dark:hover:bg-red-900/50 flex items-center justify-center transition-colors shrink-0"
           title="Stop Timer"
+          aria-label="Stop Timer"
         >
           <Square size={16} />
         </button>

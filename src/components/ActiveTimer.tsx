@@ -68,6 +68,7 @@ export const ActiveTimer: React.FC<{ activeEntry: Entry | null }> = ({ activeEnt
             disabled={!selectedTimecodeId}
             onClick={() => selectedTimecodeId && startTimer(selectedTimecodeId)}
             className="mt-2 w-16 h-16 rounded-full bg-blue-600 hover:bg-blue-700 text-white flex items-center justify-center shadow-lg disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+            aria-label="Start Timer"
           >
             <Play size={24} className="ml-1" />
           </button>
@@ -108,6 +109,7 @@ export const ActiveTimer: React.FC<{ activeEntry: Entry | null }> = ({ activeEnt
                 onClick={() => resumeTimer(activeEntry.id)}
                 className="w-14 h-14 rounded-full bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-400 hover:bg-amber-200 dark:hover:bg-amber-900/50 flex items-center justify-center transition-colors"
                 title="Resume"
+                aria-label="Resume Timer"
               >
                 <Play size={20} className="ml-1" />
               </button>
@@ -116,6 +118,7 @@ export const ActiveTimer: React.FC<{ activeEntry: Entry | null }> = ({ activeEnt
                 onClick={() => pauseTimer(activeEntry.id)}
                 className="w-14 h-14 rounded-full bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600 flex items-center justify-center transition-colors"
                 title="Pause"
+                aria-label="Pause Timer"
               >
                 <Pause size={20} />
               </button>
@@ -125,6 +128,7 @@ export const ActiveTimer: React.FC<{ activeEntry: Entry | null }> = ({ activeEnt
               onClick={() => stopTimer(activeEntry.id)}
               className="w-16 h-16 rounded-full bg-red-600 hover:bg-red-700 text-white flex items-center justify-center shadow-lg transition-colors"
               title="Stop"
+              aria-label="Stop Timer"
             >
               <Square size={20} />
             </button>
