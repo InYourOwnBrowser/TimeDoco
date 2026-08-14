@@ -9,7 +9,7 @@ interface SettingsModalProps {
 }
 
 export const SettingsModal: React.FC<SettingsModalProps> = ({ onClose }) => {
-  const { exportData, importData, settings, updateSettings, addManualEntry, addTimecode, timecodes, deletedEntries, restoreEntry, hardDeleteEntry, deletedTimecodes, restoreTimecode, hardDeleteTimecode, deletedGroups, restoreGroup, hardDeleteGroup, emptyTrash } = useTimeTracker();
+  const { exportData, importData, settings, updateSettings, bulkAddManualEntries, addTimecode, timecodes, deletedEntries, restoreEntry, hardDeleteEntry, deletedTimecodes, restoreTimecode, hardDeleteTimecode, deletedGroups, restoreGroup, hardDeleteGroup, emptyTrash } = useTimeTracker();
   const fileInputRef = useRef<HTMLInputElement>(null);
   const csvInputRef = useRef<HTMLInputElement>(null);
 
@@ -84,6 +84,8 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ onClose }) => {
         let importedCount = 0;
         let skippedCount = 0;
         const localTimecodes = [...timecodes];
+        const entriesToBulkAdd: { startTime: string, endTime: string, timecodeId: string, note: string }[] = [];
+
         for (const row of results.data as any[]) {
           try {
             const startTime = row['Start Time'] || row.startTime || row.start;
@@ -106,7 +108,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ onClose }) => {
             const startISO = new Date(startTime).toISOString();
             const endISO = new Date(endTime).toISOString();
 
-            await addManualEntry({
+            entriesToBulkAdd.push({
               startTime: startISO,
               endTime: endISO,
               timecodeId: tc.id,
@@ -117,6 +119,10 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ onClose }) => {
             console.warn('Skipping malformed CSV row:', row, error);
             skippedCount++;
           }
+        }
+
+        if (entriesToBulkAdd.length > 0) {
+          await bulkAddManualEntries(entriesToBulkAdd);
         }
 
         if (importedCount > 0 && skippedCount === 0) {
@@ -230,7 +236,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ onClose }) => {
                   type="number"
                   min="1"
                   value={settings?.idleThresholdMinutes ?? 15}
-                  onChange={(e) => updateSettings({ idleThresholdMinutes: Math.max(0, Number(e.target.value)) })}
+                  onChange={(e) => updateSettings({ idleThresholdMinutes: Math.max(1, Number(e.target.value)) })}
                   className="w-24 px-3 py-1.5 border border-gray-300 dark:border-gray-600 rounded outline-none focus:ring-1 focus:ring-blue-500 text-sm bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
                 />
               </div>
@@ -240,7 +246,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ onClose }) => {
                   type="number"
                   min="1"
                   value={settings?.reminderIntervalDays ?? 7}
-                  onChange={(e) => updateSettings({ reminderIntervalDays: Math.max(0, Number(e.target.value)) })}
+                  onChange={(e) => updateSettings({ reminderIntervalDays: Math.max(1, Number(e.target.value)) })}
                   className="w-24 px-3 py-1.5 border border-gray-300 dark:border-gray-600 rounded outline-none focus:ring-1 focus:ring-blue-500 text-sm bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
                 />
               </div>

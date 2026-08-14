@@ -197,7 +197,13 @@ export const AnalysisView: React.FC = () => {
     return `${hrs}h ${mins}m`;
   };
 
-  const escapeCSV = (str: string) => `"${str.replace(/"/g, '""')}"`;
+  const escapeCSV = (str: string) => {
+    let escaped = str.replace(/"/g, '""');
+    if (/^[=+\-@]/.test(escaped)) {
+      escaped = "'" + escaped;
+    }
+    return `"${escaped}"`;
+  };
 
   const handleExportCSV = () => {
     const headers = ['Timecode', 'Group', 'Duration (Hours)', 'Earnings'];

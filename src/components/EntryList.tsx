@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useTimeTracker } from '../context/TimeTrackerContext';
 import { format, parseISO, subDays } from 'date-fns';
 import { Clock, FileEdit, Trash2, Scissors } from 'lucide-react';
@@ -7,7 +7,7 @@ import { EntryEditModal } from './EntryEditModal';
 import { EntrySplitModal } from './EntrySplitModal';
 import { ManualEntryModal } from './ManualEntryModal';
 import type { Entry } from '../types';
-import { applyRounding } from '../utils/timeUtils';
+import { applyRounding, getElapsedTimeMs } from '../utils/timeUtils';
 
 export const EntryList: React.FC = () => {
   const { entries, timecodes, deleteEntry, settings } = useTimeTracker();
@@ -25,6 +25,12 @@ export const EntryList: React.FC = () => {
     if (m > 0) return `${m}m ${s}s`;
     return `${s}s`;
   };
+
+  const [, setNow] = useState(Date.now());
+  useEffect(() => {
+    const interval = setInterval(() => setNow(Date.now()), 1000);
+    return () => clearInterval(interval);
+  }, []);
 
   const getTimecodeName = (id: string) => {
     const tc = timecodes.find(t => t.id === id);
@@ -182,7 +188,9 @@ export const EntryList: React.FC = () => {
                     <div className="mt-4 flex-shrink-0 sm:mt-0 sm:ml-5">
                       <div className="flex items-center space-x-4">
                         <span className="text-lg font-mono font-medium text-gray-900 dark:text-gray-100">
-                          {formatDuration(applyRounding(entry.duration, settings?.roundingRule || 'none'))}
+                          {entry.isRunning
+                            ? formatDuration(applyRounding(Math.floor(getElapsedTimeMs(entry.startTime, entry.pausedSegments) / 1000), settings?.roundingRule || 'none'))
+                            : formatDuration(applyRounding(entry.duration, settings?.roundingRule || 'none'))}
                         </span>
 
                         {entry.duration > 60 && (

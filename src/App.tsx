@@ -24,10 +24,12 @@ const AppContent = () => {
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
   const [activeTab, setActiveTab] = useState<'tracker' | 'analysis' | 'management'>('tracker');
   const [showNewTimer, setShowNewTimer] = useState(false);
+  const [isFallbackMode, setIsFallbackMode] = useState(false);
 
   // Listen for IndexedDB fallback mode globally
   useEffect(() => {
     const handleFallbackMode = () => {
+      setIsFallbackMode(true);
       addToast('Storage error detected. App is running in memory fallback mode. Your data will not be saved after you close this page.', 'error', undefined, 10000);
     };
     window.addEventListener('idb-fallback-mode', handleFallbackMode);
@@ -137,6 +139,11 @@ const AppContent = () => {
 
   return (
       <div className="min-h-screen bg-gray-50 dark:bg-gray-900 flex flex-col items-center pt-12 px-4 font-sans text-gray-900 dark:text-gray-100 pb-24 relative">
+        {isFallbackMode && (
+          <div className="w-full bg-red-600 text-white text-center py-2 px-4 font-medium text-sm shadow-sm sticky top-0 z-50">
+            ⚠️ Storage Error: App is running in memory fallback mode. Your data will not be saved after you close this page.
+          </div>
+        )}
         <div className="w-full max-w-3xl absolute top-4 right-4 flex justify-end">
           <button
             onClick={() => setIsSettingsOpen(true)}
