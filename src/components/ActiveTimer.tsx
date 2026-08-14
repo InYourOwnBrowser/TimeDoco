@@ -51,6 +51,15 @@ export const ActiveTimer: React.FC<{ activeEntry: Entry | null }> = ({ activeEnt
 
   const activeTimecode = activeEntry ? timecodes.find(t => t.id === activeEntry.timecodeId) : null;
 
+  const handleStop = async () => {
+    if (activeEntry && localNote !== activeEntry.note) {
+      await updateActiveNote(activeEntry.id, localNote);
+    }
+    if (activeEntry) {
+      stopTimer(activeEntry.id);
+    }
+  };
+
   return (
     <div className="bg-white dark:bg-gray-800 p-6 rounded-xl shadow-sm border border-gray-100 dark:border-gray-700 max-w-md w-full mx-auto flex flex-col items-center transition-colors">
       {!activeEntry ? (
@@ -125,7 +134,7 @@ export const ActiveTimer: React.FC<{ activeEntry: Entry | null }> = ({ activeEnt
             )}
 
             <button
-              onClick={() => stopTimer(activeEntry.id)}
+              onClick={handleStop}
               className="w-16 h-16 rounded-full bg-red-600 hover:bg-red-700 text-white flex items-center justify-center shadow-lg transition-colors"
               title="Stop"
               aria-label="Stop Timer"

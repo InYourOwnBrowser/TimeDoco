@@ -4,6 +4,7 @@ import { format, parseISO } from 'date-fns';
 import { X, AlertCircle } from 'lucide-react';
 import type { Entry } from '../types';
 import { Modal } from './ui/Modal';
+import { TimecodeSelector } from './TimecodeSelector';
 
 interface EntrySplitModalProps {
   entry: Entry;
@@ -11,7 +12,7 @@ interface EntrySplitModalProps {
 }
 
 export const EntrySplitModal: React.FC<EntrySplitModalProps> = ({ entry, onClose }) => {
-  const { splitEntry, timecodes } = useTimeTracker();
+  const { splitEntry } = useTimeTracker();
   const [splitTime, setSplitTime] = useState('');
   const [newTimecodeId, setNewTimecodeId] = useState(entry.timecodeId);
   const [error, setError] = useState<string | null>(null);
@@ -75,17 +76,9 @@ export const EntrySplitModal: React.FC<EntrySplitModalProps> = ({ entry, onClose
 
           <div>
             <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Timecode for Second Part</label>
-            <select
-              value={newTimecodeId}
-              onChange={(e) => setNewTimecodeId(e.target.value)}
-              className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-1 focus:ring-blue-500 focus:border-blue-500 sm:text-sm dark:bg-gray-700 dark:border-gray-600 dark:text-white"
-            >
-              {timecodes.filter(tc => !tc.archived || tc.id === entry.timecodeId).map(tc => (
-                <option key={tc.id} value={tc.id}>
-                  {tc.name} {tc.archived ? '(archived)' : ''}
-                </option>
-              ))}
-            </select>
+            <div className="w-full z-10 relative">
+              <TimecodeSelector selectedId={newTimecodeId} onSelect={setNewTimecodeId} />
+            </div>
           </div>
 
           {error && (

@@ -5,13 +5,14 @@ import { X, AlertCircle } from 'lucide-react';
 import { checkOverlap } from '../utils/timeUtils';
 import { Modal } from './ui/Modal';
 import { useToast } from '../context/ToastContext';
+import { TimecodeSelector } from './TimecodeSelector';
 
 interface ManualEntryModalProps {
   onClose: () => void;
 }
 
 export const ManualEntryModal: React.FC<ManualEntryModalProps> = ({ onClose }) => {
-  const { addManualEntry, timecodes, entries, settings } = useTimeTracker();
+  const { addManualEntry, entries, settings } = useTimeTracker();
   const { addToast } = useToast();
   const [startTime, setStartTime] = useState('');
   const [endTime, setEndTime] = useState('');
@@ -98,16 +99,9 @@ export const ManualEntryModal: React.FC<ManualEntryModalProps> = ({ onClose }) =
         <div className="p-4 space-y-4 overflow-y-auto">
           <div>
             <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Timecode</label>
-            <select
-              value={timecodeId}
-              onChange={(e) => setTimecodeId(e.target.value)}
-              className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-1 focus:ring-blue-500 focus:border-blue-500 sm:text-sm dark:bg-gray-700 dark:border-gray-600 dark:text-white"
-            >
-              <option value="" disabled>Select a timecode</option>
-              {timecodes.filter(tc => !tc.archived).map(tc => (
-                <option key={tc.id} value={tc.id}>{tc.name}</option>
-              ))}
-            </select>
+            <div className="w-full z-10 relative">
+              <TimecodeSelector selectedId={timecodeId} onSelect={setTimecodeId} />
+            </div>
           </div>
 
           <div className="grid grid-cols-2 gap-4">

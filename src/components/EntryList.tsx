@@ -9,6 +9,21 @@ import { ManualEntryModal } from './ManualEntryModal';
 import type { Entry } from '../types';
 import { applyRounding, getElapsedTimeMs } from '../utils/timeUtils';
 
+const LiveEntryDuration: React.FC<{ entry: Entry, settings: any, formatDuration: (s: number) => string }> = ({ entry, settings, formatDuration }) => {
+  const [elapsed, setElapsed] = useState(0);
+
+  useEffect(() => {
+    const updateElapsed = () => {
+      setElapsed(Math.floor(getElapsedTimeMs(entry.startTime, entry.pausedSegments) / 1000));
+    };
+    updateElapsed();
+    const interval = setInterval(updateElapsed, 1000);
+    return () => clearInterval(interval);
+  }, [entry.startTime, entry.pausedSegments]);
+
+  return <>{formatDuration(applyRounding(elapsed, settings?.roundingRule || 'none'))}</>;
+};
+
 export const EntryList: React.FC = () => {
   const { entries, timecodes, deleteEntry, settings } = useTimeTracker();
   const [editingEntry, setEditingEntry] = useState<Entry | null>(null);
@@ -25,12 +40,6 @@ export const EntryList: React.FC = () => {
     if (m > 0) return `${m}m ${s}s`;
     return `${s}s`;
   };
-
-  const [, setNow] = useState(Date.now());
-  useEffect(() => {
-    const interval = setInterval(() => setNow(Date.now()), 1000);
-    return () => clearInterval(interval);
-  }, []);
 
   const getTimecodeName = (id: string) => {
     const tc = timecodes.find(t => t.id === id);
@@ -189,7 +198,7 @@ export const EntryList: React.FC = () => {
                       <div className="flex items-center space-x-4">
                         <span className="text-lg font-mono font-medium text-gray-900 dark:text-gray-100">
                           {entry.isRunning
-                            ? formatDuration(applyRounding(Math.floor(getElapsedTimeMs(entry.startTime, entry.pausedSegments) / 1000), settings?.roundingRule || 'none'))
+                            ? <LiveEntryDuration entry={entry} settings={settings} formatDuration={formatDuration} />
                             : formatDuration(applyRounding(entry.duration, settings?.roundingRule || 'none'))}
                         </span>
 

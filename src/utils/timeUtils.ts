@@ -28,9 +28,15 @@ export const applyRounding = (seconds: number, roundingRule: 'none' | '5min' | '
 export const calculateDuration = (start: Date, end: Date, pausedSegments: PauseSegment[]): number => {
   let totalPauseSeconds = 0;
   pausedSegments.forEach(segment => {
-    const pStart = new Date(segment.pauseStart);
-    const pEnd = segment.pauseEnd ? new Date(segment.pauseEnd) : end;
-    totalPauseSeconds += differenceInSeconds(pEnd, pStart);
+    const segmentStart = new Date(segment.pauseStart);
+    const segmentEnd = segment.pauseEnd ? new Date(segment.pauseEnd) : end;
+
+    const pStart = new Date(Math.max(segmentStart.getTime(), start.getTime()));
+    const pEnd = new Date(Math.min(segmentEnd.getTime(), end.getTime()));
+
+    if (pEnd > pStart) {
+      totalPauseSeconds += differenceInSeconds(pEnd, pStart);
+    }
   });
 
   let duration = differenceInSeconds(end, start) - totalPauseSeconds;

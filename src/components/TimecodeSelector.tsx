@@ -214,7 +214,18 @@ export const TimecodeSelector: React.FC<TimecodeSelectorProps> = ({ onSelect, se
 
           {showAddForm ? (
             <div className="p-4 bg-gray-50 dark:bg-gray-800 border-b border-gray-100 dark:border-gray-700">
-              <h4 className="text-sm font-medium text-gray-700 dark:text-gray-200 mb-2">Create "{search}"</h4>
+              <h4 className="text-sm font-medium text-gray-700 dark:text-gray-200 mb-2">Create New Timecode</h4>
+
+              <div className="mb-3">
+                <label className="block text-xs text-gray-500 dark:text-gray-400 mb-1">Name</label>
+                <input
+                  type="text"
+                  value={search}
+                  onChange={(e) => setSearch(e.target.value)}
+                  autoFocus={true}
+                  className="w-full text-sm p-1.5 border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
+                />
+              </div>
 
               <div className="mb-3">
                 <label className="block text-xs text-gray-500 dark:text-gray-400 mb-1">Color</label>
