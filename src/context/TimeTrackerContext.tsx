@@ -278,6 +278,7 @@ export const TimeTrackerProvider: React.FC<{ children: ReactNode }> = ({ childre
       name,
       color,
       archived: false,
+      updatedAt: new Date().toISOString(),
     };
     await db.putGroup(newGroup);
     await refreshData();
@@ -353,6 +354,7 @@ export const TimeTrackerProvider: React.FC<{ children: ReactNode }> = ({ childre
       color,
       hourlyRate: hourlyRate ?? null,
       archived: false,
+      updatedAt: new Date().toISOString(),
     };
     await db.putTimecode(newTimecode);
     await refreshData();
@@ -516,8 +518,8 @@ export const TimeTrackerProvider: React.FC<{ children: ReactNode }> = ({ childre
     }
 
     // Update templates
-    let originalTemplates: typeof currentSettings.templates = [];
     const currentSettings = await db.getSettings();
+    let originalTemplates: NonNullable<typeof currentSettings>['templates'] = [];
     if (currentSettings && currentSettings.templates) {
       originalTemplates = currentSettings.templates;
       const updatedTemplates = currentSettings.templates.filter(t => t.timecodeId !== id);

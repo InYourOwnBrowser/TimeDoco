@@ -1,9 +1,9 @@
 import React, { useState, useEffect } from 'react';
 import { useTimeTracker } from '../context/TimeTrackerContext';
-import { differenceInSeconds } from 'date-fns';
 import { Play, Square, Pause } from 'lucide-react';
 import { TimecodeSelector } from './TimecodeSelector';
 import { type Entry } from '../types';
+import { getElapsedTimeMs, formatElapsedSeconds } from '../utils/timeUtils';
 
 export const ActiveTimer: React.FC<{ activeEntry: Entry | null }> = ({ activeEntry }) => {
   const { startTimer, stopTimer, pauseTimer, resumeTimer, timecodes, updateActiveNote } = useTimeTracker();
@@ -36,42 +36,20 @@ export const ActiveTimer: React.FC<{ activeEntry: Entry | null }> = ({ activeEnt
     }
 
     const calculateElapsed = () => {
-      const now = new Date();
-      const start = new Date(activeEntry.startTime);
-
-      let totalPauseSeconds = 0;
-      activeEntry.pausedSegments.forEach(segment => {
-        const pStart = new Date(segment.pauseStart);
-        const pEnd = segment.pauseEnd ? new Date(segment.pauseEnd) : now;
-        totalPauseSeconds += differenceInSeconds(pEnd, pStart);
-      });
-
-      const total = differenceInSeconds(now, start) - totalPauseSeconds;
-      setElapsedSeconds(total > 0 ? total : 0);
+      const elapsedMs = getElapsedTimeMs(activeEntry.startTime, activeEntry.pausedSegments);
+      setElapsedSeconds(Math.floor(elapsedMs / 1000));
     };
 
     calculateElapsed();
 
     if (!activeEntry.isPaused) {
-      const interval = setInterval(calculateElapsed, 1000);
+      // Need frequent updates to catch the second boundary cleanly with requestAnimationFrame or short interval
+      const interval = setInterval(calculateElapsed, 200);
       return () => clearInterval(interval);
     }
   }, [activeEntry]);
 
   const activeTimecode = activeEntry ? timecodes.find(t => t.id === activeEntry.timecodeId) : null;
-
-  const formatTime = (totalSeconds: number) => {
-    const hrs = Math.floor(totalSeconds / 3600);
-    const mins = Math.floor((totalSeconds % 3600) / 60);
-    const secs = totalSeconds % 60;
-
-    const pad = (num: number) => num.toString().padStart(2, '0');
-
-    if (hrs > 0) {
-      return `${hrs}:${pad(mins)}:${pad(secs)}`;
-    }
-    return `${pad(mins)}:${pad(secs)}`;
-  };
 
   return (
     <div className="bg-white dark:bg-gray-800 p-6 rounded-xl shadow-sm border border-gray-100 dark:border-gray-700 max-w-md w-full mx-auto flex flex-col items-center transition-colors">
@@ -111,7 +89,7 @@ export const ActiveTimer: React.FC<{ activeEntry: Entry | null }> = ({ activeEnt
           </div>
 
           <div className={`text-6xl font-light font-mono tracking-wider tabular-nums ${activeEntry.isPaused ? 'text-amber-500 dark:text-amber-400' : 'text-blue-600 dark:text-blue-400'}`}>
-            {formatTime(elapsedSeconds)}
+            {formatElapsedSeconds(elapsedSeconds)}
           </div>
 
           <div className="w-full mt-2 mb-2">

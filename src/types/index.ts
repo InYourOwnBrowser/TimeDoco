@@ -4,6 +4,7 @@ export interface Group {
   color: string; // hex
   archived: boolean;
   deletedAt?: string;
+  updatedAt: string;
 }
 
 export interface Timecode {
@@ -14,6 +15,7 @@ export interface Timecode {
   hourlyRate: number | null;
   archived: boolean;
   deletedAt?: string;
+  updatedAt: string;
 }
 
 export interface PauseSegment {

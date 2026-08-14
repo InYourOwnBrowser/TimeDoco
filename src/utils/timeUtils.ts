@@ -37,3 +37,30 @@ export const calculateDuration = (start: Date, end: Date, pausedSegments: PauseS
   let duration = differenceInSeconds(end, start) - totalPauseSeconds;
   return Math.max(0, duration);
 };
+
+export const getElapsedTimeMs = (startTime: string, pausedSegments: PauseSegment[], endTimeOverride?: string): number => {
+  const now = endTimeOverride ? new Date(endTimeOverride).getTime() : Date.now();
+  const start = new Date(startTime).getTime();
+
+  let totalPauseMs = 0;
+  pausedSegments.forEach(segment => {
+    const pStart = new Date(segment.pauseStart).getTime();
+    const pEnd = segment.pauseEnd ? new Date(segment.pauseEnd).getTime() : now;
+    totalPauseMs += Math.max(0, pEnd - pStart);
+  });
+
+  return Math.max(0, now - start - totalPauseMs);
+};
+
+export const formatElapsedSeconds = (totalSeconds: number): string => {
+  const hrs = Math.floor(totalSeconds / 3600);
+  const mins = Math.floor((totalSeconds % 3600) / 60);
+  const secs = totalSeconds % 60;
+
+  const pad = (num: number) => num.toString().padStart(2, '0');
+
+  if (hrs > 0) {
+    return `${hrs}:${pad(mins)}:${pad(secs)}`;
+  }
+  return `${pad(mins)}:${pad(secs)}`;
+};
