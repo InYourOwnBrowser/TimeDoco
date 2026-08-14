@@ -32,7 +32,7 @@ Reviewed: full `src/` tree (context, db, components, utils) against `plan.md` an
 - [ ] **1.6 — `applyRounding` uses `Math.round`, not floor, and rounds per-entry rather than per-report**
   Rounding "15min" is applied to *each entry* independently (in `EntryList` display and `AnalysisView` aggregation) rather than once on the total. Over many short entries this can materially inflate or deflate totals compared to rounding the daily/period total once — e.g. ten 2-minute entries rounded individually to 15min each becomes 150 minutes instead of ~20. Worth deciding intentionally (per-entry rounding is defensible for billing granularity, but should probably be documented/configurable, and the Analysis totals currently *do* round per-entry via the same `actualDuration` before summing, which compounds the effect further for split/date-range-clipped entries).
 
-- [ ] **1.7 — Analysis "proportional duration" math (AnalysisView ~line 150) can misattribute paused time**
+- [x] **1.7 — Analysis "proportional duration" math (AnalysisView ~line 150) can misattribute paused time**
   When an entry is clipped to a date-range boundary, the code approximates the clipped duration as `entry.duration * (rawOverlapDuration / rawFullDuration)` — a proportional scaling — rather than actually recomputing `calculateDuration` against the clipped window with the real pause segments. The code comments acknowledge this ("for simplicity"). It's a reasonable approximation but will be measurably wrong for any entry that has an uneven pause distribution and happens to be clipped by a date filter (e.g. custom range starting mid-entry).
 
 - [ ] **1.8 — Forgot-to-Stop detection re-triggers unexpectedly on reload**
@@ -72,12 +72,12 @@ Reviewed: full `src/` tree (context, db, components, utils) against `plan.md` an
 ## 4. UI/UX Issues & Improvements
 
 ### 4.1 Concurrent timers are under-explained
-- [ ] When `allowConcurrentTimers` is on, the UI supports multiple running timers stacked vertically, a "+ Start Another Timer" button, and a tab-title that shows `[2] 🔴 12:34 - Project X` for the "primary" (most recently started) entry. But:
+- [x] When `allowConcurrentTimers` is on, the UI supports multiple running timers stacked vertically, a "+ Start Another Timer" button, and a tab-title that shows `[2] 🔴 12:34 - Project X` for the "primary" (most recently started) entry. But:
   - There's no visual indication *in the tab title or anywhere* of what the *other* running timer(s) are — only the most recent one's name and time shows.
   - The global `Cmd/Ctrl+Shift+S` shortcut stops `activeEntries[activeEntries.length - 1]` — the *last* array item, whose order depends on `db.getActiveEntries()`'s IndexedDB iteration order, not necessarily "most recently started." This could stop the wrong timer for a user who has two running and expects "most recent" semantics like the tab title uses.
 
 ### 4.2 No virtualization on the entry list
-- [ ] `EntryList` loads all `entries` from IndexedDB into memory and renders 50 at a time via a "Load More" button and client-side `.filter()`/`.reduce()` grouping on every keystroke of the search box. For the intended "months or years of daily use" audience (per plan.md's own rationale for using IndexedDB over localStorage), this will become a real performance and memory problem — a few thousand entries is a realistic 1-year outcome for someone tracking hourly. Recommend `react-window`/`react-virtuoso` for the list, and moving search/filter into an indexed IndexedDB query rather than filtering the full in-memory array each render.
+- [x] `EntryList` loads all `entries` from IndexedDB into memory and renders 50 at a time via a "Load More" button and client-side `.filter()`/`.reduce()` grouping on every keystroke of the search box. For the intended "months or years of daily use" audience (per plan.md's own rationale for using IndexedDB over localStorage), this will become a real performance and memory problem — a few thousand entries is a realistic 1-year outcome for someone tracking hourly. Recommend `react-window`/`react-virtuoso` for the list, and moving search/filter into an indexed IndexedDB query rather than filtering the full in-memory array each render.
 
 ### 4.3 No empty/first-run guidance beyond the timecode dropdown
 - [ ] First-run experience is just an empty "Select or type to create..." field. There's no onboarding copy explaining groups vs. timecodes, no sample data, and no explanation of the Trash/Management/Analysis tabs until the user clicks into them. A short first-run tooltip tour or a "Create your first timecode" empty state on the Analysis/Management tabs (which currently just render empty charts/tables) would help new users understand the mental model faster — this matters more than usual since the plan explicitly optimizes for "would I actually want to use this every day."
@@ -116,9 +116,9 @@ Reviewed: full `src/` tree (context, db, components, utils) against `plan.md` an
 | 1.1 | Merge-import overwrites existing/newer data, including settings | Data integrity | 🔴 High (Fixed) |
 | 1.2 | Templates reference deleted/merged timecodes | Data integrity | 🔴 High (Fixed) |
 | 1.3 | Inconsistent delete confirmations | UX / safety | 🔴 High (Fixed) |
-| 4.2 | No virtualization / in-memory filtering at scale | Performance | 🟠 Medium |
-| 1.7 | Proportional duration math on clipped entries | Correctness | 🟠 Medium |
-| 4.1 | Concurrent-timer shortcut targets wrong entry | UX / correctness | 🟠 Medium |
+| 4.2 | No virtualization / in-memory filtering at scale | Performance | 🟠 Medium (Fixed) |
+| 1.7 | Proportional duration math on clipped entries | Correctness | 🟠 Medium (Fixed) |
+| 4.1 | Concurrent-timer shortcut targets wrong entry | UX / correctness | 🟠 Medium (Fixed) |
 | 4.5 | Missing dark-mode variants on status badges | Polish | 🟡 Low (Fixed) |
 | 4.6 | Undiscoverable keyboard shortcut | UX | 🟡 Low |
 | 2 | No schema migration path beyond v1 | Future-proofing | 🟡 Low (now) / 🔴 (later) |
