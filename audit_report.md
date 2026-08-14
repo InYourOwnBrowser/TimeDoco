@@ -34,8 +34,8 @@
 
 | Feature | Status |
 |---|---|
-| - [ ] Raw/detailed entry-level CSV export | **Missing** — `handleExportCSV` in `AnalysisView` only exports the *aggregated per-timecode* summary (name, group, hours, earnings), not individual entries (start/end/note/date). Anyone wanting to feed entries into invoicing or payroll tools has no way to get one row per entry. |
-| - [ ] Soft-delete / trash with restore window | Not implemented — deletes (entries, timecodes, groups) are immediate and permanent behind a `window.confirm`. Only the just-stopped timer has an undo path (`UndoToast`, 5s window). |
+| - [x] Raw/detailed entry-level CSV export | **Missing** — `handleExportCSV` in `AnalysisView` only exports the *aggregated per-timecode* summary (name, group, hours, earnings), not individual entries (start/end/note/date). Anyone wanting to feed entries into invoicing or payroll tools has no way to get one row per entry. |
+| - [x] Soft-delete / trash with restore window | Not implemented — deletes (entries, timecodes, groups) are immediate and permanent behind a `window.confirm`. Only the just-stopped timer has an undo path (`UndoToast`, 5s window). |
 | - [x] Recurring / template entries | Not implemented (was scoped in `plan.md`). |
 | - [x] Passphrase encryption at rest | Not implemented — data sits unencrypted in IndexedDB. Reasonable for a "privacy-first, local-only" pitch, but worth stating explicitly in the UI/README if it's intentionally out of scope, since "privacy-first" reads to some users as "encrypted." |
 | - [ ] Bulk actions on entries (multi-select delete/re-timecode/export) | Not implemented — `EntryList` only supports one-at-a-time edit/split/delete. |
@@ -71,7 +71,7 @@
 
 - [x] **Consolidate toast systems** (see 3.2) into a single `ToastContext` that supports an optional action button, and use it for the stop-timer undo instead of a bespoke component.
 - [x] **Add a real combobox** to `TimecodeSelector` (arrow keys, `Enter` to select, proper ARIA) — this is the highest-leverage accessibility fix given how central the control is.
-- [ ] **Add a raw entry-level CSV export** next to the existing summary export, e.g.:
+- [x] **Add a raw entry-level CSV export** next to the existing summary export, e.g.:
   ```ts
   const handleExportRawCSV = () => {
     const headers = ['Date', 'Timecode', 'Group', 'Start', 'End', 'Duration (h)', 'Note'];
@@ -91,7 +91,7 @@
     // ...blob/download as in handleExportCSV
   };
   ```
-- [ ] **Soft-delete with a short restore window** for entries (mirroring the existing 5s undo-stop pattern but longer, e.g. a "Recently deleted" panel in Settings) would meaningfully reduce the risk of the still-permanent deletes in `EntryList`/`GroupingManagement`.
+- [x] **Soft-delete with a short restore window** for entries (mirroring the existing 5s undo-stop pattern but longer, e.g. a "Recently deleted" panel in Settings) would meaningfully reduce the risk of the still-permanent deletes in `EntryList`/`GroupingManagement`.
 - [ ] **Bulk operations on `EntryList`**: checkboxes + "delete selected" / "reassign timecode" / "export selected", useful once entry counts grow into the hundreds.
 - [ ] **Gate saves on the existing overlap/duration warnings** with a single extra confirm step ("This entry is 14h long / overlaps with X — save anyway?") instead of silent pass-through, to catch the common "wrong AM/PM" typo class of error without becoming blocking.
 - [ ] **Add a lightweight numeric guard** (`Math.max(0, value)`) on all rate/hours/threshold inputs' `onChange` handlers to actually enforce the non-negative intent already implied by `min="0"`.
@@ -110,11 +110,11 @@
 
 **Medium (polish / scale):**
 - [x] 4. Consolidate the two toast systems (3.2)
-- [ ] 5. Add raw entry-level CSV export (missing feature, §2)
+- [x] 5. Add raw entry-level CSV export (missing feature, §2)
 - [x] 6. Add backdrop-click-to-close + scroll lock to `Modal` (1.5)
 - [ ] 7. Batch CSV-import writes instead of refreshing per row (§4)
 
 **Lower (nice-to-have / roadmap):**
 - [x] 8. Accessible combobox for `TimecodeSelector` (3.1)
-- [ ] 9. Soft-delete/trash, bulk entry actions, recurring entries (§2)
+- [x] 9. Soft-delete/trash (bulk entry actions, recurring entries still pending) (§2)
 - [ ] 10. Expand automated test coverage beyond `timeUtils` (§2)
