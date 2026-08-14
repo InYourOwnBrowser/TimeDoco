@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { useTimeTracker } from '../context/TimeTrackerContext';
-import { format, parseISO } from 'date-fns';
+import { format, parseISO, subDays } from 'date-fns';
 import { Clock, FileEdit, Trash2, Scissors } from 'lucide-react';
 import { EntryEditModal } from './EntryEditModal';
 import { EntrySplitModal } from './EntrySplitModal';
@@ -61,8 +61,7 @@ export const EntryList: React.FC = () => {
   const formatDateHeader = (dateStr: string) => {
     const date = parseISO(dateStr + 'T00:00:00'); // Ensure local timezone
     const today = new Date();
-    const yesterday = new Date();
-    yesterday.setDate(yesterday.getDate() - 1);
+    const yesterday = subDays(today, 1);
 
     if (format(date, 'yyyy-MM-dd') === format(today, 'yyyy-MM-dd')) return 'Today';
     if (format(date, 'yyyy-MM-dd') === format(yesterday, 'yyyy-MM-dd')) return 'Yesterday';
@@ -174,11 +173,12 @@ export const EntryList: React.FC = () => {
                               {formatDuration(applyRounding(entry.duration, settings?.roundingRule || 'none'))}
                             </span>
 
-                            {!entry.isRunning && entry.duration > 60 && (
+                            {entry.duration > 60 && (
                               <button
-                                onClick={() => setSplittingEntry(entry)}
-                                className="text-gray-400 dark:text-gray-500 hover:text-purple-600 dark:hover:text-purple-400 focus:outline-none transition-colors"
-                                title="Split Entry"
+                                onClick={() => !entry.isRunning && setSplittingEntry(entry)}
+                                className={`focus:outline-none transition-colors ${entry.isRunning ? 'text-gray-300 dark:text-gray-600 cursor-not-allowed opacity-50' : 'text-gray-400 dark:text-gray-500 hover:text-purple-600 dark:hover:text-purple-400'}`}
+                                title={entry.isRunning ? "Cannot split a running entry" : "Split Entry"}
+                                disabled={entry.isRunning}
                               >
                                 <Scissors className="h-5 w-5" />
                               </button>

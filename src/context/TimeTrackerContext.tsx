@@ -509,16 +509,33 @@ export const TimeTrackerProvider: React.FC<{ children: ReactNode }> = ({ childre
     const tc = await db.getTimecode(id);
     if (tc) {
       await db.putTimecode({ ...tc, deletedAt: now });
-      addToast('Timecode archived', 'success', { label: 'Undo', onClick: () => restoreTimecode(id) }, 5000);
     }
 
     // Update templates
+    let originalTemplates: typeof currentSettings.templates = [];
     const currentSettings = await db.getSettings();
     if (currentSettings && currentSettings.templates) {
+      originalTemplates = currentSettings.templates;
       const updatedTemplates = currentSettings.templates.filter(t => t.timecodeId !== id);
       if (updatedTemplates.length !== currentSettings.templates.length) {
         await db.putSettings({ ...currentSettings, templates: updatedTemplates });
       }
+    }
+
+    if (tc) {
+      addToast('Timecode deleted', 'success', {
+        label: 'Undo',
+        onClick: () => {
+           restoreTimecode(id);
+           if (originalTemplates.length > 0) {
+             db.getSettings().then(s => {
+               if (s) {
+                 db.putSettings({ ...s, templates: originalTemplates }).then(refreshData);
+               }
+             });
+           }
+        }
+      }, 5000);
     }
 
     await refreshData();
