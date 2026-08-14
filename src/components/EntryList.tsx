@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { useTimeTracker } from '../context/TimeTrackerContext';
 import { format, parseISO, subDays } from 'date-fns';
 import { Clock, FileEdit, Trash2, Scissors } from 'lucide-react';
+import { GroupedVirtuoso } from 'react-virtuoso';
 import { EntryEditModal } from './EntryEditModal';
 import { EntrySplitModal } from './EntrySplitModal';
 import { ManualEntryModal } from './ManualEntryModal';
@@ -15,7 +16,6 @@ export const EntryList: React.FC = () => {
   const [isManualModalOpen, setIsManualModalOpen] = useState(false);
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedTimecodeId, setSelectedTimecodeId] = useState<string>('all');
-  const [visibleCount, setVisibleCount] = useState(50);
 
   const formatDuration = (seconds: number) => {
     const h = Math.floor(seconds / 3600);
@@ -47,7 +47,7 @@ export const EntryList: React.FC = () => {
   });
 
   // Group entries by date
-  const groupedEntries = filteredEntries.slice(0, visibleCount).reduce((acc, entry) => {
+  const groupedEntries = filteredEntries.reduce((acc, entry) => {
     const dateStr = format(parseISO(entry.startTime), 'yyyy-MM-dd');
     if (!acc[dateStr]) {
       acc[dateStr] = [];
@@ -57,6 +57,8 @@ export const EntryList: React.FC = () => {
   }, {} as Record<string, Entry[]>);
 
   const sortedDates = Object.keys(groupedEntries).sort((a, b) => b.localeCompare(a));
+
+  const groupCounts = sortedDates.map(date => groupedEntries[date].length);
 
   const formatDateHeader = (dateStr: string) => {
     const date = parseISO(dateStr + 'T00:00:00'); // Ensure local timezone
@@ -87,7 +89,6 @@ export const EntryList: React.FC = () => {
           value={searchTerm}
           onChange={(e) => {
             setSearchTerm(e.target.value);
-            setVisibleCount(50); // Reset pagination on search
           }}
           className="flex-1 shadow-sm focus:ring-blue-500 focus:border-blue-500 block w-full sm:text-sm border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-800 text-gray-900 dark:text-white placeholder-gray-400 dark:placeholder-gray-500"
         />
@@ -95,7 +96,6 @@ export const EntryList: React.FC = () => {
           value={selectedTimecodeId}
           onChange={(e) => {
             setSelectedTimecodeId(e.target.value);
-            setVisibleCount(50); // Reset pagination on filter
           }}
           className="block w-full sm:w-48 pl-3 pr-10 py-2 text-base border-gray-300 dark:border-gray-600 focus:outline-none focus:ring-blue-500 focus:border-blue-500 sm:text-sm rounded-md bg-white dark:bg-gray-800 text-gray-900 dark:text-white"
         >
@@ -106,121 +106,120 @@ export const EntryList: React.FC = () => {
         </select>
       </div>
 
-      <div className="bg-white dark:bg-gray-800 shadow overflow-hidden sm:rounded-md border border-transparent dark:border-gray-700 transition-colors">
-        <ul className="divide-y divide-gray-200 dark:divide-gray-700">
-          {entries.length === 0 ? (
-            <li className="px-4 py-8 text-center text-gray-500 dark:text-gray-400">
-              No entries yet. Start tracking!
-            </li>
-          ) : filteredEntries.length === 0 ? (
-            <li className="px-4 py-8 text-center text-gray-500 dark:text-gray-400">
-              No entries found.
-            </li>
-          ) : (
-            sortedDates.map(dateStr => (
-              <React.Fragment key={dateStr}>
-                <li className="px-4 py-2 bg-gray-50 dark:bg-gray-900 border-t border-b border-gray-200 dark:border-gray-700 first:border-t-0">
+      <div className="bg-white dark:bg-gray-800 shadow sm:rounded-md border border-transparent dark:border-gray-700 transition-colors">
+        {entries.length === 0 ? (
+          <div className="px-4 py-8 text-center text-gray-500 dark:text-gray-400">
+            No entries yet. Start tracking!
+          </div>
+        ) : filteredEntries.length === 0 ? (
+          <div className="px-4 py-8 text-center text-gray-500 dark:text-gray-400">
+            No entries found.
+          </div>
+        ) : (
+          <GroupedVirtuoso
+            style={{ height: '70vh', minHeight: '400px' }}
+            groupCounts={groupCounts}
+            className="divide-y divide-gray-200 dark:divide-gray-700"
+            groupContent={(index) => {
+              const dateStr = sortedDates[index];
+              return (
+                <div className="px-4 py-2 bg-gray-50 dark:bg-gray-900 border-t border-b border-gray-200 dark:border-gray-700 first:border-t-0">
                   <span className="text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider">
                     {formatDateHeader(dateStr)}
                   </span>
-                </li>
-                {groupedEntries[dateStr].map(entry => (
-                  <li key={entry.id}>
-                    <div className="px-4 py-4 flex items-center sm:px-6">
-                      <div className="min-w-0 flex-1 sm:flex sm:items-center sm:justify-between">
-                        <div>
-                          <div className="flex text-sm">
-                            <span
-                              className="font-medium truncate flex items-center"
-                              style={{ color: getTimecodeColor(entry.timecodeId) }}
-                            >
-                              <span
-                                className="w-3 h-3 rounded-full mr-2"
-                                style={{ backgroundColor: getTimecodeColor(entry.timecodeId) }}
-                              />
-                              {getTimecodeName(entry.timecodeId)}
-                            </span>
-                            {entry.isRunning && (
-                              <span className="ml-2 inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800">
-                                Running
-                              </span>
-                            )}
-                            {entry.isPaused && (
-                              <span className="ml-2 inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-yellow-100 text-yellow-800">
-                                Paused
-                              </span>
-                            )}
-                          </div>
-                          <div className="mt-2 flex">
-                            <div className="flex items-center text-sm text-gray-500 dark:text-gray-400">
-                              <Clock className="flex-shrink-0 mr-1.5 h-4 w-4 text-gray-400 dark:text-gray-500" />
-                              <p>
-                                {format(parseISO(entry.startTime), 'h:mm a')}
-                                {' - '}
-                                {entry.endTime ? format(parseISO(entry.endTime), 'h:mm a') : 'Now'}
-                              </p>
-                            </div>
-                          </div>
-                          {entry.note && (
-                            <div className="mt-2 text-sm text-gray-600 dark:text-gray-400 truncate max-w-sm">
-                              {entry.note}
-                            </div>
-                          )}
-                        </div>
-                        <div className="mt-4 flex-shrink-0 sm:mt-0 sm:ml-5">
-                          <div className="flex items-center space-x-4">
-                            <span className="text-lg font-mono font-medium text-gray-900 dark:text-gray-100">
-                              {formatDuration(applyRounding(entry.duration, settings?.roundingRule || 'none'))}
-                            </span>
+                </div>
+              );
+            }}
+            itemContent={(index, groupIndex) => {
+              const dateStr = sortedDates[groupIndex];
+              const entryIndexInGroup = index - groupCounts.slice(0, groupIndex).reduce((a, b) => a + b, 0);
+              const entry = groupedEntries[dateStr][entryIndexInGroup];
 
-                            {entry.duration > 60 && (
-                              <button
-                                onClick={() => !entry.isRunning && setSplittingEntry(entry)}
-                                className={`focus:outline-none transition-colors ${entry.isRunning ? 'text-gray-300 dark:text-gray-600 cursor-not-allowed opacity-50' : 'text-gray-400 dark:text-gray-500 hover:text-purple-600 dark:hover:text-purple-400'}`}
-                                title={entry.isRunning ? "Cannot split a running entry" : "Split Entry"}
-                                disabled={entry.isRunning}
-                              >
-                                <Scissors className="h-5 w-5" />
-                              </button>
-                            )}
-                            <button
-                              onClick={() => setEditingEntry(entry)}
-                              className="text-gray-400 dark:text-gray-500 hover:text-blue-600 dark:hover:text-blue-400 focus:outline-none transition-colors"
-                              title="Edit Entry"
-                            >
-                              <FileEdit className="h-5 w-5" />
-                            </button>
-                            <button
-                              onClick={() => {
-                                deleteEntry(entry.id);
-                              }}
-                              className="text-gray-400 dark:text-gray-500 hover:text-red-600 dark:hover:text-red-400 focus:outline-none transition-colors"
-                              title="Delete Entry (Move to Trash)"
-                            >
-                              <Trash2 className="h-5 w-5" />
-                            </button>
-                          </div>
+              if (!entry) return null;
+
+              return (
+                <div className="px-4 py-4 flex items-center sm:px-6 bg-white dark:bg-gray-800">
+                  <div className="min-w-0 flex-1 sm:flex sm:items-center sm:justify-between">
+                    <div>
+                      <div className="flex text-sm">
+                        <span
+                          className="font-medium truncate flex items-center"
+                          style={{ color: getTimecodeColor(entry.timecodeId) }}
+                        >
+                          <span
+                            className="w-3 h-3 rounded-full mr-2"
+                            style={{ backgroundColor: getTimecodeColor(entry.timecodeId) }}
+                          />
+                          {getTimecodeName(entry.timecodeId)}
+                        </span>
+                        {entry.isRunning && (
+                          <span className="ml-2 inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800">
+                            Running
+                          </span>
+                        )}
+                        {entry.isPaused && (
+                          <span className="ml-2 inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-yellow-100 text-yellow-800">
+                            Paused
+                          </span>
+                        )}
+                      </div>
+                      <div className="mt-2 flex">
+                        <div className="flex items-center text-sm text-gray-500 dark:text-gray-400">
+                          <Clock className="flex-shrink-0 mr-1.5 h-4 w-4 text-gray-400 dark:text-gray-500" />
+                          <p>
+                            {format(parseISO(entry.startTime), 'h:mm a')}
+                            {' - '}
+                            {entry.endTime ? format(parseISO(entry.endTime), 'h:mm a') : 'Now'}
+                          </p>
                         </div>
                       </div>
+                      {entry.note && (
+                        <div className="mt-2 text-sm text-gray-600 dark:text-gray-400 truncate max-w-sm">
+                          {entry.note}
+                        </div>
+                      )}
                     </div>
-                  </li>
-                ))}
-              </React.Fragment>
-            ))
-          )}
-        </ul>
-      </div>
+                    <div className="mt-4 flex-shrink-0 sm:mt-0 sm:ml-5">
+                      <div className="flex items-center space-x-4">
+                        <span className="text-lg font-mono font-medium text-gray-900 dark:text-gray-100">
+                          {formatDuration(applyRounding(entry.duration, settings?.roundingRule || 'none'))}
+                        </span>
 
-      {filteredEntries.length > visibleCount && (
-        <div className="mt-4 flex justify-center">
-          <button
-            onClick={() => setVisibleCount(prev => prev + 50)}
-            className="inline-flex items-center px-4 py-2 border border-gray-300 dark:border-gray-600 shadow-sm text-sm font-medium rounded-md text-gray-700 dark:text-gray-300 bg-white dark:bg-gray-800 hover:bg-gray-50 dark:hover:bg-gray-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 transition-colors"
-          >
-            Load More
-          </button>
-        </div>
-      )}
+                        {entry.duration > 60 && (
+                          <button
+                            onClick={() => !entry.isRunning && setSplittingEntry(entry)}
+                            className={`focus:outline-none transition-colors ${entry.isRunning ? 'text-gray-300 dark:text-gray-600 cursor-not-allowed opacity-50' : 'text-gray-400 dark:text-gray-500 hover:text-purple-600 dark:hover:text-purple-400'}`}
+                            title={entry.isRunning ? "Cannot split a running entry" : "Split Entry"}
+                            disabled={entry.isRunning}
+                          >
+                            <Scissors className="h-5 w-5" />
+                          </button>
+                        )}
+                        <button
+                          onClick={() => setEditingEntry(entry)}
+                          className="text-gray-400 dark:text-gray-500 hover:text-blue-600 dark:hover:text-blue-400 focus:outline-none transition-colors"
+                          title="Edit Entry"
+                        >
+                          <FileEdit className="h-5 w-5" />
+                        </button>
+                        <button
+                          onClick={() => {
+                            deleteEntry(entry.id);
+                          }}
+                          className="text-gray-400 dark:text-gray-500 hover:text-red-600 dark:hover:text-red-400 focus:outline-none transition-colors"
+                          title="Delete Entry (Move to Trash)"
+                        >
+                          <Trash2 className="h-5 w-5" />
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              );
+            }}
+          />
+        )}
+      </div>
 
       {splittingEntry && (
         <EntrySplitModal entry={splittingEntry} onClose={() => setSplittingEntry(null)} />

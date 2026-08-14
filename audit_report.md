@@ -8,16 +8,16 @@ Reviewed: full `src/` tree (context, db, components, utils) against `plan.md` an
 
 ### 🔴 High priority
 
-- [ ] **1.1 — "Merge" import silently overwrites existing data (`TimeTrackerContext.importData` → `db.importBackup`)**
+- [x] **1.1 — "Merge" import silently overwrites existing data (`TimeTrackerContext.importData` → `db.importBackup`)**
   `importBackup` just does `store.put()` for every record in the file, for both `merge` and `replace` modes — the only difference is whether the stores are `clear()`-ed first. Since IndexedDB `put` is an upsert-by-key, importing an old backup in "merge" mode will **overwrite** any current entry/timecode/group that happens to share an ID with the backup, discarding newer edits. There's no last-write-wins comparison on `updatedAt`, and no dedup — "merge" today behaves like "replace, but keep records the backup doesn't mention," not a real merge.
   - `settings` is even worse: its key is always the constant `'user-settings'`, so **any** import in merge mode unconditionally clobbers current settings (rounding rule, idle threshold, templates, theme) even though the user picked "merge" specifically to avoid this.
   - Fix: on merge, only insert records whose ID doesn't already exist, or compare `updatedAt`/`editHistory` and keep the newer one; exclude `settings` from merge entirely (or merge field-by-field).
 
-- [ ] **1.2 — Deleting/archiving a timecode doesn't update `EntryTemplate.timecodeId`**
+- [x] **1.2 — Deleting/archiving a timecode doesn't update `EntryTemplate.timecodeId`**
   `deleteTimecode`, `hardDeleteTimecode`, and `mergeTimecodes` never touch `settings.templates`. A Quick Log Template can end up pointing at a deleted or merged-away timecode. `TemplateList` will silently show "Unknown Timecode" color/name, and clicking it still calls `addManualEntry` with the dangling `timecodeId`, creating an orphaned entry that can never be attributed correctly in Analysis.
   - Fix: cascade-update templates in `deleteTimecode`/`mergeTimecodes`, or filter/disable templates whose timecode no longer exists.
 
-- [ ] **1.3 — Inconsistent delete confirmation**
+- [x] **1.3 — Inconsistent delete confirmation**
   `GroupingManagement`'s "Archive" and "Delete timecode with entries" both use `window.confirm`, but **deleting a Group** (`GroupingManagement.tsx` ~line 148) and **deleting an Entry** (`EntryList.tsx` "Trash2" button) fire immediately with no confirmation at all — even though `TemplateList` deletion *does* confirm. Since these are soft-deletes it's not catastrophic, but the inconsistency is confusing and a stray click removes data from the active view without warning (the user has to know Trash exists to recover it).
   - Fix: standardize — either confirm on every destructive action, or none, and make the existence of Trash/undo obvious at the point of deletion (e.g. a toast with "Undo" like `stopTimer` already does).
 
@@ -40,10 +40,10 @@ Reviewed: full `src/` tree (context, db, components, utils) against `plan.md` an
 
 ### 🟡 Low priority / nitpicks
 
-- [ ] `EntrySplitModal`/`splitEntry` require the entry to have an `endTime` (can't split a running entry) — reasonable, but there's no UI affordance explaining *why* the split icon simply doesn't appear for running entries; it just vanishes (`EntryList` only renders it `!entry.isRunning`). A disabled state with tooltip would communicate this better than disappearing.
-- [ ] `formatDateHeader` in `EntryList` constructs `yesterday` via `new Date(); .setDate(-1)`, which is correct but mutates `today`-adjacent `Date` objects — fine functionally, just brittle style (prefer `date-fns subDays`, which is already a project dependency, for consistency).
-- [ ] `package.json` still has `"name": "temp"` and `"version": "0.0.0"` — cosmetic but worth fixing before any real release/build artifact naming.
-- [ ] PWA icons are SVG-only (`pwa-192x192.svg`, `pwa-512x512.svg`). iOS Safari's "Add to Home Screen" and some Android launchers don't reliably rasterize SVG manifest icons or support the `maskable` purpose — a PNG fallback set (and a `maskable` variant) is safer for real installability.
+- [x] `EntrySplitModal`/`splitEntry` require the entry to have an `endTime` (can't split a running entry) — reasonable, but there's no UI affordance explaining *why* the split icon simply doesn't appear for running entries; it just vanishes (`EntryList` only renders it `!entry.isRunning`). A disabled state with tooltip would communicate this better than disappearing.
+- [x] `formatDateHeader` in `EntryList` constructs `yesterday` via `new Date(); .setDate(-1)`, which is correct but mutates `today`-adjacent `Date` objects — fine functionally, just brittle style (prefer `date-fns subDays`, which is already a project dependency, for consistency).
+- [x] `package.json` still has `"name": "temp"` and `"version": "0.0.0"` — cosmetic but worth fixing before any real release/build artifact naming.
+- [x] PWA icons are SVG-only (`pwa-192x192.svg`, `pwa-512x512.svg`). iOS Safari's "Add to Home Screen" and some Android launchers don't reliably rasterize SVG manifest icons or support the `maskable` purpose — a PNG fallback set (and a `maskable` variant) is safer for real installability.
 
 ---
 
@@ -113,12 +113,12 @@ Reviewed: full `src/` tree (context, db, components, utils) against `plan.md` an
 
 | # | Issue | Area | Priority |
 |---|---|---|---|
-| 1.1 | Merge-import overwrites existing/newer data, including settings | Data integrity | 🔴 High |
-| 1.2 | Templates reference deleted/merged timecodes | Data integrity | 🔴 High |
-| 1.3 | Inconsistent delete confirmations | UX / safety | 🔴 High |
+| 1.1 | Merge-import overwrites existing/newer data, including settings | Data integrity | 🔴 High (Fixed) |
+| 1.2 | Templates reference deleted/merged timecodes | Data integrity | 🔴 High (Fixed) |
+| 1.3 | Inconsistent delete confirmations | UX / safety | 🔴 High (Fixed) |
 | 4.2 | No virtualization / in-memory filtering at scale | Performance | 🟠 Medium |
 | 1.7 | Proportional duration math on clipped entries | Correctness | 🟠 Medium |
 | 4.1 | Concurrent-timer shortcut targets wrong entry | UX / correctness | 🟠 Medium |
-| 4.5 | Missing dark-mode variants on status badges | Polish | 🟡 Low |
+| 4.5 | Missing dark-mode variants on status badges | Polish | 🟡 Low (Fixed) |
 | 4.6 | Undiscoverable keyboard shortcut | UX | 🟡 Low |
 | 2 | No schema migration path beyond v1 | Future-proofing | 🟡 Low (now) / 🔴 (later) |
