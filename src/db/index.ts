@@ -243,29 +243,29 @@ export const deleteEntry = async (id: string): Promise<void> => {
 
 export const getActiveEntry = async (): Promise<Entry | undefined> => {
   if (isFallbackMode) {
-    return Array.from(fallbackMemoryDB.entries.values()).find((e) => e.isRunning === true);
+    return Array.from(fallbackMemoryDB.entries.values()).find((e) => e.isRunning === true && !e.deletedAt);
   }
   try {
     const db = await getDB();
     const allEntries = await db.getAll('entries');
-    return allEntries.find((e) => e.isRunning === true);
+    return allEntries.find((e) => e.isRunning === true && !e.deletedAt);
   } catch (error) {
     triggerFallbackMode(error);
-    return Array.from(fallbackMemoryDB.entries.values()).find((e) => e.isRunning === true);
+    return Array.from(fallbackMemoryDB.entries.values()).find((e) => e.isRunning === true && !e.deletedAt);
   }
 };
 
 export const getActiveEntries = async (): Promise<Entry[]> => {
   if (isFallbackMode) {
-    return Array.from(fallbackMemoryDB.entries.values()).filter((e) => e.isRunning === true);
+    return Array.from(fallbackMemoryDB.entries.values()).filter((e) => e.isRunning === true && !e.deletedAt);
   }
   try {
     const db = await getDB();
     const allEntries = await db.getAll('entries');
-    return allEntries.filter((e) => e.isRunning === true);
+    return allEntries.filter((e) => e.isRunning === true && !e.deletedAt);
   } catch (error) {
     triggerFallbackMode(error);
-    return Array.from(fallbackMemoryDB.entries.values()).filter((e) => e.isRunning === true);
+    return Array.from(fallbackMemoryDB.entries.values()).filter((e) => e.isRunning === true && !e.deletedAt);
   }
 };
 
@@ -332,8 +332,29 @@ export const importBackup = async (
         fallbackMemoryDB.entries.set(e.id, e);
       }
     });
-    if (data.settings && mode === 'replace') {
-      fallbackMemoryDB.settings.set(data.settings.id, data.settings);
+    if (data.settings) {
+      if (mode === 'replace') {
+        fallbackMemoryDB.settings.set(data.settings.id, data.settings);
+      } else if (mode === 'merge') {
+        const existingSettings = fallbackMemoryDB.settings.get('user-settings');
+        if (existingSettings) {
+          const mergedTemplates = [...(existingSettings.templates || [])];
+          if (data.settings.templates) {
+            data.settings.templates.forEach(t => {
+              if (!mergedTemplates.some(existing => existing.id === t.id)) {
+                mergedTemplates.push(t);
+              }
+            });
+          }
+          fallbackMemoryDB.settings.set('user-settings', {
+            ...existingSettings,
+            ...data.settings,
+            templates: mergedTemplates
+          });
+        } else {
+          fallbackMemoryDB.settings.set('user-settings', data.settings);
+        }
+      }
     }
     return;
   }
@@ -385,9 +406,30 @@ export const importBackup = async (
       }
     }
 
-    if (data.settings && mode === 'replace') {
+    if (data.settings) {
       const settingsStore = tx.objectStore('settings');
-      await settingsStore.put(data.settings);
+      if (mode === 'replace') {
+        await settingsStore.put(data.settings);
+      } else if (mode === 'merge') {
+        const existingSettings = await settingsStore.get('user-settings');
+        if (existingSettings) {
+          const mergedTemplates = [...(existingSettings.templates || [])];
+          if (data.settings.templates) {
+            data.settings.templates.forEach(t => {
+              if (!mergedTemplates.some(existing => existing.id === t.id)) {
+                mergedTemplates.push(t);
+              }
+            });
+          }
+          await settingsStore.put({
+            ...existingSettings,
+            ...data.settings,
+            templates: mergedTemplates
+          });
+        } else {
+          await settingsStore.put(data.settings);
+        }
+      }
     }
 
     await tx.done;

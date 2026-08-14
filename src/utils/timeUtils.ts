@@ -4,11 +4,10 @@ import type { Entry, PauseSegment } from '../types';
 export const checkOverlap = (start: Date, end: Date, entries: Entry[], excludeId?: string, timecodeId?: string, allowConcurrentTimers?: boolean): boolean => {
   return entries.some(e => {
     if (excludeId && e.id === excludeId) return false;
-    if (!e.endTime) return false;
     if (allowConcurrentTimers && e.timecodeId !== timecodeId) return false;
 
     const eStart = new Date(e.startTime);
-    const eEnd = new Date(e.endTime);
+    const eEnd = e.endTime ? new Date(e.endTime) : new Date(); // Use now as effective end time for running timers
 
     // Check overlap: newStart < eEnd AND newEnd > eStart
     return start < eEnd && end > eStart;

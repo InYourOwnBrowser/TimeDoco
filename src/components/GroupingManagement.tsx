@@ -1,10 +1,12 @@
 import React, { useState } from 'react';
 import { useTimeTracker } from '../context/TimeTrackerContext';
+import { useToast } from '../context/ToastContext';
 import { Edit2, Archive, ArchiveRestore, Check, X, Trash2, Merge } from 'lucide-react';
 import type { Group, Timecode } from '../types';
 
 export const GroupingManagement: React.FC = () => {
   const { groups, timecodes, addGroup, updateGroup, deleteGroup, addTimecode, updateTimecode, deleteTimecode, mergeTimecodes } = useTimeTracker();
+  const { addToast } = useToast();
 
   const [editingGroupId, setEditingGroupId] = useState<string | null>(null);
   const [editingGroupData, setEditingGroupData] = useState<{ name: string; color: string }>({ name: '', color: '' });
@@ -30,8 +32,15 @@ export const GroupingManagement: React.FC = () => {
   };
 
   const handleEditGroupSave = async (id: string) => {
-    if (!editingGroupData.name.trim()) return;
-    await updateGroup(id, { name: editingGroupData.name, color: editingGroupData.color });
+    const trimmedName = editingGroupData.name.trim();
+    if (!trimmedName) return;
+
+    if (groups.some(g => g.id !== id && g.name.toLowerCase() === trimmedName.toLowerCase())) {
+      addToast('A group with this name already exists.', 'error');
+      return;
+    }
+
+    await updateGroup(id, { name: trimmedName, color: editingGroupData.color });
     setEditingGroupId(null);
   };
 
@@ -56,10 +65,17 @@ export const GroupingManagement: React.FC = () => {
   };
 
   const handleEditTimecodeSave = async (id: string) => {
-    if (!editingTimecodeData.name.trim()) return;
+    const trimmedName = editingTimecodeData.name.trim();
+    if (!trimmedName) return;
+
+    if (timecodes.some(t => t.id !== id && t.name.toLowerCase() === trimmedName.toLowerCase() && (t.groupId || '') === (editingTimecodeData.groupId || ''))) {
+      addToast('A timecode with this name already exists in the selected group.', 'error');
+      return;
+    }
+
     const parsedRate = parseFloat(editingTimecodeData.hourlyRate);
     await updateTimecode(id, {
-      name: editingTimecodeData.name,
+      name: trimmedName,
       color: editingTimecodeData.color || undefined,
       groupId: editingTimecodeData.groupId || null,
       hourlyRate: isNaN(parsedRate) ? null : parsedRate,
@@ -72,7 +88,7 @@ export const GroupingManagement: React.FC = () => {
     if (!trimmedName) return;
 
     if (groups.some(g => g.name.toLowerCase() === trimmedName.toLowerCase())) {
-      alert('A group with this name already exists.');
+      addToast('A group with this name already exists.', 'error');
       return;
     }
 
@@ -85,7 +101,7 @@ export const GroupingManagement: React.FC = () => {
     if (!trimmedName) return;
 
     if (timecodes.some(t => t.name.toLowerCase() === trimmedName.toLowerCase() && (t.groupId || '') === (newTimecodeGroupId || ''))) {
-      alert('A timecode with this name already exists in the selected group.');
+      addToast('A timecode with this name already exists in the selected group.', 'error');
       return;
     }
 
@@ -125,10 +141,10 @@ export const GroupingManagement: React.FC = () => {
                     className="flex-1 px-3 py-1 border border-gray-300 dark:border-gray-600 rounded outline-none focus:ring-1 focus:ring-blue-500 bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
                     autoFocus
                   />
-                  <button onClick={() => handleEditGroupSave(group.id)} className="p-1 text-green-600 dark:text-green-400 hover:text-green-800 dark:hover:text-green-300 transition-colors">
+                  <button onClick={() => handleEditGroupSave(group.id)} className="p-1 text-green-600 dark:text-green-400 hover:text-green-800 dark:hover:text-green-300 transition-colors" aria-label="Save Group Edit">
                     <Check size={18} />
                   </button>
-                  <button onClick={() => setEditingGroupId(null)} className="p-1 text-red-600 dark:text-red-400 hover:text-red-800 dark:hover:text-red-300 transition-colors">
+                  <button onClick={() => setEditingGroupId(null)} className="p-1 text-red-600 dark:text-red-400 hover:text-red-800 dark:hover:text-red-300 transition-colors" aria-label="Cancel Group Edit">
                     <X size={18} />
                   </button>
                 </div>
@@ -144,6 +160,7 @@ export const GroupingManagement: React.FC = () => {
                       onClick={() => handleEditGroupStart(group)}
                       className="p-1.5 text-gray-500 dark:text-gray-400 hover:text-blue-600 dark:hover:text-blue-400 hover:bg-blue-50 dark:hover:bg-blue-900/30 rounded transition-colors"
                       title="Edit Group"
+                      aria-label="Edit Group"
                     >
                       <Edit2 size={16} />
                     </button>
@@ -153,6 +170,7 @@ export const GroupingManagement: React.FC = () => {
                       }}
                       className={`p-1.5 rounded transition-colors ${group.archived ? 'text-green-600 dark:text-green-400 hover:bg-green-50 dark:hover:bg-green-900/30' : 'text-amber-600 dark:text-amber-400 hover:bg-amber-50 dark:hover:bg-amber-900/30'}`}
                       title={group.archived ? 'Restore' : 'Archive'}
+                      aria-label={group.archived ? 'Restore Group' : 'Archive Group'}
                     >
                       {group.archived ? <ArchiveRestore size={16} /> : <Archive size={16} />}
                     </button>
@@ -162,6 +180,7 @@ export const GroupingManagement: React.FC = () => {
                       }}
                       className="p-1.5 text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/30 rounded transition-colors"
                       title="Delete Group (Move to Trash)"
+                      aria-label="Delete Group"
                     >
                       <Trash2 size={16} />
                     </button>
@@ -243,10 +262,10 @@ export const GroupingManagement: React.FC = () => {
                         min="0"
                         step="0.01"
                       />
-                      <button onClick={() => handleEditTimecodeSave(tc.id)} className="p-1 text-green-600 dark:text-green-400 hover:text-green-800 dark:hover:text-green-300 transition-colors">
+                      <button onClick={() => handleEditTimecodeSave(tc.id)} className="p-1 text-green-600 dark:text-green-400 hover:text-green-800 dark:hover:text-green-300 transition-colors" aria-label="Save Timecode Edit">
                         <Check size={18} />
                       </button>
-                      <button onClick={() => setEditingTimecodeId(null)} className="p-1 text-red-600 dark:text-red-400 hover:text-red-800 dark:hover:text-red-300 transition-colors">
+                      <button onClick={() => setEditingTimecodeId(null)} className="p-1 text-red-600 dark:text-red-400 hover:text-red-800 dark:hover:text-red-300 transition-colors" aria-label="Cancel Timecode Edit">
                         <X size={18} />
                       </button>
                    </div>
@@ -271,7 +290,7 @@ export const GroupingManagement: React.FC = () => {
                     >
                       Confirm Merge
                     </button>
-                    <button onClick={() => { setMergingTimecodeId(null); setMergeDestId(''); }} className="p-1 text-gray-600 dark:text-gray-400 hover:text-gray-800 dark:hover:text-gray-300 transition-colors">
+                    <button onClick={() => { setMergingTimecodeId(null); setMergeDestId(''); }} className="p-1 text-gray-600 dark:text-gray-400 hover:text-gray-800 dark:hover:text-gray-300 transition-colors" aria-label="Cancel Merge">
                       <X size={18} />
                     </button>
                   </div>
@@ -293,6 +312,7 @@ export const GroupingManagement: React.FC = () => {
                         onClick={() => handleEditTimecodeStart(tc)}
                         className="p-1.5 text-gray-500 dark:text-gray-400 hover:text-blue-600 dark:hover:text-blue-400 hover:bg-blue-50 dark:hover:bg-blue-900/30 rounded transition-colors"
                         title="Edit Timecode"
+                        aria-label="Edit Timecode"
                       >
                         <Edit2 size={16} />
                       </button>
@@ -303,6 +323,7 @@ export const GroupingManagement: React.FC = () => {
                         }}
                         className="p-1.5 text-purple-600 dark:text-purple-400 hover:bg-purple-50 dark:hover:bg-purple-900/30 rounded transition-colors"
                         title="Merge Timecode"
+                        aria-label="Merge Timecode"
                       >
                         <Merge size={16} />
                       </button>
@@ -313,6 +334,7 @@ export const GroupingManagement: React.FC = () => {
                         }}
                         className={`p-1.5 rounded transition-colors ${tc.archived ? 'text-green-600 dark:text-green-400 hover:bg-green-50 dark:hover:bg-green-900/30' : 'text-amber-600 dark:text-amber-400 hover:bg-amber-50 dark:hover:bg-amber-900/30'}`}
                         title={tc.archived ? 'Restore' : 'Archive'}
+                        aria-label={tc.archived ? 'Restore Timecode' : 'Archive Timecode'}
                       >
                         {tc.archived ? <ArchiveRestore size={16} /> : <Archive size={16} />}
                       </button>
@@ -322,6 +344,7 @@ export const GroupingManagement: React.FC = () => {
                         }}
                         className="p-1.5 text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/30 rounded transition-colors"
                         title="Delete Timecode (Move to Trash)"
+                        aria-label="Delete Timecode"
                       >
                         <Trash2 size={16} />
                       </button>

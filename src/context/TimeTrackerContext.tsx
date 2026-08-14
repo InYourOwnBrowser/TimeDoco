@@ -304,9 +304,43 @@ export const TimeTrackerProvider: React.FC<{ children: ReactNode }> = ({ childre
 
   const deleteGroup = async (id: string) => {
     const group = await db.getGroup(id);
+    const now = new Date().toISOString();
+
+    // Cascade soft-delete to timecodes
+    const timecodesToDelete = [...timecodes, ...deletedTimecodes].filter(tc => tc.groupId === id && !tc.deletedAt);
+    for (const tc of timecodesToDelete) {
+      await db.putTimecode({ ...tc, deletedAt: now });
+
+      // Cascade soft-delete to entries for each timecode
+      const entriesToDelete = [...entries, ...deletedEntries].filter((e) => e.timecodeId === tc.id && !e.deletedAt);
+      for (const entry of entriesToDelete) {
+        if (entry.isRunning) {
+          await stopTimerById(entry.id);
+        }
+        const latestEntry = await db.getEntry(entry.id) || entry;
+        await db.putEntry({ ...latestEntry, deletedAt: now });
+      }
+    }
+
     if (group) {
-      await db.putGroup({ ...group, deletedAt: new Date().toISOString() });
-      addToast('Group deleted', 'success', { label: 'Undo', onClick: () => restoreGroup(id) }, 5000);
+      await db.putGroup({ ...group, deletedAt: now });
+
+      // Update templates to remove timecodes that were deleted
+      const currentSettings = await db.getSettings();
+      if (currentSettings && currentSettings.templates) {
+        const deletedTimecodeIds = new Set(timecodesToDelete.map(t => t.id));
+        const updatedTemplates = currentSettings.templates.filter(t => !deletedTimecodeIds.has(t.timecodeId));
+        if (updatedTemplates.length !== currentSettings.templates.length) {
+          await db.putSettings({ ...currentSettings, templates: updatedTemplates });
+        }
+      }
+
+      addToast('Group deleted', 'success', { label: 'Undo', onClick: async () => {
+        await restoreGroup(id);
+        for (const tc of timecodesToDelete) {
+          await restoreTimecode(tc.id);
+        }
+      } }, 5000);
     }
     await refreshData();
   };
@@ -532,8 +566,11 @@ export const TimeTrackerProvider: React.FC<{ children: ReactNode }> = ({ childre
       await db.putSettings({ ...currentSettings, templates: updatedTemplates });
     }
 
-    // 4. Delete the source timecode
-    await db.deleteTimecode(sourceId);
+    // 4. Soft delete the source timecode
+    const sourceTc = await db.getTimecode(sourceId);
+    if (sourceTc) {
+      await db.putTimecode({ ...sourceTc, deletedAt: new Date().toISOString() });
+    }
 
     // 5. Refresh everything
     await refreshData();
@@ -544,7 +581,12 @@ export const TimeTrackerProvider: React.FC<{ children: ReactNode }> = ({ childre
     const entriesToDelete = [...entries, ...deletedEntries].filter((e) => e.timecodeId === id && !e.deletedAt);
     const now = new Date().toISOString();
     for (const entry of entriesToDelete) {
-      await db.putEntry({ ...entry, deletedAt: now });
+      if (entry.isRunning) {
+        await stopTimerById(entry.id);
+      }
+      // Re-fetch the entry in case it was updated by stopTimerById
+      const latestEntry = await db.getEntry(entry.id) || entry;
+      await db.putEntry({ ...latestEntry, deletedAt: now });
     }
     const tc = await db.getTimecode(id);
     if (tc) {

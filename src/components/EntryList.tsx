@@ -198,6 +198,7 @@ export const EntryList: React.FC = () => {
                             onClick={() => !entry.isRunning && setSplittingEntry(entry)}
                             className={`focus:outline-none transition-colors ${entry.isRunning ? 'text-gray-300 dark:text-gray-600 cursor-not-allowed opacity-50' : 'text-gray-400 dark:text-gray-500 hover:text-purple-600 dark:hover:text-purple-400'}`}
                             title={entry.isRunning ? "Cannot split a running entry" : "Split Entry"}
+                            aria-label={entry.isRunning ? "Cannot split a running entry" : "Split Entry"}
                             disabled={entry.isRunning}
                           >
                             <Scissors className="h-5 w-5" />
@@ -207,6 +208,7 @@ export const EntryList: React.FC = () => {
                           onClick={() => setEditingEntry(entry)}
                           className="text-gray-400 dark:text-gray-500 hover:text-blue-600 dark:hover:text-blue-400 focus:outline-none transition-colors"
                           title="Edit Entry"
+                          aria-label="Edit Entry"
                         >
                           <FileEdit className="h-5 w-5" />
                         </button>
@@ -216,6 +218,7 @@ export const EntryList: React.FC = () => {
                           }}
                           className="text-gray-400 dark:text-gray-500 hover:text-red-600 dark:hover:text-red-400 focus:outline-none transition-colors"
                           title="Delete Entry (Move to Trash)"
+                          aria-label="Delete Entry"
                         >
                           <Trash2 className="h-5 w-5" />
                         </button>
