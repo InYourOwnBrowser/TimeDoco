@@ -18,7 +18,7 @@ import { differenceInSeconds } from 'date-fns';
 
 // Extracted inner component so we can use TimeTrackerContext
 const AppContent = () => {
-  const { activeEntries, stopTimer, startTimer, timecodes, entries, settings } = useTimeTracker();
+  const { activeEntries, stopTimer, startTimer, timecodes, entries, settings, forgotToStopEntry } = useTimeTracker();
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
   const [activeTab, setActiveTab] = useState<'tracker' | 'analysis' | 'management'>('tracker');
   const [showNewTimer, setShowNewTimer] = useState(false);
@@ -155,9 +155,11 @@ const AppContent = () => {
           </button>
         </div>
 
-        <div className="w-full max-w-3xl mb-4">
-          <BackupReminderBanner />
-        </div>
+        {!forgotToStopEntry && (
+          <div className="w-full max-w-3xl mb-4">
+            <BackupReminderBanner />
+          </div>
+        )}
 
         <div className="w-full max-w-3xl mb-8">
           <ForgotToStopPrompt />
