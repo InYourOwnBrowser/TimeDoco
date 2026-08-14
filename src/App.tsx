@@ -114,7 +114,8 @@ const AppContent = () => {
         e.preventDefault();
 
         if (activeEntries && activeEntries.length > 0) {
-          stopTimer(activeEntries[activeEntries.length - 1].id);
+          const mostRecentActive = [...activeEntries].sort((a, b) => new Date(b.startTime).getTime() - new Date(a.startTime).getTime())[0];
+          stopTimer(mostRecentActive.id);
         } else {
           // Find most recent timecode used
           const sortedEntries = [...entries].sort((a, b) => new Date(b.startTime).getTime() - new Date(a.startTime).getTime());

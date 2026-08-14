@@ -3,7 +3,7 @@ import { useTimeTracker } from '../context/TimeTrackerContext';
 import { startOfDay, endOfDay, startOfWeek, endOfWeek, startOfMonth, endOfMonth, parseISO, format, differenceInSeconds } from 'date-fns';
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, PieChart, Pie, Cell, Legend } from 'recharts';
 import { Download, Printer, AlertTriangle } from 'lucide-react';
-import { applyRounding } from '../utils/timeUtils';
+import { applyRounding, calculateDuration } from '../utils/timeUtils';
 
 type DatePreset = 'today' | 'week' | 'month' | 'custom';
 
@@ -143,16 +143,8 @@ export const AnalysisView: React.FC = () => {
       const effectiveStart = entryStart < dateRange.start ? dateRange.start : entryStart;
       const effectiveEnd = entryEnd > dateRange.end ? dateRange.end : entryEnd;
 
-      // Calculate duration just within this window
-      // Note: Pause segments inside this window would ideally be subtracted,
-      // but for simplicity we'll use a proportion of the total duration or just the raw overlap
-      // if it's simpler. Let's use proportional duration to be fair to pauses.
-      const rawFullDuration = differenceInSeconds(entryEnd, entryStart);
-      const rawOverlapDuration = Math.max(0, differenceInSeconds(effectiveEnd, effectiveStart));
-
-      let actualDuration = rawFullDuration > 0 && entry.duration > 0
-        ? Math.round(entry.duration * (rawOverlapDuration / rawFullDuration))
-        : rawOverlapDuration;
+      // Calculate duration exactly within this clipped window
+      let actualDuration = calculateDuration(effectiveStart, effectiveEnd, entry.pausedSegments || []);
 
       actualDuration = applyRounding(actualDuration, settings?.roundingRule || 'none');
 
