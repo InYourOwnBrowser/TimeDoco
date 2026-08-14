@@ -34,7 +34,7 @@
 
 | Feature | Status |
 |---|---|
-| - [ ] Raw/detailed entry-level CSV export | **Missing** — `handleExportCSV` in `AnalysisView` only exports the *aggregated per-timecode* summary (name, group, hours, earnings), not individual entries (start/end/note/date). Anyone wanting to feed entries into invoicing or payroll tools has no way to get one row per entry. |
+| - [x] Raw/detailed entry-level CSV export | **Missing** — `handleExportCSV` in `AnalysisView` only exports the *aggregated per-timecode* summary (name, group, hours, earnings), not individual entries (start/end/note/date). Anyone wanting to feed entries into invoicing or payroll tools has no way to get one row per entry. |
 | - [ ] Soft-delete / trash with restore window | Not implemented — deletes (entries, timecodes, groups) are immediate and permanent behind a `window.confirm`. Only the just-stopped timer has an undo path (`UndoToast`, 5s window). |
 | - [x] Recurring / template entries | Not implemented (was scoped in `plan.md`). |
 | - [x] Passphrase encryption at rest | Not implemented — data sits unencrypted in IndexedDB. Reasonable for a "privacy-first, local-only" pitch, but worth stating explicitly in the UI/README if it's intentionally out of scope, since "privacy-first" reads to some users as "encrypted." |
@@ -109,10 +109,10 @@
 - [x] 3. Add a confirm step for saves that already show an overlap/12h+ warning (1.4)
 
 **Medium (polish / scale):**
-- [ ] 4. Consolidate the two toast systems (3.2)
-- [ ] 5. Add raw entry-level CSV export (missing feature, §2)
+- [x] 4. Consolidate the two toast systems (3.2)
+- [x] 5. Add raw entry-level CSV export (missing feature, §2)
 - [x] 6. Add backdrop-click-to-close + scroll lock to `Modal` (1.5)
-- [ ] 7. Batch CSV-import writes instead of refreshing per row (§4)
+- [x] 7. Batch CSV-import writes instead of refreshing per row (§4)
 
 **Lower (nice-to-have / roadmap):**
 - [ ] 8. Accessible combobox for `TimecodeSelector` (3.1)

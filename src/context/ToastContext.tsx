@@ -1,14 +1,20 @@
 import React, { createContext, useContext, useState, type ReactNode, useCallback } from 'react';
 import { X } from 'lucide-react';
 
+interface ToastAction {
+  label: string;
+  onClick: () => void;
+}
+
 interface Toast {
   id: string;
   message: string;
   type: 'info' | 'success' | 'error';
+  action?: ToastAction;
 }
 
 interface ToastContextType {
-  addToast: (message: string, type?: 'info' | 'success' | 'error') => void;
+  addToast: (message: string, type?: 'info' | 'success' | 'error', action?: ToastAction) => void;
 }
 
 const ToastContext = createContext<ToastContextType | undefined>(undefined);
@@ -25,13 +31,13 @@ export const useToast = () => {
 export const ToastProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
   const [toasts, setToasts] = useState<Toast[]>([]);
 
-  const addToast = useCallback((message: string, type: 'info' | 'success' | 'error' = 'info') => {
+  const addToast = useCallback((message: string, type: 'info' | 'success' | 'error' = 'info', action?: ToastAction) => {
     const id = Math.random().toString(36).substring(2, 9);
-    setToasts((prev) => [...prev, { id, message, type }]);
+    setToasts((prev) => [...prev, { id, message, type, action }]);
 
     setTimeout(() => {
       setToasts((prev) => prev.filter((t) => t.id !== id));
-    }, 3000); // Auto-dismiss after 3 seconds
+    }, action ? 5000 : 3000); // Give users more time to click an action
   }, []);
 
   const removeToast = (id: string) => {
@@ -54,9 +60,23 @@ export const ToastProvider: React.FC<{ children: ReactNode }> = ({ children }) =
             }`}
           >
             <span className="text-sm font-medium">{toast.message}</span>
+            {toast.action && (
+              <>
+                <div className="w-px h-4 bg-white/30 mx-1"></div>
+                <button
+                  onClick={() => {
+                    toast.action!.onClick();
+                    removeToast(toast.id);
+                  }}
+                  className="text-sm font-medium underline underline-offset-2 hover:text-white/90 transition-colors"
+                >
+                  {toast.action.label}
+                </button>
+              </>
+            )}
             <button
               onClick={() => removeToast(toast.id)}
-              className="ml-auto text-white/80 hover:text-white transition-colors"
+              className={`${toast.action ? 'ml-2' : 'ml-auto'} text-white/80 hover:text-white transition-colors`}
             >
               <X size={16} />
             </button>

@@ -27,6 +27,7 @@ interface TimeTrackerContextType {
   deleteEntry: (id: string) => Promise<void>;
   splitEntry: (entryId: string, splitTime: string, newTimecodeId?: string) => Promise<void>;
   addManualEntry: (entryData: { startTime: string, endTime: string, timecodeId: string, note: string }) => Promise<void>;
+  bulkAddManualEntries: (entriesData: Array<{ startTime: string, endTime: string, timecodeId: string, note: string }>) => Promise<void>;
   forgotToStopEntry: Entry | null;
   dismissForgotToStop: () => void;
   settings: Settings | null;
@@ -83,6 +84,29 @@ export const TimeTrackerProvider: React.FC<{ children: ReactNode }> = ({ childre
 
     await db.putEntry(updatedEntry);
     setLastStoppedEntry(null);
+    await refreshData();
+  };
+
+  const bulkAddManualEntries = async (entriesData: Array<{ startTime: string, endTime: string, timecodeId: string, note: string }>) => {
+    const now = new Date().toISOString();
+    for (const entryData of entriesData) {
+      const duration = differenceInSeconds(new Date(entryData.endTime), new Date(entryData.startTime));
+      const newEntry: Entry = {
+        id: crypto.randomUUID(),
+        timecodeId: entryData.timecodeId,
+        startTime: entryData.startTime,
+        endTime: entryData.endTime,
+        duration: duration > 0 ? duration : 0,
+        note: entryData.note,
+        isRunning: false,
+        isPaused: false,
+        pausedSegments: [],
+        editHistory: [],
+        createdAt: now,
+        updatedAt: now,
+      };
+      await db.putEntry(newEntry);
+    }
     await refreshData();
   };
 
@@ -207,7 +231,6 @@ export const TimeTrackerProvider: React.FC<{ children: ReactNode }> = ({ childre
       updatedAt: endTimeIso,
     };
     await db.putEntry(updatedEntry);
-    addToast('Timer stopped', 'success');
   };
 
   const stopTimer = async (entryId: string) => {
@@ -215,6 +238,25 @@ export const TimeTrackerProvider: React.FC<{ children: ReactNode }> = ({ childre
     await stopTimerById(entryId);
     if (entry) {
       setLastStoppedEntry(entry);
+
+      const undoAction = async () => {
+        // Remove endTime and duration, set isRunning back to true
+        const updatedEntry: Entry = {
+          ...entry,
+          endTime: null,
+          duration: 0,
+          isRunning: true,
+          updatedAt: new Date().toISOString(),
+        };
+        await db.putEntry(updatedEntry);
+        await refreshData();
+        setLastStoppedEntry(null);
+        addToast('Timer resumed', 'info');
+      };
+
+      addToast('Timer stopped', 'success', { label: 'Undo', onClick: undoAction });
+    } else {
+      addToast('Timer stopped', 'success');
     }
     await refreshData();
   };
@@ -719,6 +761,7 @@ export const TimeTrackerProvider: React.FC<{ children: ReactNode }> = ({ childre
       deleteEntry,
       splitEntry,
       addManualEntry,
+      bulkAddManualEntries,
       forgotToStopEntry,
       dismissForgotToStop,
       settings,

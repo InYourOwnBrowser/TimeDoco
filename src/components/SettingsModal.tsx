@@ -9,7 +9,7 @@ interface SettingsModalProps {
 }
 
 export const SettingsModal: React.FC<SettingsModalProps> = ({ onClose }) => {
-  const { exportData, importData, settings, updateSettings, addManualEntry, addTimecode, timecodes, deletedEntries, restoreEntry, hardDeleteEntry, deletedTimecodes, restoreTimecode, hardDeleteTimecode, deletedGroups, restoreGroup, hardDeleteGroup } = useTimeTracker();
+  const { exportData, importData, settings, updateSettings, bulkAddManualEntries, addTimecode, timecodes, deletedEntries, restoreEntry, hardDeleteEntry, deletedTimecodes, restoreTimecode, hardDeleteTimecode, deletedGroups, restoreGroup, hardDeleteGroup } = useTimeTracker();
   const fileInputRef = useRef<HTMLInputElement>(null);
   const csvInputRef = useRef<HTMLInputElement>(null);
 
@@ -84,6 +84,8 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ onClose }) => {
         let importedCount = 0;
         let skippedCount = 0;
         const localTimecodes = [...timecodes];
+        const entriesToImport: Array<{ startTime: string, endTime: string, timecodeId: string, note: string }> = [];
+
         for (const row of results.data as any[]) {
           try {
             const startTime = row['Start Time'] || row.startTime || row.start;
@@ -106,7 +108,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ onClose }) => {
             const startISO = new Date(startTime).toISOString();
             const endISO = new Date(endTime).toISOString();
 
-            await addManualEntry({
+            entriesToImport.push({
               startTime: startISO,
               endTime: endISO,
               timecodeId: tc.id,
@@ -117,6 +119,10 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ onClose }) => {
             console.warn('Skipping malformed CSV row:', row, error);
             skippedCount++;
           }
+        }
+
+        if (entriesToImport.length > 0) {
+          await bulkAddManualEntries(entriesToImport);
         }
 
         if (importedCount > 0 && skippedCount === 0) {
