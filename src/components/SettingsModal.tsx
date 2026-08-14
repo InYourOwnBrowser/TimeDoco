@@ -33,9 +33,46 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ onClose }) => {
     }
   };
 
+  const [importPreview, setImportPreview] = useState<{ groups: number, timecodes: number, entries: number } | null>(null);
+
   const handleImport = async () => {
     if (!fileInputRef.current?.files?.length) {
       setStatusMsg({ type: 'error', text: 'Please select a backup file first.' });
+      return;
+    }
+
+    const file = fileInputRef.current.files[0];
+
+    if (!importPreview) {
+      // First click: Validate file and show preview
+      try {
+        setIsProcessing(true);
+        setStatusMsg(null);
+
+        const content = await new Promise<string>((resolve, reject) => {
+          const reader = new FileReader();
+          reader.onload = (e) => resolve(e.target?.result as string);
+          reader.onerror = () => reject(new Error('Failed to read file'));
+          reader.readAsText(file);
+        });
+
+        const parsed = JSON.parse(content);
+        if (!parsed || typeof parsed !== 'object' || !Array.isArray(parsed.entries) || !Array.isArray(parsed.timecodes) || !Array.isArray(parsed.groups)) {
+          throw new Error('Invalid TimeTag backup file structure.');
+        }
+
+        setImportPreview({
+          groups: parsed.groups.length,
+          timecodes: parsed.timecodes.length,
+          entries: parsed.entries.length,
+        });
+
+      } catch (error: any) {
+        setStatusMsg({ type: 'error', text: error.message || 'Failed to parse backup file. Is it a valid TimeTag JSON?' });
+        if (fileInputRef.current) fileInputRef.current.value = '';
+      } finally {
+        setIsProcessing(false);
+      }
       return;
     }
 
@@ -49,18 +86,19 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ onClose }) => {
       return;
     }
 
-    const file = fileInputRef.current.files[0];
-
     try {
       setIsProcessing(true);
       setStatusMsg(null);
       await importData(file, importMode);
       setStatusMsg({ type: 'success', text: 'Data imported successfully!' });
 
-      // Reset file input
+      // Reset file input and state
       if (fileInputRef.current) {
         fileInputRef.current.value = '';
       }
+      setImportPreview(null);
+      setShowReplaceConfirm(false);
+      setReplaceConfirmText('');
     } catch (error: any) {
       setStatusMsg({ type: 'error', text: error.message || 'Failed to import data.' });
     } finally {
@@ -398,14 +436,26 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ onClose }) => {
                     </div>
                   </div>
                 ) : (
-                  <button
-                    onClick={handleImport}
-                    disabled={isProcessing}
-                    className="w-full flex items-center justify-center gap-2 bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:opacity-50 transition-colors"
-                  >
-                    <Upload size={18} />
-                    Import Data
-                  </button>
+                  <>
+                    {importPreview && (
+                      <div className="bg-blue-50 dark:bg-blue-900/20 p-3 rounded-md border border-blue-200 dark:border-blue-800/30 mb-4 text-sm text-blue-800 dark:text-blue-200">
+                        <p className="font-medium mb-1">Backup valid! Found:</p>
+                        <ul className="list-disc pl-5">
+                          <li>{importPreview.groups} groups</li>
+                          <li>{importPreview.timecodes} timecodes</li>
+                          <li>{importPreview.entries} entries</li>
+                        </ul>
+                      </div>
+                    )}
+                    <button
+                      onClick={handleImport}
+                      disabled={isProcessing}
+                      className="w-full flex items-center justify-center gap-2 bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:opacity-50 transition-colors"
+                    >
+                      <Upload size={18} />
+                      {importPreview ? 'Confirm Import Data' : 'Import Data'}
+                    </button>
+                  </>
                 )}
               </div>
             </section>
@@ -467,7 +517,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ onClose }) => {
                       <span className="truncate flex-1 text-gray-700 dark:text-gray-300">Entry: {e.note || 'No note'}</span>
                       <div className="flex gap-2 shrink-0 ml-2">
                         <button onClick={() => restoreEntry(e.id)} className="text-blue-600 dark:text-blue-400 hover:underline">Restore</button>
-                        <button onClick={() => hardDeleteEntry(e.id)} className="text-red-600 dark:text-red-400 hover:underline">Delete</button>
+                        <button onClick={() => window.confirm('Permanently delete this entry?') && hardDeleteEntry(e.id)} className="text-red-600 dark:text-red-400 hover:underline">Delete</button>
                       </div>
                     </div>
                   ))}
@@ -476,7 +526,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ onClose }) => {
                       <span className="truncate flex-1 text-gray-700 dark:text-gray-300">Timecode: {tc.name}</span>
                       <div className="flex gap-2 shrink-0 ml-2">
                         <button onClick={() => restoreTimecode(tc.id)} className="text-blue-600 dark:text-blue-400 hover:underline">Restore</button>
-                        <button onClick={() => hardDeleteTimecode(tc.id)} className="text-red-600 dark:text-red-400 hover:underline">Delete</button>
+                        <button onClick={() => window.confirm('Permanently delete this timecode?') && hardDeleteTimecode(tc.id)} className="text-red-600 dark:text-red-400 hover:underline">Delete</button>
                       </div>
                     </div>
                   ))}
@@ -485,7 +535,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ onClose }) => {
                       <span className="truncate flex-1 text-gray-700 dark:text-gray-300">Group: {g.name}</span>
                       <div className="flex gap-2 shrink-0 ml-2">
                         <button onClick={() => restoreGroup(g.id)} className="text-blue-600 dark:text-blue-400 hover:underline">Restore</button>
-                        <button onClick={() => hardDeleteGroup(g.id)} className="text-red-600 dark:text-red-400 hover:underline">Delete</button>
+                        <button onClick={() => window.confirm('Permanently delete this group?') && hardDeleteGroup(g.id)} className="text-red-600 dark:text-red-400 hover:underline">Delete</button>
                       </div>
                     </div>
                   ))}

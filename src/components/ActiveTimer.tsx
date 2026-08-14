@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { useTimeTracker } from '../context/TimeTrackerContext';
 import { Play, Square, Pause } from 'lucide-react';
 import { TimecodeSelector } from './TimecodeSelector';
@@ -11,12 +11,17 @@ export const ActiveTimer: React.FC<{ activeEntry: Entry | null }> = ({ activeEnt
   const [selectedTimecodeId, setSelectedTimecodeId] = useState<string | null>(null);
   const [localNote, setLocalNote] = useState('');
 
+  const lastLoadedEntryIdRef = useRef<string | null>(null);
+
   // Sync local note when active entry changes (e.g. initial load)
   useEffect(() => {
-    if (activeEntry && localNote !== activeEntry.note) {
+    if (activeEntry && lastLoadedEntryIdRef.current !== activeEntry.id) {
       setLocalNote(activeEntry.note);
+      lastLoadedEntryIdRef.current = activeEntry.id;
+    } else if (!activeEntry) {
+      lastLoadedEntryIdRef.current = null;
     }
-  }, [activeEntry?.id, activeEntry, localNote]);
+  }, [activeEntry]);
 
   // Debounced save for the note
   useEffect(() => {
@@ -77,7 +82,8 @@ export const ActiveTimer: React.FC<{ activeEntry: Entry | null }> = ({ activeEnt
             disabled={!selectedTimecodeId}
             onClick={() => selectedTimecodeId && startTimer(selectedTimecodeId)}
             className="mt-2 w-16 h-16 rounded-full bg-blue-600 hover:bg-blue-700 text-white flex items-center justify-center shadow-lg disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
-            aria-label="Start Timer"
+            aria-label="Start Timer (Cmd/Ctrl+Shift+S)"
+            title="Start Timer (Cmd/Ctrl+Shift+S)"
           >
             <Play size={24} className="ml-1" />
           </button>
@@ -136,8 +142,8 @@ export const ActiveTimer: React.FC<{ activeEntry: Entry | null }> = ({ activeEnt
             <button
               onClick={handleStop}
               className="w-16 h-16 rounded-full bg-red-600 hover:bg-red-700 text-white flex items-center justify-center shadow-lg transition-colors"
-              title="Stop"
-              aria-label="Stop Timer"
+              title="Stop (Cmd/Ctrl+Shift+S)"
+              aria-label="Stop Timer (Cmd/Ctrl+Shift+S)"
             >
               <Square size={20} />
             </button>

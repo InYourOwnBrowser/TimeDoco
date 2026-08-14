@@ -183,7 +183,9 @@ export const GroupingManagement: React.FC = () => {
                     </button>
                     <button
                       onClick={() => {
-                        deleteGroup(group.id);
+                        if (window.confirm(`Delete "${group.name}" and all its timecodes/entries? This can be undone from the toast or Trash.`)) {
+                          deleteGroup(group.id);
+                        }
                       }}
                       className="p-1.5 text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/30 rounded transition-colors"
                       title="Delete Group (Move to Trash)"
@@ -361,7 +363,9 @@ export const GroupingManagement: React.FC = () => {
                       </button>
                       <button
                         onClick={() => {
-                          deleteTimecode(tc.id);
+                          if (window.confirm(`Delete "${tc.name}" and all its entries? This can be undone from the toast or Trash.`)) {
+                            deleteTimecode(tc.id);
+                          }
                         }}
                         className="p-1.5 text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/30 rounded transition-colors"
                         title="Delete Timecode (Move to Trash)"

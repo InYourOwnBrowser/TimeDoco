@@ -1,11 +1,11 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import { useTimeTracker } from '../context/TimeTrackerContext';
-import { startOfDay, endOfDay, startOfWeek, endOfWeek, startOfMonth, endOfMonth, parseISO, format, differenceInSeconds } from 'date-fns';
+import { startOfDay, endOfDay, startOfWeek, endOfWeek, startOfMonth, endOfMonth, startOfQuarter, endOfQuarter, subMonths, subQuarters, parseISO, format, differenceInSeconds } from 'date-fns';
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, PieChart, Pie, Cell, Legend } from 'recharts';
 import { Download, Printer, AlertTriangle } from 'lucide-react';
 import { applyRounding, calculateDuration } from '../utils/timeUtils';
 
-type DatePreset = 'today' | 'week' | 'month' | 'custom';
+type DatePreset = 'today' | 'week' | 'month' | 'lastMonth' | 'lastQuarter' | 'custom';
 
 export const AnalysisView: React.FC = () => {
   const { entries, timecodes, groups, settings } = useTimeTracker();
@@ -13,6 +13,12 @@ export const AnalysisView: React.FC = () => {
   const [preset, setPreset] = useState<DatePreset>('today');
   const [customStart, setCustomStart] = useState<string>(format(startOfWeek(new Date(), { weekStartsOn: 1 }), 'yyyy-MM-dd'));
   const [customEnd, setCustomEnd] = useState<string>(format(endOfWeek(new Date(), { weekStartsOn: 1 }), 'yyyy-MM-dd'));
+  const [tick, setTick] = useState(0);
+
+  useEffect(() => {
+    const interval = setInterval(() => setTick(t => t + 1), 60000);
+    return () => clearInterval(interval);
+  }, []);
 
   const dateRange = useMemo(() => {
     const now = new Date();
@@ -23,6 +29,14 @@ export const AnalysisView: React.FC = () => {
         return { start: startOfWeek(now, { weekStartsOn: 1 }), end: endOfWeek(now, { weekStartsOn: 1 }) };
       case 'month':
         return { start: startOfMonth(now), end: endOfMonth(now) };
+      case 'lastMonth': {
+        const lastMo = subMonths(now, 1);
+        return { start: startOfMonth(lastMo), end: endOfMonth(lastMo) };
+      }
+      case 'lastQuarter': {
+        const lastQ = subQuarters(now, 1);
+        return { start: startOfQuarter(lastQ), end: endOfQuarter(lastQ) };
+      }
       case 'custom':
       default:
         return {
@@ -30,7 +44,8 @@ export const AnalysisView: React.FC = () => {
           end: endOfDay(new Date(customEnd + 'T00:00:00'))
         };
     }
-  }, [preset, customStart, customEnd]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [preset, customStart, customEnd, tick]);
 
   // Filter entries that overlap with the date range
   const filteredEntries = useMemo(() => {
@@ -44,7 +59,8 @@ export const AnalysisView: React.FC = () => {
       // So entryStart <= rangeEnd AND entryEnd >= rangeStart
       return entryStart <= dateRange.end && entryEnd >= dateRange.start;
     });
-  }, [entries, dateRange]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [entries, dateRange, tick]);
 
 
   // Detect overlaps in the filtered entries
@@ -297,15 +313,15 @@ export const AnalysisView: React.FC = () => {
         </div>
 
         <div className="flex flex-wrap gap-2 mb-4">
-          {(['today', 'week', 'month', 'custom'] as DatePreset[]).map(p => (
+          {(['today', 'week', 'month', 'lastMonth', 'lastQuarter', 'custom'] as DatePreset[]).map(p => (
             <button
               key={p}
               onClick={() => setPreset(p)}
-              className={`px-4 py-1.5 text-sm font-medium rounded-full capitalize transition-colors ${
+              className={`px-4 py-1.5 text-sm font-medium rounded-full transition-colors ${
                 preset === p ? 'bg-blue-100 text-blue-700 dark:bg-blue-900/50 dark:text-blue-200' : 'bg-gray-100 text-gray-600 hover:bg-gray-200 dark:bg-gray-700 dark:text-gray-300 dark:hover:bg-gray-600'
               }`}
             >
-              {p === 'today' ? 'Today' : p === 'week' ? 'This Week' : p === 'month' ? 'This Month' : 'Custom'}
+              {p === 'today' ? 'Today' : p === 'week' ? 'This Week' : p === 'month' ? 'This Month' : p === 'lastMonth' ? 'Last Month' : p === 'lastQuarter' ? 'Last Quarter' : 'Custom'}
             </button>
           ))}
         </div>
