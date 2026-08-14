@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useTimeTracker } from '../context/TimeTrackerContext';
-import { Square, Play, Pause } from 'lucide-react';
+import { Square, Play, Pause, FileEdit } from 'lucide-react';
 import { getElapsedTimeMs, formatElapsedSeconds } from '../utils/timeUtils';
 
 export const GlobalActiveTimerBar: React.FC = () => {
@@ -68,6 +68,11 @@ export const GlobalActiveTimerBar: React.FC = () => {
             <span className="text-sm font-medium text-gray-900 dark:text-gray-100 truncate max-w-[120px]">
               {tcName}
             </span>
+            {primaryEntry.note && (
+              <div title={primaryEntry.note}>
+                <FileEdit size={14} className="text-gray-500 dark:text-gray-400 shrink-0 cursor-help" />
+              </div>
+            )}
             {activeEntries.length > 1 && (
               <span className="text-xs font-semibold bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-300 px-1.5 py-0.5 rounded-full">
                 +{activeEntries.length - 1}

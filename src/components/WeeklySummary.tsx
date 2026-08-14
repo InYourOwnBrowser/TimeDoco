@@ -45,7 +45,11 @@ export const WeeklySummary: React.FC = () => {
   const targetHours = settings?.weeklyTargetHours;
 
   if (!targetHours) {
-    return null; // Don't show if no target is set
+    return (
+      <div className="w-full max-w-md mx-auto mt-6 bg-white dark:bg-gray-800 p-5 rounded-xl shadow-sm border border-gray-100 dark:border-gray-700 text-center text-sm text-gray-500">
+        Set a weekly target in Settings to track your goal progress.
+      </div>
+    );
   }
 
   const progress = Math.min((weeklyData / targetHours) * 100, 100);

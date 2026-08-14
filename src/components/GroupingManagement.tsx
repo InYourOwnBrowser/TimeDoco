@@ -132,7 +132,14 @@ export const GroupingManagement: React.FC = () => {
                     type="color"
                     value={editingGroupData.color}
                     onChange={(e) => setEditingGroupData({ ...editingGroupData, color: e.target.value })}
-                    className="w-8 h-8 rounded cursor-pointer border-0 p-0"
+                    className="w-8 h-8 rounded cursor-pointer border-0 p-0 shrink-0"
+                  />
+                  <input
+                    type="text"
+                    value={editingGroupData.color}
+                    onChange={(e) => setEditingGroupData({ ...editingGroupData, color: e.target.value })}
+                    className="w-20 px-2 py-1 text-sm border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-gray-700 text-gray-900 dark:text-white outline-none shrink-0"
+                    placeholder="#HEX"
                   />
                   <input
                     type="text"
@@ -196,7 +203,14 @@ export const GroupingManagement: React.FC = () => {
             type="color"
             value={newGroupColor}
             onChange={(e) => setNewGroupColor(e.target.value)}
-            className="w-8 h-8 rounded cursor-pointer border-0 p-0"
+            className="w-8 h-8 rounded cursor-pointer border-0 p-0 shrink-0"
+          />
+          <input
+            type="text"
+            value={newGroupColor}
+            onChange={(e) => setNewGroupColor(e.target.value)}
+            className="w-20 px-2 py-2 text-sm border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-gray-700 text-gray-900 dark:text-white outline-none shrink-0"
+            placeholder="#HEX"
           />
           <input
             type="text"
@@ -230,8 +244,15 @@ export const GroupingManagement: React.FC = () => {
                         type="color"
                         value={editingTimecodeData.color}
                         onChange={(e) => setEditingTimecodeData({ ...editingTimecodeData, color: e.target.value })}
-                        className="w-8 h-8 rounded cursor-pointer border-0 p-0"
+                        className="w-8 h-8 rounded cursor-pointer border-0 p-0 shrink-0"
                         title="Override Group Color"
+                      />
+                      <input
+                        type="text"
+                        value={editingTimecodeData.color}
+                        onChange={(e) => setEditingTimecodeData({ ...editingTimecodeData, color: e.target.value })}
+                        className="w-20 px-2 py-1 text-sm border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-gray-700 text-gray-900 dark:text-white outline-none shrink-0"
+                        placeholder="#HEX"
                       />
                       <input
                         type="text"
@@ -361,8 +382,15 @@ export const GroupingManagement: React.FC = () => {
             type="color"
             value={newTimecodeColor}
             onChange={(e) => setNewTimecodeColor(e.target.value)}
-            className="w-8 h-8 rounded cursor-pointer border-0 p-0"
+            className="w-8 h-8 rounded cursor-pointer border-0 p-0 shrink-0"
             title="Timecode Color"
+          />
+          <input
+            type="text"
+            value={newTimecodeColor}
+            onChange={(e) => setNewTimecodeColor(e.target.value)}
+            className="w-20 px-2 py-2 text-sm border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-gray-700 text-gray-900 dark:text-white outline-none shrink-0"
+            placeholder="#HEX"
           />
           <input
             type="text"

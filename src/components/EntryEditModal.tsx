@@ -6,6 +6,7 @@ import { checkOverlap } from '../utils/timeUtils';
 import type { Entry } from '../types';
 import { Modal } from './ui/Modal';
 import { useToast } from '../context/ToastContext';
+import { TimecodeSelector } from './TimecodeSelector';
 
 interface EntryEditModalProps {
   entry: Entry;
@@ -13,7 +14,7 @@ interface EntryEditModalProps {
 }
 
 export const EntryEditModal: React.FC<EntryEditModalProps> = ({ entry, onClose }) => {
-  const { updateEntry, timecodes, entries, settings } = useTimeTracker();
+  const { updateEntry, entries, settings } = useTimeTracker();
   const { addToast } = useToast();
   const [startTime, setStartTime] = useState('');
   const [endTime, setEndTime] = useState('');
@@ -119,18 +120,9 @@ export const EntryEditModal: React.FC<EntryEditModalProps> = ({ entry, onClose }
         <div className="p-4 space-y-4 overflow-y-auto">
           <div>
             <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Timecode</label>
-            <select
-              value={timecodeId}
-              onChange={(e) => setTimecodeId(e.target.value)}
-              className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-1 focus:ring-blue-500 focus:border-blue-500 sm:text-sm dark:bg-gray-700 dark:border-gray-600 dark:text-white"
-            >
-              <option value="" disabled>Select a timecode</option>
-              {timecodes.filter(tc => !tc.archived || tc.id === entry.timecodeId).map(tc => (
-                <option key={tc.id} value={tc.id}>
-                  {tc.name} {tc.archived ? '(archived)' : ''}
-                </option>
-              ))}
-            </select>
+            <div className="w-full z-10 relative">
+              <TimecodeSelector selectedId={timecodeId} onSelect={setTimecodeId} />
+            </div>
           </div>
 
           <div className="grid grid-cols-2 gap-4">
@@ -180,6 +172,23 @@ export const EntryEditModal: React.FC<EntryEditModalProps> = ({ entry, onClose }
             </div>
           )}
         </div>
+
+        {entry.editHistory && entry.editHistory.length > 0 && (
+          <div className="p-4 border-t border-gray-200 dark:border-gray-700">
+            <h4 className="text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Edit History</h4>
+            <div className="space-y-2 max-h-32 overflow-y-auto">
+              {entry.editHistory.map((change, idx) => (
+                <div key={idx} className="text-xs text-gray-600 dark:text-gray-400 bg-gray-50 dark:bg-gray-800 p-2 rounded">
+                  <span className="font-semibold text-gray-800 dark:text-gray-200">{change.field}</span> changed at {format(new Date(change.editedAt), 'MMM d, h:mm a')}:
+                  <div className="mt-1 flex flex-col gap-1">
+                    <div className="text-red-500 line-through truncate" title={String(change.oldValue)}>{String(change.oldValue) || '(empty)'}</div>
+                    <div className="text-green-600 dark:text-green-400 truncate" title={String(change.newValue)}>{String(change.newValue) || '(empty)'}</div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
 
         <div className="bg-gray-50 dark:bg-gray-900/50 px-4 py-3 sm:px-6 flex flex-row-reverse">
           <button

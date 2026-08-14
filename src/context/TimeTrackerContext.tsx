@@ -383,8 +383,14 @@ export const TimeTrackerProvider: React.FC<{ children: ReactNode }> = ({ childre
   const restoreGroup = async (id: string) => {
     const group = await db.getGroup(id);
     if (group) {
+      const deletedTime = group.deletedAt;
       group.deletedAt = undefined;
       await db.putGroup(group);
+
+      const tcsToRestore = deletedTimecodes.filter(tc => tc.groupId === id && tc.deletedAt === deletedTime);
+      for (const tc of tcsToRestore) {
+        await restoreTimecode(tc.id);
+      }
     }
     await refreshData();
   };
@@ -648,8 +654,14 @@ export const TimeTrackerProvider: React.FC<{ children: ReactNode }> = ({ childre
   const restoreTimecode = async (id: string) => {
     const tc = await db.getTimecode(id);
     if (tc) {
+      const deletedTime = tc.deletedAt;
       tc.deletedAt = undefined;
       await db.putTimecode(tc);
+
+      const entriesToRestore = deletedEntries.filter(e => e.timecodeId === id && e.deletedAt === deletedTime);
+      for (const entry of entriesToRestore) {
+        await restoreEntry(entry.id);
+      }
     }
     await refreshData();
   };
@@ -756,19 +768,24 @@ export const TimeTrackerProvider: React.FC<{ children: ReactNode }> = ({ childre
       timecodes: allTimecodes,
       entries: allEntries,
       settings: currentSettings,
+      checksumAlgorithm: '',
     };
 
-    const payloadString = JSON.stringify(dataToExport);
+    let payloadString = '';
 
     // Compute checksum
     let checksum = '';
     try {
+      dataToExport.checksumAlgorithm = 'sha-256';
+      payloadString = JSON.stringify(dataToExport);
       const msgUint8 = new TextEncoder().encode(payloadString);
       const hashBuffer = await crypto.subtle.digest('SHA-256', msgUint8);
       const hashArray = Array.from(new Uint8Array(hashBuffer));
       checksum = hashArray.map((b) => b.toString(16).padStart(2, '0')).join('');
     } catch {
       // Fallback simple hash if subtle crypto is not available (e.g., non-https local dev)
+      dataToExport.checksumAlgorithm = 'fallback';
+      payloadString = JSON.stringify(dataToExport);
       let hash = 0;
       for (let i = 0; i < payloadString.length; i++) {
         const char = payloadString.charCodeAt(i);
@@ -829,12 +846,7 @@ export const TimeTrackerProvider: React.FC<{ children: ReactNode }> = ({ childre
           const payloadString = JSON.stringify(dataToVerify);
 
           let expectedChecksum = '';
-          try {
-            const msgUint8 = new TextEncoder().encode(payloadString);
-            const hashBuffer = await crypto.subtle.digest('SHA-256', msgUint8);
-            const hashArray = Array.from(new Uint8Array(hashBuffer));
-            expectedChecksum = hashArray.map((b) => b.toString(16).padStart(2, '0')).join('');
-          } catch {
+          if (dataToVerify.checksumAlgorithm === 'fallback') {
             let hash = 0;
             for (let i = 0; i < payloadString.length; i++) {
               const char = payloadString.charCodeAt(i);
@@ -842,6 +854,15 @@ export const TimeTrackerProvider: React.FC<{ children: ReactNode }> = ({ childre
               hash = hash & hash;
             }
             expectedChecksum = hash.toString(16);
+          } else {
+            try {
+              const msgUint8 = new TextEncoder().encode(payloadString);
+              const hashBuffer = await crypto.subtle.digest('SHA-256', msgUint8);
+              const hashArray = Array.from(new Uint8Array(hashBuffer));
+              expectedChecksum = hashArray.map((b) => b.toString(16).padStart(2, '0')).join('');
+            } catch {
+              throw new Error('Cannot verify SHA-256 backup checksum in this environment. Ensure you are on HTTPS.');
+            }
           }
 
           if (checksum !== expectedChecksum) {

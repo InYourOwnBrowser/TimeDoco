@@ -81,9 +81,14 @@ export const IdleDetector: React.FC = () => {
 
     for (const entry of activeEntries) {
       if (!entry.isPaused) {
-        // Ensure we don't backdate the pause to before the timer even started
-        const entryStartTime = new Date(entry.startTime);
-        const effectivePauseStart = idleStartTime < entryStartTime ? entryStartTime : idleStartTime;
+        const lastPauseEnd = entry.pausedSegments.length > 0
+          ? new Date(entry.pausedSegments[entry.pausedSegments.length - 1].pauseEnd || entry.startTime)
+          : new Date(entry.startTime);
+
+        const effectivePauseStart = new Date(
+          Math.max(idleStartTime.getTime(), lastPauseEnd.getTime(), new Date(entry.startTime).getTime())
+        );
+
         await pauseTimer(entry.id, effectivePauseStart.toISOString());
       }
     }

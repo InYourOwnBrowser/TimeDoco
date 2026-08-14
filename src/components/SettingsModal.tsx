@@ -3,6 +3,7 @@ import { useTimeTracker } from '../context/TimeTrackerContext';
 import { X, Upload, Download, AlertTriangle, CheckCircle2 } from 'lucide-react';
 import Papa from 'papaparse';
 import { Modal } from './ui/Modal';
+import { parseISO } from 'date-fns';
 
 interface SettingsModalProps {
   onClose: () => void;
@@ -105,8 +106,22 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ onClose }) => {
             }
 
             // Validating the date parsed successfully to prevent RangeError inside addManualEntry
-            const startISO = new Date(startTime).toISOString();
-            const endISO = new Date(endTime).toISOString();
+            let startObj = new Date(startTime);
+            let endObj = new Date(endTime);
+
+            if (isNaN(startObj.getTime())) {
+              startObj = parseISO(startTime);
+            }
+            if (isNaN(endObj.getTime())) {
+              endObj = parseISO(endTime);
+            }
+
+            if (isNaN(startObj.getTime()) || isNaN(endObj.getTime())) {
+              throw new Error('Invalid date');
+            }
+
+            const startISO = startObj.toISOString();
+            const endISO = endObj.toISOString();
 
             entriesToBulkAdd.push({
               startTime: startISO,
