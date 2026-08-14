@@ -166,20 +166,41 @@ export const importBackup = async (
 
   const groupStore = tx.objectStore('groups');
   for (const g of data.groups) {
-    await groupStore.put(g);
+    if (mode === 'merge') {
+      const existing = await groupStore.get(g.id);
+      if (!existing || new Date(g.updatedAt) > new Date(existing.updatedAt)) {
+        await groupStore.put(g);
+      }
+    } else {
+      await groupStore.put(g);
+    }
   }
 
   const tcStore = tx.objectStore('timecodes');
   for (const tc of data.timecodes) {
-    await tcStore.put(tc);
+    if (mode === 'merge') {
+      const existing = await tcStore.get(tc.id);
+      if (!existing || new Date(tc.updatedAt) > new Date(existing.updatedAt)) {
+        await tcStore.put(tc);
+      }
+    } else {
+      await tcStore.put(tc);
+    }
   }
 
   const entryStore = tx.objectStore('entries');
   for (const e of data.entries) {
-    await entryStore.put(e);
+    if (mode === 'merge') {
+      const existing = await entryStore.get(e.id);
+      if (!existing || new Date(e.updatedAt) > new Date(existing.updatedAt)) {
+        await entryStore.put(e);
+      }
+    } else {
+      await entryStore.put(e);
+    }
   }
 
-  if (data.settings) {
+  if (data.settings && mode === 'replace') {
     const settingsStore = tx.objectStore('settings');
     await settingsStore.put(data.settings);
   }

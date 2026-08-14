@@ -4,7 +4,7 @@ import { Edit2, Archive, ArchiveRestore, Check, X, Trash2, Merge } from 'lucide-
 import type { Group, Timecode } from '../types';
 
 export const GroupingManagement: React.FC = () => {
-  const { groups, timecodes, entries, addGroup, updateGroup, deleteGroup, addTimecode, updateTimecode, deleteTimecode, mergeTimecodes } = useTimeTracker();
+  const { groups, timecodes, addGroup, updateGroup, deleteGroup, addTimecode, updateTimecode, deleteTimecode, mergeTimecodes } = useTimeTracker();
 
   const [editingGroupId, setEditingGroupId] = useState<string | null>(null);
   const [editingGroupData, setEditingGroupData] = useState<{ name: string; color: string }>({ name: '', color: '' });
@@ -135,10 +135,8 @@ export const GroupingManagement: React.FC = () => {
                     </button>
                     <button
                       onClick={() => {
-                          if (group.archived || window.confirm('Are you sure you want to archive this group? It will be hidden from selection.')) {
-                            updateGroup(group.id, { archived: !group.archived });
-                          }
-                        }}
+                        updateGroup(group.id, { archived: !group.archived });
+                      }}
                       className={`p-1.5 rounded transition-colors ${group.archived ? 'text-green-600 dark:text-green-400 hover:bg-green-50 dark:hover:bg-green-900/30' : 'text-amber-600 dark:text-amber-400 hover:bg-amber-50 dark:hover:bg-amber-900/30'}`}
                       title={group.archived ? 'Restore' : 'Archive'}
                     >
@@ -297,10 +295,8 @@ export const GroupingManagement: React.FC = () => {
 
                       <button
                         onClick={() => {
-                            if (tc.archived || window.confirm('Are you sure you want to archive this timecode? It will be hidden from selection.')) {
-                              updateTimecode(tc.id, { archived: !tc.archived });
-                            }
-                          }}
+                          updateTimecode(tc.id, { archived: !tc.archived });
+                        }}
                         className={`p-1.5 rounded transition-colors ${tc.archived ? 'text-green-600 dark:text-green-400 hover:bg-green-50 dark:hover:bg-green-900/30' : 'text-amber-600 dark:text-amber-400 hover:bg-amber-50 dark:hover:bg-amber-900/30'}`}
                         title={tc.archived ? 'Restore' : 'Archive'}
                       >
@@ -308,14 +304,7 @@ export const GroupingManagement: React.FC = () => {
                       </button>
                       <button
                         onClick={() => {
-                          const associatedEntriesCount = entries.filter(e => e.timecodeId === tc.id).length;
-                          if (associatedEntriesCount > 0) {
-                            if (window.confirm(`Are you sure you want to delete this timecode? WARNING: This will also move ${associatedEntriesCount} associated time entries to the Trash! We recommend Archiving instead. Continue anyway?`)) {
-                              deleteTimecode(tc.id);
-                            }
-                          } else {
-                            deleteTimecode(tc.id);
-                          }
+                          deleteTimecode(tc.id);
                         }}
                         className="p-1.5 text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/30 rounded transition-colors"
                         title="Delete Timecode (Move to Trash)"

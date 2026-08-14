@@ -295,6 +295,7 @@ export const TimeTrackerProvider: React.FC<{ children: ReactNode }> = ({ childre
     const group = await db.getGroup(id);
     if (group) {
       await db.putGroup({ ...group, deletedAt: new Date().toISOString() });
+      addToast('Group deleted', 'success', { label: 'Undo', onClick: () => restoreGroup(id) }, 5000);
     }
     await refreshData();
   };
@@ -482,10 +483,19 @@ export const TimeTrackerProvider: React.FC<{ children: ReactNode }> = ({ childre
       }
     }
 
-    // 3. Delete the source timecode
+    // 3. Update templates
+    const currentSettings = await db.getSettings();
+    if (currentSettings && currentSettings.templates) {
+      const updatedTemplates = currentSettings.templates.map(t =>
+        t.timecodeId === sourceId ? { ...t, timecodeId: destId } : t
+      );
+      await db.putSettings({ ...currentSettings, templates: updatedTemplates });
+    }
+
+    // 4. Delete the source timecode
     await db.deleteTimecode(sourceId);
 
-    // 4. Refresh everything
+    // 5. Refresh everything
     await refreshData();
   };
 
@@ -499,7 +509,18 @@ export const TimeTrackerProvider: React.FC<{ children: ReactNode }> = ({ childre
     const tc = await db.getTimecode(id);
     if (tc) {
       await db.putTimecode({ ...tc, deletedAt: now });
+      addToast('Timecode archived', 'success', { label: 'Undo', onClick: () => restoreTimecode(id) }, 5000);
     }
+
+    // Update templates
+    const currentSettings = await db.getSettings();
+    if (currentSettings && currentSettings.templates) {
+      const updatedTemplates = currentSettings.templates.filter(t => t.timecodeId !== id);
+      if (updatedTemplates.length !== currentSettings.templates.length) {
+        await db.putSettings({ ...currentSettings, templates: updatedTemplates });
+      }
+    }
+
     await refreshData();
   };
 
@@ -509,6 +530,16 @@ export const TimeTrackerProvider: React.FC<{ children: ReactNode }> = ({ childre
       await db.deleteEntry(entry.id);
     }
     await db.deleteTimecode(id);
+
+    // Update templates
+    const currentSettings = await db.getSettings();
+    if (currentSettings && currentSettings.templates) {
+      const updatedTemplates = currentSettings.templates.filter(t => t.timecodeId !== id);
+      if (updatedTemplates.length !== currentSettings.templates.length) {
+        await db.putSettings({ ...currentSettings, templates: updatedTemplates });
+      }
+    }
+
     await refreshData();
   };
 
@@ -592,6 +623,7 @@ export const TimeTrackerProvider: React.FC<{ children: ReactNode }> = ({ childre
     const entry = await db.getEntry(id);
     if (entry) {
       await db.putEntry({ ...entry, deletedAt: new Date().toISOString() });
+      addToast('Entry deleted', 'success', { label: 'Undo', onClick: () => restoreEntry(id) }, 5000);
       await refreshData();
     }
   };
