@@ -60,8 +60,9 @@ export const TimeTrackerProvider: React.FC<{ children: ReactNode }> = ({ childre
   const [entries, setEntries] = useState<Entry[]>([]);
   const [deletedEntries, setDeletedEntries] = useState<Entry[]>([]);
   const [forgotToStopEntry, setForgotToStopEntry] = useState<Entry | null>(null);
-  const [dismissedForgotToStopId, setDismissedForgotToStopId] = useState<string | null>(() => {
-    return localStorage.getItem('dismissedForgotToStopId');
+  const [dismissedForgotToStopIds, setDismissedForgotToStopIds] = useState<string[]>(() => {
+    const data = localStorage.getItem('dismissedForgotToStopIds');
+    try { return data ? JSON.parse(data) : []; } catch { return []; }
   });
   const [settings, setSettings] = useState<Settings | null>(null);
   const [lastStoppedEntry, setLastStoppedEntry] = useState<Entry | null>(null);
@@ -121,7 +122,7 @@ export const TimeTrackerProvider: React.FC<{ children: ReactNode }> = ({ childre
     if (loadedActiveEntries.length > 0) {
       let foundForgot = false;
       for (const entry of loadedActiveEntries) {
-        if (entry.id === dismissedForgotToStopId) continue;
+        if (dismissedForgotToStopIds.includes(entry.id)) continue;
         const start = new Date(entry.startTime);
         const now = new Date();
         const hoursElapsed = differenceInSeconds(now, start) / 3600;
@@ -136,7 +137,7 @@ export const TimeTrackerProvider: React.FC<{ children: ReactNode }> = ({ childre
     } else {
       setForgotToStopEntry(null);
     }
-  }, [dismissedForgotToStopId]);
+  }, [dismissedForgotToStopIds]);
 
   useEffect(() => {
     refreshData();
@@ -369,8 +370,9 @@ export const TimeTrackerProvider: React.FC<{ children: ReactNode }> = ({ childre
   const dismissForgotToStop = () => {
     if (forgotToStopEntry) {
       const id = forgotToStopEntry.id;
-      setDismissedForgotToStopId(id);
-      localStorage.setItem('dismissedForgotToStopId', id);
+      const newDismissedIds = [...dismissedForgotToStopIds, id];
+      setDismissedForgotToStopIds(newDismissedIds);
+      localStorage.setItem('dismissedForgotToStopIds', JSON.stringify(newDismissedIds));
       setForgotToStopEntry(null);
     }
   };
@@ -433,12 +435,14 @@ export const TimeTrackerProvider: React.FC<{ children: ReactNode }> = ({ childre
 
     if (forgotToStopEntry && forgotToStopEntry.id === id && updates.endTime) {
       setForgotToStopEntry(null);
-      setDismissedForgotToStopId(null);
-      localStorage.removeItem('dismissedForgotToStopId');
-    } else if (dismissedForgotToStopId === id && updates.endTime) {
+      const newDismissedIds = dismissedForgotToStopIds.filter(dId => dId !== id);
+      setDismissedForgotToStopIds(newDismissedIds);
+      localStorage.setItem('dismissedForgotToStopIds', JSON.stringify(newDismissedIds));
+    } else if (dismissedForgotToStopIds.includes(id) && updates.endTime) {
       // Clear it from storage if the user addresses it without the banner active
-      setDismissedForgotToStopId(null);
-      localStorage.removeItem('dismissedForgotToStopId');
+      const newDismissedIds = dismissedForgotToStopIds.filter(dId => dId !== id);
+      setDismissedForgotToStopIds(newDismissedIds);
+      localStorage.setItem('dismissedForgotToStopIds', JSON.stringify(newDismissedIds));
     }
 
     await refreshData();
@@ -712,6 +716,22 @@ export const TimeTrackerProvider: React.FC<{ children: ReactNode }> = ({ childre
     }
   };
 
+  const migrateImportData = (data: any, fromVersion: number) => {
+    let migratedData = { ...data };
+
+    // Future migrations go here:
+    // if (fromVersion === 1) {
+    //   migratedData = migrateV1toV2(migratedData);
+    //   fromVersion = 2;
+    // }
+
+    if (fromVersion !== 1) {
+      throw new Error(`Unsupported schema version: ${fromVersion}. Cannot migrate.`);
+    }
+
+    return migratedData;
+  };
+
   const importData = async (file: File, mode: 'merge' | 'replace') => {
     return new Promise<void>((resolve, reject) => {
       const reader = new FileReader();
@@ -719,10 +739,6 @@ export const TimeTrackerProvider: React.FC<{ children: ReactNode }> = ({ childre
         try {
           const content = e.target?.result as string;
           const parsed = JSON.parse(content);
-
-          if (parsed.schemaVersion !== 1) {
-            throw new Error('Unsupported schema version');
-          }
 
           if (!parsed.checksum) {
             throw new Error('No checksum found in backup file');
@@ -751,12 +767,14 @@ export const TimeTrackerProvider: React.FC<{ children: ReactNode }> = ({ childre
             throw new Error('Data corruption detected: Checksum mismatch');
           }
 
+          const migratedData = migrateImportData(parsed, parsed.schemaVersion);
+
           await db.importBackup(
             {
-              groups: parsed.groups || [],
-              timecodes: parsed.timecodes || [],
-              entries: parsed.entries || [],
-              settings: parsed.settings,
+              groups: migratedData.groups || [],
+              timecodes: migratedData.timecodes || [],
+              entries: migratedData.entries || [],
+              settings: migratedData.settings,
             },
             mode
           );

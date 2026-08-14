@@ -140,8 +140,8 @@ export const TimecodeSelector: React.FC<TimecodeSelectorProps> = ({ onSelect, se
     const trimmedSearch = search.trim();
     if (!trimmedSearch) return;
 
-    // Prevent duplicates: case-insensitive match check
-    const existingTc = timecodes.find(tc => tc.name.toLowerCase() === trimmedSearch.toLowerCase());
+    // Prevent duplicates: case-insensitive match check, but scoped to the same group
+    const existingTc = timecodes.find(tc => tc.name.toLowerCase() === trimmedSearch.toLowerCase() && (tc.groupId || '') === (newGroupId || ''));
 
     if (existingTc) {
       onSelect(existingTc.id);

@@ -35,7 +35,7 @@ Reviewed: full `src/` tree (context, db, components, utils) against `plan.md` an
 - [x] **1.7 — Analysis "proportional duration" math (AnalysisView ~line 150) can misattribute paused time**
   When an entry is clipped to a date-range boundary, the code approximates the clipped duration as `entry.duration * (rawOverlapDuration / rawFullDuration)` — a proportional scaling — rather than actually recomputing `calculateDuration` against the clipped window with the real pause segments. The code comments acknowledge this ("for simplicity"). It's a reasonable approximation but will be measurably wrong for any entry that has an uneven pause distribution and happens to be clipped by a date filter (e.g. custom range starting mid-entry).
 
-- [ ] **1.8 — Forgot-to-Stop detection re-triggers unexpectedly on reload**
+- [x] **1.8 — Forgot-to-Stop detection re-triggers unexpectedly on reload**
   `dismissedForgotToStopId` is a single ID kept in `localStorage`. If the user dismisses the prompt for entry A, then a *different* long-running entry B later crosses the threshold, B correctly shows. But if the user later starts a **new** long-running timer that reuses... actually more concretely: it only stores one dismissed ID at a time — if a second stale timer starts running concurrently (allowed when `allowConcurrentTimers` is on) while the first is still dismissed, the loop `for (const entry of loadedActiveEntries)` will surface whichever qualifying entry it hits first each refresh, but there's no persistence for "dismiss all currently known offenders," so toggling tabs can bring back a banner for entry B after A was dismissed. Minor, but worth a `Set<string>` instead of a single ID for correctness under concurrent timers.
 
 ### 🟡 Low priority / nitpicks
@@ -49,7 +49,7 @@ Reviewed: full `src/` tree (context, db, components, utils) against `plan.md` an
 
 ## 2. Data Model / Architecture Observations
 
-- [ ] **No schema migration path beyond `schemaVersion: 1`.** The export includes a version number as planned, but `importData` only accepts `schemaVersion === 1` and throws otherwise — there's no migration function, so the moment the schema needs to change, all older backups become unimportable rather than upgradeable. Worth stubbing a `migrate(data, fromVersion)` function now, even a no-op, so the pattern exists before it's needed.
+- [x] **No schema migration path beyond `schemaVersion: 1`.** The export includes a version number as planned, but `importData` only accepts `schemaVersion === 1` and throws otherwise — there's no migration function, so the moment the schema needs to change, all older backups become unimportable rather than upgradeable. Worth stubbing a `migrate(data, fromVersion)` function now, even a no-op, so the pattern exists before it's needed.
 - [ ] **`editHistory` can grow unbounded** for entries that get corrected repeatedly (e.g. a recurring forgot-to-stop entry). There's no cap or summarization — fine at POC scale, worth a note for very long-lived installs.
 - [ ] **Soft-delete retention window is undecided** (plan.md §10 open question) — `deletedAt` is set but nothing ever auto-purges old trash; `emptyTrash` is manual-only. Either implement the "30 day" auto-purge from the plan or explicitly drop it from scope.
 - [ ] Good: the IndexedDB wrapper (`db/index.ts`) is a clean, single-responsibility data-access layer exactly as planned, and the v1→v2 index-cleanup migration for `is-running` shows the team already anticipated schema evolution — the gap is only at the *export/import* layer, not the local DB layer.
@@ -95,8 +95,8 @@ Reviewed: full `src/` tree (context, db, components, utils) against `plan.md` an
 - [ ] `stopTimer` gets a 5-second "Undo" toast (nice touch). Deleting an entry, archiving a group/timecode, and deleting a group do not, despite being conceptually similar "recoverable" actions (soft-delete). Extending the same toast+undo pattern to entry/timecode/group deletion (instead of relying on users discovering the Trash section) would make the "forgiving of human error" plan principle (§1) more consistently realized.
 
 ### 4.8 Minor
-- [ ] The `ForgotToStopPrompt` and `BackupReminderBanner` both render as full-width banners stacked at the top — with both active simultaneously plus the idle-detection modal potentially popping up too, a returning user after a long absence could face three separate interruptions at once. Consider prioritizing/collapsing.
-- [ ] `TimecodeSelector`'s inline "create" form doesn't validate hex color input beyond the fixed 8-swatch palette (fine), but there's no duplicate-name check *within the same group* — only a global case-insensitive name check, so "Client Calls" under Group A and a second "Client Calls" attempt under Group B is blocked, which may be overly strict if that's actually a legitimate use case (e.g. "Standup" recurring under multiple client groups).
+- [x] The `ForgotToStopPrompt` and `BackupReminderBanner` both render as full-width banners stacked at the top — with both active simultaneously plus the idle-detection modal potentially popping up too, a returning user after a long absence could face three separate interruptions at once. Consider prioritizing/collapsing.
+- [x] `TimecodeSelector`'s inline "create" form doesn't validate hex color input beyond the fixed 8-swatch palette (fine), but there's no duplicate-name check *within the same group* — only a global case-insensitive name check, so "Client Calls" under Group A and a second "Client Calls" attempt under Group B is blocked, which may be overly strict if that's actually a legitimate use case (e.g. "Standup" recurring under multiple client groups).
 
 ---
 
@@ -121,4 +121,6 @@ Reviewed: full `src/` tree (context, db, components, utils) against `plan.md` an
 | 4.1 | Concurrent-timer shortcut targets wrong entry | UX / correctness | 🟠 Medium (Fixed) |
 | 4.5 | Missing dark-mode variants on status badges | Polish | 🟡 Low (Fixed) |
 | 4.6 | Undiscoverable keyboard shortcut | UX | 🟡 Low |
-| 2 | No schema migration path beyond v1 | Future-proofing | 🟡 Low (now) / 🔴 (later) |
+| 2 | No schema migration path beyond v1 | Future-proofing | 🟡 Low (Fixed) |
+| 1.8 | Forgot-to-Stop detection re-triggers | Correctness | 🟡 Low (Fixed) |
+| 4.8 | Minor (Banners & Duplicate check) | Polish | 🟡 Low (Fixed) |
