@@ -18,10 +18,11 @@ export const ManualEntryModal: React.FC<ManualEntryModalProps> = ({ onClose }) =
   const [endTime, setEndTime] = useState('');
   const [timecodeId, setTimecodeId] = useState('');
   const [note, setNote] = useState('');
+  const [tagsStr, setTagsStr] = useState('');
   const [error, setError] = useState<string | null>(null);
   const [warning, setWarning] = useState<string | null>(null);
 
-  const isDirty = startTime !== '' || endTime !== '' || timecodeId !== '' || note !== '';
+  const isDirty = startTime !== '' || endTime !== '' || timecodeId !== '' || note !== '' || tagsStr !== '';
 
   useEffect(() => {
     if (!startTime || !endTime) {
@@ -75,11 +76,14 @@ export const ManualEntryModal: React.FC<ManualEntryModalProps> = ({ onClose }) =
       }
     }
 
+    const tagsArray = tagsStr.split(',').map(t => t.trim()).filter(t => t !== '');
+
     await addManualEntry({
       timecodeId,
       startTime: start.toISOString(),
       endTime: end.toISOString(),
       note,
+      tags: tagsArray,
     });
 
     addToast('Entry added successfully', 'success');
@@ -133,6 +137,17 @@ export const ManualEntryModal: React.FC<ManualEntryModalProps> = ({ onClose }) =
               value={note}
               onChange={(e) => setNote(e.target.value)}
               rows={2}
+              className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-1 focus:ring-blue-500 focus:border-blue-500 sm:text-sm dark:bg-gray-700 dark:border-gray-600 dark:text-white"
+            />
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Tags (comma separated)</label>
+            <input
+              type="text"
+              value={tagsStr}
+              onChange={(e) => setTagsStr(e.target.value)}
+              placeholder="e.g. design, meeting, high-priority"
               className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-1 focus:ring-blue-500 focus:border-blue-500 sm:text-sm dark:bg-gray-700 dark:border-gray-600 dark:text-white"
             />
           </div>

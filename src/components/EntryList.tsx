@@ -193,6 +193,15 @@ export const EntryList: React.FC = () => {
                           {entry.note}
                         </div>
                       )}
+                      {entry.tags && entry.tags.length > 0 && (
+                        <div className="mt-2 flex flex-wrap gap-1">
+                          {entry.tags.map(tag => (
+                            <span key={tag} className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-gray-100 text-gray-800 dark:bg-gray-700 dark:text-gray-200">
+                              #{tag}
+                            </span>
+                          ))}
+                        </div>
+                      )}
                     </div>
                     <div className="mt-4 flex-shrink-0 sm:mt-0 sm:ml-5">
                       <div className="flex items-center space-x-4">

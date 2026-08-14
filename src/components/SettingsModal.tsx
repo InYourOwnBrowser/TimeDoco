@@ -284,6 +284,17 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ onClose }) => {
                 />
               </div>
               <div className="flex items-center justify-between mb-4">
+                <label className="text-sm font-medium text-gray-700 dark:text-gray-300">Target Alert (Minutes)</label>
+                <input
+                  type="number"
+                  min="0"
+                  value={settings?.targetAlertMinutes ?? ''}
+                  onChange={(e) => updateSettings({ targetAlertMinutes: e.target.value ? Math.max(0, Number(e.target.value)) : null })}
+                  placeholder="e.g. 25"
+                  className="w-24 px-3 py-1.5 border border-gray-300 dark:border-gray-600 rounded outline-none focus:ring-1 focus:ring-blue-500 text-sm bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
+                />
+              </div>
+              <div className="flex items-center justify-between mb-4">
                 <label className="text-sm font-medium text-gray-700 dark:text-gray-300">Idle Threshold (Minutes)</label>
                 <input
                   type="number"

@@ -37,6 +37,7 @@ export interface Entry {
   endTime: string | null; // null while running
   duration: number; // seconds, recalculated on edit
   note: string;
+  tags?: string[];
   isRunning: boolean; // true only for single currently active entry
   isPaused: boolean;
   pausedSegments: PauseSegment[];
@@ -61,6 +62,7 @@ export interface Settings {
   roundingRule: 'none' | '5min' | '10min' | '15min';
   idleThresholdMinutes: number;
   weeklyTargetHours: number | null;
+  targetAlertMinutes?: number | null;
   theme?: 'light' | 'dark' | 'system';
   allowConcurrentTimers: boolean;
   templates?: EntryTemplate[];

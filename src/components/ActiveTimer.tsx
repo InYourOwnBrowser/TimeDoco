@@ -4,63 +4,101 @@ import { Play, Square, Pause } from 'lucide-react';
 import { TimecodeSelector } from './TimecodeSelector';
 import { type Entry } from '../types';
 import { getElapsedTimeMs, formatElapsedSeconds } from '../utils/timeUtils';
+import { useToast } from '../context/ToastContext';
 
 export const ActiveTimer: React.FC<{ activeEntry: Entry | null }> = ({ activeEntry }) => {
   const { startTimer, stopTimer, pauseTimer, resumeTimer, timecodes, updateActiveNote } = useTimeTracker();
   const [elapsedSeconds, setElapsedSeconds] = useState(0);
   const [selectedTimecodeId, setSelectedTimecodeId] = useState<string | null>(null);
   const [localNote, setLocalNote] = useState('');
+  const [localTags, setLocalTags] = useState<string>('');
 
   const lastLoadedEntryIdRef = useRef<string | null>(null);
 
-  // Sync local note when active entry changes (e.g. initial load)
+  // Sync local note & tags when active entry changes (e.g. initial load)
   useEffect(() => {
     if (activeEntry && lastLoadedEntryIdRef.current !== activeEntry.id) {
       setLocalNote(activeEntry.note);
+      setLocalTags((activeEntry.tags || []).join(', '));
       lastLoadedEntryIdRef.current = activeEntry.id;
     } else if (!activeEntry) {
       lastLoadedEntryIdRef.current = null;
     }
   }, [activeEntry]);
 
-  // Debounced save for the note
+  // Debounced save for the note and tags
   useEffect(() => {
     if (!activeEntry) return;
     const handler = setTimeout(() => {
-      if (localNote !== activeEntry.note) {
-        updateActiveNote(activeEntry.id, localNote);
+      const tagsArray = localTags.split(',').map(t => t.trim()).filter(t => t !== '');
+      const tagsChanged = JSON.stringify(tagsArray) !== JSON.stringify(activeEntry.tags || []);
+      if (localNote !== activeEntry.note || tagsChanged) {
+        updateActiveNote(activeEntry.id, localNote, tagsArray);
       }
     }, 1000);
     return () => clearTimeout(handler);
-  }, [localNote, activeEntry, updateActiveNote]);
+  }, [localNote, localTags, activeEntry, updateActiveNote]);
+
+  const { settings } = useTimeTracker();
+  const { addToast } = useToast();
+  const alertTriggeredRef = useRef(false);
 
   useEffect(() => {
     if (!activeEntry) {
       setElapsedSeconds(0);
+      alertTriggeredRef.current = false;
       return;
     }
 
     const calculateElapsed = () => {
       const elapsedMs = getElapsedTimeMs(activeEntry.startTime, activeEntry.pausedSegments);
-      setElapsedSeconds(Math.floor(elapsedMs / 1000));
+      const seconds = Math.floor(elapsedMs / 1000);
+      setElapsedSeconds(seconds);
+
+      if (settings?.targetAlertMinutes && !alertTriggeredRef.current) {
+        if (seconds >= settings.targetAlertMinutes * 60) {
+          addToast(`Target reached! ${settings.targetAlertMinutes} minutes elapsed.`, 'info', undefined, 10000);
+          if (Notification.permission === 'granted') {
+             new Notification('Time Tracker Target Reached', {
+               body: `You have tracked ${settings.targetAlertMinutes} minutes.`,
+             });
+          }
+          alertTriggeredRef.current = true;
+        }
+      }
     };
 
     calculateElapsed();
 
     if (!activeEntry.isPaused) {
-      // Need frequent updates to catch the second boundary cleanly with requestAnimationFrame or short interval
-      const interval = setInterval(calculateElapsed, 200);
-      return () => clearInterval(interval);
+      let animationFrameId: number;
+
+      const loop = () => {
+        calculateElapsed();
+        animationFrameId = requestAnimationFrame(loop);
+      };
+
+      animationFrameId = requestAnimationFrame(loop);
+
+      return () => cancelAnimationFrame(animationFrameId);
     }
-  }, [activeEntry]);
+  }, [activeEntry, settings?.targetAlertMinutes, addToast]);
+
+  useEffect(() => {
+    if ('Notification' in window && Notification.permission === 'default' && settings?.targetAlertMinutes) {
+      Notification.requestPermission();
+    }
+  }, [settings?.targetAlertMinutes]);
 
   const activeTimecode = activeEntry ? timecodes.find(t => t.id === activeEntry.timecodeId) : null;
 
   const handleStop = async () => {
-    if (activeEntry && localNote !== activeEntry.note) {
-      await updateActiveNote(activeEntry.id, localNote);
-    }
     if (activeEntry) {
+      const tagsArray = localTags.split(',').map(t => t.trim()).filter(t => t !== '');
+      const tagsChanged = JSON.stringify(tagsArray) !== JSON.stringify(activeEntry.tags || []);
+      if (localNote !== activeEntry.note || tagsChanged) {
+        await updateActiveNote(activeEntry.id, localNote, tagsArray);
+      }
       stopTimer(activeEntry.id);
     }
   };
@@ -108,13 +146,20 @@ export const ActiveTimer: React.FC<{ activeEntry: Entry | null }> = ({ activeEnt
             {formatElapsedSeconds(elapsedSeconds)}
           </div>
 
-          <div className="w-full mt-2 mb-2">
+          <div className="w-full mt-2 mb-2 space-y-2">
             <input
               type="text"
               placeholder="What are you doing? (optional note)"
               className="w-full text-center text-sm p-2 border border-transparent hover:border-gray-200 dark:hover:border-gray-600 focus:border-blue-500 dark:focus:border-blue-400 focus:ring-1 focus:ring-blue-500 dark:focus:ring-blue-400 rounded outline-none transition-colors bg-gray-50 dark:bg-gray-700 focus:bg-white dark:focus:bg-gray-800 text-gray-900 dark:text-white placeholder-gray-400 dark:placeholder-gray-500"
               value={localNote}
               onChange={(e) => setLocalNote(e.target.value)}
+            />
+            <input
+              type="text"
+              placeholder="Tags (comma separated)"
+              className="w-full text-center text-sm p-2 border border-transparent hover:border-gray-200 dark:hover:border-gray-600 focus:border-blue-500 dark:focus:border-blue-400 focus:ring-1 focus:ring-blue-500 dark:focus:ring-blue-400 rounded outline-none transition-colors bg-gray-50 dark:bg-gray-700 focus:bg-white dark:focus:bg-gray-800 text-gray-900 dark:text-white placeholder-gray-400 dark:placeholder-gray-500"
+              value={localTags}
+              onChange={(e) => setLocalTags(e.target.value)}
             />
           </div>
 

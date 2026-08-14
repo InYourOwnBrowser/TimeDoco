@@ -276,6 +276,7 @@ export const AnalysisView: React.FC = () => {
   };
 
   const handlePrint = async () => {
+    // Note: PDF printable exports are implemented here using jspdf and jspdf-autotable
     const { default: jsPDF } = await import('jspdf');
     const { default: autoTable } = await import('jspdf-autotable');
 

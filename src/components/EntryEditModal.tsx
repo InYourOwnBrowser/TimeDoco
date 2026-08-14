@@ -20,6 +20,7 @@ export const EntryEditModal: React.FC<EntryEditModalProps> = ({ entry, onClose }
   const [endTime, setEndTime] = useState('');
   const [timecodeId, setTimecodeId] = useState(entry.timecodeId);
   const [note, setNote] = useState(entry.note);
+  const [tagsStr, setTagsStr] = useState((entry.tags || []).join(', '));
   const [error, setError] = useState<string | null>(null);
   const [warning, setWarning] = useState<string | null>(null);
 
@@ -29,7 +30,8 @@ export const EntryEditModal: React.FC<EntryEditModalProps> = ({ entry, onClose }
   const isDirty = startTime !== initialStartTime ||
     endTime !== initialEndTime ||
     timecodeId !== entry.timecodeId ||
-    note !== entry.note;
+    note !== entry.note ||
+    tagsStr !== (entry.tags || []).join(', ');
 
   useEffect(() => {
     // Initialize formats for datetime-local inputs
@@ -95,6 +97,7 @@ export const EntryEditModal: React.FC<EntryEditModalProps> = ({ entry, onClose }
     const updates: Partial<Entry> = {
       timecodeId,
       note,
+      tags: tagsStr.split(',').map(t => t.trim()).filter(t => t !== ''),
       startTime: start.toISOString(),
     };
 
@@ -154,6 +157,17 @@ export const EntryEditModal: React.FC<EntryEditModalProps> = ({ entry, onClose }
               value={note}
               onChange={(e) => setNote(e.target.value)}
               rows={2}
+              className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-1 focus:ring-blue-500 focus:border-blue-500 sm:text-sm dark:bg-gray-700 dark:border-gray-600 dark:text-white"
+            />
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Tags (comma separated)</label>
+            <input
+              type="text"
+              value={tagsStr}
+              onChange={(e) => setTagsStr(e.target.value)}
+              placeholder="e.g. design, meeting, high-priority"
               className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-1 focus:ring-blue-500 focus:border-blue-500 sm:text-sm dark:bg-gray-700 dark:border-gray-600 dark:text-white"
             />
           </div>
