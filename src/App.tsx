@@ -12,16 +12,27 @@ import { WeeklySummary } from './components/WeeklySummary';
 import { IdleDetector } from './components/IdleDetector';
 import { Settings, BarChart2, Clock, ListTree } from 'lucide-react';
 import { useTimeTracker } from './context/TimeTrackerContext';
-import { ToastProvider } from './context/ToastContext';
+import { ToastProvider, useToast } from './context/ToastContext';
 
-import { differenceInSeconds } from 'date-fns';
+import { getElapsedTimeMs, formatElapsedSeconds } from './utils/timeUtils';
+import { GlobalActiveTimerBar } from './components/GlobalActiveTimerBar';
 
 // Extracted inner component so we can use TimeTrackerContext
 const AppContent = () => {
   const { activeEntries, stopTimer, startTimer, timecodes, entries, settings, forgotToStopEntry } = useTimeTracker();
+  const { addToast } = useToast();
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
   const [activeTab, setActiveTab] = useState<'tracker' | 'analysis' | 'management'>('tracker');
   const [showNewTimer, setShowNewTimer] = useState(false);
+
+  // Listen for IndexedDB fallback mode globally
+  useEffect(() => {
+    const handleFallbackMode = () => {
+      addToast('Storage error detected. App is running in memory fallback mode. Your data will not be saved after you close this page.', 'error', undefined, 10000);
+    };
+    window.addEventListener('idb-fallback-mode', handleFallbackMode);
+    return () => window.removeEventListener('idb-fallback-mode', handleFallbackMode);
+  }, [addToast]);
 
   // Calculate elapsed time for document title
   useEffect(() => {
@@ -34,31 +45,12 @@ const AppContent = () => {
     const primaryEntry = [...activeEntries].sort((a, b) => new Date(b.startTime).getTime() - new Date(a.startTime).getTime())[0];
     const activeTimecode = timecodes.find(t => t.id === primaryEntry.timecodeId);
 
-    const calculateElapsed = () => {
-      const now = new Date();
-      const start = new Date(primaryEntry.startTime);
-
-      let totalPauseSeconds = 0;
-      primaryEntry.pausedSegments.forEach(segment => {
-        const pStart = new Date(segment.pauseStart);
-        const pEnd = segment.pauseEnd ? new Date(segment.pauseEnd) : now;
-        totalPauseSeconds += differenceInSeconds(pEnd, pStart);
-      });
-
-      const total = differenceInSeconds(now, start) - totalPauseSeconds;
-      return total > 0 ? total : 0;
-    };
-
     const updateTitle = () => {
-      const elapsed = calculateElapsed();
+      const elapsedMs = getElapsedTimeMs(primaryEntry.startTime, primaryEntry.pausedSegments);
+      const elapsed = Math.floor(elapsedMs / 1000);
 
       if (activeTimecode) {
-        const hrs = Math.floor(elapsed / 3600);
-        const mins = Math.floor((elapsed % 3600) / 60);
-        const secs = elapsed % 60;
-        const pad = (num: number) => num.toString().padStart(2, '0');
-        const timeStr = hrs > 0 ? `${hrs}:${pad(mins)}:${pad(secs)}` : `${pad(mins)}:${pad(secs)}`;
-
+        const timeStr = formatElapsedSeconds(elapsed);
         let prefix = primaryEntry.isPaused ? '⏸️' : '🔴';
         if (activeEntries.length > 1) {
           prefix = `[${activeEntries.length}] ${prefix}`;
@@ -73,7 +65,7 @@ const AppContent = () => {
 
     // Only set interval if the primary entry is running
     if (!primaryEntry.isPaused) {
-      const interval = setInterval(updateTitle, 1000);
+      const interval = setInterval(updateTitle, 500); // 500ms to ensure timely updates
       return () => clearInterval(interval);
     }
   }, [activeEntries, timecodes]);
@@ -237,6 +229,9 @@ const AppContent = () => {
         {isSettingsOpen && <SettingsModal onClose={() => setIsSettingsOpen(false)} />}
 
         <IdleDetector />
+
+        {/* Render persistent global active timer bar when not on tracker tab */ }
+        {activeTab !== 'tracker' && <GlobalActiveTimerBar />}
         </div>
   );
 };
