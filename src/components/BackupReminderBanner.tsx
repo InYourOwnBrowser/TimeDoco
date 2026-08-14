@@ -4,7 +4,7 @@ import { differenceInDays } from 'date-fns';
 import { X, AlertCircle } from 'lucide-react';
 
 export const BackupReminderBanner: React.FC = () => {
-  const { settings } = useTimeTracker();
+  const { settings, exportData } = useTimeTracker();
   const [isVisible, setIsVisible] = useState(false);
 
   useEffect(() => {
@@ -61,7 +61,16 @@ export const BackupReminderBanner: React.FC = () => {
             <span>It has been a while since your last backup. We recommend exporting your data soon.</span>
           </p>
         </div>
-        <div className="order-2 flex-shrink-0 sm:order-3 sm:ml-3">
+        <div className="order-2 flex-shrink-0 sm:order-3 sm:ml-3 flex items-center gap-2">
+          <button
+            onClick={() => {
+              exportData();
+              handleDismiss();
+            }}
+            className="px-3 py-1.5 text-sm font-medium text-blue-700 bg-blue-100 hover:bg-blue-200 dark:text-blue-200 dark:bg-blue-800/60 dark:hover:bg-blue-700/80 rounded-md transition-colors"
+          >
+            Export Now
+          </button>
           <button
             type="button"
             className="-mr-1 flex p-2 rounded-md hover:bg-blue-100 dark:hover:bg-blue-800/50 focus:outline-none focus:ring-2 focus:ring-blue-500 sm:-mr-2 transition-colors"

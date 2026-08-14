@@ -1,12 +1,19 @@
-import React, { useMemo } from 'react';
+import React, { useMemo, useState, useEffect } from 'react';
 import { useTimeTracker } from '../context/TimeTrackerContext';
 import { startOfWeek, endOfWeek, parseISO, differenceInSeconds } from 'date-fns';
 import { Target, TrendingUp } from 'lucide-react';
 
 export const WeeklySummary: React.FC = () => {
   const { entries, settings } = useTimeTracker();
+  const [tick, setTick] = useState(0);
+
+  useEffect(() => {
+    const interval = setInterval(() => setTick(t => t + 1), 60000);
+    return () => clearInterval(interval);
+  }, []);
 
   const weeklyData = useMemo(() => {
+    // using tick as dependency to recompute since we depend on new Date()
     const now = new Date();
     // Assuming week starts on Monday
     const start = startOfWeek(now, { weekStartsOn: 1 });
@@ -16,7 +23,7 @@ export const WeeklySummary: React.FC = () => {
 
     entries.forEach(entry => {
       const entryStart = parseISO(entry.startTime);
-      const entryEnd = entry.endTime ? parseISO(entry.endTime) : new Date();
+      const entryEnd = entry.endTime ? parseISO(entry.endTime) : now;
 
       if (entryEnd >= start && entryStart <= end) {
         let actualStart = entryStart < start ? start : entryStart;
@@ -25,7 +32,7 @@ export const WeeklySummary: React.FC = () => {
         let pauseSec = 0;
         entry.pausedSegments.forEach(seg => {
             const ps = parseISO(seg.pauseStart);
-            const pe = seg.pauseEnd ? parseISO(seg.pauseEnd) : new Date();
+            const pe = seg.pauseEnd ? parseISO(seg.pauseEnd) : now;
 
             if (pe >= start && ps <= end) {
                 const adjPs = ps < start ? start : ps;
@@ -40,7 +47,8 @@ export const WeeklySummary: React.FC = () => {
 
     const hours = totalSeconds / 3600;
     return hours;
-  }, [entries]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [entries, tick]);
 
   const targetHours = settings?.weeklyTargetHours;
 

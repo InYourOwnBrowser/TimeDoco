@@ -146,6 +146,58 @@ export const TimeTrackerProvider: React.FC<{ children: ReactNode }> = ({ childre
     refreshData();
   }, [refreshData]);
 
+  useEffect(() => {
+    const autoPurgeTrash = async () => {
+      const now = Date.now();
+      const THIRTY_DAYS_MS = 30 * 24 * 60 * 60 * 1000;
+
+      const loadedGroups = await db.getGroups();
+      const loadedTimecodes = await db.getTimecodes();
+      const loadedEntries = await db.getEntries();
+
+      let purged = false;
+
+      // Identify items deleted > 30 days ago
+      const groupsToDelete = loadedGroups.filter(g => g.deletedAt && now - new Date(g.deletedAt).getTime() > THIRTY_DAYS_MS);
+      const timecodesToDelete = loadedTimecodes.filter(t => t.deletedAt && now - new Date(t.deletedAt).getTime() > THIRTY_DAYS_MS);
+      const entriesToDelete = loadedEntries.filter(e => e.deletedAt && now - new Date(e.deletedAt).getTime() > THIRTY_DAYS_MS);
+
+      // We perform the deletion safely like emptyTrash does
+      for (const group of groupsToDelete) {
+        const timecodesToUpdate = [...loadedTimecodes].filter((tc) => tc.groupId === group.id);
+        for (const tc of timecodesToUpdate) {
+          await db.putTimecode({ ...tc, groupId: null });
+        }
+        await db.deleteGroup(group.id);
+        purged = true;
+      }
+
+      for (const tc of timecodesToDelete) {
+        const relatedEntries = [...loadedEntries].filter((e) => e.timecodeId === tc.id);
+        for (const e of relatedEntries) {
+          await db.deleteEntry(e.id);
+        }
+        await db.deleteTimecode(tc.id);
+        purged = true;
+      }
+
+      for (const entry of entriesToDelete) {
+        // Need to check if it wasn't already deleted during timecode deletion
+        const exists = await db.getEntry(entry.id);
+        if (exists) {
+          await db.deleteEntry(entry.id);
+          purged = true;
+        }
+      }
+
+      if (purged) {
+        await refreshData();
+      }
+    };
+
+    autoPurgeTrash().catch(console.error);
+  }, [refreshData]);
+
   const startTimer = async (timecodeId: string) => {
     if (isStartingTimerRef.current) return;
     isStartingTimerRef.current = true;

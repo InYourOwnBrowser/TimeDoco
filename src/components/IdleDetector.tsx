@@ -7,41 +7,16 @@ export const IdleDetector: React.FC = () => {
   const [showPrompt, setShowPrompt] = useState(false);
   const idleTimerRef = useRef<number | null>(null);
 
-  // Restart the idle timer when there is activity
-  const resetIdleTimer = useCallback(() => {
-    if (idleTimerRef.current !== null) {
-      window.clearTimeout(idleTimerRef.current);
-    }
+  const lastActivityTimeRef = useRef<number>(Date.now());
 
-    // Only detect idle if there are running, unpaused entries and the threshold is set
-    const hasRunningTimers = activeEntries.some(entry => !entry.isPaused);
-    const thresholdMinutes = settings?.idleThresholdMinutes;
+  // Record activity
+  const handleActivity = useCallback(() => {
+    lastActivityTimeRef.current = Date.now();
+  }, []);
 
-    if (hasRunningTimers && thresholdMinutes && thresholdMinutes > 0) {
-      idleTimerRef.current = window.setTimeout(() => {
-        setShowPrompt(true);
-      }, thresholdMinutes * 60 * 1000);
-    }
-  }, [activeEntries, settings?.idleThresholdMinutes]);
-
-  // Activity events that reset the timer
+  // Activity events that record last activity
   useEffect(() => {
-    // Only bind events if we have running entries to track for idleness
-    const hasRunningTimers = activeEntries.some(entry => !entry.isPaused);
-    if (!hasRunningTimers || showPrompt) {
-      if (idleTimerRef.current !== null) {
-        window.clearTimeout(idleTimerRef.current);
-      }
-      return;
-    }
-
-    resetIdleTimer();
-
     const activityEvents = ['mousemove', 'keydown', 'wheel', 'mousedown', 'touchstart'];
-    const handleActivity = () => {
-      // Throttle slightly so we aren't clearing timeouts a hundred times a second on mousemove
-      resetIdleTimer();
-    };
 
     // Use a wrapper to throttle
     let lastCall = 0;
@@ -61,15 +36,42 @@ export const IdleDetector: React.FC = () => {
       activityEvents.forEach((event) => {
         window.removeEventListener(event, throttledHandler);
       });
+    };
+  }, [handleActivity]);
+
+  useEffect(() => {
+    const hasRunningTimers = activeEntries.some(entry => !entry.isPaused);
+    const thresholdMinutes = settings?.idleThresholdMinutes;
+
+    if (!hasRunningTimers || showPrompt || !thresholdMinutes || thresholdMinutes <= 0) {
       if (idleTimerRef.current !== null) {
-        window.clearTimeout(idleTimerRef.current);
+        window.clearInterval(idleTimerRef.current);
+        idleTimerRef.current = null;
+      }
+      return;
+    }
+
+    if (idleTimerRef.current === null) {
+      idleTimerRef.current = window.setInterval(() => {
+        const now = Date.now();
+        const idleMs = now - lastActivityTimeRef.current;
+        if (idleMs >= thresholdMinutes * 60 * 1000) {
+          setShowPrompt(true);
+        }
+      }, 5000);
+    }
+
+    return () => {
+      if (idleTimerRef.current !== null) {
+        window.clearInterval(idleTimerRef.current);
+        idleTimerRef.current = null;
       }
     };
-  }, [activeEntries, settings?.idleThresholdMinutes, showPrompt, resetIdleTimer]);
+  }, [activeEntries, settings?.idleThresholdMinutes, showPrompt]);
 
   const handleKeepRunning = () => {
     setShowPrompt(false);
-    resetIdleTimer();
+    handleActivity();
   };
 
   const handleStopWorking = async () => {
