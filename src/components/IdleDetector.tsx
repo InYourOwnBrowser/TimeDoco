@@ -77,9 +77,7 @@ export const IdleDetector: React.FC = () => {
   const handleStopWorking = async () => {
     setShowPrompt(false);
 
-    const thresholdMinutes = settings?.idleThresholdMinutes || 15;
-    const now = new Date();
-    const idleStartTime = new Date(now.getTime() - thresholdMinutes * 60000);
+    const idleStartTime = new Date(lastActivityTimeRef.current);
 
     for (const entry of activeEntries) {
       if (!entry.isPaused) {

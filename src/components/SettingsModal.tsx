@@ -365,6 +365,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ onClose }) => {
                     type="file"
                     accept=".json"
                     ref={fileInputRef}
+                    onChange={() => setImportPreview(null)}
                     className="block w-full text-sm text-gray-500 dark:text-gray-400 file:mr-4 file:py-2 file:px-4 file:rounded file:border-0 file:text-sm file:font-semibold file:bg-blue-50 dark:file:bg-blue-900/30 file:text-blue-700 dark:file:text-blue-400 hover:file:bg-blue-100 dark:hover:file:bg-blue-900/50 border border-gray-300 dark:border-gray-600 rounded cursor-pointer"
                   />
                 </div>
