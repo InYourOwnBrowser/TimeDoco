@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useState, useEffect, useCallback, type ReactNode } from 'react';
+import React, { createContext, useContext, useState, useEffect, useCallback, useRef, type ReactNode } from 'react';
 import type { Group, Timecode, Entry, Settings } from '../types';
 import * as db from '../db';
 import { differenceInSeconds } from 'date-fns';
@@ -27,6 +27,7 @@ interface TimeTrackerContextType {
   deleteEntry: (id: string) => Promise<void>;
   splitEntry: (entryId: string, splitTime: string, newTimecodeId?: string) => Promise<void>;
   addManualEntry: (entryData: { startTime: string, endTime: string, timecodeId: string, note: string }) => Promise<void>;
+  bulkAddManualEntries: (entriesData: { startTime: string, endTime: string, timecodeId: string, note: string }[]) => Promise<void>;
   forgotToStopEntry: Entry | null;
   dismissForgotToStop: () => void;
   settings: Settings | null;
@@ -88,6 +89,8 @@ export const TimeTrackerProvider: React.FC<{ children: ReactNode }> = ({ childre
     await refreshData();
   };
 
+  const isStartingTimerRef = useRef(false);
+
   const refreshData = useCallback(async () => {
     const loadedGroups = await db.getGroups();
     const loadedTimecodes = await db.getTimecodes();
@@ -144,41 +147,47 @@ export const TimeTrackerProvider: React.FC<{ children: ReactNode }> = ({ childre
   }, [refreshData]);
 
   const startTimer = async (timecodeId: string) => {
-    const isConcurrentAllowed = settings?.allowConcurrentTimers ?? false;
-    const currentActive = await db.getActiveEntries();
+    if (isStartingTimerRef.current) return;
+    isStartingTimerRef.current = true;
+    try {
+      const isConcurrentAllowed = settings?.allowConcurrentTimers ?? false;
+      const currentActive = await db.getActiveEntries();
 
-    if (!isConcurrentAllowed) {
-      // Stop all running timers
-      for (const entry of currentActive) {
-        await stopTimerById(entry.id);
-      }
-    } else {
-      // Stop timer for the exact same timecode if it exists to prevent duplicates
-      for (const entry of currentActive) {
-        if (entry.timecodeId === timecodeId) {
+      if (!isConcurrentAllowed) {
+        // Stop all running timers
+        for (const entry of currentActive) {
           await stopTimerById(entry.id);
         }
+      } else {
+        // Stop timer for the exact same timecode if it exists to prevent duplicates
+        for (const entry of currentActive) {
+          if (entry.timecodeId === timecodeId) {
+            await stopTimerById(entry.id);
+          }
+        }
       }
-    }
 
-    const now = new Date().toISOString();
-    const newEntry: Entry = {
-      id: crypto.randomUUID(),
-      timecodeId,
-      startTime: now,
-      endTime: null,
-      duration: 0,
-      note: '',
-      isRunning: true,
-      isPaused: false,
-      pausedSegments: [],
-      editHistory: [],
-      createdAt: now,
-      updatedAt: now,
-    };
-    await db.putEntry(newEntry);
-    await refreshData();
-    addToast('Timer started', 'success');
+      const now = new Date().toISOString();
+      const newEntry: Entry = {
+        id: crypto.randomUUID(),
+        timecodeId,
+        startTime: now,
+        endTime: null,
+        duration: 0,
+        note: '',
+        isRunning: true,
+        isPaused: false,
+        pausedSegments: [],
+        editHistory: [],
+        createdAt: now,
+        updatedAt: now,
+      };
+      await db.putEntry(newEntry);
+      await refreshData();
+      addToast('Timer started', 'success');
+    } finally {
+      isStartingTimerRef.current = false;
+    }
   };
 
   const stopTimerById = async (entryId: string) => {
@@ -473,6 +482,31 @@ export const TimeTrackerProvider: React.FC<{ children: ReactNode }> = ({ childre
     await refreshData();
   };
 
+  const bulkAddManualEntries = async (entriesData: { startTime: string, endTime: string, timecodeId: string, note: string }[]) => {
+    const now = new Date().toISOString();
+    const promises = entriesData.map(entryData => {
+      const duration = differenceInSeconds(new Date(entryData.endTime), new Date(entryData.startTime));
+      const newEntry: Entry = {
+        id: crypto.randomUUID(),
+        timecodeId: entryData.timecodeId,
+        startTime: entryData.startTime,
+        endTime: entryData.endTime,
+        duration: duration > 0 ? duration : 0,
+        note: entryData.note,
+        isRunning: false,
+        isPaused: false,
+        pausedSegments: [],
+        editHistory: [],
+        createdAt: now,
+        updatedAt: now,
+      };
+      return db.putEntry(newEntry);
+    });
+
+    await Promise.all(promises);
+    await refreshData();
+  };
+
 
   const mergeTimecodes = async (sourceId: string, destId: string) => {
     // 1. Update all entries referencing sourceId to point to destId
@@ -531,8 +565,11 @@ export const TimeTrackerProvider: React.FC<{ children: ReactNode }> = ({ childre
     if (tc) {
       addToast('Timecode deleted', 'success', {
         label: 'Undo',
-        onClick: () => {
-           restoreTimecode(id);
+        onClick: async () => {
+           await restoreTimecode(id);
+           for (const entry of entriesToDelete) {
+             await restoreEntry(entry.id);
+           }
            if (originalTemplates.length > 0) {
              db.getSettings().then(s => {
                if (s) {
@@ -814,6 +851,7 @@ export const TimeTrackerProvider: React.FC<{ children: ReactNode }> = ({ childre
       deleteEntry,
       splitEntry,
       addManualEntry,
+      bulkAddManualEntries,
       forgotToStopEntry,
       dismissForgotToStop,
       settings,

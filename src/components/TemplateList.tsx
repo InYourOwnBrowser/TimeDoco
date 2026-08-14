@@ -6,9 +6,10 @@ import { Modal } from './ui/Modal';
 import { TimecodeSelector } from './TimecodeSelector';
 import type { EntryTemplate } from '../types';
 import { subMinutes } from 'date-fns';
+import { checkOverlap } from '../utils/timeUtils';
 
 export const TemplateList: React.FC = () => {
-  const { settings, updateSettings, addManualEntry, timecodes, groups } = useTimeTracker();
+  const { settings, updateSettings, addManualEntry, timecodes, groups, entries } = useTimeTracker();
   const { addToast } = useToast();
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingTemplate, setEditingTemplate] = useState<EntryTemplate | null>(null);
@@ -20,6 +21,8 @@ export const TemplateList: React.FC = () => {
   const [note, setNote] = useState('');
 
   const templates = settings?.templates || [];
+
+  const isDirty = title !== '' || note !== '' || durationMinutes !== 15;
 
   const handleOpenModal = (template?: EntryTemplate) => {
     if (template) {
@@ -88,6 +91,13 @@ export const TemplateList: React.FC = () => {
   const handleLogTemplate = async (template: EntryTemplate) => {
     const end = new Date();
     const start = subMinutes(end, template.durationMinutes);
+
+    const overlapping = checkOverlap(start, end, entries, undefined, template.timecodeId, settings?.allowConcurrentTimers);
+    if (overlapping) {
+      if (!window.confirm('Warning: This entry overlaps with an existing time entry. Save anyway?')) {
+        return;
+      }
+    }
 
     await addManualEntry({
       timecodeId: template.timecodeId,
@@ -160,6 +170,7 @@ export const TemplateList: React.FC = () => {
       {isModalOpen && (
       <Modal
         onClose={handleCloseModal}
+        isDirty={isDirty}
       >
         <div className="bg-white dark:bg-gray-800 rounded-lg shadow-xl w-full max-w-md mx-4 max-h-[90vh] flex flex-col pointer-events-auto">
           <div className="flex justify-between items-center p-4 border-b dark:border-gray-700">

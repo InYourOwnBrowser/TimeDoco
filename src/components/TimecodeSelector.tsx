@@ -45,15 +45,18 @@ export const TimecodeSelector: React.FC<TimecodeSelectorProps> = ({ onSelect, se
 
   const groupedTimecodes = useMemo(() => {
     const grouped = new Map<string | null, typeof timecodes>();
-    filteredTimecodes.forEach(t => {
-      const gId = t.groupId || null;
-      if (!grouped.has(gId)) {
-        grouped.set(gId, []);
-      }
-      grouped.get(gId)!.push(t);
-    });
+    const recentIds = new Set(recentTimecodes.map(t => t.id));
+    filteredTimecodes
+      .filter(t => !recentIds.has(t.id))
+      .forEach(t => {
+        const gId = t.groupId || null;
+        if (!grouped.has(gId)) {
+          grouped.set(gId, []);
+        }
+        grouped.get(gId)!.push(t);
+      });
     return grouped;
-  }, [filteredTimecodes]);
+  }, [filteredTimecodes, recentTimecodes]);
 
 
   const flattenedOptions = useMemo(() => {

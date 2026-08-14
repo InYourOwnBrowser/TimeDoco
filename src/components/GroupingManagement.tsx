@@ -68,16 +68,30 @@ export const GroupingManagement: React.FC = () => {
   };
 
   const handleCreateGroup = async () => {
-    if (!newGroupName.trim()) return;
-    await addGroup(newGroupName, newGroupColor);
+    const trimmedName = newGroupName.trim();
+    if (!trimmedName) return;
+
+    if (groups.some(g => g.name.toLowerCase() === trimmedName.toLowerCase())) {
+      alert('A group with this name already exists.');
+      return;
+    }
+
+    await addGroup(trimmedName, newGroupColor);
     setNewGroupName('');
   };
 
   const handleCreateTimecode = async () => {
-    if (!newTimecodeName.trim()) return;
+    const trimmedName = newTimecodeName.trim();
+    if (!trimmedName) return;
+
+    if (timecodes.some(t => t.name.toLowerCase() === trimmedName.toLowerCase() && (t.groupId || '') === (newTimecodeGroupId || ''))) {
+      alert('A timecode with this name already exists in the selected group.');
+      return;
+    }
+
     const parsedRate = parseFloat(newTimecodeRate);
     await addTimecode(
-      newTimecodeName,
+      trimmedName,
       newTimecodeColor,
       newTimecodeGroupId || undefined,
       isNaN(parsedRate) ? undefined : parsedRate
