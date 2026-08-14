@@ -45,6 +45,7 @@ clearLastStoppedEntry: () => void;
   hardDeleteGroup: (id: string) => Promise<void>;
   hardDeleteTimecode: (id: string) => Promise<void>;
   hardDeleteEntry: (id: string) => Promise<void>;
+  emptyTrash: () => Promise<void>;
 }
 
 const TimeTrackerContext = createContext<TimeTrackerContextType | undefined>(undefined);
@@ -294,6 +295,31 @@ export const TimeTrackerProvider: React.FC<{ children: ReactNode }> = ({ childre
     const group = await db.getGroup(id);
     if (group) {
       await db.putGroup({ ...group, deletedAt: new Date().toISOString() });
+    }
+    await refreshData();
+  };
+
+  const emptyTrash = async () => {
+    // Delete all soft-deleted groups, timecodes, and entries permanently
+    // Order matters to avoid re-inserting timecodes during group cascade
+    for (const group of deletedGroups) {
+      // Cascading: set groupId to null for all timecodes in this group
+      const timecodesToUpdate = [...timecodes, ...deletedTimecodes].filter((tc) => tc.groupId === group.id);
+      for (const tc of timecodesToUpdate) {
+        await db.putTimecode({ ...tc, groupId: null });
+      }
+      await db.deleteGroup(group.id);
+    }
+    for (const tc of deletedTimecodes) {
+      // Hard deleting a timecode also requires hard deleting its associated entries
+      const entriesToDelete = [...entries, ...deletedEntries].filter((e) => e.timecodeId === tc.id);
+      for (const e of entriesToDelete) {
+        await db.deleteEntry(e.id);
+      }
+      await db.deleteTimecode(tc.id);
+    }
+    for (const entry of deletedEntries) {
+      await db.deleteEntry(entry.id);
     }
     await refreshData();
   };
@@ -737,6 +763,7 @@ export const TimeTrackerProvider: React.FC<{ children: ReactNode }> = ({ childre
       hardDeleteGroup,
       hardDeleteTimecode,
       hardDeleteEntry,
+      emptyTrash,
     }}>
       {children}
     </TimeTrackerContext.Provider>

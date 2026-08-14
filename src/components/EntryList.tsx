@@ -192,12 +192,10 @@ export const EntryList: React.FC = () => {
                             </button>
                             <button
                               onClick={() => {
-                                if (window.confirm('Are you sure you want to delete this entry?')) {
-                                  deleteEntry(entry.id);
-                                }
+                                deleteEntry(entry.id);
                               }}
                               className="text-gray-400 dark:text-gray-500 hover:text-red-600 dark:hover:text-red-400 focus:outline-none transition-colors"
-                              title="Delete Entry"
+                              title="Delete Entry (Move to Trash)"
                             >
                               <Trash2 className="h-5 w-5" />
                             </button>

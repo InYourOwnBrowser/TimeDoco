@@ -146,12 +146,10 @@ export const GroupingManagement: React.FC = () => {
                     </button>
                     <button
                       onClick={() => {
-                        if (window.confirm('Are you sure you want to delete this group? This action cannot be undone.')) {
-                          deleteGroup(group.id);
-                        }
+                        deleteGroup(group.id);
                       }}
                       className="p-1.5 text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/30 rounded transition-colors"
-                      title="Delete Group"
+                      title="Delete Group (Move to Trash)"
                     >
                       <Trash2 size={16} />
                     </button>
@@ -312,17 +310,15 @@ export const GroupingManagement: React.FC = () => {
                         onClick={() => {
                           const associatedEntriesCount = entries.filter(e => e.timecodeId === tc.id).length;
                           if (associatedEntriesCount > 0) {
-                            if (window.confirm(`Are you sure you want to delete this timecode? WARNING: This will also permanently delete ${associatedEntriesCount} associated time entries! We recommend Archiving instead. Continue anyway?`)) {
+                            if (window.confirm(`Are you sure you want to delete this timecode? WARNING: This will also move ${associatedEntriesCount} associated time entries to the Trash! We recommend Archiving instead. Continue anyway?`)) {
                               deleteTimecode(tc.id);
                             }
                           } else {
-                            if (window.confirm('Are you sure you want to delete this timecode? This action cannot be undone.')) {
-                              deleteTimecode(tc.id);
-                            }
+                            deleteTimecode(tc.id);
                           }
                         }}
                         className="p-1.5 text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/30 rounded transition-colors"
-                        title="Delete Timecode"
+                        title="Delete Timecode (Move to Trash)"
                       >
                         <Trash2 size={16} />
                       </button>

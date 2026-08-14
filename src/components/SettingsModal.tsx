@@ -9,7 +9,7 @@ interface SettingsModalProps {
 }
 
 export const SettingsModal: React.FC<SettingsModalProps> = ({ onClose }) => {
-  const { exportData, importData, settings, updateSettings, addManualEntry, addTimecode, timecodes, deletedEntries, restoreEntry, hardDeleteEntry, deletedTimecodes, restoreTimecode, hardDeleteTimecode, deletedGroups, restoreGroup, hardDeleteGroup } = useTimeTracker();
+  const { exportData, importData, settings, updateSettings, addManualEntry, addTimecode, timecodes, deletedEntries, restoreEntry, hardDeleteEntry, deletedTimecodes, restoreTimecode, hardDeleteTimecode, deletedGroups, restoreGroup, hardDeleteGroup, emptyTrash } = useTimeTracker();
   const fileInputRef = useRef<HTMLInputElement>(null);
   const csvInputRef = useRef<HTMLInputElement>(null);
 
@@ -420,7 +420,23 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ onClose }) => {
           )}
           {activeTab === 'trash' && (
             <div className="space-y-4">
-              <h3 className="text-md font-semibold text-gray-800 dark:text-gray-200 border-b dark:border-gray-700 pb-1">Recently Deleted</h3>
+              <div className="flex justify-between items-center border-b dark:border-gray-700 pb-1">
+                <h3 className="text-md font-semibold text-gray-800 dark:text-gray-200">Recently Deleted</h3>
+                {(deletedEntries.length > 0 || deletedTimecodes.length > 0 || deletedGroups.length > 0) && (
+                  <button
+                    onClick={async () => {
+                      if (window.confirm('Are you sure you want to permanently empty all items in the trash? This action cannot be undone.')) {
+                        await emptyTrash();
+                        setStatusMsg({ type: 'success', text: 'Trash emptied successfully.' });
+                      }
+                    }}
+                    className="text-xs font-medium text-red-600 hover:text-red-800 dark:text-red-400 dark:hover:text-red-300 transition-colors"
+                  >
+                    Empty Trash
+                  </button>
+                )}
+              </div>
+
               {deletedEntries.length === 0 && deletedTimecodes.length === 0 && deletedGroups.length === 0 ? (
                 <p className="text-sm text-gray-500">Trash is empty.</p>
               ) : (
