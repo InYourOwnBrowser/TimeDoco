@@ -576,7 +576,8 @@ export const TimeTrackerProvider: React.FC<{ children: ReactNode }> = ({ childre
 
   const addManualEntry = async (entryData: { startTime: string, endTime: string, timecodeId: string, note: string, tags?: string[] }) => {
     const now = new Date().toISOString();
-    const duration = differenceInSeconds(new Date(entryData.endTime), new Date(entryData.startTime));
+    const durationMs = new Date(entryData.endTime).getTime() - new Date(entryData.startTime).getTime();
+    const duration = Math.max(0, Math.floor(durationMs / 1000));
 
     const newEntry: Entry = {
       id: crypto.randomUUID(),
@@ -601,7 +602,8 @@ export const TimeTrackerProvider: React.FC<{ children: ReactNode }> = ({ childre
   const bulkAddManualEntries = async (entriesData: { startTime: string, endTime: string, timecodeId: string, note: string, tags?: string[] }[]) => {
     const now = new Date().toISOString();
     const promises = entriesData.map(entryData => {
-      const duration = differenceInSeconds(new Date(entryData.endTime), new Date(entryData.startTime));
+      const durationMs = new Date(entryData.endTime).getTime() - new Date(entryData.startTime).getTime();
+      const duration = Math.max(0, Math.floor(durationMs / 1000));
       const newEntry: Entry = {
         id: crypto.randomUUID(),
         timecodeId: entryData.timecodeId,
