@@ -1,4 +1,3 @@
-import { differenceInSeconds } from 'date-fns';
 import type { Entry, PauseSegment } from '../types';
 
 export const checkOverlap = (start: Date, end: Date, entries: Entry[], excludeId?: string, timecodeId?: string, allowConcurrentTimers?: boolean): boolean => {

@@ -1,6 +1,6 @@
 import React, { useMemo, useState, useEffect } from 'react';
 import { useTimeTracker } from '../context/TimeTrackerContext';
-import { startOfWeek, endOfWeek, parseISO, differenceInSeconds } from 'date-fns';
+import { startOfWeek, endOfWeek, parseISO } from 'date-fns';
 import { Target, TrendingUp } from 'lucide-react';
 
 export const WeeklySummary: React.FC = () => {
