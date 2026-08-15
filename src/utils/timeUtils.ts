@@ -26,21 +26,21 @@ export const applyRounding = (seconds: number, roundingRule: 'none' | '5min' | '
 };
 
 export const calculateDuration = (start: Date, end: Date, pausedSegments: PauseSegment[]): number => {
-  let totalPauseSeconds = 0;
+  let totalPauseMs = 0;
   pausedSegments.forEach(segment => {
     const segmentStart = new Date(segment.pauseStart);
     const segmentEnd = segment.pauseEnd ? new Date(segment.pauseEnd) : end;
 
-    const pStart = new Date(Math.max(segmentStart.getTime(), start.getTime()));
-    const pEnd = new Date(Math.min(segmentEnd.getTime(), end.getTime()));
+    const pStartMs = Math.max(segmentStart.getTime(), start.getTime());
+    const pEndMs = Math.min(segmentEnd.getTime(), end.getTime());
 
-    if (pEnd > pStart) {
-      totalPauseSeconds += differenceInSeconds(pEnd, pStart);
+    if (pEndMs > pStartMs) {
+      totalPauseMs += (pEndMs - pStartMs);
     }
   });
 
-  let duration = differenceInSeconds(end, start) - totalPauseSeconds;
-  return Math.max(0, duration);
+  const durationMs = end.getTime() - start.getTime() - totalPauseMs;
+  return Math.max(0, Math.floor(durationMs / 1000));
 };
 
 export const getElapsedTimeMs = (startTime: string, pausedSegments: PauseSegment[], endTimeOverride?: string): number => {

@@ -414,8 +414,8 @@ export const AnalysisView: React.FC = () => {
                 const dayStart = dateRange.start;
                 const totalDaySeconds = 86400;
 
-                const startSeconds = Math.max(0, differenceInSeconds(entryStart, dayStart));
-                const endSeconds = Math.min(totalDaySeconds, differenceInSeconds(entryEnd, dayStart));
+                const startSeconds = Math.max(0, (entryStart.getTime() - dayStart.getTime()) / 1000);
+                const endSeconds = Math.min(totalDaySeconds, (entryEnd.getTime() - dayStart.getTime()) / 1000);
 
                 if (startSeconds >= totalDaySeconds || endSeconds <= 0) return null;
 

@@ -29,7 +29,7 @@ export const WeeklySummary: React.FC = () => {
         let actualStart = entryStart < start ? start : entryStart;
         let actualEnd = entryEnd > end ? end : entryEnd;
 
-        let pauseSec = 0;
+        let pauseMs = 0;
         entry.pausedSegments.forEach(seg => {
             const ps = parseISO(seg.pauseStart);
             const pe = seg.pauseEnd ? parseISO(seg.pauseEnd) : now;
@@ -37,11 +37,12 @@ export const WeeklySummary: React.FC = () => {
             if (pe >= start && ps <= end) {
                 const adjPs = ps < start ? start : ps;
                 const adjPe = pe > end ? end : pe;
-                pauseSec += differenceInSeconds(adjPe, adjPs);
+                pauseMs += (adjPe.getTime() - adjPs.getTime());
             }
         });
 
-        totalSeconds += Math.max(0, differenceInSeconds(actualEnd, actualStart) - pauseSec);
+        const durationMs = actualEnd.getTime() - actualStart.getTime() - pauseMs;
+        totalSeconds += Math.max(0, Math.floor(durationMs / 1000));
       }
     });
 
