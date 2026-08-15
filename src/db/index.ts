@@ -46,6 +46,14 @@ const triggerFallbackMode = (error: any) => {
   }
 };
 
+export const closeDB = async () => {
+  if (dbPromise) {
+    const db = await dbPromise;
+    db.close();
+    dbPromise = null;
+  }
+};
+
 export const initDB = () => {
   if (!dbPromise) {
     dbPromise = openDB<TimeTrackerDB>(DB_NAME, DB_VERSION, {

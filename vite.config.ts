@@ -11,8 +11,8 @@ export default defineConfig({
       registerType: 'autoUpdate',
       includeAssets: ['favicon.svg'],
       manifest: {
-        name: 'Time Tracker',
-        short_name: 'Time Tracker',
+        name: 'TimeTag',
+        short_name: 'TimeTag',
         description: 'Privacy-first, 100% client-side Time Tracker App',
         scope: '/TimeTag/',
         start_url: '/TimeTag/',

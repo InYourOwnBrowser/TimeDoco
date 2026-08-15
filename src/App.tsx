@@ -39,7 +39,7 @@ const AppContent = () => {
   // Calculate elapsed time for document title
   useEffect(() => {
     if (activeEntries.length === 0) {
-      document.title = 'Time Tracker';
+      document.title = 'TimeTag';
       return;
     }
 
@@ -59,7 +59,7 @@ const AppContent = () => {
         }
         document.title = `${prefix} ${timeStr} - ${activeTimecode.name}`;
       } else {
-         document.title = 'Time Tracker';
+         document.title = 'TimeTag';
       }
     };
 
@@ -165,7 +165,7 @@ const AppContent = () => {
         </div>
 
         <header className="mb-8 text-center">
-          <h1 className="text-3xl font-bold text-gray-900 dark:text-white mb-2 tracking-tight">Time Tracker</h1>
+          <h1 className="text-3xl font-bold text-gray-900 dark:text-white mb-2 tracking-tight">TimeTag</h1>
           <p className="text-gray-500 dark:text-gray-400 mb-6">100% Client-Side. Privacy First.</p>
 
           <div className="flex justify-center mb-4">
