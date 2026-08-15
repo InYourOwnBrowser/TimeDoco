@@ -230,7 +230,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ onClose }) => {
         <div className="p-6 overflow-y-auto flex-1">
           {statusMsg && (
             <div className={`mb-6 p-3 rounded-md flex items-start gap-2 ${
-              statusMsg.type === 'error' ? 'bg-red-50 text-red-700 border border-red-100' : 'bg-green-50 text-green-700 border border-green-100'
+              statusMsg.type === 'error' ? 'bg-red-50 dark:bg-red-900/30 text-red-700 dark:text-red-400 border border-red-100 dark:border-red-800/50' : 'bg-green-50 dark:bg-green-900/30 text-green-700 dark:text-green-400 border border-green-100 dark:border-green-800/50'
             }`}>
               {statusMsg.type === 'error' ? <AlertTriangle size={18} className="mt-0.5 shrink-0" /> : <CheckCircle2 size={18} className="mt-0.5 shrink-0" />}
               <span className="text-sm font-medium">{statusMsg.text}</span>

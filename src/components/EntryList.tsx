@@ -168,12 +168,12 @@ export const EntryList: React.FC = () => {
                           {getTimecodeName(entry.timecodeId)}
                         </span>
                         {entry.isRunning && (
-                          <span className="ml-2 inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800">
+                          <span className="ml-2 inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-green-100 dark:bg-green-900/30 text-green-800 dark:text-green-400">
                             Running
                           </span>
                         )}
                         {entry.isPaused && (
-                          <span className="ml-2 inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-yellow-100 text-yellow-800">
+                          <span className="ml-2 inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-yellow-100 dark:bg-yellow-900/30 text-yellow-800 dark:text-yellow-400">
                             Paused
                           </span>
                         )}
@@ -232,7 +232,9 @@ export const EntryList: React.FC = () => {
                         </button>
                         <button
                           onClick={() => {
-                            deleteEntry(entry.id);
+                            if (window.confirm('Delete this entry? This can be undone from the toast or Trash.')) {
+                              deleteEntry(entry.id);
+                            }
                           }}
                           className="text-gray-400 dark:text-gray-500 hover:text-red-600 dark:hover:text-red-400 focus:outline-none transition-colors"
                           title="Delete Entry (Move to Trash)"

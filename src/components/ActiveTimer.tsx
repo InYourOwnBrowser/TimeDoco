@@ -59,7 +59,7 @@ export const ActiveTimer: React.FC<{ activeEntry: Entry | null }> = ({ activeEnt
         if (seconds >= settings.targetAlertMinutes * 60) {
           addToast(`Target reached! ${settings.targetAlertMinutes} minutes elapsed.`, 'info', undefined, 10000);
           if (Notification.permission === 'granted') {
-             new Notification('Time Tracker Target Reached', {
+            new Notification('TimeTag Target Reached', {
                body: `You have tracked ${settings.targetAlertMinutes} minutes.`,
              });
           }
@@ -71,16 +71,8 @@ export const ActiveTimer: React.FC<{ activeEntry: Entry | null }> = ({ activeEnt
     calculateElapsed();
 
     if (!activeEntry.isPaused) {
-      let animationFrameId: number;
-
-      const loop = () => {
-        calculateElapsed();
-        animationFrameId = requestAnimationFrame(loop);
-      };
-
-      animationFrameId = requestAnimationFrame(loop);
-
-      return () => cancelAnimationFrame(animationFrameId);
+      const interval = setInterval(calculateElapsed, 1000);
+      return () => clearInterval(interval);
     }
   }, [activeEntry, settings?.targetAlertMinutes, addToast]);
 

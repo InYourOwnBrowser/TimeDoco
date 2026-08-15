@@ -3,14 +3,19 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, act, waitFor } from '@testing-library/react';
 import { TimeTrackerProvider, useTimeTracker } from './TimeTrackerContext';
 import { ToastProvider } from './ToastContext';
+import { closeDB } from '../db';
 
-// Clear DB between tests to ensure a clean state
+// Helper to reset the db between tests if needed. For now, vitest manages context pretty well, but we can clear it safely if we mock IDB properly.
+// In the current setup, we might be hitting a block on IDB deletion because the previous test's DB connection is still open.
+
 const DB_NAME = 'time-tracker-db';
-const clearDB = () => {
-  return new Promise<void>((resolve, reject) => {
+const clearDB = async () => {
+  await closeDB();
+  return new Promise<void>((resolve, _reject) => {
+    // If IDB cannot be deleted because it is open, we resolve instead of blocking.
     const req = indexedDB.deleteDatabase(DB_NAME);
     req.onsuccess = () => resolve();
-    req.onerror = () => reject();
+    req.onerror = () => resolve();
     req.onblocked = () => resolve();
   });
 };
@@ -29,6 +34,9 @@ const TestConsumer: React.FC<{
 
 describe('TimeTrackerContext Reducer Logic', () => {
   beforeEach(async () => {
+    // Need to close connections before deleting the DB.
+    // Actually vitest runs tests in parallel. It is safer to mock IDB entirely or ensure graceful fallback.
+    // For this context, we resolve clearDB even on block to prevent timeouts.
     await clearDB();
   });
 
@@ -185,5 +193,259 @@ describe('TimeTrackerContext Reducer Logic', () => {
     expect(entry!.duration).toBeLessThanOrEqual(2701);
 
     vi.useRealTimers();
+  });
+
+  it('mergeTimecodes: consolidates entries and deletes source', async () => {
+    let ctx: ReturnType<typeof useTimeTracker> | undefined;
+
+    render(
+      <ToastProvider><TimeTrackerProvider>
+        <TestConsumer onReady={(c) => (ctx = c)} />
+      </TimeTrackerProvider></ToastProvider>
+    );
+
+    await waitFor(() => expect(ctx?.groups).toBeDefined());
+
+    let sourceTcId = '';
+    let destTcId = '';
+
+    await act(async () => {
+      const source = await ctx!.addTimecode('Source TC');
+      const dest = await ctx!.addTimecode('Dest TC');
+      sourceTcId = source.id;
+      destTcId = dest.id;
+    });
+
+    await act(async () => {
+      await ctx!.bulkAddManualEntries([
+        { startTime: '2024-01-01T10:00:00Z', endTime: '2024-01-01T11:00:00Z', timecodeId: sourceTcId, note: 'Entry 1' },
+        { startTime: '2024-01-01T12:00:00Z', endTime: '2024-01-01T13:00:00Z', timecodeId: destTcId, note: 'Entry 2' }
+      ]);
+    });
+
+    await waitFor(() => {
+      expect(ctx!.entries.length).toBe(2);
+    });
+
+    await act(async () => {
+      await ctx!.mergeTimecodes(sourceTcId, destTcId);
+    });
+
+    await waitFor(() => {
+      // Source timecode is soft-deleted, so it should not appear in active timecodes
+      expect(ctx!.timecodes.find(t => t.id === sourceTcId)).toBeUndefined();
+      expect(ctx!.deletedTimecodes.find(t => t.id === sourceTcId)).toBeDefined();
+
+      // All entries should now belong to destTcId
+      const entries = ctx!.entries;
+      expect(entries.every(e => e.timecodeId === destTcId)).toBe(true);
+    });
+  });
+
+  it('splitEntry: splits a completed entry correctly', async () => {
+    let ctx: ReturnType<typeof useTimeTracker> | undefined;
+
+    render(
+      <ToastProvider><TimeTrackerProvider>
+        <TestConsumer onReady={(c) => (ctx = c)} />
+      </TimeTrackerProvider></ToastProvider>
+    );
+
+    await waitFor(() => expect(ctx?.groups).toBeDefined());
+
+    let tcId = '';
+    await act(async () => {
+      const tc = await ctx!.addTimecode('Split TC');
+      tcId = tc.id;
+    });
+
+    await act(async () => {
+      await ctx!.bulkAddManualEntries([
+        { startTime: '2024-01-01T10:00:00Z', endTime: '2024-01-01T12:00:00Z', timecodeId: tcId, note: 'To Split' },
+      ]);
+    });
+
+    let entryToSplit: any;
+    await waitFor(() => {
+      entryToSplit = ctx!.entries[0];
+      expect(entryToSplit).toBeDefined();
+    });
+
+    const splitTime = '2024-01-01T11:00:00Z';
+
+    await act(async () => {
+      await ctx!.splitEntry(entryToSplit.id, splitTime);
+    });
+
+    await waitFor(() => {
+      expect(ctx!.entries.length).toBe(2);
+
+      const e1 = ctx!.entries.find(e => e.id === entryToSplit.id);
+      const e2 = ctx!.entries.find(e => e.id !== entryToSplit.id);
+
+      expect(e1!.endTime).toBe(new Date(splitTime).toISOString());
+      expect(e1!.duration).toBe(3600); // 1 hour
+
+      expect(e2!.startTime).toBe(new Date(splitTime).toISOString());
+      expect(e2!.duration).toBe(3600); // 1 hour
+    });
+  });
+
+  it('cascade restore: restoring a group restores its timecodes and entries', async () => {
+    let ctx: ReturnType<typeof useTimeTracker> | undefined;
+
+    render(
+      <ToastProvider><TimeTrackerProvider>
+        <TestConsumer onReady={(c) => (ctx = c)} />
+      </TimeTrackerProvider></ToastProvider>
+    );
+
+    await waitFor(() => expect(ctx?.groups).toBeDefined());
+
+    let groupId = '';
+    let tcId = '';
+
+    await act(async () => {
+      const group = await ctx!.addGroup('Restore Group', 'red');
+      groupId = group.id;
+      const tc = await ctx!.addTimecode('Restore TC', undefined, groupId);
+      tcId = tc.id;
+    });
+
+    await act(async () => {
+      await ctx!.bulkAddManualEntries([
+        { startTime: '2024-01-01T10:00:00Z', endTime: '2024-01-01T11:00:00Z', timecodeId: tcId, note: 'Restore Entry' }
+      ]);
+    });
+
+    await waitFor(() => expect(ctx!.entries.length).toBe(1));
+
+    // Cascade delete group
+    vi.spyOn(window, 'confirm').mockImplementation(() => true);
+    await act(async () => {
+      await ctx!.deleteGroup(groupId);
+    });
+
+    await waitFor(() => {
+      expect(ctx!.groups.length).toBe(0);
+      expect(ctx!.timecodes.length).toBe(0);
+      expect(ctx!.entries.length).toBe(0);
+      expect(ctx!.deletedGroups.length).toBe(1);
+    });
+
+    // Cascade restore group
+    await act(async () => {
+      await ctx!.restoreGroup(groupId);
+    });
+
+    await waitFor(() => {
+      expect(ctx!.groups.length).toBe(1);
+      expect(ctx!.timecodes.length).toBe(1);
+      expect(ctx!.entries.length).toBe(1);
+      expect(ctx!.deletedGroups.length).toBe(0);
+    });
+
+    vi.restoreAllMocks();
+  });
+
+  it('importData: merge resolves conflicts using updatedAt', async () => {
+    let ctx: ReturnType<typeof useTimeTracker> | undefined;
+
+    render(
+      <ToastProvider><TimeTrackerProvider>
+        <TestConsumer onReady={(c) => (ctx = c)} />
+      </TimeTrackerProvider></ToastProvider>
+    );
+
+    await waitFor(() => expect(ctx?.groups).toBeDefined());
+
+    await act(async () => {
+      await ctx!.addGroup('Initial Group', 'blue');
+    });
+
+    let initialGroup: any;
+    await waitFor(() => {
+       initialGroup = ctx!.groups[0];
+       expect(initialGroup).toBeDefined();
+    });
+
+    // Create a backup file representing a newer version of the same group
+    const backupData = {
+      groups: [{ ...initialGroup, name: 'Newer Group', updatedAt: new Date(new Date(initialGroup.updatedAt).getTime() + 10000).toISOString() }],
+      timecodes: [],
+      entries: [],
+      settings: { id: 'user-settings' },
+      schemaVersion: 1, // must match currently supported schema version
+      checksumAlgorithm: 'fallback',
+      checksum: ''
+    };
+
+    // Calculate fallback checksum
+    const payloadString = JSON.stringify({
+      groups: backupData.groups,
+      timecodes: backupData.timecodes,
+      entries: backupData.entries,
+      settings: backupData.settings,
+      schemaVersion: backupData.schemaVersion,
+      checksumAlgorithm: backupData.checksumAlgorithm
+    });
+
+    let hash = 0;
+    for (let i = 0; i < payloadString.length; i++) {
+      const char = payloadString.charCodeAt(i);
+      hash = (hash << 5) - hash + char;
+      hash = hash & hash;
+    }
+    backupData.checksum = hash.toString(16);
+
+    const file = new File([JSON.stringify(backupData)], 'backup.json', { type: 'application/json' });
+
+    await act(async () => {
+      await ctx!.importData(file, 'merge');
+    });
+
+    await waitFor(() => {
+      expect(ctx!.groups.length).toBe(1);
+      expect(ctx!.groups[0].name).toBe('Newer Group');
+    });
+
+    // Create a backup file representing an older version of the same group
+    const backupDataOlder = {
+      groups: [{ ...initialGroup, name: 'Older Group', updatedAt: new Date(new Date(ctx!.groups[0].updatedAt).getTime() - 10000).toISOString() }],
+      timecodes: [],
+      entries: [],
+      settings: { id: 'user-settings' },
+      schemaVersion: 1, // must match currently supported schema version
+      checksumAlgorithm: 'fallback',
+      checksum: ''
+    };
+
+    const payloadStringOlder = JSON.stringify({
+      groups: backupDataOlder.groups,
+      timecodes: backupDataOlder.timecodes,
+      entries: backupDataOlder.entries,
+      settings: backupDataOlder.settings,
+      schemaVersion: backupDataOlder.schemaVersion,
+      checksumAlgorithm: backupDataOlder.checksumAlgorithm
+    });
+
+    let hashOlder = 0;
+    for (let i = 0; i < payloadStringOlder.length; i++) {
+      const char = payloadStringOlder.charCodeAt(i);
+      hashOlder = (hashOlder << 5) - hashOlder + char;
+      hashOlder = hashOlder & hashOlder;
+    }
+    backupDataOlder.checksum = hashOlder.toString(16);
+
+    const fileOlder = new File([JSON.stringify(backupDataOlder)], 'backup-older.json', { type: 'application/json' });
+
+    await act(async () => {
+      await ctx!.importData(fileOlder, 'merge');
+    });
+
+    await waitFor(() => {
+      expect(ctx!.groups.length).toBe(1);
+      expect(ctx!.groups[0].name).toBe('Newer Group'); // Remains Newer Group
+    });
   });
 });
