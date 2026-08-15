@@ -187,6 +187,28 @@ export const EntryEditModal: React.FC<EntryEditModalProps> = ({ entry, onClose }
           )}
         </div>
 
+        {entry.pausedSegments && entry.pausedSegments.length > 0 && (
+          <div className="p-4 border-t border-gray-200 dark:border-gray-700">
+            <h4 className="text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Pause History</h4>
+            <div className="space-y-2 max-h-32 overflow-y-auto">
+              {entry.pausedSegments.map((segment, idx) => (
+                <div key={idx} className="text-xs text-gray-600 dark:text-gray-400 bg-gray-50 dark:bg-gray-800 p-2 rounded flex justify-between">
+                  <span>
+                    <span className="font-semibold">Paused:</span> {format(parseISO(segment.pauseStart), 'MMM d, h:mm:ss a')}
+                  </span>
+                  <span>
+                    {segment.pauseEnd ? (
+                      <><span className="font-semibold">Resumed:</span> {format(parseISO(segment.pauseEnd), 'MMM d, h:mm:ss a')}</>
+                    ) : (
+                      <span className="font-semibold text-blue-600 dark:text-blue-400">Ongoing</span>
+                    )}
+                  </span>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+
         {entry.editHistory && entry.editHistory.length > 0 && (
           <div className="p-4 border-t border-gray-200 dark:border-gray-700">
             <h4 className="text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Edit History</h4>
