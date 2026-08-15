@@ -2,8 +2,9 @@ import React, { useState, useMemo, useEffect } from 'react';
 import { useTimeTracker } from '../context/TimeTrackerContext';
 import { startOfDay, endOfDay, startOfWeek, endOfWeek, startOfMonth, endOfMonth, startOfQuarter, endOfQuarter, subMonths, subQuarters, parseISO, format } from 'date-fns';
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, PieChart, Pie, Cell, Legend } from 'recharts';
-import { Download, Printer, AlertTriangle } from 'lucide-react';
+import { Download, Printer, AlertTriangle, Calendar } from 'lucide-react';
 import { applyRounding, calculateDuration } from '../utils/timeUtils';
+import { createEvents, type EventAttributes } from 'ics';
 
 type DatePreset = 'today' | 'week' | 'month' | 'lastMonth' | 'lastQuarter' | 'custom';
 
@@ -247,6 +248,56 @@ export const AnalysisView: React.FC = () => {
   };
 
   // Implements the raw/detailed entry-level CSV export feature requested in the audit report
+  const handleExportICS = () => {
+    const events: EventAttributes[] = filteredEntries.map(e => {
+      const tc = timecodes.find(t => t.id === e.timecodeId);
+      const start = parseISO(e.startTime);
+      const end = e.endTime ? parseISO(e.endTime) : new Date();
+
+      return {
+        start: [
+          start.getUTCFullYear(),
+          start.getUTCMonth() + 1,
+          start.getUTCDate(),
+          start.getUTCHours(),
+          start.getUTCMinutes()
+        ],
+        end: [
+          end.getUTCFullYear(),
+          end.getUTCMonth() + 1,
+          end.getUTCDate(),
+          end.getUTCHours(),
+          end.getUTCMinutes()
+        ],
+        startInputType: 'utc',
+        startOutputType: 'utc',
+        endInputType: 'utc',
+        endOutputType: 'utc',
+        title: tc?.name ?? 'Unknown',
+        description: e.note ?? '',
+      };
+    });
+
+    if (events.length === 0) return;
+
+    createEvents(events, (error, value) => {
+      if (error) {
+        console.error('Error generating ICS file', error);
+        return;
+      }
+      const blob = new Blob([value], { type: 'text/calendar;charset=utf-8;' });
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.setAttribute('download', `time-entries-${format(dateRange.start, 'yyyy-MM-dd')}.ics`);
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      URL.revokeObjectURL(url);
+    });
+  };
+
+  // Implements the raw/detailed entry-level CSV export feature requested in the audit report
   const downloadDetailedRawCSV = () => {
     const headers = ['Date', 'Timecode', 'Group', 'Start', 'End', 'Duration (h)', 'Note'];
     const rows = filteredEntries.map(e => {
@@ -306,6 +357,9 @@ export const AnalysisView: React.FC = () => {
             </button>
             <button onClick={downloadDetailedRawCSV} className="flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-md hover:bg-gray-50 dark:bg-gray-700 dark:text-gray-200 dark:border-gray-600 dark:hover:bg-gray-600" title="Export Detailed CSV">
               <Download size={16} /> Detailed Raw CSV
+            </button>
+            <button onClick={handleExportICS} className="flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-md hover:bg-gray-50 dark:bg-gray-700 dark:text-gray-200 dark:border-gray-600 dark:hover:bg-gray-600" title="Export Calendar (ICS)">
+              <Calendar size={16} /> Export ICS
             </button>
             <button onClick={handlePrint} className="flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-md hover:bg-gray-50 dark:bg-gray-700 dark:text-gray-200 dark:border-gray-600 dark:hover:bg-gray-600">
               <Printer size={16} /> PDF / Print
