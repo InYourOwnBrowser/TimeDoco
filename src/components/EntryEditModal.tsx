@@ -226,7 +226,7 @@ export const EntryEditModal: React.FC<EntryEditModalProps> = ({ entry, onClose }
           </div>
         )}
 
-        <div className="bg-gray-50 dark:bg-gray-800/30 px-4 py-3 sm:px-6 flex flex-row-reverse gap-2">
+        <div className="bg-gray-50 dark:bg-gray-800/30 px-4 py-3 sm:px-6 flex flex-wrap flex-row-reverse gap-2">
           <button
             onClick={handleSave}
             className="w-full inline-flex justify-center rounded-panel border border-transparent px-4 py-2 bg-graphite hover:bg-ink dark:bg-stone dark:hover:bg-gray-300 text-stone dark:text-ink text-base font-medium focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-signal sm:w-auto sm:text-sm transition-colors"

@@ -124,7 +124,7 @@ export const TemplateList: React.FC = () => {
   if (!settings) return null;
 
   return (
-    <div className="w-full mb-8">
+    <div className="w-full max-w-md mx-auto mt-8 mb-8">
       <div className="flex justify-between items-center mb-3">
         <h3 className="text-sm font-semibold text-gray-500 uppercase tracking-wider">
           Quick Log Templates

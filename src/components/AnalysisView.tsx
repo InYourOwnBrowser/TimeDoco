@@ -351,18 +351,18 @@ export const AnalysisView: React.FC = () => {
       <div className="p-6 border-b border-graphite/10 dark:border-white/10 print:hidden">
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-4">
           <h2 className="text-xl font-bold text-graphite dark:text-stone">Analysis & Reports</h2>
-          <div className="flex gap-2">
+          <div className="flex flex-wrap gap-2">
             <button onClick={handleExportCSV} className="flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium text-graphite dark:text-stone bg-gray-50 dark:bg-gray-800/30 hover:bg-gray-100 dark:hover:bg-gray-800/50 rounded-md transition-colors border border-graphite/20 dark:border-white/20 focus-visible:ring-2 focus-visible:ring-signal" title="Summary CSV">
-              <Download size={16} /> Summary CSV
+              <Download size={16} /> <span className="hidden sm:inline">Summary CSV</span><span className="sm:hidden">CSV</span>
             </button>
             <button onClick={downloadDetailedRawCSV} className="flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium text-graphite dark:text-stone bg-gray-50 dark:bg-gray-800/30 hover:bg-gray-100 dark:hover:bg-gray-800/50 rounded-md transition-colors border border-graphite/20 dark:border-white/20 focus-visible:ring-2 focus-visible:ring-signal" title="Export Detailed CSV">
-              <Download size={16} /> Detailed Raw CSV
+              <Download size={16} /> <span className="hidden sm:inline">Detailed Raw CSV</span><span className="sm:hidden">Detailed CSV</span>
             </button>
             <button onClick={handleExportICS} className="flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium text-graphite dark:text-stone bg-gray-50 dark:bg-gray-800/30 hover:bg-gray-100 dark:hover:bg-gray-800/50 rounded-md transition-colors border border-graphite/20 dark:border-white/20 focus-visible:ring-2 focus-visible:ring-signal" title="Export Calendar (ICS)">
-              <Calendar size={16} /> Export ICS
+              <Calendar size={16} /> <span className="hidden sm:inline">Export ICS</span><span className="sm:hidden">ICS</span>
             </button>
             <button onClick={handlePrint} className="flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium text-graphite dark:text-stone bg-gray-50 dark:bg-gray-800/30 hover:bg-gray-100 dark:hover:bg-gray-800/50 rounded-md transition-colors border border-graphite/20 dark:border-white/20 focus-visible:ring-2 focus-visible:ring-signal">
-              <Printer size={16} /> PDF / Print
+              <Printer size={16} /> <span className="hidden sm:inline">PDF / Print</span><span className="sm:hidden">Print</span>
             </button>
           </div>
         </div>

@@ -12,6 +12,8 @@ export const ActiveTimer: React.FC<{ activeEntry: Entry | null }> = ({ activeEnt
   const [selectedTimecodeId, setSelectedTimecodeId] = useState<string | null>(null);
   const [localNote, setLocalNote] = useState('');
   const [localTags, setLocalTags] = useState<string>('');
+  const [preStartNote, setPreStartNote] = useState('');
+  const [preStartTags, setPreStartTags] = useState('');
 
   const lastLoadedEntryIdRef = useRef<string | null>(null);
 
@@ -108,9 +110,32 @@ export const ActiveTimer: React.FC<{ activeEntry: Entry | null }> = ({ activeEnt
             <TimecodeSelector onSelect={setSelectedTimecodeId} selectedId={selectedTimecodeId} />
           </div>
 
+          <div className="w-full space-y-2">
+            <input
+              type="text"
+              placeholder="What are you doing? (optional note)"
+              className="w-full text-center text-sm p-2 border border-transparent hover:border-gray-200 dark:hover:border-gray-600 focus:border-signal focus:ring-1 focus:ring-signal rounded outline-none transition-colors bg-stone dark:bg-ink text-gray-900 dark:text-white placeholder-gray-400 dark:placeholder-gray-500 focus-visible:ring-2 focus-visible:ring-signal focus-visible:ring-offset-2"
+              value={preStartNote}
+              onChange={(e) => setPreStartNote(e.target.value)}
+            />
+            <input
+              type="text"
+              placeholder="Tags (comma separated)"
+              className="w-full text-center text-sm p-2 border border-transparent hover:border-gray-200 dark:hover:border-gray-600 focus:border-signal focus:ring-1 focus:ring-signal rounded outline-none transition-colors bg-stone dark:bg-ink text-gray-900 dark:text-white placeholder-gray-400 dark:placeholder-gray-500 focus-visible:ring-2 focus-visible:ring-signal focus-visible:ring-offset-2"
+              value={preStartTags}
+              onChange={(e) => setPreStartTags(e.target.value)}
+            />
+          </div>
+
           <button
             disabled={!selectedTimecodeId}
-            onClick={() => selectedTimecodeId && startTimer(selectedTimecodeId)}
+            onClick={() => {
+              if (!selectedTimecodeId) return;
+              const tagsArray = preStartTags.split(',').map(t => t.trim()).filter(Boolean);
+              startTimer(selectedTimecodeId, preStartNote, tagsArray);
+              setPreStartNote('');
+              setPreStartTags('');
+            }}
             className="mt-2 w-16 h-16 rounded-full bg-signal hover:bg-signal-dim text-white flex items-center justify-center shadow-lg disabled:opacity-50 disabled:cursor-not-allowed transition-colors focus-visible:ring-2 focus-visible:ring-signal focus-visible:ring-offset-2"
             aria-label="Start Timer (Cmd/Ctrl+Shift+S)"
             title="Start Timer (Cmd/Ctrl+Shift+S)"
