@@ -16,6 +16,8 @@ export default defineConfig({
         description: 'Privacy-first, 100% client-side Time Tracker App',
         scope: '/TimeTag/',
         start_url: '/TimeTag/',
+        background_color: '#EEF0EC',
+        theme_color: '#10161C',
         icons: [
           {
             src: 'pwa-192x192.svg',
