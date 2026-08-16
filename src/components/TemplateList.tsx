@@ -149,7 +149,7 @@ export const TemplateList: React.FC = () => {
             return (
               <div
                 key={template.id}
-                className="group relative flex items-center bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-full shadow-sm hover:shadow-md hover:border-blue-300 dark:hover:border-blue-600 transition-all cursor-pointer pr-1"
+                className="group relative flex items-center bg-stone dark:bg-graphite border border-graphite/10 dark:border-white/10 rounded-full shadow-sm hover:shadow-md hover:border-signal/50 dark:hover:border-signal/50 transition-all cursor-pointer pr-1"
                 onClick={() => handleLogTemplate(template)}
                 onKeyDown={(e) => {
                   if (e.key === 'Enter' || e.key === ' ') {
@@ -165,14 +165,14 @@ export const TemplateList: React.FC = () => {
                   className="w-3 h-3 rounded-full ml-3 mr-2 shrink-0"
                   style={{ backgroundColor: tcColor }}
                 />
-                <span className="text-sm font-medium text-gray-700 dark:text-gray-200 py-1.5 whitespace-nowrap">
-                  {template.title} {template.durationMinutes !== null ? <span className="text-gray-400 font-normal text-xs ml-1">({template.durationMinutes}m)</span> : <span className="text-blue-500 font-normal text-xs ml-1">▶ Start</span>}
+                <span className="text-sm font-medium text-graphite dark:text-stone py-1.5 whitespace-nowrap">
+                  {template.title} {template.durationMinutes !== null ? <span className="text-gray-400 font-normal text-xs ml-1">({template.durationMinutes}m)</span> : <span className="text-signal font-normal text-xs ml-1">▶ Start</span>}
                 </span>
 
                 <div className="flex items-center opacity-0 group-hover:opacity-100 transition-opacity ml-2">
                   <button
                     onClick={(e) => { e.stopPropagation(); handleOpenModal(template); }}
-                    className="p-1.5 text-gray-400 hover:text-blue-600 dark:hover:text-blue-400 rounded-full focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    className="p-1.5 text-gray-400 hover:text-signal dark:hover:text-signal rounded-full focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-signal"
                     title="Edit template"
                     aria-label="Edit template"
                   >
@@ -180,7 +180,7 @@ export const TemplateList: React.FC = () => {
                   </button>
                   <button
                     onClick={(e) => handleDelete(e, template.id)}
-                    className="p-1.5 text-gray-400 hover:text-red-600 dark:hover:text-red-400 rounded-full mr-1 focus:outline-none focus:ring-2 focus:ring-red-500"
+                    className="p-1.5 text-gray-400 hover:text-rust dark:hover:text-rust rounded-full mr-1 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-rust"
                     title="Delete template"
                     aria-label="Delete template"
                   >
@@ -198,12 +198,12 @@ export const TemplateList: React.FC = () => {
         onClose={handleCloseModal}
         isDirty={isDirty}
       >
-        <div className="bg-white dark:bg-gray-800 rounded-lg shadow-xl w-full max-w-md mx-4 max-h-[90vh] flex flex-col pointer-events-auto">
-          <div className="flex justify-between items-center p-4 border-b dark:border-gray-700">
-            <h2 className="text-lg font-semibold text-gray-900 dark:text-white">
+        <div className="bg-stone dark:bg-graphite rounded-panel shadow-xl w-full max-w-md mx-4 max-h-[90vh] flex flex-col pointer-events-auto border border-graphite/10 dark:border-white/10">
+          <div className="flex justify-between items-center p-4 border-b border-graphite/10 dark:border-white/10">
+            <h2 className="text-lg font-semibold text-graphite dark:text-stone">
               {editingTemplate ? "Edit Template" : "New Template"}
             </h2>
-            <button type="button" onClick={handleCloseModal} className="text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200">
+            <button type="button" onClick={handleCloseModal} className="text-gray-500 hover:text-graphite dark:text-gray-400 dark:hover:text-stone">
               <span className="sr-only">Close</span>
               ✕
             </button>
@@ -211,30 +211,30 @@ export const TemplateList: React.FC = () => {
           <div className="p-4 overflow-y-auto">
             <form onSubmit={handleSave} className="space-y-4">
           <div>
-            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Title</label>
+            <label className="block text-sm font-medium text-graphite dark:text-stone mb-1">Title</label>
             <input
               type="text"
               value={title}
               onChange={(e) => setTitle(e.target.value)}
               placeholder="e.g. Daily Standup"
-              className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
+              className="w-full px-3 py-2 border border-graphite/10 dark:border-white/10 rounded-md bg-stone dark:bg-graphite text-graphite dark:text-stone focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-signal"
               required
             />
           </div>
           <div>
-            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Timecode</label>
+            <label className="block text-sm font-medium text-graphite dark:text-stone mb-1">Timecode</label>
             <TimecodeSelector
               selectedId={timecodeId}
               onSelect={setTimecodeId}
             />
           </div>
           <div>
-            <label className="flex items-center space-x-2 text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+            <label className="flex items-center space-x-2 text-sm font-medium text-graphite dark:text-stone mb-1">
               <input
                 type="checkbox"
                 checked={isFixedDuration}
                 onChange={(e) => setIsFixedDuration(e.target.checked)}
-                className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+                className="rounded border-graphite/10 dark:border-white/10 text-signal focus:ring-signal"
               />
               <span>Fixed duration</span>
             </label>
@@ -245,34 +245,34 @@ export const TemplateList: React.FC = () => {
                 step="1"
                 value={durationMinutes}
                 onChange={(e) => setDurationMinutes(Math.max(1, Number(e.target.value)))}
-                className="w-full px-3 py-2 mt-1 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
+                className="w-full px-3 py-2 mt-1 border border-graphite/10 dark:border-white/10 rounded-md bg-stone dark:bg-graphite text-graphite dark:text-stone focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-signal"
                 required={isFixedDuration}
               />
             )}
           </div>
           <div>
-            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Note (optional)</label>
+            <label className="block text-sm font-medium text-graphite dark:text-stone mb-1">Note (optional)</label>
             <input
               type="text"
               value={note}
               onChange={(e) => setNote(e.target.value)}
               placeholder="Default note for this entry"
-              className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
+              className="w-full px-3 py-2 border border-graphite/10 dark:border-white/10 rounded-md bg-stone dark:bg-graphite text-graphite dark:text-stone focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-signal"
             />
           </div>
 
-              <div className="flex justify-end gap-2 pt-4 border-t dark:border-gray-700 mt-4">
+              <div className="flex justify-end gap-2 pt-4 border-t border-graphite/10 dark:border-white/10 mt-4">
                 <button
                   type="button"
                   onClick={handleCloseModal}
-                  className="px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-md hover:bg-gray-50 dark:bg-gray-700 dark:text-gray-200 dark:border-gray-600 dark:hover:bg-gray-600 transition-colors"
+                  className="px-4 py-2 text-sm font-medium text-graphite dark:text-stone bg-gray-50 dark:bg-gray-800/30 border border-graphite/10 dark:border-white/10 rounded-md hover:bg-gray-100 dark:hover:bg-gray-800/50 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-signal"
                 >
                   Cancel
                 </button>
                 <button
                   type="submit"
                   disabled={!title.trim() || !timecodeId || (isFixedDuration && durationMinutes <= 0)}
-                  className="px-4 py-2 text-sm font-medium text-white bg-blue-600 rounded-md hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                  className="px-4 py-2 text-sm font-medium text-stone dark:text-ink bg-graphite hover:bg-ink dark:bg-stone dark:hover:bg-gray-300 rounded-md disabled:opacity-50 disabled:cursor-not-allowed transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-signal"
                 >
                   Save Template
                 </button>
