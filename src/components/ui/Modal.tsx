@@ -90,7 +90,7 @@ export const Modal: React.FC<ModalProps> = ({ onClose, children, className = '',
 
   return (
     <div
-      className={`fixed inset-0 bg-black/50 flex items-center justify-center p-4 z-50 overflow-y-auto ${className}`}
+      className={`fixed inset-0 bg-ink/50 flex items-center justify-center p-4 z-50 overflow-y-auto ${className}`}
       role="dialog"
       aria-modal="true"
       onClick={handleBackdropClick}

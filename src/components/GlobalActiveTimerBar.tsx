@@ -39,13 +39,13 @@ export const GlobalActiveTimerBar: React.FC = () => {
 
   return (
     <div className="fixed bottom-6 right-6 z-50 animate-in fade-in slide-in-from-bottom-4 duration-300">
-      <div className="bg-white dark:bg-gray-800 rounded-full shadow-lg border border-gray-200 dark:border-gray-700 p-2 pr-4 flex items-center gap-4 transition-colors">
+      <div className="bg-stone dark:bg-ink rounded-panel shadow-inner border border-graphite/10 dark:border-white/10 p-2 pr-4 flex items-center gap-4 transition-colors">
 
         {/* Play/Pause control for this timer */}
         {primaryEntry.isPaused ? (
            <button
              onClick={() => resumeTimer(primaryEntry.id)}
-             className="w-10 h-10 rounded-full bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-400 hover:bg-amber-200 dark:hover:bg-amber-900/50 flex items-center justify-center transition-colors shrink-0"
+             className="w-10 h-10 rounded-full bg-verdigris/10 text-verdigris hover:bg-verdigris/20 flex items-center justify-center transition-colors shrink-0 focus-visible:ring-2 focus-visible:ring-signal focus-visible:ring-offset-2"
              title="Resume"
              aria-label="Resume Timer"
            >
@@ -54,7 +54,7 @@ export const GlobalActiveTimerBar: React.FC = () => {
         ) : (
            <button
              onClick={() => pauseTimer(primaryEntry.id)}
-             className="w-10 h-10 rounded-full bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600 flex items-center justify-center transition-colors shrink-0"
+             className="w-10 h-10 rounded-full bg-gray-200 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-300 dark:hover:bg-gray-600 flex items-center justify-center transition-colors shrink-0 focus-visible:ring-2 focus-visible:ring-signal focus-visible:ring-offset-2"
              title="Pause"
              aria-label="Pause Timer"
            >
@@ -74,19 +74,22 @@ export const GlobalActiveTimerBar: React.FC = () => {
               </div>
             )}
             {activeEntries.length > 1 && (
-              <span className="text-xs font-semibold bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-300 px-1.5 py-0.5 rounded-full">
+              <span className="text-xs font-semibold bg-gray-200 dark:bg-gray-700 text-gray-600 dark:text-gray-300 px-1.5 py-0.5 rounded-full">
                 +{activeEntries.length - 1}
               </span>
             )}
           </div>
-          <span className={`text-lg font-mono font-medium tracking-wide tabular-nums leading-none mt-1 ${primaryEntry.isPaused ? 'text-amber-500 dark:text-amber-400' : 'text-blue-600 dark:text-blue-400'}`}>
-            {formatElapsedSeconds(elapsedSeconds)}
-          </span>
+          <div className="flex items-center gap-2 mt-1">
+            <div className={`w-2 h-2 rounded-full shrink-0 ${primaryEntry.isPaused ? 'bg-verdigris' : 'bg-signal recording-dot'}`}></div>
+            <span className="text-lg font-mono font-medium tracking-wide tabular leading-none text-graphite dark:text-stone">
+              {formatElapsedSeconds(elapsedSeconds)}
+            </span>
+          </div>
         </div>
 
         <button
           onClick={() => stopTimer(primaryEntry.id)}
-          className="w-10 h-10 rounded-full bg-red-100 dark:bg-red-900/30 text-red-600 dark:text-red-400 hover:bg-red-200 hover:text-red-700 dark:hover:bg-red-900/50 flex items-center justify-center transition-colors shrink-0"
+          className="w-10 h-10 rounded-full bg-graphite hover:bg-ink dark:bg-stone dark:hover:bg-gray-300 text-stone dark:text-ink flex items-center justify-center transition-colors shrink-0 focus-visible:ring-2 focus-visible:ring-signal focus-visible:ring-offset-2"
           title="Stop Timer"
           aria-label="Stop Timer"
         >

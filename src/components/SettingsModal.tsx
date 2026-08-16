@@ -198,30 +198,30 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ onClose }) => {
 
   return (
     <Modal onClose={onClose}>
-      <div className="bg-white dark:bg-gray-800 rounded-lg shadow-xl w-full max-w-md max-h-[90vh] overflow-hidden flex flex-col">
-        <div className="px-6 py-4 border-b border-gray-200 dark:border-gray-700 flex justify-between items-center bg-gray-50 dark:bg-gray-900">
-          <h2 className="text-lg font-semibold text-gray-900 dark:text-white">Settings & Data Management</h2>
-          <button onClick={onClose} className="text-gray-400 dark:text-gray-500 hover:text-gray-600 dark:hover:text-gray-300 transition-colors">
+      <div className="bg-stone dark:bg-ink rounded-panel shadow-inner border border-graphite/10 dark:border-white/10 w-full max-w-md max-h-[90vh] overflow-hidden flex flex-col">
+        <div className="px-6 py-4 border-b border-graphite/10 dark:border-white/10 flex justify-between items-center bg-stone dark:bg-ink">
+          <h2 className="text-lg font-semibold font-sans text-graphite dark:text-stone">Settings & Data Management</h2>
+          <button onClick={onClose} className="text-gray-400 dark:text-gray-500 hover:text-graphite dark:hover:text-stone transition-colors focus-visible:ring-2 focus-visible:ring-signal focus-visible:ring-offset-2 rounded-full p-1">
             <X size={20} />
           </button>
         </div>
 
-        <div className="flex border-b border-gray-200 dark:border-gray-700 shrink-0">
+        <div className="flex border-b border-graphite/10 dark:border-white/10 shrink-0 bg-stone dark:bg-ink">
           <button
             onClick={() => setActiveTab('general')}
-            className={`flex-1 py-2 text-sm font-medium text-center ${activeTab === 'general' ? 'border-b-2 border-blue-500 text-blue-600 dark:text-blue-400' : 'text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-300'}`}
+            className={`flex-1 py-2 text-sm font-medium text-center transition-colors focus-visible:ring-2 focus-visible:ring-signal focus-visible:ring-offset-2 ${activeTab === 'general' ? 'border-b-2 border-signal text-signal' : 'border-b-2 border-transparent text-gray-500 dark:text-gray-400 hover:text-graphite dark:hover:text-stone'}`}
           >
             General
           </button>
           <button
             onClick={() => setActiveTab('data')}
-            className={`flex-1 py-2 text-sm font-medium text-center ${activeTab === 'data' ? 'border-b-2 border-blue-500 text-blue-600 dark:text-blue-400' : 'text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-300'}`}
+            className={`flex-1 py-2 text-sm font-medium text-center transition-colors focus-visible:ring-2 focus-visible:ring-signal focus-visible:ring-offset-2 ${activeTab === 'data' ? 'border-b-2 border-signal text-signal' : 'border-b-2 border-transparent text-gray-500 dark:text-gray-400 hover:text-graphite dark:hover:text-stone'}`}
           >
             Data
           </button>
           <button
             onClick={() => setActiveTab('trash')}
-            className={`flex-1 py-2 text-sm font-medium text-center ${activeTab === 'trash' ? 'border-b-2 border-blue-500 text-blue-600 dark:text-blue-400' : 'text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-300'}`}
+            className={`flex-1 py-2 text-sm font-medium text-center transition-colors focus-visible:ring-2 focus-visible:ring-signal focus-visible:ring-offset-2 ${activeTab === 'trash' ? 'border-b-2 border-signal text-signal' : 'border-b-2 border-transparent text-gray-500 dark:text-gray-400 hover:text-graphite dark:hover:text-stone'}`}
           >
             Trash
           </button>

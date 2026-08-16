@@ -402,14 +402,14 @@ export const AnalysisView: React.FC = () => {
 
       <div className="p-6">
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-8">
-          <div className="bg-blue-50 dark:bg-blue-900/50 rounded-lg p-5 border border-blue-100 dark:border-blue-800 flex flex-col justify-center items-center">
-            <span className="text-blue-600 dark:text-blue-200 text-sm font-medium mb-1 uppercase tracking-wide">Total Tracked Time</span>
-            <span className="text-4xl font-bold text-gray-900 dark:text-white">{formatDuration(totalSeconds)}</span>
+          <div className="bg-stone dark:bg-ink rounded-panel p-5 border border-graphite/10 dark:border-white/10 shadow-inner flex flex-col justify-center items-center transition-colors">
+            <span className="text-signal text-xs font-sans font-semibold mb-1 uppercase tracking-wide">TOTAL TRACKED TIME</span>
+            <span className="text-4xl font-mono tabular font-medium text-graphite dark:text-stone">{formatDuration(totalSeconds)}</span>
           </div>
           {totalEarnings > 0 && (
-            <div className="bg-green-50 dark:bg-green-900/50 rounded-lg p-5 border border-green-100 dark:border-green-800 flex flex-col justify-center items-center">
-              <span className="text-green-700 dark:text-green-200 text-sm font-medium mb-1 uppercase tracking-wide">Total Earnings</span>
-              <span className="text-4xl font-bold text-gray-900 dark:text-white">${totalEarnings.toFixed(2)}</span>
+            <div className="bg-stone dark:bg-ink rounded-panel p-5 border border-graphite/10 dark:border-white/10 shadow-inner flex flex-col justify-center items-center transition-colors">
+              <span className="text-verdigris text-xs font-sans font-semibold mb-1 uppercase tracking-wide">TOTAL EARNINGS</span>
+              <span className="text-4xl font-mono tabular font-medium text-graphite dark:text-stone">${totalEarnings.toFixed(2)}</span>
             </div>
           )}
         </div>
@@ -417,11 +417,11 @@ export const AnalysisView: React.FC = () => {
 
 
         {gaps.length > 0 && (
-          <div className="mb-8 p-4 bg-blue-50 dark:bg-blue-900/30 border border-blue-200 dark:border-blue-800 rounded-lg flex items-start gap-3">
-            <AlertTriangle className="text-blue-500 mt-0.5 shrink-0" size={20} />
+          <div className="mb-8 p-4 bg-stone dark:bg-ink border border-graphite/10 dark:border-white/10 rounded-panel shadow-inner flex items-start gap-3">
+            <AlertTriangle className="text-signal mt-0.5 shrink-0" size={20} />
             <div>
-              <h4 className="font-medium text-blue-800 dark:text-blue-300">Untracked Time Gaps Detected</h4>
-              <p className="text-sm text-blue-700 dark:text-blue-400 mt-1">
+              <h4 className="font-medium text-graphite dark:text-stone">Untracked Time Gaps Detected</h4>
+              <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">
                 There are {gaps.length} gaps of 15+ minutes between time entries during this period.
               </p>
             </div>
@@ -429,11 +429,11 @@ export const AnalysisView: React.FC = () => {
         )}
 
         {overlaps.length > 0 && (
-          <div className="mb-8 p-4 bg-amber-50 dark:bg-amber-900/30 border border-amber-200 dark:border-amber-800 rounded-lg flex items-start gap-3">
-            <AlertTriangle className="text-amber-500 mt-0.5 shrink-0" size={20} />
+          <div className="mb-8 p-4 bg-stone dark:bg-ink border border-rust/30 dark:border-rust/30 rounded-panel shadow-inner flex items-start gap-3">
+            <AlertTriangle className="text-rust mt-0.5 shrink-0" size={20} />
             <div>
-              <h4 className="font-medium text-amber-800 dark:text-amber-300">Overlapping Entries Detected</h4>
-              <p className="text-sm text-amber-700 dark:text-amber-400 mt-1">
+              <h4 className="font-medium text-rust">Overlapping Entries Detected</h4>
+              <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">
                 There are {overlaps.length} overlapping time entries in this period. Review your history in the Tracker tab to ensure your tracked time is accurate.
               </p>
             </div>
@@ -446,15 +446,15 @@ export const AnalysisView: React.FC = () => {
          dateRange.end.getTime() === endOfDay(dateRange.start).getTime() && (
           <div className="mb-8">
             <h3 className="text-lg font-semibold text-gray-800 dark:text-white mb-4 text-center">Daily Timeline</h3>
-            <div className="relative h-12 bg-gray-200 dark:bg-gray-800 rounded-md overflow-hidden border border-gray-300 dark:border-gray-700">
+            <div className="relative h-12 bg-stone dark:bg-ink rounded-panel shadow-inner overflow-hidden border border-graphite/10 dark:border-white/10">
               {/* Hour markers */}
               {Array.from({ length: 25 }).map((_, i) => (
                 <div
                   key={i}
-                  className="absolute top-0 bottom-0 border-l border-gray-300 dark:border-gray-600/50"
+                  className="absolute top-0 bottom-0 border-l border-graphite/10 dark:border-white/10"
                   style={{ left: `${(i / 24) * 100}%` }}
                 >
-                  <span className="absolute top-full mt-1 -ml-3 text-[10px] text-gray-400">
+                  <span className="absolute top-full mt-1 -ml-3 text-[10px] font-mono tabular text-gray-400">
                     {i % 4 === 0 ? (i === 0 || i === 24 ? '12A' : i === 12 ? '12P' : i > 12 ? `${i - 12}P` : `${i}A`) : ''}
                   </span>
                 </div>
@@ -499,11 +499,11 @@ export const AnalysisView: React.FC = () => {
               <h3 className="text-lg font-semibold text-gray-800 dark:text-white mb-4 text-center">Time by Timecode</h3>
               <ResponsiveContainer width="100%" height="100%">
                 <BarChart data={timecodeData} margin={{ top: 20, right: 30, left: 0, bottom: 5 }}>
-                  <XAxis dataKey="name" tick={{ fontSize: 12 }} />
-                  <YAxis tick={{ fontSize: 12 }} label={{ value: 'Hours', angle: -90, position: 'insideLeft' }} />
+                  <XAxis dataKey="name" tick={{ fontSize: 12, fontFamily: 'monospace' }} />
+                  <YAxis tick={{ fontSize: 12, fontFamily: 'monospace' }} label={{ value: 'Hours', angle: -90, position: 'insideLeft', fontFamily: 'sans-serif' }} />
                   <Tooltip
                     formatter={(value: any) => [`${value} hrs`, 'Duration']}
-                    contentStyle={{ borderRadius: '8px', border: 'none', boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1)' }}
+                    contentStyle={{ borderRadius: '8px', border: 'none', boxShadow: 'inset 0 1px 2px rgba(0,0,0,.06)', fontFamily: 'monospace' }}
                   />
                   <Bar dataKey="durationHours" radius={[4, 4, 0, 0]}>
                     {timecodeData.map((entry, index) => (
@@ -540,25 +540,25 @@ export const AnalysisView: React.FC = () => {
 
               <div>
                 <h3 className="text-lg font-semibold text-gray-800 dark:text-white mb-3">Breakdown</h3>
-                <div className="overflow-hidden border border-gray-200 dark:border-gray-700 rounded-lg">
-                  <table className="min-w-full divide-y divide-gray-200 dark:divide-gray-700 text-sm">
-                    <thead className="bg-gray-50 dark:bg-gray-900/50">
+                <div className="overflow-hidden border border-graphite/10 dark:border-white/10 rounded-panel shadow-inner">
+                  <table className="min-w-full divide-y divide-graphite/10 dark:divide-white/10 text-sm">
+                    <thead className="bg-stone dark:bg-ink">
                       <tr>
-                        <th className="px-4 py-3 text-left font-medium text-gray-500 dark:text-gray-400">Timecode</th>
-                        <th className="px-4 py-3 text-right font-medium text-gray-500 dark:text-gray-400">Hours</th>
-                        {totalEarnings > 0 && <th className="px-4 py-3 text-right font-medium text-gray-500 dark:text-gray-400">Earnings</th>}
+                        <th className="px-4 py-3 text-left font-semibold text-gray-500 dark:text-gray-400 font-sans text-xs uppercase tracking-wide">Timecode</th>
+                        <th className="px-4 py-3 text-right font-semibold text-gray-500 dark:text-gray-400 font-sans text-xs uppercase tracking-wide">Hours</th>
+                        {totalEarnings > 0 && <th className="px-4 py-3 text-right font-semibold text-gray-500 dark:text-gray-400 font-sans text-xs uppercase tracking-wide">Earnings</th>}
                       </tr>
                     </thead>
-                    <tbody className="bg-white dark:bg-gray-800 divide-y divide-gray-200 dark:divide-gray-700">
+                    <tbody className="bg-stone dark:bg-ink divide-y divide-graphite/10 dark:divide-white/10">
                       {timecodeData.map((tc) => (
-                        <tr key={tc.id}>
+                        <tr key={tc.id} className="hover:bg-signal/5 transition-colors">
                           <td className="px-4 py-2.5 flex items-center gap-2">
                             <div className="w-2.5 h-2.5 rounded-full" style={{ backgroundColor: tc.color }}></div>
-                            <span className="font-medium text-gray-800 dark:text-gray-200">{tc.name}</span>
+                            <span className="font-medium text-graphite dark:text-stone">{tc.name}</span>
                           </td>
-                          <td className="px-4 py-2.5 text-right text-gray-600 dark:text-gray-300">{tc.durationHours.toFixed(2)}</td>
+                          <td className="px-4 py-2.5 text-right text-graphite dark:text-stone font-mono tabular">{tc.durationHours.toFixed(2)}</td>
                           {totalEarnings > 0 && (
-                            <td className="px-4 py-2.5 text-right text-gray-600 dark:text-gray-300">
+                            <td className="px-4 py-2.5 text-right text-graphite dark:text-stone font-mono tabular">
                               {tc.earnings > 0 ? `$${tc.earnings.toFixed(2)}` : '-'}
                             </td>
                           )}

@@ -138,7 +138,7 @@ const AppContent = () => {
   }, [activeEntries, entries, timecodes, startTimer, stopTimer]);
 
   return (
-      <div className="min-h-screen bg-gray-50 dark:bg-gray-900 flex flex-col items-center pt-12 px-4 font-sans text-gray-900 dark:text-gray-100 pb-24 relative">
+      <div className="min-h-screen bg-stone dark:bg-ink flex flex-col items-center pt-12 px-4 font-sans text-gray-900 dark:text-gray-100 pb-24 relative">
         {isFallbackMode && (
           <div className="w-full bg-red-600 text-white text-center py-2 px-4 font-medium text-sm shadow-sm sticky top-0 z-50">
             ⚠️ Storage Error: App is running in memory fallback mode. Your data will not be saved after you close this page.
@@ -165,17 +165,17 @@ const AppContent = () => {
         </div>
 
         <header className="mb-8 text-center">
-          <h1 className="text-3xl font-bold text-gray-900 dark:text-white mb-2 tracking-tight">TimeTag</h1>
+          <h1 className="text-3xl font-sans font-semibold text-graphite dark:text-stone mb-2 tracking-tight">TimeTag</h1>
           <p className="text-gray-500 dark:text-gray-400 mb-6">100% Client-Side. Privacy First.</p>
 
           <div className="flex justify-center mb-4">
-            <div className="bg-gray-200 dark:bg-gray-800 p-1 rounded-lg inline-flex">
+            <div className="bg-stone dark:bg-ink p-1 rounded-panel inline-flex border border-graphite/10 dark:border-white/10 shadow-inner">
               <button
                 onClick={() => setActiveTab('tracker')}
-                className={`flex items-center px-4 py-2 rounded-md text-sm font-medium transition-colors ${
+                className={`flex items-center px-4 py-2 text-sm font-medium transition-colors focus-visible:ring-2 focus-visible:ring-signal focus-visible:ring-offset-2 ${
                   activeTab === 'tracker'
-                    ? 'bg-white dark:bg-gray-700 text-gray-900 dark:text-white shadow-sm'
-                    : 'text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white'
+                    ? 'bg-signal/10 text-signal border-b-2 border-signal rounded-none'
+                    : 'text-graphite dark:text-stone hover:text-gray-900 dark:hover:text-white rounded-panel'
                 }`}
               >
                 <Clock size={16} className="mr-2" />
@@ -183,10 +183,10 @@ const AppContent = () => {
               </button>
               <button
                 onClick={() => setActiveTab('analysis')}
-                className={`flex items-center px-4 py-2 rounded-md text-sm font-medium transition-colors ${
+                className={`flex items-center px-4 py-2 text-sm font-medium transition-colors focus-visible:ring-2 focus-visible:ring-signal focus-visible:ring-offset-2 ${
                   activeTab === 'analysis'
-                    ? 'bg-white dark:bg-gray-700 text-gray-900 dark:text-white shadow-sm'
-                    : 'text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white'
+                    ? 'bg-signal/10 text-signal border-b-2 border-signal rounded-none'
+                    : 'text-graphite dark:text-stone hover:text-gray-900 dark:hover:text-white rounded-panel'
                 }`}
               >
                 <BarChart2 size={16} className="mr-2" />
@@ -194,10 +194,10 @@ const AppContent = () => {
               </button>
               <button
                 onClick={() => setActiveTab('management')}
-                className={`flex items-center px-4 py-2 rounded-md text-sm font-medium transition-colors ${
+                className={`flex items-center px-4 py-2 text-sm font-medium transition-colors focus-visible:ring-2 focus-visible:ring-signal focus-visible:ring-offset-2 ${
                   activeTab === 'management'
-                    ? 'bg-white dark:bg-gray-700 text-gray-900 dark:text-white shadow-sm'
-                    : 'text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white'
+                    ? 'bg-signal/10 text-signal border-b-2 border-signal rounded-none'
+                    : 'text-graphite dark:text-stone hover:text-gray-900 dark:hover:text-white rounded-panel'
                 }`}
               >
                 <ListTree size={16} className="mr-2" />
