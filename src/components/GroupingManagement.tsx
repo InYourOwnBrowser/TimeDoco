@@ -3,6 +3,7 @@ import { useTimeTracker } from '../context/TimeTrackerContext';
 import { useToast } from '../context/ToastContext';
 import { Edit2, Archive, ArchiveRestore, Check, X, Trash2, Merge } from 'lucide-react';
 import type { Group, Timecode } from '../types';
+import { HelpTooltip } from './ui/HelpTooltip';
 
 export const GroupingManagement: React.FC = () => {
   const { groups, timecodes, addGroup, updateGroup, deleteGroup, addTimecode, updateTimecode, deleteTimecode, mergeTimecodes } = useTimeTracker();
@@ -120,12 +121,15 @@ export const GroupingManagement: React.FC = () => {
   return (
     <div className="w-full max-w-4xl mx-auto space-y-8">
       {/* Groups Section */}
-      <section className="bg-white dark:bg-gray-800 p-6 rounded-xl shadow-sm border border-gray-100 dark:border-gray-700 transition-colors">
-        <h2 className="text-xl font-semibold text-gray-800 dark:text-gray-200 mb-4 border-b dark:border-gray-700 pb-2">Groups</h2>
+      <section className="bg-stone dark:bg-graphite p-6 rounded-panel shadow-sm border border-graphite/10 dark:border-white/10 transition-colors">
+        <h2 className="text-xl font-semibold text-graphite dark:text-stone mb-4 border-b border-graphite/10 dark:border-white/10 pb-2 flex items-center">
+          Groups
+          <HelpTooltip text="Timecodes are what you actually track time against (e.g. 'Client A - Design'). Groups are just a color/category used to organize timecodes." />
+        </h2>
 
         <div className="space-y-4 mb-6">
           {groups.map(group => (
-            <div key={group.id} className="flex items-center justify-between p-3 bg-gray-50 dark:bg-gray-800/50 rounded-lg border border-gray-100 dark:border-gray-700 transition-colors">
+            <div key={group.id} className="flex items-center justify-between p-3 bg-stone dark:bg-graphite rounded-lg border border-graphite/10 dark:border-white/10 transition-colors">
               {editingGroupId === group.id ? (
                 <div className="flex items-center gap-3 w-full">
                   <input
@@ -138,20 +142,20 @@ export const GroupingManagement: React.FC = () => {
                     type="text"
                     value={editingGroupData.color}
                     onChange={(e) => setEditingGroupData({ ...editingGroupData, color: e.target.value })}
-                    className="w-20 px-2 py-1 text-sm border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-gray-700 text-gray-900 dark:text-white outline-none shrink-0"
+                    className="w-20 px-2 py-1 text-sm border border-graphite/10 dark:border-white/10 rounded bg-stone dark:bg-graphite text-graphite dark:text-stone outline-none focus-visible:ring-2 focus-visible:ring-signal shrink-0"
                     placeholder="#HEX"
                   />
                   <input
                     type="text"
                     value={editingGroupData.name}
                     onChange={(e) => setEditingGroupData({ ...editingGroupData, name: e.target.value })}
-                    className="flex-1 px-3 py-1 border border-gray-300 dark:border-gray-600 rounded outline-none focus:ring-1 focus:ring-blue-500 bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
+                    className="flex-1 px-3 py-1 border border-graphite/10 dark:border-white/10 rounded outline-none focus-visible:ring-2 focus-visible:ring-signal bg-stone dark:bg-graphite text-graphite dark:text-stone"
                     autoFocus
                   />
-                  <button onClick={() => handleEditGroupSave(group.id)} className="p-1 text-green-600 dark:text-green-400 hover:text-green-800 dark:hover:text-green-300 transition-colors" aria-label="Save Group Edit">
+                  <button onClick={() => handleEditGroupSave(group.id)} className="p-1 text-verdigris hover:bg-verdigris/10 transition-colors" aria-label="Save Group Edit">
                     <Check size={18} />
                   </button>
-                  <button onClick={() => setEditingGroupId(null)} className="p-1 text-red-600 dark:text-red-400 hover:text-red-800 dark:hover:text-red-300 transition-colors" aria-label="Cancel Group Edit">
+                  <button onClick={() => setEditingGroupId(null)} className="p-1 text-rust hover:bg-rust/10 transition-colors" aria-label="Cancel Group Edit">
                     <X size={18} />
                   </button>
                 </div>
@@ -159,13 +163,13 @@ export const GroupingManagement: React.FC = () => {
                 <>
                   <div className="flex items-center gap-3">
                     <div className="w-4 h-4 rounded-full" style={{ backgroundColor: group.color }}></div>
-                    <span className="font-medium text-gray-800 dark:text-gray-200">{group.name}</span>
-                    {group.archived && <span className="text-xs bg-gray-200 dark:bg-gray-700 text-gray-600 dark:text-gray-400 px-2 py-0.5 rounded">Archived</span>}
+                    <span className="font-medium text-graphite dark:text-stone">{group.name}</span>
+                    {group.archived && <span className="text-xs bg-gray-200 dark:bg-gray-800 text-gray-600 dark:text-gray-400 px-2 py-0.5 rounded">Archived</span>}
                   </div>
                   <div className="flex items-center gap-2">
                     <button
                       onClick={() => handleEditGroupStart(group)}
-                      className="p-1.5 text-gray-500 dark:text-gray-400 hover:text-blue-600 dark:hover:text-blue-400 hover:bg-blue-50 dark:hover:bg-blue-900/30 rounded transition-colors"
+                      className="p-1.5 text-gray-500 dark:text-gray-400 hover:text-signal hover:bg-signal/10 rounded transition-colors"
                       title="Edit Group"
                       aria-label="Edit Group"
                     >
@@ -175,7 +179,7 @@ export const GroupingManagement: React.FC = () => {
                       onClick={() => {
                         updateGroup(group.id, { archived: !group.archived });
                       }}
-                      className={`p-1.5 rounded transition-colors ${group.archived ? 'text-green-600 dark:text-green-400 hover:bg-green-50 dark:hover:bg-green-900/30' : 'text-amber-600 dark:text-amber-400 hover:bg-amber-50 dark:hover:bg-amber-900/30'}`}
+                      className={`p-1.5 rounded transition-colors ${group.archived ? 'text-verdigris hover:bg-verdigris/10' : 'text-gray-400 hover:text-signal hover:bg-signal/10'}`}
                       title={group.archived ? 'Restore' : 'Archive'}
                       aria-label={group.archived ? 'Restore Group' : 'Archive Group'}
                     >
@@ -187,7 +191,7 @@ export const GroupingManagement: React.FC = () => {
                           deleteGroup(group.id);
                         }
                       }}
-                      className="p-1.5 text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/30 rounded transition-colors"
+                      className="p-1.5 text-gray-400 hover:text-rust hover:bg-rust/10 rounded transition-colors"
                       title="Delete Group (Move to Trash)"
                       aria-label="Delete Group"
                     >
@@ -200,7 +204,7 @@ export const GroupingManagement: React.FC = () => {
           ))}
         </div>
 
-        <div className="flex items-center gap-3 mt-4 pt-4 border-t border-gray-100 dark:border-gray-700">
+        <div className="flex items-center gap-3 mt-4 pt-4 border-t border-graphite/10 dark:border-white/10">
           <input
             type="color"
             value={newGroupColor}
@@ -211,7 +215,7 @@ export const GroupingManagement: React.FC = () => {
             type="text"
             value={newGroupColor}
             onChange={(e) => setNewGroupColor(e.target.value)}
-            className="w-20 px-2 py-2 text-sm border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-gray-700 text-gray-900 dark:text-white outline-none shrink-0"
+            className="w-20 px-2 py-2 text-sm border border-graphite/10 dark:border-white/10 rounded bg-stone dark:bg-graphite text-graphite dark:text-stone outline-none focus-visible:ring-2 focus-visible:ring-signal shrink-0"
             placeholder="#HEX"
           />
           <input
@@ -219,7 +223,7 @@ export const GroupingManagement: React.FC = () => {
             placeholder="New Group Name"
             value={newGroupName}
             onChange={(e) => setNewGroupName(e.target.value)}
-            className="flex-1 px-3 py-2 border border-gray-300 dark:border-gray-600 rounded outline-none focus:ring-1 focus:ring-blue-500 text-sm bg-white dark:bg-gray-700 text-gray-900 dark:text-white placeholder-gray-400 dark:placeholder-gray-500"
+            className="flex-1 px-3 py-2 border border-graphite/10 dark:border-white/10 rounded outline-none focus-visible:ring-2 focus-visible:ring-signal text-sm bg-stone dark:bg-graphite text-graphite dark:text-stone placeholder-gray-400 dark:placeholder-gray-500"
           />
           <button
             onClick={handleCreateGroup}
@@ -232,14 +236,14 @@ export const GroupingManagement: React.FC = () => {
       </section>
 
       {/* Timecodes Section */}
-      <section className="bg-white dark:bg-gray-800 p-6 rounded-xl shadow-sm border border-gray-100 dark:border-gray-700 transition-colors">
-        <h2 className="text-xl font-semibold text-gray-800 dark:text-gray-200 mb-4 border-b dark:border-gray-700 pb-2">Timecodes</h2>
+      <section className="bg-stone dark:bg-graphite p-6 rounded-panel shadow-sm border border-graphite/10 dark:border-white/10 transition-colors">
+        <h2 className="text-xl font-semibold text-graphite dark:text-stone mb-4 border-b border-graphite/10 dark:border-white/10 pb-2">Timecodes</h2>
 
         <div className="space-y-3">
           {timecodes.map(tc => {
             const group = groups.find(g => g.id === tc.groupId);
             return (
-              <div key={tc.id} className="flex items-center justify-between p-3 bg-gray-50 dark:bg-gray-800/50 rounded-lg border border-gray-100 dark:border-gray-700 transition-colors">
+              <div key={tc.id} className="flex items-center justify-between p-3 bg-stone dark:bg-graphite rounded-lg border border-graphite/10 dark:border-white/10 transition-colors">
                 {editingTimecodeId === tc.id ? (
                    <div className="flex items-center gap-3 w-full flex-wrap">
                       <input
@@ -253,20 +257,20 @@ export const GroupingManagement: React.FC = () => {
                         type="text"
                         value={editingTimecodeData.color}
                         onChange={(e) => setEditingTimecodeData({ ...editingTimecodeData, color: e.target.value })}
-                        className="w-20 px-2 py-1 text-sm border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-gray-700 text-gray-900 dark:text-white outline-none shrink-0"
+                        className="w-20 px-2 py-1 text-sm border border-graphite/10 dark:border-white/10 rounded bg-stone dark:bg-graphite text-graphite dark:text-stone outline-none focus-visible:ring-2 focus-visible:ring-signal shrink-0"
                         placeholder="#HEX"
                       />
                       <input
                         type="text"
                         value={editingTimecodeData.name}
                         onChange={(e) => setEditingTimecodeData({ ...editingTimecodeData, name: e.target.value })}
-                        className="flex-1 min-w-[150px] px-3 py-1 border border-gray-300 dark:border-gray-600 rounded outline-none focus:ring-1 focus:ring-blue-500 bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
+                        className="flex-1 min-w-[150px] px-3 py-1 border border-graphite/10 dark:border-white/10 rounded outline-none focus-visible:ring-2 focus-visible:ring-signal bg-stone dark:bg-graphite text-graphite dark:text-stone"
                         autoFocus
                       />
                       <select
                         value={editingTimecodeData.groupId}
                         onChange={(e) => setEditingTimecodeData({ ...editingTimecodeData, groupId: e.target.value })}
-                        className="px-3 py-1 border border-gray-300 dark:border-gray-600 rounded outline-none focus:ring-1 focus:ring-blue-500 text-sm bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
+                        className="px-3 py-1 border border-graphite/10 dark:border-white/10 rounded outline-none focus-visible:ring-2 focus-visible:ring-signal text-sm bg-stone dark:bg-graphite text-graphite dark:text-stone"
                       >
                         <option value="">No Group</option>
                         {groups.map(g => (
@@ -281,25 +285,25 @@ export const GroupingManagement: React.FC = () => {
                           const val = e.target.value;
                           setEditingTimecodeData({ ...editingTimecodeData, hourlyRate: val !== '' && Number(val) < 0 ? '0' : val });
                         }}
-                        className="w-24 px-3 py-1 border border-gray-300 dark:border-gray-600 rounded outline-none focus:ring-1 focus:ring-blue-500 bg-white dark:bg-gray-700 text-gray-900 dark:text-white text-sm"
+                        className="w-24 px-3 py-1 border border-graphite/10 dark:border-white/10 rounded outline-none focus-visible:ring-2 focus-visible:ring-signal bg-stone dark:bg-graphite text-graphite dark:text-stone text-sm"
                         min="0"
                         step="0.01"
                       />
-                      <button onClick={() => handleEditTimecodeSave(tc.id)} className="p-1 text-green-600 dark:text-green-400 hover:text-green-800 dark:hover:text-green-300 transition-colors" aria-label="Save Timecode Edit">
+                      <button onClick={() => handleEditTimecodeSave(tc.id)} className="p-1 text-verdigris hover:bg-verdigris/10 transition-colors" aria-label="Save Timecode Edit">
                         <Check size={18} />
                       </button>
-                      <button onClick={() => setEditingTimecodeId(null)} className="p-1 text-red-600 dark:text-red-400 hover:text-red-800 dark:hover:text-red-300 transition-colors" aria-label="Cancel Timecode Edit">
+                      <button onClick={() => setEditingTimecodeId(null)} className="p-1 text-rust hover:bg-rust/10 transition-colors" aria-label="Cancel Timecode Edit">
                         <X size={18} />
                       </button>
                    </div>
 
                 ) : mergingTimecodeId === tc.id ? (
                   <div className="flex items-center gap-3 w-full flex-wrap">
-                    <span className="font-medium text-gray-800 dark:text-gray-200">Merge "{tc.name}" into:</span>
+                    <span className="font-medium text-graphite dark:text-stone">Merge "{tc.name}" into:</span>
                     <select
                       value={mergeDestId}
                       onChange={(e) => setMergeDestId(e.target.value)}
-                      className="flex-1 min-w-[150px] px-3 py-1 border border-gray-300 dark:border-gray-600 rounded outline-none focus:ring-1 focus:ring-blue-500 bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
+                      className="flex-1 min-w-[150px] px-3 py-1 border border-graphite/10 dark:border-white/10 rounded outline-none focus-visible:ring-2 focus-visible:ring-signal bg-stone dark:bg-graphite text-graphite dark:text-stone"
                     >
                       <option value="" disabled>Select destination</option>
                       {timecodes.filter(t => t.id !== tc.id).map(t => (
@@ -309,11 +313,11 @@ export const GroupingManagement: React.FC = () => {
                     <button
                       onClick={() => handleMergeSave(tc.id)}
                       disabled={!mergeDestId}
-                      className="px-3 py-1 bg-blue-600 text-white rounded text-sm hover:bg-blue-700 disabled:opacity-50 transition-colors"
+                      className="px-3 py-1.5 bg-signal hover:bg-signal-dim disabled:opacity-50 text-ink text-sm font-medium rounded transition-colors focus-visible:ring-2 focus-visible:ring-signal focus-visible:ring-offset-2"
                     >
                       Confirm Merge
                     </button>
-                    <button onClick={() => { setMergingTimecodeId(null); setMergeDestId(''); }} className="p-1 text-gray-600 dark:text-gray-400 hover:text-gray-800 dark:hover:text-gray-300 transition-colors" aria-label="Cancel Merge">
+                    <button onClick={() => { setMergingTimecodeId(null); setMergeDestId(''); }} className="p-1.5 text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-800 rounded transition-colors" aria-label="Cancel Merge">
                       <X size={18} />
                     </button>
                   </div>
@@ -323,8 +327,8 @@ export const GroupingManagement: React.FC = () => {
                     <div className="flex flex-col">
                       <div className="flex items-center gap-2">
                         <div className="w-3 h-3 rounded-full" style={{ backgroundColor: tc.color || group?.color || '#cbd5e1' }}></div>
-                        <span className="font-medium text-gray-800 dark:text-gray-200">{tc.name}</span>
-                        {tc.archived && <span className="text-xs bg-gray-200 dark:bg-gray-700 text-gray-600 dark:text-gray-400 px-2 py-0.5 rounded ml-2">Archived</span>}
+                        <span className="font-medium text-graphite dark:text-stone">{tc.name}</span>
+                        {tc.archived && <span className="text-xs bg-gray-200 dark:bg-gray-800 text-gray-600 dark:text-gray-400 px-2 py-0.5 rounded ml-2">Archived</span>}
                       </div>
                       <span className="text-xs text-gray-500 dark:text-gray-400 mt-1 ml-5">
                         Group: {group ? group.name : 'None'}
@@ -333,7 +337,7 @@ export const GroupingManagement: React.FC = () => {
                     <div className="flex items-center gap-2">
                       <button
                         onClick={() => handleEditTimecodeStart(tc)}
-                        className="p-1.5 text-gray-500 dark:text-gray-400 hover:text-blue-600 dark:hover:text-blue-400 hover:bg-blue-50 dark:hover:bg-blue-900/30 rounded transition-colors"
+                        className="p-1.5 text-gray-500 dark:text-gray-400 hover:text-signal hover:bg-signal/10 rounded transition-colors"
                         title="Edit Timecode"
                         aria-label="Edit Timecode"
                       >
@@ -344,7 +348,7 @@ export const GroupingManagement: React.FC = () => {
                           setMergingTimecodeId(tc.id);
                           setMergeDestId('');
                         }}
-                        className="p-1.5 text-purple-600 dark:text-purple-400 hover:bg-purple-50 dark:hover:bg-purple-900/30 rounded transition-colors"
+                        className="p-1.5 text-gray-500 dark:text-gray-400 hover:text-signal hover:bg-signal/10 rounded transition-colors"
                         title="Merge Timecode"
                         aria-label="Merge Timecode"
                       >
@@ -355,7 +359,7 @@ export const GroupingManagement: React.FC = () => {
                         onClick={() => {
                           updateTimecode(tc.id, { archived: !tc.archived });
                         }}
-                        className={`p-1.5 rounded transition-colors ${tc.archived ? 'text-green-600 dark:text-green-400 hover:bg-green-50 dark:hover:bg-green-900/30' : 'text-amber-600 dark:text-amber-400 hover:bg-amber-50 dark:hover:bg-amber-900/30'}`}
+                        className={`p-1.5 rounded transition-colors ${tc.archived ? 'text-verdigris hover:bg-verdigris/10' : 'text-gray-400 hover:text-signal hover:bg-signal/10'}`}
                         title={tc.archived ? 'Restore' : 'Archive'}
                         aria-label={tc.archived ? 'Restore Timecode' : 'Archive Timecode'}
                       >
@@ -367,7 +371,7 @@ export const GroupingManagement: React.FC = () => {
                             deleteTimecode(tc.id);
                           }
                         }}
-                        className="p-1.5 text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/30 rounded transition-colors"
+                        className="p-1.5 text-gray-400 hover:text-rust hover:bg-rust/10 rounded transition-colors"
                         title="Delete Timecode (Move to Trash)"
                         aria-label="Delete Timecode"
                       >
@@ -381,7 +385,7 @@ export const GroupingManagement: React.FC = () => {
           })}
         </div>
 
-        <div className="flex items-center gap-3 mt-4 pt-4 border-t border-gray-100 dark:border-gray-700 flex-wrap">
+        <div className="flex items-center gap-3 mt-4 pt-4 border-t border-graphite/10 dark:border-white/10 flex-wrap">
           <input
             type="color"
             value={newTimecodeColor}
@@ -393,7 +397,7 @@ export const GroupingManagement: React.FC = () => {
             type="text"
             value={newTimecodeColor}
             onChange={(e) => setNewTimecodeColor(e.target.value)}
-            className="w-20 px-2 py-2 text-sm border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-gray-700 text-gray-900 dark:text-white outline-none shrink-0"
+            className="w-20 px-2 py-2 text-sm border border-graphite/10 dark:border-white/10 rounded bg-stone dark:bg-graphite text-graphite dark:text-stone outline-none focus-visible:ring-2 focus-visible:ring-signal shrink-0"
             placeholder="#HEX"
           />
           <input
@@ -401,12 +405,12 @@ export const GroupingManagement: React.FC = () => {
             placeholder="New Timecode Name"
             value={newTimecodeName}
             onChange={(e) => setNewTimecodeName(e.target.value)}
-            className="flex-1 min-w-[150px] px-3 py-2 border border-gray-300 dark:border-gray-600 rounded outline-none focus:ring-1 focus:ring-blue-500 text-sm bg-white dark:bg-gray-700 text-gray-900 dark:text-white placeholder-gray-400 dark:placeholder-gray-500"
+            className="flex-1 min-w-[150px] px-3 py-2 border border-graphite/10 dark:border-white/10 rounded outline-none focus-visible:ring-2 focus-visible:ring-signal text-sm bg-stone dark:bg-graphite text-graphite dark:text-stone placeholder-gray-400 dark:placeholder-gray-500"
           />
           <select
             value={newTimecodeGroupId}
             onChange={(e) => setNewTimecodeGroupId(e.target.value)}
-            className="px-3 py-2 border border-gray-300 dark:border-gray-600 rounded outline-none focus:ring-1 focus:ring-blue-500 text-sm bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
+            className="px-3 py-2 border border-graphite/10 dark:border-white/10 rounded outline-none focus-visible:ring-2 focus-visible:ring-signal text-sm bg-stone dark:bg-graphite text-graphite dark:text-stone"
           >
             <option value="">No Group</option>
             {groups.map(g => (
@@ -421,14 +425,14 @@ export const GroupingManagement: React.FC = () => {
               const val = e.target.value;
               setNewTimecodeRate(val !== '' && Number(val) < 0 ? '0' : val);
             }}
-            className="w-24 px-3 py-2 border border-gray-300 dark:border-gray-600 rounded outline-none focus:ring-1 focus:ring-blue-500 text-sm bg-white dark:bg-gray-700 text-gray-900 dark:text-white placeholder-gray-400 dark:placeholder-gray-500"
+            className="w-24 px-3 py-2 border border-graphite/10 dark:border-white/10 rounded outline-none focus-visible:ring-2 focus-visible:ring-signal text-sm bg-stone dark:bg-graphite text-graphite dark:text-stone placeholder-gray-400 dark:placeholder-gray-500"
             min="0"
             step="0.01"
           />
           <button
             onClick={handleCreateTimecode}
             disabled={!newTimecodeName.trim()}
-            className="px-4 py-2 bg-blue-600 dark:bg-blue-700 text-white rounded text-sm font-medium hover:bg-blue-700 dark:hover:bg-blue-600 disabled:opacity-50 transition-colors"
+            className="px-4 py-2 bg-graphite hover:bg-ink dark:bg-stone dark:hover:bg-gray-300 text-stone dark:text-ink rounded text-sm font-medium disabled:opacity-50 transition-colors focus-visible:ring-2 focus-visible:ring-signal focus-visible:ring-offset-2"
           >
             Add Timecode
           </button>

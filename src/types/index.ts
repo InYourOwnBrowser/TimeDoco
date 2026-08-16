@@ -51,7 +51,7 @@ export interface EntryTemplate {
   id: string; // UUID
   title: string;
   timecodeId: string;
-  durationMinutes: number;
+  durationMinutes: number | null;
   note: string;
 }
 

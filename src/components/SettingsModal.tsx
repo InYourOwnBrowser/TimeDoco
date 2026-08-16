@@ -4,6 +4,7 @@ import { X, Upload, Download, AlertTriangle, CheckCircle2 } from 'lucide-react';
 import Papa from 'papaparse';
 import { Modal } from './ui/Modal';
 import { parseISO } from 'date-fns';
+import { HelpTooltip } from './ui/HelpTooltip';
 
 interface SettingsModalProps {
   onClose: () => void;
@@ -267,6 +268,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ onClose }) => {
                     className="w-4 h-4 text-blue-600 rounded border-gray-300 focus:ring-blue-500"
                   />
                   <span className="text-sm font-medium text-gray-700 dark:text-gray-300">Allow Multiple Concurrent Timers</span>
+                  <HelpTooltip text="Run more than one timer at once, e.g. tracking a call while a background task is still running." />
                 </label>
                 <p className="text-xs text-gray-500 dark:text-gray-400 mt-1 pl-6">
                   When disabled, starting a new timer automatically stops any existing active timer.
@@ -284,7 +286,10 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ onClose }) => {
                 />
               </div>
               <div className="flex items-center justify-between mb-4">
-                <label className="text-sm font-medium text-gray-700 dark:text-gray-300">Target Alert (Minutes)</label>
+                <label className="text-sm font-medium text-gray-700 dark:text-gray-300 flex items-center">
+                  Target Alert (Minutes)
+                  <HelpTooltip text="Notifies you this many minutes before you hit your weekly target." />
+                </label>
                 <input
                   type="number"
                   min="0"
@@ -295,7 +300,10 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ onClose }) => {
                 />
               </div>
               <div className="flex items-center justify-between mb-4">
-                <label className="text-sm font-medium text-gray-700 dark:text-gray-300">Idle Threshold (Minutes)</label>
+                <label className="text-sm font-medium text-gray-700 dark:text-gray-300 flex items-center">
+                  Idle Threshold (Minutes)
+                  <HelpTooltip text="If your mouse/keyboard is inactive longer than this, the app will prompt to discard the idle time from the running timer." />
+                </label>
                 <input
                   type="number"
                   min="1"
@@ -315,7 +323,10 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ onClose }) => {
                 />
               </div>
               <div className="flex items-center justify-between mb-2">
-                <label className="text-sm font-medium text-gray-700 dark:text-gray-300">Rounding Rule</label>
+                <label className="text-sm font-medium text-gray-700 dark:text-gray-300 flex items-center">
+                  Rounding Rule
+                  <HelpTooltip text="Rounds displayed/exported durations to the nearest interval. Doesn't change the raw start/end times you recorded." />
+                </label>
                 <select
                   value={settings?.roundingRule ?? 'none'}
                   onChange={(e) => updateSettings({ roundingRule: e.target.value as 'none' | '5min' | '10min' | '15min' })}
@@ -382,7 +393,10 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ onClose }) => {
                 </div>
 
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Import Mode</label>
+                  <label className="flex items-center block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                    Import Mode
+                    <HelpTooltip text="Merge keeps existing data and adds/updates anything newer in the file. Replace wipes current data first." />
+                  </label>
                   <div className="flex gap-4">
                     <label className="flex items-center gap-2 cursor-pointer">
                       <input
