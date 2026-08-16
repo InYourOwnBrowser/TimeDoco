@@ -37,6 +37,8 @@ export const TimesheetCalendarView: React.FC = () => {
     return 'bg-verdigris/10 text-graphite dark:text-stone';
   };
 
+  const [selectedDayEntries, setSelectedDayEntries] = useState<Date | null>(null);
+
   return (
     <div className="w-full">
       <div className="flex justify-between items-center mb-6">
@@ -66,10 +68,12 @@ export const TimesheetCalendarView: React.FC = () => {
         {days.map(day => {
           const hours = getDayTotalHours(day);
           const isCurrentMonth = isSameMonth(day, currentDate);
+          const isSelected = selectedDayEntries && format(day, 'yyyy-MM-dd') === format(selectedDayEntries, 'yyyy-MM-dd');
           return (
             <div
               key={day.toISOString()}
-              className={`min-h-[80px] p-2 border border-graphite/10 dark:border-white/10 rounded-md flex flex-col justify-between transition-colors ${!isCurrentMonth ? 'opacity-40 bg-gray-50 dark:bg-gray-800/20' : 'bg-stone dark:bg-graphite'} ${isToday(day) ? 'ring-2 ring-signal ring-inset' : ''} ${isCurrentMonth ? getIntensityColor(hours) : ''}`}
+              onClick={() => setSelectedDayEntries(isSelected ? null : day)}
+              className={`min-h-[80px] p-2 border rounded-md flex flex-col justify-between transition-colors cursor-pointer hover:border-signal/50 ${isSelected ? 'border-signal ring-1 ring-signal' : 'border-graphite/10 dark:border-white/10'} ${!isCurrentMonth ? 'opacity-40 bg-gray-50 dark:bg-gray-800/20' : 'bg-stone dark:bg-graphite'} ${isToday(day) && !isSelected ? 'ring-2 ring-signal ring-inset' : ''} ${isCurrentMonth ? getIntensityColor(hours) : ''}`}
             >
               <div className={`text-sm font-medium ${isToday(day) ? 'text-signal' : 'text-gray-500 dark:text-gray-400'}`}>
                 {format(day, 'd')}
@@ -83,6 +87,32 @@ export const TimesheetCalendarView: React.FC = () => {
           );
         })}
       </div>
+
+      {selectedDayEntries && (
+        <div className="mt-6 p-4 bg-stone dark:bg-graphite border border-graphite/10 dark:border-white/10 rounded-panel">
+          <h3 className="text-lg font-semibold text-graphite dark:text-stone mb-4 flex justify-between items-center">
+            <span>Entries for {format(selectedDayEntries, 'MMMM d, yyyy')}</span>
+            <Button variant="ghost" size="sm" onClick={() => setSelectedDayEntries(null)}>Close</Button>
+          </h3>
+          <div className="space-y-2">
+            {entries.filter(e => format(parseISO(e.startTime), 'yyyy-MM-dd') === format(selectedDayEntries, 'yyyy-MM-dd')).length === 0 ? (
+              <p className="text-sm text-gray-500 italic">No entries for this day.</p>
+            ) : (
+              entries.filter(e => format(parseISO(e.startTime), 'yyyy-MM-dd') === format(selectedDayEntries, 'yyyy-MM-dd')).map(entry => (
+                <div key={entry.id} className="flex justify-between items-center bg-gray-50 dark:bg-gray-800/30 p-2 rounded text-sm border border-graphite/5 dark:border-white/5">
+                  <div className="flex flex-col">
+                    <span className="font-medium text-graphite dark:text-stone">{entry.note || 'No note'}</span>
+                    <span className="text-xs text-gray-500">{format(parseISO(entry.startTime), 'h:mm a')} - {entry.endTime ? format(parseISO(entry.endTime), 'h:mm a') : 'Now'}</span>
+                  </div>
+                  <span className="font-mono text-gray-600 dark:text-gray-300">
+                    {(applyRounding(entry.duration, settings?.roundingRule || 'none') / 3600).toFixed(2)}h
+                  </span>
+                </div>
+              ))
+            )}
+          </div>
+        </div>
+      )}
     </div>
   );
 };
