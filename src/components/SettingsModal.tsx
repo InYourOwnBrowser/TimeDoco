@@ -59,7 +59,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ onClose }) => {
 
         const parsed = JSON.parse(content);
         if (!parsed || typeof parsed !== 'object' || !Array.isArray(parsed.entries) || !Array.isArray(parsed.timecodes) || !Array.isArray(parsed.groups)) {
-          throw new Error('Invalid TimeTag backup file structure.');
+          throw new Error('Invalid TimeDoco backup file structure.');
         }
 
         setImportPreview({
@@ -69,7 +69,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ onClose }) => {
         });
 
       } catch (error: any) {
-        setStatusMsg({ type: 'error', text: error.message || 'Failed to parse backup file. Is it a valid TimeTag JSON?' });
+        setStatusMsg({ type: 'error', text: error.message || 'Failed to parse backup file. Is it a valid TimeDoco JSON?' });
         if (fileInputRef.current) fileInputRef.current.value = '';
       } finally {
         setIsProcessing(false);

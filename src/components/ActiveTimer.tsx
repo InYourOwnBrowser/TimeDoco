@@ -61,7 +61,7 @@ export const ActiveTimer: React.FC<{ activeEntry: Entry | null }> = ({ activeEnt
         if (seconds >= settings.targetAlertMinutes * 60) {
           addToast(`Target reached! ${settings.targetAlertMinutes} minutes elapsed.`, 'info', undefined, 10000);
           if (Notification.permission === 'granted') {
-            new Notification('TimeTag Target Reached', {
+            new Notification('TimeDoco Target Reached', {
                body: `You have tracked ${settings.targetAlertMinutes} minutes.`,
              });
           }
