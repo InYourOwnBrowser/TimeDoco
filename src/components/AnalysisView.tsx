@@ -3,6 +3,7 @@ import { useTimeTracker } from '../context/TimeTrackerContext';
 import { startOfDay, endOfDay, startOfWeek, endOfWeek, startOfMonth, endOfMonth, startOfQuarter, endOfQuarter, subMonths, subQuarters, parseISO, format } from 'date-fns';
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, PieChart, Pie, Cell, Legend } from 'recharts';
 import { Download, Printer, AlertTriangle, Calendar } from 'lucide-react';
+import { HelpTooltip } from './ui/HelpTooltip';
 import { applyRounding, calculateDuration } from '../utils/timeUtils';
 import { createEvents, type EventAttributes } from 'ics';
 
@@ -15,6 +16,28 @@ export const AnalysisView: React.FC = () => {
   const [customStart, setCustomStart] = useState<string>(format(startOfWeek(new Date(), { weekStartsOn: 1 }), 'yyyy-MM-dd'));
   const [customEnd, setCustomEnd] = useState<string>(format(endOfWeek(new Date(), { weekStartsOn: 1 }), 'yyyy-MM-dd'));
   const [tick, setTick] = useState(0);
+
+  const [selectedGroupId, setSelectedGroupId] = useState<string>('all');
+  const [selectedTimecodeId, setSelectedTimecodeId] = useState<string>('all');
+
+  const timecodeOptions = useMemo(() => {
+    return timecodes.filter(t => !t.archived && (selectedGroupId === 'all' || t.groupId === selectedGroupId));
+  }, [timecodes, selectedGroupId]);
+
+  useEffect(() => {
+    if (selectedTimecodeId !== 'all' && !timecodeOptions.some(t => t.id === selectedTimecodeId)) {
+      setSelectedTimecodeId('all');
+    }
+  }, [timecodeOptions, selectedTimecodeId]);
+
+  const scopeLabel = useMemo(() => {
+    if (selectedTimecodeId !== 'all') return timecodes.find(t => t.id === selectedTimecodeId)?.name ?? 'All';
+    if (selectedGroupId !== 'all') return groups.find(g => g.id === selectedGroupId)?.name ?? 'All';
+    return 'All';
+  }, [selectedGroupId, selectedTimecodeId, groups, timecodes]);
+
+  const scopeSlug = scopeLabel.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '');
+
 
   useEffect(() => {
     const interval = setInterval(() => setTick(t => t + 1), 60000);
@@ -58,10 +81,16 @@ export const AnalysisView: React.FC = () => {
 
       // We want entries that intersect with our date range at all.
       // So entryStart <= rangeEnd AND entryEnd >= rangeStart
-      return entryStart <= dateRange.end && entryEnd >= dateRange.start;
+      const inRange = entryStart <= dateRange.end && entryEnd >= dateRange.start;
+
+      const tc = timecodes.find(t => t.id === entry.timecodeId);
+      const matchesGroup = selectedGroupId === 'all' || tc?.groupId === selectedGroupId;
+      const matchesTimecode = selectedTimecodeId === 'all' || entry.timecodeId === selectedTimecodeId;
+
+      return inRange && matchesGroup && matchesTimecode;
     });
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [entries, dateRange, tick]);
+  }, [entries, dateRange, tick, selectedGroupId, selectedTimecodeId, timecodes]);
 
 
   // Detect overlaps in the filtered entries
@@ -240,7 +269,7 @@ export const AnalysisView: React.FC = () => {
     const url = URL.createObjectURL(blob);
     const link = document.createElement('a');
     link.href = url;
-    link.setAttribute('download', `time-report-${format(dateRange.start, 'yyyy-MM-dd')}.csv`);
+    link.setAttribute('download', `time-report-${scopeSlug}-${format(dateRange.start, 'yyyy-MM-dd')}.csv`);
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
@@ -289,7 +318,7 @@ export const AnalysisView: React.FC = () => {
       const url = URL.createObjectURL(blob);
       const link = document.createElement('a');
       link.href = url;
-      link.setAttribute('download', `time-entries-${format(dateRange.start, 'yyyy-MM-dd')}.ics`);
+      link.setAttribute('download', `time-entries-${scopeSlug}-${format(dateRange.start, 'yyyy-MM-dd')}.ics`);
       document.body.appendChild(link);
       link.click();
       document.body.removeChild(link);
@@ -319,7 +348,7 @@ export const AnalysisView: React.FC = () => {
     const url = URL.createObjectURL(blob);
     const link = document.createElement('a');
     link.href = url;
-    link.setAttribute('download', `time-entries-${format(dateRange.start, 'yyyy-MM-dd')}.csv`);
+    link.setAttribute('download', `time-entries-${scopeSlug}-${format(dateRange.start, 'yyyy-MM-dd')}.csv`);
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
@@ -332,6 +361,13 @@ export const AnalysisView: React.FC = () => {
     const { default: autoTable } = await import('jspdf-autotable');
 
     const doc = new jsPDF();
+
+    doc.setFontSize(14);
+    doc.text(`Time Report — ${scopeLabel}`, 14, 15);
+    doc.setFontSize(10);
+    doc.setTextColor(120);
+    doc.text(`${format(dateRange.start, 'MMM d, yyyy')} – ${format(dateRange.end, 'MMM d, yyyy')}`, 14, 21);
+
     const tableData = timecodeData.map(tc => {
       const timecode = timecodes.find(t => t.id === tc.id);
       const groupName = timecode?.groupId ? groups.find(g => g.id === timecode.groupId)?.name || 'Unknown' : 'Ungrouped';
@@ -339,11 +375,12 @@ export const AnalysisView: React.FC = () => {
     });
 
     autoTable(doc, {
+      startY: 26,
       head: [['Timecode', 'Group', 'Duration (Hours)', 'Earnings']],
       body: tableData,
     });
 
-    doc.save(`time-report-${format(dateRange.start, 'yyyy-MM-dd')}.pdf`);
+    doc.save(`time-report-${scopeSlug}-${format(dateRange.start, 'yyyy-MM-dd')}.pdf`);
   };
 
   return (
@@ -382,7 +419,7 @@ export const AnalysisView: React.FC = () => {
         </div>
 
         {preset === 'custom' && (
-          <div className="flex items-center gap-2 mb-2">
+          <div className="flex items-center gap-2 mb-4">
             <input
               type="date"
               value={customStart}
@@ -398,9 +435,42 @@ export const AnalysisView: React.FC = () => {
             />
           </div>
         )}
+
+        <div className="flex flex-wrap gap-2 mb-4 items-center">
+          <select
+            value={selectedGroupId}
+            onChange={(e) => setSelectedGroupId(e.target.value)}
+            className="px-3 py-1.5 text-sm border-graphite/10 dark:border-white/10 rounded-md bg-stone dark:bg-ink text-graphite dark:text-stone focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-signal"
+          >
+            <option value="all">All Clients / Groups</option>
+            {groups.filter(g => !g.archived).map(g => (
+              <option key={g.id} value={g.id}>{g.name}</option>
+            ))}
+          </select>
+          <select
+            value={selectedTimecodeId}
+            onChange={(e) => setSelectedTimecodeId(e.target.value)}
+            className="px-3 py-1.5 text-sm border-graphite/10 dark:border-white/10 rounded-md bg-stone dark:bg-ink text-graphite dark:text-stone focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-signal"
+          >
+            <option value="all">All Timecodes</option>
+            {timecodeOptions.map(t => (
+              <option key={t.id} value={t.id}>{t.name}</option>
+            ))}
+          </select>
+          {(selectedGroupId !== 'all' || selectedTimecodeId !== 'all') && (
+            <button
+              onClick={() => { setSelectedGroupId('all'); setSelectedTimecodeId('all'); }}
+              className="text-sm text-gray-500 hover:text-signal dark:text-gray-400 transition-colors"
+            >
+              Clear filter
+            </button>
+          )}
+          <HelpTooltip text="Filters everything below, including the CSV, ICS, and PDF exports — use this to send a client-specific breakdown." />
+        </div>
       </div>
 
       <div className="p-6">
+        {scopeLabel !== 'All' && <p className="text-sm text-gray-500 mb-2">Showing: {scopeLabel}</p>}
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-8">
           <div className="bg-stone dark:bg-ink rounded-panel p-5 border border-graphite/10 dark:border-white/10 shadow-inner flex flex-col justify-center items-center transition-colors">
             <span className="text-signal text-xs font-sans font-semibold mb-1 uppercase tracking-wide">TOTAL TRACKED TIME</span>
