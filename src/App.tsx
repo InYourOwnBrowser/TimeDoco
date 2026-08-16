@@ -241,7 +241,7 @@ const AppContent = () => {
           </div>
         </header>
 
-        <main className="w-full max-w-3xl flex flex-col items-center">
+        <main className={`w-full flex flex-col items-center ${activeTab === 'timesheet' || activeTab === 'management' ? 'max-w-5xl' : 'max-w-3xl'}`}>
           {activeTab === 'tracker' && (
             <>
               {activeEntries.map(entry => (

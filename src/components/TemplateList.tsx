@@ -132,7 +132,7 @@ export const TemplateList: React.FC = () => {
         </h3>
         <button
           onClick={() => handleOpenModal()}
-          className="text-xs flex items-center text-blue-600 hover:text-blue-700 dark:text-blue-400 dark:hover:text-blue-300 transition-colors"
+          className="text-xs flex items-center text-signal hover:text-signal-dim transition-colors"
         >
           <Plus size={14} className="mr-1" /> New Template
         </button>

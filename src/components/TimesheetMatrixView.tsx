@@ -142,6 +142,7 @@ export const TimesheetMatrixView: React.FC = () => {
                     {weekDays.map(day => (
                       <td key={day.toISOString()} className="px-1 py-1 align-middle">
                         <input
+                          key={`${tc.id}-${day.toISOString()}-${getCellHours(tc.id, day)}`}
                           type="number"
                           step="0.25"
                           min="0"

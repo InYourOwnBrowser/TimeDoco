@@ -70,7 +70,7 @@ export const EntrySplitModal: React.FC<EntrySplitModalProps> = ({ entry, onClose
               onChange={(e) => { setSplitTime(e.target.value); setError(null); }}
               min={format(parseISO(entry.startTime), "yyyy-MM-dd'T'HH:mm:ss")}
               max={format(parseISO(entry.endTime!), "yyyy-MM-dd'T'HH:mm:ss")}
-              className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-1 focus:ring-blue-500 focus:border-blue-500 sm:text-sm dark:bg-gray-700 dark:border-gray-600 dark:text-white"
+              className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:border-signal focus-visible:ring-2 focus-visible:ring-signal sm:text-sm dark:bg-gray-700 dark:border-gray-600 dark:text-white"
             />
           </div>
 
@@ -92,13 +92,13 @@ export const EntrySplitModal: React.FC<EntrySplitModalProps> = ({ entry, onClose
         <div className="bg-gray-50 dark:bg-gray-900/50 px-4 py-3 sm:px-6 flex flex-row-reverse">
           <button
             onClick={handleSave}
-            className="w-full inline-flex justify-center rounded-md border border-transparent shadow-sm px-4 py-2 bg-blue-600 text-base font-medium text-white hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 sm:ml-3 sm:w-auto sm:text-sm"
+            className="w-full inline-flex justify-center rounded-md border border-transparent shadow-sm px-4 py-2 bg-graphite hover:bg-ink dark:bg-stone dark:hover:bg-gray-300 text-base font-medium text-stone dark:text-ink focus:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-signal sm:ml-3 sm:w-auto sm:text-sm transition-colors"
           >
             Split Entry
           </button>
           <button
             onClick={onClose}
-            className="mt-3 w-full inline-flex justify-center rounded-md border border-gray-300 shadow-sm px-4 py-2 bg-white text-base font-medium text-gray-700 hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 sm:mt-0 sm:ml-3 sm:w-auto sm:text-sm dark:bg-gray-700 dark:text-gray-200 dark:border-gray-600 dark:hover:bg-gray-600"
+            className="mt-3 w-full inline-flex justify-center rounded-md border border-gray-300 shadow-sm px-4 py-2 bg-white text-base font-medium text-gray-700 hover:bg-gray-50 focus:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-signal sm:mt-0 sm:ml-3 sm:w-auto sm:text-sm dark:bg-gray-700 dark:text-gray-200 dark:border-gray-600 dark:hover:bg-gray-600 transition-colors"
           >
             Cancel
           </button>
