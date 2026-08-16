@@ -19,7 +19,7 @@ import { ToastProvider, useToast } from './context/ToastContext';
 import { getElapsedTimeMs, formatElapsedSeconds } from './utils/timeUtils';
 import { GlobalActiveTimerBar } from './components/GlobalActiveTimerBar';
 import { useInstallPrompt } from './hooks/useInstallPrompt';
-import logo from './assets/logo.svg';
+import { Logo } from './components/ui/Logo';
 import { Download } from 'lucide-react';
 
 // Extracted inner component so we can use TimeTrackerContext
@@ -179,7 +179,7 @@ const AppContent = () => {
         </div>
 
         <header className="mb-8 text-center">
-          <img src={logo} alt="TimeDoco Logo" className="h-20 mx-auto mb-2" />
+          <Logo className="h-20 w-auto mx-auto mb-2" />
           <p className="text-gray-500 dark:text-gray-400 mb-6">100% Client-Side. Privacy First.</p>
 
           <div className="flex justify-center mb-4 w-full px-4 sm:px-0">
