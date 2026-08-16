@@ -5,6 +5,7 @@ import { applyRounding } from '../utils/timeUtils';
 import { useToast } from '../context/ToastContext';
 import { ChevronLeft, ChevronRight } from 'lucide-react';
 import { Button } from './ui/Button';
+import { Panel } from './ui/Panel';
 
 const ADJUSTMENT_TAG = 'timesheet-adjustment';
 
@@ -107,7 +108,7 @@ export const TimesheetMatrixView: React.FC = () => {
         </div>
       </div>
 
-      <div className="min-w-[800px] border border-graphite/10 dark:border-white/10 rounded-panel overflow-hidden bg-stone dark:bg-graphite">
+      <Panel className="min-w-[800px] overflow-hidden border border-graphite/10 dark:border-white/10">
         <table className="w-full text-sm text-left">
           <thead className="bg-gray-50 dark:bg-gray-800/50 border-b border-graphite/10 dark:border-white/10">
             <tr>
@@ -153,7 +154,7 @@ export const TimesheetMatrixView: React.FC = () => {
                               commitCell(tc.id, day, 0);
                             }
                           }}
-                          className="w-full text-center p-1.5 bg-transparent border border-transparent hover:border-gray-300 dark:hover:border-gray-600 focus:border-signal focus:ring-1 focus:ring-signal rounded tabular-nums focus:outline-none focus:bg-white dark:focus:bg-gray-700 transition-all text-graphite dark:text-stone"
+                          className="w-full text-center p-1.5 bg-transparent border border-transparent hover:border-graphite/20 dark:hover:border-white/20 focus-visible:ring-2 focus-visible:ring-signal focus-visible:ring-offset-2 rounded tabular-nums focus:outline-none focus:bg-stone dark:focus:bg-graphite transition-all text-graphite dark:text-stone"
                           placeholder="-"
                         />
                       </td>
@@ -180,7 +181,7 @@ export const TimesheetMatrixView: React.FC = () => {
             </tr>
           </tfoot>
         </table>
-      </div>
+      </Panel>
     </div>
   );
 };
