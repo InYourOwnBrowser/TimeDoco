@@ -18,6 +18,8 @@ import { ToastProvider, useToast } from './context/ToastContext';
 
 import { getElapsedTimeMs, formatElapsedSeconds } from './utils/timeUtils';
 import { GlobalActiveTimerBar } from './components/GlobalActiveTimerBar';
+import { useInstallPrompt } from './hooks/useInstallPrompt';
+import { Download } from 'lucide-react';
 
 // Extracted inner component so we can use TimeTrackerContext
 const AppContent = () => {
@@ -27,6 +29,7 @@ const AppContent = () => {
   const [activeTab, setActiveTab] = useState<'tracker' | 'timesheet' | 'analysis' | 'management' | 'resources'>('tracker');
   const [showNewTimer, setShowNewTimer] = useState(false);
   const [isFallbackMode, setIsFallbackMode] = useState(false);
+  const { canInstall, promptInstall } = useInstallPrompt();
 
   // Listen for IndexedDB fallback mode globally
   useEffect(() => {
@@ -146,7 +149,15 @@ const AppContent = () => {
             ⚠️ Storage Error: App is running in memory fallback mode. Your data will not be saved after you close this page.
           </div>
         )}
-        <div className="w-full max-w-3xl absolute top-4 right-4 flex justify-end">
+        <div className="w-full max-w-3xl absolute top-4 right-4 flex justify-end gap-2">
+          {canInstall && (
+            <button
+              onClick={promptInstall}
+              className="flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium rounded-full bg-graphite hover:bg-ink dark:bg-stone dark:hover:bg-gray-300 text-stone dark:text-ink transition-colors"
+            >
+              <Download size={14} /> Install App
+            </button>
+          )}
           <button
             onClick={() => setIsSettingsOpen(true)}
             className="p-2 text-gray-500 dark:text-gray-400 hover:text-gray-800 dark:hover:text-gray-200 hover:bg-gray-200 dark:hover:bg-gray-800 rounded-full transition-colors"
