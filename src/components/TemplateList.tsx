@@ -7,9 +7,10 @@ import { TimecodeSelector } from './TimecodeSelector';
 import type { EntryTemplate } from '../types';
 import { subMinutes } from 'date-fns';
 import { checkOverlap } from '../utils/timeUtils';
+import { HelpTooltip } from './ui/HelpTooltip';
 
 export const TemplateList: React.FC = () => {
-  const { settings, updateSettings, addManualEntry, timecodes, groups, entries } = useTimeTracker();
+  const { settings, updateSettings, addManualEntry, timecodes, groups, entries, startTimer } = useTimeTracker();
   const { addToast } = useToast();
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingTemplate, setEditingTemplate] = useState<EntryTemplate | null>(null);
@@ -17,24 +18,27 @@ export const TemplateList: React.FC = () => {
   // Form state
   const [title, setTitle] = useState('');
   const [timecodeId, setTimecodeId] = useState('');
+  const [isFixedDuration, setIsFixedDuration] = useState(true);
   const [durationMinutes, setDurationMinutes] = useState(15);
   const [note, setNote] = useState('');
 
   const templates = settings?.templates || [];
 
-  const isDirty = title !== '' || note !== '' || durationMinutes !== 15;
+  const isDirty = title !== '' || note !== '' || durationMinutes !== 15 || !isFixedDuration;
 
   const handleOpenModal = (template?: EntryTemplate) => {
     if (template) {
       setEditingTemplate(template);
       setTitle(template.title);
       setTimecodeId(template.timecodeId);
-      setDurationMinutes(template.durationMinutes);
+      setIsFixedDuration(template.durationMinutes !== null);
+      setDurationMinutes(template.durationMinutes || 15);
       setNote(template.note);
     } else {
       setEditingTemplate(null);
       setTitle('');
       setTimecodeId(timecodes.length > 0 ? timecodes[0].id : '');
+      setIsFixedDuration(true);
       setDurationMinutes(15);
       setNote('');
     }
@@ -47,13 +51,15 @@ export const TemplateList: React.FC = () => {
 
   const handleSave = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!title.trim() || !timecodeId || durationMinutes <= 0) return;
+    if (!title.trim() || !timecodeId || (isFixedDuration && durationMinutes <= 0)) return;
+
+    const finalDuration = isFixedDuration ? durationMinutes : null;
 
     let newTemplates = [...templates];
     if (editingTemplate) {
       newTemplates = newTemplates.map(t =>
         t.id === editingTemplate.id
-          ? { ...t, title: title.trim(), timecodeId, durationMinutes, note: note.trim() }
+          ? { ...t, title: title.trim(), timecodeId, durationMinutes: finalDuration, note: note.trim() }
           : t
       );
     } else {
@@ -61,7 +67,7 @@ export const TemplateList: React.FC = () => {
         id: crypto.randomUUID(),
         title: title.trim(),
         timecodeId,
-        durationMinutes,
+        durationMinutes: finalDuration,
         note: note.trim()
       });
     }
@@ -89,6 +95,12 @@ export const TemplateList: React.FC = () => {
   };
 
   const handleLogTemplate = async (template: EntryTemplate) => {
+    if (template.durationMinutes == null) {
+      await startTimer(template.timecodeId, template.note);
+      addToast(`Started timer for ${template.title}`, 'success');
+      return;
+    }
+
     const end = new Date();
     const start = subMinutes(end, template.durationMinutes);
 
@@ -114,7 +126,10 @@ export const TemplateList: React.FC = () => {
   return (
     <div className="w-full mb-8">
       <div className="flex justify-between items-center mb-3">
-        <h3 className="text-sm font-semibold text-gray-500 uppercase tracking-wider">Quick Log Templates</h3>
+        <h3 className="text-sm font-semibold text-gray-500 uppercase tracking-wider">
+          Quick Log Templates
+          <HelpTooltip text="One-click shortcuts. Set a fixed duration to instantly log a completed block, or leave duration off to start a live timer instead." />
+        </h3>
         <button
           onClick={() => handleOpenModal()}
           className="text-xs flex items-center text-blue-600 hover:text-blue-700 dark:text-blue-400 dark:hover:text-blue-300 transition-colors"
@@ -151,7 +166,7 @@ export const TemplateList: React.FC = () => {
                   style={{ backgroundColor: tcColor }}
                 />
                 <span className="text-sm font-medium text-gray-700 dark:text-gray-200 py-1.5 whitespace-nowrap">
-                  {template.title} <span className="text-gray-400 font-normal text-xs ml-1">({template.durationMinutes}m)</span>
+                  {template.title} {template.durationMinutes !== null ? <span className="text-gray-400 font-normal text-xs ml-1">({template.durationMinutes}m)</span> : <span className="text-blue-500 font-normal text-xs ml-1">▶ Start</span>}
                 </span>
 
                 <div className="flex items-center opacity-0 group-hover:opacity-100 transition-opacity ml-2">
@@ -214,16 +229,26 @@ export const TemplateList: React.FC = () => {
             />
           </div>
           <div>
-            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Duration (minutes)</label>
-            <input
-              type="number"
-              min="1"
-              step="1"
-              value={durationMinutes}
-              onChange={(e) => setDurationMinutes(Math.max(1, Number(e.target.value)))}
-              className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
-              required
-            />
+            <label className="flex items-center space-x-2 text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+              <input
+                type="checkbox"
+                checked={isFixedDuration}
+                onChange={(e) => setIsFixedDuration(e.target.checked)}
+                className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+              />
+              <span>Fixed duration</span>
+            </label>
+            {isFixedDuration && (
+              <input
+                type="number"
+                min="1"
+                step="1"
+                value={durationMinutes}
+                onChange={(e) => setDurationMinutes(Math.max(1, Number(e.target.value)))}
+                className="w-full px-3 py-2 mt-1 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
+                required={isFixedDuration}
+              />
+            )}
           </div>
           <div>
             <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Note (optional)</label>
@@ -246,7 +271,7 @@ export const TemplateList: React.FC = () => {
                 </button>
                 <button
                   type="submit"
-                  disabled={!title.trim() || !timecodeId || durationMinutes <= 0}
+                  disabled={!title.trim() || !timecodeId || (isFixedDuration && durationMinutes <= 0)}
                   className="px-4 py-2 text-sm font-medium text-white bg-blue-600 rounded-md hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
                 >
                   Save Template

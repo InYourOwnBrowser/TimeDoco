@@ -8,9 +8,11 @@ import { BackupReminderBanner } from './components/BackupReminderBanner';
 import { SettingsModal } from './components/SettingsModal';
 const AnalysisView = lazy(() => import('./components/AnalysisView').then(module => ({ default: module.AnalysisView })));
 const GroupingManagement = lazy(() => import('./components/GroupingManagement').then(module => ({ default: module.GroupingManagement })));
+const TimesheetView = lazy(() => import('./components/TimesheetView').then(module => ({ default: module.TimesheetView })));
+const ResourcesView = lazy(() => import('./components/ResourcesView').then(module => ({ default: module.ResourcesView })));
 import { WeeklySummary } from './components/WeeklySummary';
 import { IdleDetector } from './components/IdleDetector';
-import { Settings, BarChart2, Clock, ListTree } from 'lucide-react';
+import { Settings, BarChart2, Clock, ListTree, CalendarDays, Sparkles } from 'lucide-react';
 import { useTimeTracker } from './context/TimeTrackerContext';
 import { ToastProvider, useToast } from './context/ToastContext';
 
@@ -168,40 +170,72 @@ const AppContent = () => {
           <h1 className="text-3xl font-sans font-semibold text-graphite dark:text-stone mb-2 tracking-tight">TimeTag</h1>
           <p className="text-gray-500 dark:text-gray-400 mb-6">100% Client-Side. Privacy First.</p>
 
-          <div className="flex justify-center mb-4">
-            <div className="bg-stone dark:bg-ink p-1 rounded-panel inline-flex border border-graphite/10 dark:border-white/10 shadow-inner">
+          <div className="flex justify-center mb-4 w-full px-4 sm:px-0">
+            <div className="bg-stone dark:bg-ink p-1 rounded-panel flex w-full sm:w-auto overflow-x-auto hide-scrollbar border border-graphite/10 dark:border-white/10 shadow-inner">
               <button
                 onClick={() => setActiveTab('tracker')}
-                className={`flex items-center px-4 py-2 text-sm font-medium transition-colors focus-visible:ring-2 focus-visible:ring-signal focus-visible:ring-offset-2 ${
+                className={`flex-1 sm:flex-none flex items-center justify-center sm:justify-start px-3 sm:px-4 py-2 text-sm font-medium transition-colors focus-visible:ring-2 focus-visible:ring-signal focus-visible:ring-offset-2 ${
                   activeTab === 'tracker'
                     ? 'bg-signal/10 text-signal border-b-2 border-signal rounded-none'
                     : 'text-graphite dark:text-stone hover:text-gray-900 dark:hover:text-white rounded-panel'
                 }`}
+                aria-label="Tracker"
+                title="Tracker"
               >
-                <Clock size={16} className="mr-2" />
-                Tracker
+                <Clock size={16} className="sm:mr-2" />
+                <span className="hidden sm:inline">Tracker</span>
+              </button>
+              <button
+                onClick={() => setActiveTab('timesheet')}
+                className={`flex-1 sm:flex-none flex items-center justify-center sm:justify-start px-3 sm:px-4 py-2 text-sm font-medium transition-colors focus-visible:ring-2 focus-visible:ring-signal focus-visible:ring-offset-2 ${
+                  activeTab === 'timesheet'
+                    ? 'bg-signal/10 text-signal border-b-2 border-signal rounded-none'
+                    : 'text-graphite dark:text-stone hover:text-gray-900 dark:hover:text-white rounded-panel'
+                }`}
+                aria-label="Timesheet"
+                title="Timesheet"
+              >
+                <CalendarDays size={16} className="sm:mr-2" />
+                <span className="hidden sm:inline">Timesheet</span>
               </button>
               <button
                 onClick={() => setActiveTab('analysis')}
-                className={`flex items-center px-4 py-2 text-sm font-medium transition-colors focus-visible:ring-2 focus-visible:ring-signal focus-visible:ring-offset-2 ${
+                className={`flex-1 sm:flex-none flex items-center justify-center sm:justify-start px-3 sm:px-4 py-2 text-sm font-medium transition-colors focus-visible:ring-2 focus-visible:ring-signal focus-visible:ring-offset-2 ${
                   activeTab === 'analysis'
                     ? 'bg-signal/10 text-signal border-b-2 border-signal rounded-none'
                     : 'text-graphite dark:text-stone hover:text-gray-900 dark:hover:text-white rounded-panel'
                 }`}
+                aria-label="Analysis"
+                title="Analysis"
               >
-                <BarChart2 size={16} className="mr-2" />
-                Analysis
+                <BarChart2 size={16} className="sm:mr-2" />
+                <span className="hidden sm:inline">Analysis</span>
               </button>
               <button
                 onClick={() => setActiveTab('management')}
-                className={`flex items-center px-4 py-2 text-sm font-medium transition-colors focus-visible:ring-2 focus-visible:ring-signal focus-visible:ring-offset-2 ${
+                className={`flex-1 sm:flex-none flex items-center justify-center sm:justify-start px-3 sm:px-4 py-2 text-sm font-medium transition-colors focus-visible:ring-2 focus-visible:ring-signal focus-visible:ring-offset-2 ${
                   activeTab === 'management'
                     ? 'bg-signal/10 text-signal border-b-2 border-signal rounded-none'
                     : 'text-graphite dark:text-stone hover:text-gray-900 dark:hover:text-white rounded-panel'
                 }`}
+                aria-label="Management"
+                title="Management"
               >
-                <ListTree size={16} className="mr-2" />
-                Management
+                <ListTree size={16} className="sm:mr-2" />
+                <span className="hidden sm:inline">Management</span>
+              </button>
+              <button
+                onClick={() => setActiveTab('resources')}
+                className={`flex-1 sm:flex-none flex items-center justify-center sm:justify-start px-3 sm:px-4 py-2 text-sm font-medium transition-colors focus-visible:ring-2 focus-visible:ring-signal focus-visible:ring-offset-2 ${
+                  activeTab === 'resources'
+                    ? 'bg-signal/10 text-signal border-b-2 border-signal rounded-none'
+                    : 'text-graphite dark:text-stone hover:text-gray-900 dark:hover:text-white rounded-panel'
+                }`}
+                aria-label="Resources"
+                title="Resources"
+              >
+                <Sparkles size={16} className="sm:mr-2" />
+                <span className="hidden sm:inline">Resources</span>
               </button>
             </div>
           </div>
@@ -219,7 +253,7 @@ const AppContent = () => {
               {activeEntries.length > 0 && !showNewTimer && settings?.allowConcurrentTimers && (
                 <button
                   onClick={() => setShowNewTimer(true)}
-                  className="mb-8 px-4 py-2 text-sm font-medium text-blue-600 dark:text-blue-400 bg-blue-50 dark:bg-blue-900/30 hover:bg-blue-100 dark:hover:bg-blue-900/50 rounded-lg transition-colors border border-blue-200 dark:border-blue-800"
+                  className="mb-8 px-4 py-2 text-sm font-medium text-graphite/60 dark:text-stone/60 bg-gray-50 dark:bg-gray-800/30 hover:bg-gray-100 dark:hover:bg-gray-800/50 rounded-panel transition-colors border border-graphite/20 dark:border-white/20 focus-visible:ring-2 focus-visible:ring-signal focus-visible:ring-offset-2"
                 >
                   + Start Another Timer
                 </button>
@@ -229,8 +263,10 @@ const AppContent = () => {
               <EntryList />
             </>
           )}
+          {activeTab === 'timesheet' && <Suspense fallback={<div className="p-8 text-center text-gray-500">Loading timesheet...</div>}><TimesheetView /></Suspense>}
           {activeTab === 'analysis' && <Suspense fallback={<div className="p-8 text-center text-gray-500">Loading analysis...</div>}><AnalysisView /></Suspense>}
           {activeTab === 'management' && <Suspense fallback={<div className="p-8 text-center text-gray-500">Loading management...</div>}><GroupingManagement /></Suspense>}
+          {activeTab === 'resources' && <Suspense fallback={<div className="p-8 text-center text-gray-500">Loading resources...</div>}><ResourcesView /></Suspense>}
         </main>
 
         {isSettingsOpen && <SettingsModal onClose={() => setIsSettingsOpen(false)} />}

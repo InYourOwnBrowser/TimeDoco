@@ -25,12 +25,15 @@ const LiveEntryDuration: React.FC<{ entry: Entry, settings: any, formatDuration:
 };
 
 export const EntryList: React.FC = () => {
-  const { entries, timecodes, deleteEntry, settings } = useTimeTracker();
+  const { entries, timecodes, groups, deleteEntry, settings } = useTimeTracker();
   const [editingEntry, setEditingEntry] = useState<Entry | null>(null);
   const [splittingEntry, setSplittingEntry] = useState<Entry | null>(null);
   const [isManualModalOpen, setIsManualModalOpen] = useState(false);
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedTimecodeId, setSelectedTimecodeId] = useState<string>('all');
+  const [dateFrom, setDateFrom] = useState<string>('');
+  const [dateTo, setDateTo] = useState<string>('');
+  const [selectedGroupId, setSelectedGroupId] = useState<string>('all');
 
   const formatDuration = (seconds: number) => {
     const h = Math.floor(seconds / 3600);
@@ -58,8 +61,25 @@ export const EntryList: React.FC = () => {
 
     const matchesTimecode = selectedTimecodeId === 'all' || entry.timecodeId === selectedTimecodeId;
 
-    return matchesSearch && matchesTimecode;
+    const tc = timecodes.find(t => t.id === entry.timecodeId);
+    const matchesGroup = selectedGroupId === 'all' || tc?.groupId === selectedGroupId;
+
+    const entryDate = format(parseISO(entry.startTime), 'yyyy-MM-dd');
+    const matchesFrom = !dateFrom || entryDate >= dateFrom;
+    const matchesTo = !dateTo || entryDate <= dateTo;
+
+    return matchesSearch && matchesTimecode && matchesGroup && matchesFrom && matchesTo;
   });
+
+  const handleClearFilters = () => {
+    setSearchTerm('');
+    setSelectedTimecodeId('all');
+    setSelectedGroupId('all');
+    setDateFrom('');
+    setDateTo('');
+  };
+
+  const hasActiveFilters = searchTerm !== '' || selectedTimecodeId !== 'all' || selectedGroupId !== 'all' || dateFrom !== '' || dateTo !== '';
 
   // Group entries by date
   const groupedEntries = filteredEntries.reduce((acc, entry) => {
@@ -97,28 +117,61 @@ export const EntryList: React.FC = () => {
         </button>
       </div>
 
-      <div className="flex flex-col sm:flex-row gap-4 mb-4">
-        <input
-          type="text"
-          placeholder="Search notes or timecode..."
-          value={searchTerm}
-          onChange={(e) => {
-            setSearchTerm(e.target.value);
-          }}
-          className="flex-1 shadow-inner focus:ring-signal focus:border-signal block w-full sm:text-sm border-graphite/10 dark:border-white/10 rounded-panel bg-stone dark:bg-ink text-gray-900 dark:text-white placeholder-gray-400 dark:placeholder-gray-500 focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-signal"
-        />
-        <select
-          value={selectedTimecodeId}
-          onChange={(e) => {
-            setSelectedTimecodeId(e.target.value);
-          }}
-          className="block w-full sm:w-48 pl-3 pr-10 py-2 text-base border-graphite/10 dark:border-white/10 shadow-inner focus:outline-none focus:ring-signal focus:border-signal sm:text-sm rounded-panel bg-stone dark:bg-ink text-gray-900 dark:text-white focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-signal"
-        >
-          <option value="all">All Timecodes</option>
-          {timecodes.filter(t => !t.archived).map((tc) => (
-            <option key={tc.id} value={tc.id}>{tc.name}</option>
-          ))}
-        </select>
+      <div className="flex flex-col gap-4 mb-4">
+        <div className="flex flex-col sm:flex-row gap-4">
+          <input
+            type="text"
+            placeholder="Search notes or timecode..."
+            value={searchTerm}
+            onChange={(e) => setSearchTerm(e.target.value)}
+            className="flex-1 shadow-inner focus:ring-signal focus:border-signal block w-full sm:text-sm border-graphite/10 dark:border-white/10 rounded-panel bg-stone dark:bg-ink text-gray-900 dark:text-white placeholder-gray-400 dark:placeholder-gray-500 focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-signal"
+          />
+          <select
+            value={selectedTimecodeId}
+            onChange={(e) => setSelectedTimecodeId(e.target.value)}
+            className="block w-full sm:w-48 pl-3 pr-10 py-2 text-base border-graphite/10 dark:border-white/10 shadow-inner focus:outline-none focus:ring-signal focus:border-signal sm:text-sm rounded-panel bg-stone dark:bg-ink text-gray-900 dark:text-white focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-signal"
+          >
+            <option value="all">All Timecodes</option>
+            {timecodes.filter(t => !t.archived).map((tc) => (
+              <option key={tc.id} value={tc.id}>{tc.name}</option>
+            ))}
+          </select>
+        </div>
+        <div className="flex flex-col sm:flex-row gap-4 items-center">
+          <input
+            type="date"
+            value={dateFrom}
+            onChange={(e) => setDateFrom(e.target.value)}
+            className="block w-full sm:w-auto pl-3 pr-10 py-2 text-base border-graphite/10 dark:border-white/10 shadow-inner focus:outline-none focus:ring-signal focus:border-signal sm:text-sm rounded-panel bg-stone dark:bg-ink text-gray-900 dark:text-white focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-signal"
+            aria-label="From Date"
+          />
+          <span className="text-gray-500 hidden sm:inline">to</span>
+          <input
+            type="date"
+            value={dateTo}
+            onChange={(e) => setDateTo(e.target.value)}
+            className="block w-full sm:w-auto pl-3 pr-10 py-2 text-base border-graphite/10 dark:border-white/10 shadow-inner focus:outline-none focus:ring-signal focus:border-signal sm:text-sm rounded-panel bg-stone dark:bg-ink text-gray-900 dark:text-white focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-signal"
+            aria-label="To Date"
+          />
+          <select
+            value={selectedGroupId}
+            onChange={(e) => setSelectedGroupId(e.target.value)}
+            className="block w-full sm:w-48 pl-3 pr-10 py-2 text-base border-graphite/10 dark:border-white/10 shadow-inner focus:outline-none focus:ring-signal focus:border-signal sm:text-sm rounded-panel bg-stone dark:bg-ink text-gray-900 dark:text-white focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-signal"
+          >
+            <option value="all">All Groups</option>
+            {groups.filter(g => !g.archived).map((g) => (
+              <option key={g.id} value={g.id}>{g.name}</option>
+            ))}
+          </select>
+          {hasActiveFilters && (
+            <button
+              onClick={handleClearFilters}
+              className="text-sm text-gray-500 hover:text-signal dark:text-gray-400 transition-colors whitespace-nowrap"
+            >
+              Clear filters
+            </button>
+          )}
+        </div>
       </div>
 
       <div className="bg-stone dark:bg-ink shadow-inner rounded-panel border border-graphite/10 dark:border-white/10 transition-colors overflow-hidden">

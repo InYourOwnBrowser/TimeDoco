@@ -443,5 +443,6 @@ export const importBackup = async (
     await tx.done;
   } catch (error) {
     triggerFallbackMode(error);
+    throw error;
   }
 };
