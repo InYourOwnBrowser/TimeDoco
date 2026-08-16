@@ -24,7 +24,7 @@ const AppContent = () => {
   const { activeEntries, stopTimer, startTimer, timecodes, entries, settings, forgotToStopEntry } = useTimeTracker();
   const { addToast } = useToast();
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
-  const [activeTab, setActiveTab] = useState<'tracker' | 'analysis' | 'management'>('tracker');
+  const [activeTab, setActiveTab] = useState<'tracker' | 'timesheet' | 'analysis' | 'management' | 'resources'>('tracker');
   const [showNewTimer, setShowNewTimer] = useState(false);
   const [isFallbackMode, setIsFallbackMode] = useState(false);
 
