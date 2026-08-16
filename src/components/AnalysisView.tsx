@@ -372,8 +372,8 @@ export const AnalysisView: React.FC = () => {
             <button
               key={p}
               onClick={() => setPreset(p)}
-              className={`px-4 py-1.5 text-sm font-medium rounded-full transition-colors ${
-                preset === p ? 'bg-blue-100 text-blue-700 dark:bg-blue-900/50 dark:text-blue-200' : 'bg-gray-100 text-gray-600 hover:bg-gray-200 dark:bg-gray-700 dark:text-gray-300 dark:hover:bg-gray-600'
+              className={`px-4 py-1.5 text-sm font-medium rounded-full transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-signal ${
+                preset === p ? 'bg-graphite text-stone dark:bg-stone dark:text-ink' : 'bg-gray-100 text-gray-600 hover:bg-gray-200 dark:bg-gray-700 dark:text-gray-300 dark:hover:bg-gray-600'
               }`}
             >
               {p === 'today' ? 'Today' : p === 'week' ? 'This Week' : p === 'month' ? 'This Month' : p === 'lastMonth' ? 'Last Month' : p === 'lastQuarter' ? 'Last Quarter' : 'Custom'}

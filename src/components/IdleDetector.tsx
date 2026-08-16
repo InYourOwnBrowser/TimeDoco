@@ -112,7 +112,7 @@ export const IdleDetector: React.FC = () => {
           </button>
           <button
             onClick={handleKeepRunning}
-            className="px-4 py-2 text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 rounded-lg transition-colors"
+            className="px-4 py-2 text-sm font-medium bg-graphite hover:bg-ink dark:bg-stone dark:hover:bg-gray-300 text-stone dark:text-ink rounded-lg transition-colors"
           >
             Yes, keep running
           </button>

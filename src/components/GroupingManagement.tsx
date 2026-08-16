@@ -16,10 +16,10 @@ export const GroupingManagement: React.FC = () => {
   const [editingTimecodeData, setEditingTimecodeData] = useState<{ name: string; color: string; groupId: string; hourlyRate: string }>({ name: '', color: '', groupId: '', hourlyRate: '' });
 
   const [newGroupName, setNewGroupName] = useState('');
-  const [newGroupColor, setNewGroupColor] = useState('#3b82f6'); // blue-500
+  const [newGroupColor, setNewGroupColor] = useState('#0a0a0a'); // graphite
 
   const [newTimecodeName, setNewTimecodeName] = useState('');
-  const [newTimecodeColor, setNewTimecodeColor] = useState('#94a3b8'); // slate-400
+  const [newTimecodeColor, setNewTimecodeColor] = useState('#0a0a0a'); // graphite
   const [newTimecodeGroupId, setNewTimecodeGroupId] = useState('');
   const [newTimecodeRate, setNewTimecodeRate] = useState('');
 
@@ -228,7 +228,7 @@ export const GroupingManagement: React.FC = () => {
           <button
             onClick={handleCreateGroup}
             disabled={!newGroupName.trim()}
-            className="px-4 py-2 bg-blue-600 dark:bg-blue-700 text-white rounded text-sm font-medium hover:bg-blue-700 dark:hover:bg-blue-600 disabled:opacity-50 transition-colors"
+            className="px-4 py-2 bg-graphite hover:bg-ink dark:bg-stone dark:hover:bg-gray-300 text-stone dark:text-ink rounded text-sm font-medium disabled:opacity-50 transition-colors"
           >
             Add Group
           </button>
