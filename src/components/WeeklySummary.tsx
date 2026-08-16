@@ -55,7 +55,7 @@ export const WeeklySummary: React.FC = () => {
 
   if (!targetHours) {
     return (
-      <div className="w-full max-w-md mx-auto mt-6 bg-white dark:bg-gray-800 p-5 rounded-xl shadow-sm border border-gray-100 dark:border-gray-700 text-center text-sm text-gray-500">
+      <div className="w-full max-w-md mx-auto mt-6 bg-stone dark:bg-ink p-5 rounded-panel shadow-inner border border-graphite/10 dark:border-white/10 text-center text-sm text-gray-500">
         Set a weekly target in Settings to track your goal progress.
       </div>
     );
@@ -64,14 +64,14 @@ export const WeeklySummary: React.FC = () => {
   const progress = Math.min((weeklyData / targetHours) * 100, 100);
 
   return (
-    <div className="w-full max-w-md mx-auto mt-6 bg-white dark:bg-gray-800 p-5 rounded-xl shadow-sm border border-gray-100 dark:border-gray-700 transition-colors">
+    <div className="w-full max-w-md mx-auto mt-6 bg-stone dark:bg-ink p-5 rounded-panel shadow-inner border border-graphite/10 dark:border-white/10 transition-colors">
       <div className="flex items-center justify-between mb-3">
         <div className="flex items-center gap-2">
-          <Target size={18} className="text-blue-600 dark:text-blue-400" />
-          <h3 className="text-sm font-semibold text-gray-800 dark:text-gray-200">Weekly Target</h3>
+          <Target size={18} className="text-signal" />
+          <h3 className="text-xs font-sans uppercase tracking-wide font-semibold text-gray-800 dark:text-gray-200">WEEKLY TARGET</h3>
         </div>
-        <div className="text-sm font-medium text-gray-600 dark:text-gray-400">
-          <span className={weeklyData >= targetHours ? "text-green-600 dark:text-green-400" : ""}>
+        <div className="text-sm font-mono tabular font-medium text-gray-600 dark:text-gray-400">
+          <span className={weeklyData >= targetHours ? "text-verdigris" : "text-graphite dark:text-stone"}>
             {weeklyData.toFixed(1)}
           </span> / {targetHours} hrs
         </div>
@@ -80,15 +80,15 @@ export const WeeklySummary: React.FC = () => {
       <div className="w-full bg-gray-200 dark:bg-gray-700 rounded-full h-2.5 overflow-hidden">
         <div
           className={`h-2.5 rounded-full transition-all duration-500 ease-out ${
-            weeklyData >= targetHours ? 'bg-green-500' : 'bg-blue-600 dark:bg-blue-500'
+            weeklyData >= targetHours ? 'bg-verdigris' : 'bg-signal'
           }`}
           style={{ width: `${progress}%` }}
         ></div>
       </div>
 
       {weeklyData >= targetHours && (
-        <p className="mt-3 text-xs text-green-600 dark:text-green-400 flex items-center gap-1 font-medium justify-center">
-          <TrendingUp size={14} /> Target reached! Great job!
+        <p className="mt-3 text-xs text-verdigris flex items-center gap-1 font-medium justify-center">
+          <TrendingUp size={14} /> Target reached!
         </p>
       )}
     </div>

@@ -96,10 +96,10 @@ export const ActiveTimer: React.FC<{ activeEntry: Entry | null }> = ({ activeEnt
   };
 
   return (
-    <div className="bg-white dark:bg-gray-800 p-6 rounded-xl shadow-sm border border-gray-100 dark:border-gray-700 max-w-md w-full mx-auto flex flex-col items-center transition-colors">
+    <div className="bg-stone dark:bg-ink p-6 rounded-panel shadow-inner border border-graphite/10 dark:border-white/10 max-w-md w-full mx-auto flex flex-col items-center transition-colors">
       {!activeEntry ? (
         <div className="w-full flex flex-col items-center gap-6">
-          <div className="text-5xl font-light text-gray-300 dark:text-gray-600 font-mono tracking-wider">
+          <div className="text-5xl text-gray-300 dark:text-gray-600 font-mono tracking-wider tabular">
             00:00
           </div>
 
@@ -111,7 +111,7 @@ export const ActiveTimer: React.FC<{ activeEntry: Entry | null }> = ({ activeEnt
           <button
             disabled={!selectedTimecodeId}
             onClick={() => selectedTimecodeId && startTimer(selectedTimecodeId)}
-            className="mt-2 w-16 h-16 rounded-full bg-blue-600 hover:bg-blue-700 text-white flex items-center justify-center shadow-lg disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+            className="mt-2 w-16 h-16 rounded-full bg-signal hover:bg-signal-dim text-white flex items-center justify-center shadow-lg disabled:opacity-50 disabled:cursor-not-allowed transition-colors focus-visible:ring-2 focus-visible:ring-signal focus-visible:ring-offset-2"
             aria-label="Start Timer (Cmd/Ctrl+Shift+S)"
             title="Start Timer (Cmd/Ctrl+Shift+S)"
           >
@@ -122,7 +122,7 @@ export const ActiveTimer: React.FC<{ activeEntry: Entry | null }> = ({ activeEnt
         <div className="w-full flex flex-col items-center gap-4">
 
           <div className="flex flex-col items-center">
-            <span className="text-sm font-medium text-gray-500 dark:text-gray-400 mb-1">Currently Tracking</span>
+            <span className="text-xs uppercase tracking-wide font-sans text-gray-500 dark:text-gray-400 mb-1">RECORDING</span>
             <div className="flex items-center gap-2">
               <div
                 className="w-3 h-3 rounded-full"
@@ -134,22 +134,25 @@ export const ActiveTimer: React.FC<{ activeEntry: Entry | null }> = ({ activeEnt
             </div>
           </div>
 
-          <div className={`text-6xl font-light font-mono tracking-wider tabular-nums ${activeEntry.isPaused ? 'text-amber-500 dark:text-amber-400' : 'text-blue-600 dark:text-blue-400'}`}>
-            {formatElapsedSeconds(elapsedSeconds)}
+          <div className="flex items-center gap-3">
+            <div className={`w-4 h-4 rounded-full ${activeEntry.isPaused ? 'bg-verdigris' : 'bg-signal recording-dot'}`}></div>
+            <div className="text-6xl font-mono tracking-wider tabular text-graphite dark:text-stone">
+              {formatElapsedSeconds(elapsedSeconds)}
+            </div>
           </div>
 
           <div className="w-full mt-2 mb-2 space-y-2">
             <input
               type="text"
               placeholder="What are you doing? (optional note)"
-              className="w-full text-center text-sm p-2 border border-transparent hover:border-gray-200 dark:hover:border-gray-600 focus:border-blue-500 dark:focus:border-blue-400 focus:ring-1 focus:ring-blue-500 dark:focus:ring-blue-400 rounded outline-none transition-colors bg-gray-50 dark:bg-gray-700 focus:bg-white dark:focus:bg-gray-800 text-gray-900 dark:text-white placeholder-gray-400 dark:placeholder-gray-500"
+              className="w-full text-center text-sm p-2 border border-transparent hover:border-gray-200 dark:hover:border-gray-600 focus:border-signal dark:focus:border-signal focus:ring-1 focus:ring-signal dark:focus:ring-signal rounded outline-none transition-colors bg-stone dark:bg-ink focus:bg-white dark:focus:bg-gray-800 text-gray-900 dark:text-white placeholder-gray-400 dark:placeholder-gray-500 focus-visible:ring-2 focus-visible:ring-signal focus-visible:ring-offset-2"
               value={localNote}
               onChange={(e) => setLocalNote(e.target.value)}
             />
             <input
               type="text"
               placeholder="Tags (comma separated)"
-              className="w-full text-center text-sm p-2 border border-transparent hover:border-gray-200 dark:hover:border-gray-600 focus:border-blue-500 dark:focus:border-blue-400 focus:ring-1 focus:ring-blue-500 dark:focus:ring-blue-400 rounded outline-none transition-colors bg-gray-50 dark:bg-gray-700 focus:bg-white dark:focus:bg-gray-800 text-gray-900 dark:text-white placeholder-gray-400 dark:placeholder-gray-500"
+              className="w-full text-center text-sm p-2 border border-transparent hover:border-gray-200 dark:hover:border-gray-600 focus:border-signal dark:focus:border-signal focus:ring-1 focus:ring-signal dark:focus:ring-signal rounded outline-none transition-colors bg-stone dark:bg-ink focus:bg-white dark:focus:bg-gray-800 text-gray-900 dark:text-white placeholder-gray-400 dark:placeholder-gray-500 focus-visible:ring-2 focus-visible:ring-signal focus-visible:ring-offset-2"
               value={localTags}
               onChange={(e) => setLocalTags(e.target.value)}
             />
@@ -159,7 +162,7 @@ export const ActiveTimer: React.FC<{ activeEntry: Entry | null }> = ({ activeEnt
             {activeEntry.isPaused ? (
               <button
                 onClick={() => resumeTimer(activeEntry.id)}
-                className="w-14 h-14 rounded-full bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-400 hover:bg-amber-200 dark:hover:bg-amber-900/50 flex items-center justify-center transition-colors"
+                className="w-14 h-14 rounded-full bg-verdigris text-white hover:bg-verdigris-dim flex items-center justify-center transition-colors focus-visible:ring-2 focus-visible:ring-signal focus-visible:ring-offset-2"
                 title="Resume"
                 aria-label="Resume Timer"
               >
@@ -168,7 +171,7 @@ export const ActiveTimer: React.FC<{ activeEntry: Entry | null }> = ({ activeEnt
             ) : (
               <button
                 onClick={() => pauseTimer(activeEntry.id)}
-                className="w-14 h-14 rounded-full bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600 flex items-center justify-center transition-colors"
+                className="w-14 h-14 rounded-full bg-gray-200 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-300 dark:hover:bg-gray-600 flex items-center justify-center transition-colors focus-visible:ring-2 focus-visible:ring-signal focus-visible:ring-offset-2"
                 title="Pause"
                 aria-label="Pause Timer"
               >
@@ -178,7 +181,7 @@ export const ActiveTimer: React.FC<{ activeEntry: Entry | null }> = ({ activeEnt
 
             <button
               onClick={handleStop}
-              className="w-16 h-16 rounded-full bg-red-600 hover:bg-red-700 text-white flex items-center justify-center shadow-lg transition-colors"
+              className="w-16 h-16 rounded-full bg-graphite hover:bg-ink dark:bg-stone dark:hover:bg-gray-300 text-stone dark:text-ink flex items-center justify-center shadow-lg transition-colors focus-visible:ring-2 focus-visible:ring-signal focus-visible:ring-offset-2"
               title="Stop (Cmd/Ctrl+Shift+S)"
               aria-label="Stop Timer (Cmd/Ctrl+Shift+S)"
             >

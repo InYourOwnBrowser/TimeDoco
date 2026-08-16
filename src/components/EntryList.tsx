@@ -91,7 +91,7 @@ export const EntryList: React.FC = () => {
         <h2 className="text-xl font-semibold text-gray-900 dark:text-white">Recent Entries</h2>
         <button
           onClick={() => setIsManualModalOpen(true)}
-          className="inline-flex items-center px-3 py-1.5 border border-gray-300 dark:border-gray-600 shadow-sm text-sm font-medium rounded text-gray-700 dark:text-gray-300 bg-white dark:bg-gray-800 hover:bg-gray-50 dark:hover:bg-gray-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 transition-colors"
+          className="inline-flex items-center px-3 py-1.5 border border-graphite/10 dark:border-white/10 shadow-inner text-sm font-medium rounded-panel text-graphite dark:text-stone bg-stone dark:bg-ink hover:bg-gray-200 dark:hover:bg-gray-800 focus:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-signal transition-colors"
         >
           Add Manual Entry
         </button>
@@ -105,14 +105,14 @@ export const EntryList: React.FC = () => {
           onChange={(e) => {
             setSearchTerm(e.target.value);
           }}
-          className="flex-1 shadow-sm focus:ring-blue-500 focus:border-blue-500 block w-full sm:text-sm border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-800 text-gray-900 dark:text-white placeholder-gray-400 dark:placeholder-gray-500"
+          className="flex-1 shadow-inner focus:ring-signal focus:border-signal block w-full sm:text-sm border-graphite/10 dark:border-white/10 rounded-panel bg-stone dark:bg-ink text-gray-900 dark:text-white placeholder-gray-400 dark:placeholder-gray-500 focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-signal"
         />
         <select
           value={selectedTimecodeId}
           onChange={(e) => {
             setSelectedTimecodeId(e.target.value);
           }}
-          className="block w-full sm:w-48 pl-3 pr-10 py-2 text-base border-gray-300 dark:border-gray-600 focus:outline-none focus:ring-blue-500 focus:border-blue-500 sm:text-sm rounded-md bg-white dark:bg-gray-800 text-gray-900 dark:text-white"
+          className="block w-full sm:w-48 pl-3 pr-10 py-2 text-base border-graphite/10 dark:border-white/10 shadow-inner focus:outline-none focus:ring-signal focus:border-signal sm:text-sm rounded-panel bg-stone dark:bg-ink text-gray-900 dark:text-white focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-signal"
         >
           <option value="all">All Timecodes</option>
           {timecodes.filter(t => !t.archived).map((tc) => (
@@ -121,7 +121,7 @@ export const EntryList: React.FC = () => {
         </select>
       </div>
 
-      <div className="bg-white dark:bg-gray-800 shadow sm:rounded-md border border-transparent dark:border-gray-700 transition-colors">
+      <div className="bg-stone dark:bg-ink shadow-inner rounded-panel border border-graphite/10 dark:border-white/10 transition-colors overflow-hidden">
         {entries.length === 0 ? (
           <div className="px-4 py-8 text-center text-gray-500 dark:text-gray-400">
             No entries yet. Start tracking!
@@ -134,12 +134,12 @@ export const EntryList: React.FC = () => {
           <GroupedVirtuoso
             style={{ height: '70vh', minHeight: '400px' }}
             groupCounts={groupCounts}
-            className="divide-y divide-gray-200 dark:divide-gray-700"
+            className="divide-y divide-graphite/10 dark:divide-white/10"
             groupContent={(index) => {
               const dateStr = sortedDates[index];
               return (
-                <div className="px-4 py-2 bg-gray-50 dark:bg-gray-900 border-t border-b border-gray-200 dark:border-gray-700 first:border-t-0">
-                  <span className="text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider">
+                <div className="px-4 py-2 bg-stone dark:bg-ink border-t border-b border-graphite/10 dark:border-white/10 first:border-t-0">
+                  <span className="text-xs font-semibold font-sans text-gray-500 dark:text-gray-400 uppercase tracking-wider">
                     {formatDateHeader(dateStr)}
                   </span>
                 </div>
@@ -153,10 +153,10 @@ export const EntryList: React.FC = () => {
               if (!entry) return null;
 
               return (
-                <div className="px-4 py-4 flex items-center sm:px-6 bg-white dark:bg-gray-800">
+                <div className="px-4 py-4 flex items-center sm:px-6 bg-stone dark:bg-ink hover:bg-signal/5 transition-colors">
                   <div className="min-w-0 flex-1 sm:flex sm:items-center sm:justify-between">
                     <div>
-                      <div className="flex text-sm">
+                      <div className="flex text-sm items-center">
                         <span
                           className="font-medium truncate flex items-center"
                           style={{ color: getTimecodeColor(entry.timecodeId) }}
@@ -168,18 +168,18 @@ export const EntryList: React.FC = () => {
                           {getTimecodeName(entry.timecodeId)}
                         </span>
                         {entry.isRunning && (
-                          <span className="ml-2 inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-green-100 dark:bg-green-900/30 text-green-800 dark:text-green-400">
+                          <span className="ml-2 inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-signal/10 text-signal border border-signal/20">
                             Running
                           </span>
                         )}
                         {entry.isPaused && (
-                          <span className="ml-2 inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-yellow-100 dark:bg-yellow-900/30 text-yellow-800 dark:text-yellow-400">
+                          <span className="ml-2 inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-verdigris/10 text-verdigris border border-verdigris/20">
                             Paused
                           </span>
                         )}
                       </div>
                       <div className="mt-2 flex">
-                        <div className="flex items-center text-sm text-gray-500 dark:text-gray-400">
+                        <div className="flex items-center text-sm text-gray-500 dark:text-gray-400 tabular font-mono">
                           <Clock className="flex-shrink-0 mr-1.5 h-4 w-4 text-gray-400 dark:text-gray-500" />
                           <p>
                             {format(parseISO(entry.startTime), 'h:mm a')}
@@ -205,7 +205,7 @@ export const EntryList: React.FC = () => {
                     </div>
                     <div className="mt-4 flex-shrink-0 sm:mt-0 sm:ml-5">
                       <div className="flex items-center space-x-4">
-                        <span className="text-lg font-mono font-medium text-gray-900 dark:text-gray-100">
+                        <span className="text-lg font-mono tabular font-medium text-graphite dark:text-stone">
                           {entry.isRunning
                             ? <LiveEntryDuration entry={entry} settings={settings} formatDuration={formatDuration} />
                             : formatDuration(applyRounding(entry.duration, settings?.roundingRule || 'none'))}
@@ -214,7 +214,7 @@ export const EntryList: React.FC = () => {
                         {entry.duration > 60 && (
                           <button
                             onClick={() => !entry.isRunning && setSplittingEntry(entry)}
-                            className={`focus:outline-none transition-colors ${entry.isRunning ? 'text-gray-300 dark:text-gray-600 cursor-not-allowed opacity-50' : 'text-gray-400 dark:text-gray-500 hover:text-purple-600 dark:hover:text-purple-400'}`}
+                            className={`focus:outline-none transition-colors focus-visible:ring-2 focus-visible:ring-signal focus-visible:ring-offset-2 rounded ${entry.isRunning ? 'text-gray-300 dark:text-gray-600 cursor-not-allowed opacity-50' : 'text-gray-400 dark:text-gray-500 hover:text-graphite dark:hover:text-stone'}`}
                             title={entry.isRunning ? "Cannot split a running entry" : "Split Entry"}
                             aria-label={entry.isRunning ? "Cannot split a running entry" : "Split Entry"}
                             disabled={entry.isRunning}
@@ -224,7 +224,7 @@ export const EntryList: React.FC = () => {
                         )}
                         <button
                           onClick={() => setEditingEntry(entry)}
-                          className="text-gray-400 dark:text-gray-500 hover:text-blue-600 dark:hover:text-blue-400 focus:outline-none transition-colors"
+                          className="text-gray-400 dark:text-gray-500 hover:text-signal dark:hover:text-signal-dim focus:outline-none focus-visible:ring-2 focus-visible:ring-signal focus-visible:ring-offset-2 rounded transition-colors"
                           title="Edit Entry"
                           aria-label="Edit Entry"
                         >
@@ -236,7 +236,7 @@ export const EntryList: React.FC = () => {
                               deleteEntry(entry.id);
                             }
                           }}
-                          className="text-gray-400 dark:text-gray-500 hover:text-red-600 dark:hover:text-red-400 focus:outline-none transition-colors"
+                          className="text-gray-400 dark:text-gray-500 hover:text-rust dark:hover:text-rust focus:outline-none focus-visible:ring-2 focus-visible:ring-signal focus-visible:ring-offset-2 rounded transition-colors"
                           title="Delete Entry (Move to Trash)"
                           aria-label="Delete Entry"
                         >
