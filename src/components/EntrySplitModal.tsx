@@ -89,7 +89,7 @@ export const EntrySplitModal: React.FC<EntrySplitModalProps> = ({ entry, onClose
           )}
         </div>
 
-        <div className="bg-gray-50 dark:bg-gray-900/50 px-4 py-3 sm:px-6 flex flex-row-reverse">
+        <div className="bg-gray-50 dark:bg-gray-900/50 px-4 py-3 sm:px-6 flex flex-wrap flex-row-reverse gap-2 sm:gap-0">
           <button
             onClick={handleSave}
             className="w-full inline-flex justify-center rounded-md border border-transparent shadow-sm px-4 py-2 bg-graphite hover:bg-ink dark:bg-stone dark:hover:bg-gray-300 text-base font-medium text-stone dark:text-ink focus:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-signal sm:ml-3 sm:w-auto sm:text-sm transition-colors"
