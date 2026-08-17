@@ -748,8 +748,8 @@ export const TimeTrackerProvider: React.FC<{ children: ReactNode }> = ({ childre
   const updateSettings = async (updates: Partial<Settings>) => {
     if (!settings) return;
     const newSettings = { ...settings, ...updates };
+    setSettings(newSettings);
     await db.putSettings(newSettings);
-    await refreshData();
   };
 
 

@@ -174,7 +174,7 @@ export const EntryList: React.FC = () => {
         </div>
       </div>
 
-      <div className="bg-stone dark:bg-ink shadow-inner rounded-panel border border-graphite/10 dark:border-white/10 transition-colors overflow-hidden">
+      <div className="bg-stone dark:bg-ink shadow-sm rounded-panel border border-graphite/20 dark:border-white/15 transition-colors overflow-hidden">
         {entries.length === 0 ? (
           <div className="px-4 py-8 text-center text-gray-500 dark:text-gray-400">
             No entries yet. Start tracking!

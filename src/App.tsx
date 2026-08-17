@@ -1,4 +1,4 @@
-import { useState, useEffect, Suspense, lazy } from 'react';
+import { useState, useEffect, Suspense, lazy, useRef } from 'react';
 import { TimeTrackerProvider } from './context/TimeTrackerContext';
 import { ActiveTimer } from './components/ActiveTimer';
 import { EntryList } from './components/EntryList';
@@ -30,7 +30,16 @@ const AppContent = () => {
   const [activeTab, setActiveTab] = useState<'tracker' | 'timesheet' | 'analysis' | 'management' | 'resources'>('tracker');
   const [showNewTimer, setShowNewTimer] = useState(false);
   const [isFallbackMode, setIsFallbackMode] = useState(false);
-  const { canInstall, promptInstall } = useInstallPrompt();
+  const { canInstall, promptInstall, installed } = useInstallPrompt();
+
+  const wasInstalled = useRef(installed);
+
+  useEffect(() => {
+    if (installed && !wasInstalled.current) {
+      addToast('Installed! Note: TimeDoco stores data locally on this device — use Backup/Export to move it to another device.', 'success', undefined, 8000);
+    }
+    wasInstalled.current = installed;
+  }, [installed, addToast]);
 
   // Listen for IndexedDB fallback mode globally
   useEffect(() => {
