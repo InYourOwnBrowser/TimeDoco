@@ -6,6 +6,7 @@ import { Download, Printer, AlertTriangle, Calendar } from 'lucide-react';
 import { HelpTooltip } from './ui/HelpTooltip';
 import { applyRounding, calculateDuration } from '../utils/timeUtils';
 import { createEvents, type EventAttributes } from 'ics';
+import { LOGO_PRINT_BASE64 } from '../assets/logoPrint';
 
 type DatePreset = 'today' | 'week' | 'month' | 'lastMonth' | 'lastQuarter' | 'custom';
 
@@ -19,6 +20,7 @@ export const AnalysisView: React.FC = () => {
 
   const [selectedGroupId, setSelectedGroupId] = useState<string>('all');
   const [selectedTimecodeId, setSelectedTimecodeId] = useState<string>('all');
+  const [preparedForOverride, setPreparedForOverride] = useState('');
 
   const timecodeOptions = useMemo(() => {
     return timecodes.filter(t => !t.archived && (selectedGroupId === 'all' || t.groupId === selectedGroupId));
@@ -356,29 +358,89 @@ export const AnalysisView: React.FC = () => {
   };
 
   const handlePrint = async () => {
-    // Note: PDF printable exports are implemented here using jspdf and jspdf-autotable
+    const preparedFor = preparedForOverride || scopeLabel;
     const { default: jsPDF } = await import('jspdf');
     const { default: autoTable } = await import('jspdf-autotable');
-
     const doc = new jsPDF();
+    const pageWidth = doc.internal.pageSize.getWidth();
 
-    doc.setFontSize(14);
-    doc.text(`Time Report — ${scopeLabel}`, 14, 15);
+    const drawHeader = () => {
+      doc.addImage(LOGO_PRINT_BASE64, 'PNG', 14, 10, 37.5, 10);
+      doc.setFontSize(9);
+      doc.setTextColor(140);
+      doc.text('Time & Activity Report', pageWidth - 14, 15, { align: 'right' });
+    };
+
+    drawHeader();
+
     doc.setFontSize(10);
-    doc.setTextColor(120);
-    doc.text(`${format(dateRange.start, 'MMM d, yyyy')} – ${format(dateRange.end, 'MMM d, yyyy')}`, 14, 21);
+    doc.setTextColor(60);
+    let y = 28;
+    const metaLine = (label: string, value: string) => {
+      if (!value) return;
+      doc.setFont('helvetica', 'bold'); doc.text(label, 14, y);
+      doc.setFont('helvetica', 'normal'); doc.text(value, 40, y);
+      y += 5;
+    };
+    metaLine('Prepared for:', preparedFor);
+    metaLine('Prepared by:', [settings?.preparerName, settings?.preparerCompany].filter(Boolean).join(' — '));
+    metaLine('Period:', `${format(dateRange.start, 'MMM d, yyyy')} – ${format(dateRange.end, 'MMM d, yyyy')}`);
+    metaLine('Generated:', format(new Date(), "MMM d, yyyy 'at' HH:mm"));
 
-    const tableData = timecodeData.map(tc => {
+    y += 3;
+    doc.setFontSize(12);
+    doc.setTextColor(20);
+    doc.setFont('helvetica', 'bold');
+    doc.text('Summary', 14, y);
+
+    const summaryRows = timecodeData.map(tc => {
       const timecode = timecodes.find(t => t.id === tc.id);
       const groupName = timecode?.groupId ? groups.find(g => g.id === timecode.groupId)?.name || 'Unknown' : 'Ungrouped';
-      return [tc.name, groupName, tc.durationHours.toString(), tc.earnings.toFixed(2)];
+      return [tc.name, groupName, tc.durationHours.toFixed(2), tc.earnings > 0 ? `$${tc.earnings.toFixed(2)}` : '-'];
     });
 
     autoTable(doc, {
-      startY: 26,
-      head: [['Timecode', 'Group', 'Duration (Hours)', 'Earnings']],
-      body: tableData,
+      startY: y + 4,
+      head: [['Timecode', 'Group', 'Hours', 'Earnings']],
+      body: summaryRows,
+      foot: [['', 'Total', (totalSeconds / 3600).toFixed(2), totalEarnings > 0 ? `$${totalEarnings.toFixed(2)}` : '-']],
+      footStyles: { fontStyle: 'bold', fillColor: [238, 240, 236] },
+      didDrawPage: drawHeader,
     });
+
+    // Detailed entries — the actual proof of work, including notes
+    const detailRows = [...filteredEntries]
+      .sort((a, b) => new Date(a.startTime).getTime() - new Date(b.startTime).getTime())
+      .map(e => {
+        const tc = timecodes.find(t => t.id === e.timecodeId);
+        const hrs = (applyRounding(e.duration, settings?.roundingRule ?? 'none') / 3600).toFixed(2);
+        return [
+          format(parseISO(e.startTime), 'MMM d'),
+          tc?.name ?? 'Unknown',
+          format(parseISO(e.startTime), 'HH:mm'),
+          e.endTime ? format(parseISO(e.endTime), 'HH:mm') : 'Running',
+          hrs,
+          e.note || '—',
+        ];
+      });
+
+    autoTable(doc, {
+      startY: (doc as any).lastAutoTable.finalY + 10,
+      head: [['Date', 'Timecode', 'Start', 'End', 'Hours', 'Note']],
+      body: detailRows,
+      styles: { fontSize: 8, cellPadding: 2 },
+      columnStyles: { 5: { cellWidth: 60 } },
+      didDrawPage: drawHeader,
+    });
+
+    const pageCount = (doc.internal as any).getNumberOfPages();
+    for (let i = 1; i <= pageCount; i++) {
+      doc.setPage(i);
+      doc.setFontSize(8);
+      doc.setTextColor(160);
+      doc.text(`Page ${i} of ${pageCount}`, pageWidth - 14, doc.internal.pageSize.getHeight() - 8, { align: 'right' });
+      doc.text('Generated with TimeDoco', 14, doc.internal.pageSize.getHeight() - 8);
+    }
 
     doc.save(`time-report-${scopeSlug}-${format(dateRange.start, 'yyyy-MM-dd')}.pdf`);
   };
@@ -466,6 +528,13 @@ export const AnalysisView: React.FC = () => {
             </button>
           )}
           <HelpTooltip text="Filters everything below, including the CSV, ICS, and PDF exports — use this to send a client-specific breakdown." />
+          <input
+            type="text"
+            value={preparedForOverride}
+            onChange={(e) => setPreparedForOverride(e.target.value)}
+            placeholder={`Prepared for (default: ${scopeLabel})`}
+            className="px-3 py-1.5 text-sm border-graphite/10 dark:border-white/10 rounded-md bg-stone dark:bg-ink text-graphite dark:text-stone focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-signal w-56 ml-auto"
+          />
         </div>
       </div>
 

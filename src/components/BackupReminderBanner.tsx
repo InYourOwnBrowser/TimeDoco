@@ -4,11 +4,17 @@ import { differenceInDays } from 'date-fns';
 import { X, AlertCircle } from 'lucide-react';
 
 export const BackupReminderBanner: React.FC = () => {
-  const { settings, exportData } = useTimeTracker();
+  const { settings, exportData, entries, timecodes, groups } = useTimeTracker();
   const [isVisible, setIsVisible] = useState(false);
 
   useEffect(() => {
     if (!settings) return;
+
+    const hasData = entries.length > 0 || timecodes.length > 0 || groups.length > 0;
+    if (!hasData) {
+      setIsVisible(false);
+      return;
+    }
 
     let shouldShow = false;
     if (!settings.lastBackupDate) {

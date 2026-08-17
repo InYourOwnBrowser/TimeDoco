@@ -66,4 +66,6 @@ export interface Settings {
   theme?: 'light' | 'dark' | 'system';
   allowConcurrentTimers: boolean;
   templates?: EntryTemplate[];
+  preparerName?: string;
+  preparerCompany?: string;
 }
