@@ -274,6 +274,32 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ onClose }) => {
                   When disabled, starting a new timer automatically stops any existing active timer.
                 </p>
               </div>
+              <h3 className="text-md font-semibold text-graphite dark:text-stone mb-3 border-b border-graphite/10 dark:border-white/10 pb-1 mt-6">Report Details</h3>
+              <div className="flex items-center justify-between mb-4">
+                <label className="text-sm font-medium text-graphite dark:text-stone flex items-center">
+                  Your Name
+                  <HelpTooltip text="Shown as 'Prepared By' on PDF reports." />
+                </label>
+                <input
+                  type="text"
+                  value={settings?.preparerName ?? ''}
+                  onChange={(e) => updateSettings({ preparerName: e.target.value })}
+                  placeholder="Jane Smith"
+                  className="w-48 px-3 py-1.5 border border-graphite/10 dark:border-white/10 rounded outline-none focus-visible:ring-2 focus-visible:ring-signal text-sm bg-stone dark:bg-graphite text-graphite dark:text-stone"
+                />
+              </div>
+              <div className="flex items-center justify-between mb-4">
+                <label className="text-sm font-medium text-graphite dark:text-stone">Your Company</label>
+                <input
+                  type="text"
+                  value={settings?.preparerCompany ?? ''}
+                  onChange={(e) => updateSettings({ preparerCompany: e.target.value })}
+                  placeholder="Acme Freelancing LLC"
+                  className="w-48 px-3 py-1.5 border border-graphite/10 dark:border-white/10 rounded outline-none focus-visible:ring-2 focus-visible:ring-signal text-sm bg-stone dark:bg-graphite text-graphite dark:text-stone"
+                />
+              </div>
+
+              <h3 className="text-md font-semibold text-graphite dark:text-stone mb-3 border-b border-graphite/10 dark:border-white/10 pb-1 mt-6">Weekly Target Hours</h3>
               <div className="flex items-center justify-between mb-4">
                 <label className="text-sm font-medium text-graphite dark:text-stone">Weekly Target Hours</label>
                 <input

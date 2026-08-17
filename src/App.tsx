@@ -20,11 +20,11 @@ import { getElapsedTimeMs, formatElapsedSeconds } from './utils/timeUtils';
 import { GlobalActiveTimerBar } from './components/GlobalActiveTimerBar';
 import { useInstallPrompt } from './hooks/useInstallPrompt';
 import { Logo } from './components/ui/Logo';
-import { Download } from 'lucide-react';
+import { Download, Save } from 'lucide-react';
 
 // Extracted inner component so we can use TimeTrackerContext
 const AppContent = () => {
-  const { activeEntries, stopTimer, startTimer, timecodes, entries, settings, forgotToStopEntry } = useTimeTracker();
+  const { activeEntries, stopTimer, startTimer, timecodes, entries, settings, forgotToStopEntry, exportData } = useTimeTracker();
   const { addToast } = useToast();
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
   const [activeTab, setActiveTab] = useState<'tracker' | 'timesheet' | 'analysis' | 'management' | 'resources'>('tracker');
@@ -159,6 +159,14 @@ const AppContent = () => {
               <Download size={14} /> Install App
             </button>
           )}
+          <button
+            onClick={() => exportData()}
+            className="p-2 text-gray-500 dark:text-gray-400 hover:text-gray-800 dark:hover:text-gray-200 hover:bg-gray-200 dark:hover:bg-gray-800 rounded-full transition-colors"
+            aria-label="Backup data"
+            title="Backup data"
+          >
+            <Save size={24} />
+          </button>
           <button
             onClick={() => setIsSettingsOpen(true)}
             className="p-2 text-gray-500 dark:text-gray-400 hover:text-gray-800 dark:hover:text-gray-200 hover:bg-gray-200 dark:hover:bg-gray-800 rounded-full transition-colors"

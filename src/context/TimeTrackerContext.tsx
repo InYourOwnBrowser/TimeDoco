@@ -884,7 +884,7 @@ export const TimeTrackerProvider: React.FC<{ children: ReactNode }> = ({ childre
     const a = document.createElement('a');
     a.href = url;
     const dateStr = new Date().toISOString().split('T')[0];
-    a.download = `timetracker-backup-${dateStr}.json`;
+    a.download = `timedoco-backup-${dateStr}.json`;
     a.click();
     URL.revokeObjectURL(url);
 
