@@ -330,6 +330,43 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ onClose }) => {
                   className="w-16 px-3 py-1.5 border border-graphite/10 dark:border-white/10 rounded outline-none focus-visible:ring-2 focus-visible:ring-signal text-sm bg-stone dark:bg-graphite text-graphite dark:text-stone text-center"
                 />
               </div>
+              <div className="mb-2">
+                <label className="text-sm font-medium text-graphite dark:text-stone flex items-center mb-2">
+                  Custom Report Fields
+                  <HelpTooltip text="Extra label/value pairs shown at the top of every PDF report — e.g. Tax Registration Number, Business Number." />
+                </label>
+                {(settings?.customFields || []).map((field, i) => (
+                  <div key={field.id} className="flex gap-2 mb-2">
+                    <input
+                      type="text" value={field.label} placeholder="Label"
+                      onChange={(e) => {
+                        const updated = [...(settings?.customFields || [])];
+                        updated[i] = { ...updated[i], label: e.target.value };
+                        handleUpdateSettings({ customFields: updated });
+                      }}
+                      className="w-32 px-2 py-1.5 text-sm border border-graphite/10 dark:border-white/10 rounded bg-stone dark:bg-graphite text-graphite dark:text-stone"
+                    />
+                    <input
+                      type="text" value={field.value} placeholder="Value"
+                      onChange={(e) => {
+                        const updated = [...(settings?.customFields || [])];
+                        updated[i] = { ...updated[i], value: e.target.value };
+                        handleUpdateSettings({ customFields: updated });
+                      }}
+                      className="flex-1 px-2 py-1.5 text-sm border border-graphite/10 dark:border-white/10 rounded bg-stone dark:bg-graphite text-graphite dark:text-stone"
+                    />
+                    <button onClick={() => handleUpdateSettings({ customFields: (settings?.customFields || []).filter((_, j) => j !== i) })} className="text-gray-400 hover:text-rust" aria-label="Remove field">
+                      <X size={16} />
+                    </button>
+                  </div>
+                ))}
+                <button
+                  onClick={() => handleUpdateSettings({ customFields: [...(settings?.customFields || []), { id: crypto.randomUUID(), label: '', value: '' }] })}
+                  className="text-sm text-signal hover:text-signal-dim"
+                >
+                  + Add Field
+                </button>
+              </div>
             </Panel>
 
             <Panel className="p-5">
