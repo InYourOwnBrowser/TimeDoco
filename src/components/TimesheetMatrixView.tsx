@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { useTimeTracker } from '../context/TimeTrackerContext';
 import { format, startOfWeek, endOfWeek, addWeeks, subWeeks, eachDayOfInterval, parseISO, setHours, setMinutes, addSeconds } from 'date-fns';
 import { applyRounding } from '../utils/timeUtils';
@@ -28,10 +28,20 @@ export const TimesheetMatrixView: React.FC = () => {
   const activeTimecodes = timecodes.filter(t => !t.archived);
   const activeGroups = groups.filter(g => !g.archived);
 
-  const getCellEntries = (timecodeId: string, date: Date) => {
-    const dateStr = format(date, 'yyyy-MM-dd');
-    return entries.filter(e => e.timecodeId === timecodeId && format(parseISO(e.startTime), 'yyyy-MM-dd') === dateStr && !e.deletedAt);
-  };
+  const entriesByTimecodeAndDate = useMemo(() => {
+    const map = new Map<string, typeof entries>();
+    for (const e of entries) {
+      if (e.deletedAt) continue;
+      const dateStr = format(parseISO(e.startTime), 'yyyy-MM-dd');
+      const key = `${e.timecodeId}|${dateStr}`;
+      if (!map.has(key)) map.set(key, []);
+      map.get(key)!.push(e);
+    }
+    return map;
+  }, [entries]);
+
+  const getCellEntries = (timecodeId: string, date: Date) =>
+    entriesByTimecodeAndDate.get(`${timecodeId}|${format(date, 'yyyy-MM-dd')}`) || [];
 
   const getCellHours = (timecodeId: string, date: Date) => {
     const cellEntries = getCellEntries(timecodeId, date);
@@ -61,6 +71,8 @@ export const TimesheetMatrixView: React.FC = () => {
   const getColTotalHours = (date: Date) => {
     return activeTimecodes.reduce((sum, tc) => sum + getCellHours(tc.id, date), 0);
   };
+
+  const displayHours = (n: number) => (n > 0 ? n.toFixed(2) : '');
 
   const getWeekTotalHours = () => {
     return activeTimecodes.reduce((sum, tc) => sum + getRowTotalHours(tc.id), 0);
@@ -156,7 +168,7 @@ export const TimesheetMatrixView: React.FC = () => {
                           type="number"
                           step="0.25"
                           min="0"
-                          defaultValue={getCellHours(tc.id, day) || ''}
+                          defaultValue={displayHours(getCellHours(tc.id, day))}
                           onBlur={(e) => {
                             const val = parseFloat(e.target.value);
                             if (!isNaN(val)) {
