@@ -12,6 +12,7 @@ type DatePreset = 'today' | 'week' | 'month' | 'lastMonth' | 'lastQuarter' | 'cu
 
 export const AnalysisView: React.FC = () => {
   const { entries, timecodes, groups, settings } = useTimeTracker();
+  const currencySymbol = settings?.currencySymbol || '$';
 
   const [preset, setPreset] = useState<DatePreset>('today');
   const [customStart, setCustomStart] = useState<string>(format(startOfWeek(new Date(), { weekStartsOn: 1 }), 'yyyy-MM-dd'));
@@ -21,6 +22,7 @@ export const AnalysisView: React.FC = () => {
   const [selectedGroupId, setSelectedGroupId] = useState<string>('all');
   const [selectedTimecodeId, setSelectedTimecodeId] = useState<string>('all');
   const [preparedForOverride, setPreparedForOverride] = useState('');
+  const [preparedByOverride, setPreparedByOverride] = useState('');
 
   const timecodeOptions = useMemo(() => {
     return timecodes.filter(t => !t.archived && (selectedGroupId === 'all' || t.groupId === selectedGroupId));
@@ -359,6 +361,8 @@ export const AnalysisView: React.FC = () => {
 
   const handlePrint = async () => {
     const preparedFor = preparedForOverride || scopeLabel;
+    const defaultPreparedBy = [settings?.preparerName, settings?.preparerCompany].filter(Boolean).join(' — ');
+    const preparedBy = preparedByOverride || defaultPreparedBy;
     const { default: jsPDF } = await import('jspdf');
     const { default: autoTable } = await import('jspdf-autotable');
     const doc = new jsPDF();
@@ -371,7 +375,14 @@ export const AnalysisView: React.FC = () => {
       doc.text('Time & Activity Report', pageWidth - 14, 15, { align: 'right' });
     };
 
-    drawHeader();
+    let headerDrawnPage = 0;
+    const ensureHeader = (pageNumber: number) => {
+      if (pageNumber === headerDrawnPage) return; // already drawn for this page
+      headerDrawnPage = pageNumber;
+      drawHeader();
+    };
+
+    ensureHeader(1); // page 1, before the metadata block
 
     doc.setFontSize(10);
     doc.setTextColor(60);
@@ -383,7 +394,7 @@ export const AnalysisView: React.FC = () => {
       y += 5;
     };
     metaLine('Prepared for:', preparedFor);
-    metaLine('Prepared by:', [settings?.preparerName, settings?.preparerCompany].filter(Boolean).join(' — '));
+    metaLine('Prepared by:', preparedBy);
     metaLine('Period:', `${format(dateRange.start, 'MMM d, yyyy')} – ${format(dateRange.end, 'MMM d, yyyy')}`);
     metaLine('Generated:', format(new Date(), "MMM d, yyyy 'at' HH:mm"));
 
@@ -396,16 +407,18 @@ export const AnalysisView: React.FC = () => {
     const summaryRows = timecodeData.map(tc => {
       const timecode = timecodes.find(t => t.id === tc.id);
       const groupName = timecode?.groupId ? groups.find(g => g.id === timecode.groupId)?.name || 'Unknown' : 'Ungrouped';
-      return [tc.name, groupName, tc.durationHours.toFixed(2), tc.earnings > 0 ? `$${tc.earnings.toFixed(2)}` : '-'];
+      const rate = timecode?.hourlyRate ? `${currencySymbol}${timecode.hourlyRate.toFixed(2)}/hr` : '-';
+      return [tc.name, groupName, rate, tc.durationHours.toFixed(2), tc.earnings > 0 ? `${currencySymbol}${tc.earnings.toFixed(2)}` : '-'];
     });
 
     autoTable(doc, {
       startY: y + 4,
-      head: [['Timecode', 'Group', 'Hours', 'Earnings']],
+      head: [['Timecode', 'Group', 'Rate', 'Hours', 'Total']],
       body: summaryRows,
-      foot: [['', 'Total', (totalSeconds / 3600).toFixed(2), totalEarnings > 0 ? `$${totalEarnings.toFixed(2)}` : '-']],
-      footStyles: { fontStyle: 'bold', fillColor: [238, 240, 236] },
-      didDrawPage: drawHeader,
+      foot: [['', 'Total', '', (totalSeconds / 3600).toFixed(2), totalEarnings > 0 ? `${currencySymbol}${totalEarnings.toFixed(2)}` : '-']],
+      footStyles: { fontStyle: 'bold', fillColor: [238, 240, 236], textColor: [16, 22, 28] },
+      margin: { top: 25 },
+      didDrawPage: (data) => ensureHeader(data.pageNumber),
     });
 
     // Detailed entries — the actual proof of work, including notes
@@ -430,7 +443,8 @@ export const AnalysisView: React.FC = () => {
       body: detailRows,
       styles: { fontSize: 8, cellPadding: 2 },
       columnStyles: { 5: { cellWidth: 60 } },
-      didDrawPage: drawHeader,
+      margin: { top: 25 },
+      didDrawPage: (data) => ensureHeader(data.pageNumber),
     });
 
     const pageCount = (doc.internal as any).getNumberOfPages();
@@ -535,6 +549,13 @@ export const AnalysisView: React.FC = () => {
             placeholder={`Prepared for (default: ${scopeLabel})`}
             className="px-3 py-1.5 text-sm border-graphite/10 dark:border-white/10 rounded-md bg-stone dark:bg-ink text-graphite dark:text-stone focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-signal w-56 ml-auto"
           />
+          <input
+            type="text"
+            value={preparedByOverride}
+            onChange={(e) => setPreparedByOverride(e.target.value)}
+            placeholder={`Prepared by (default: ${[settings?.preparerName, settings?.preparerCompany].filter(Boolean).join(' — ') || 'not set in Settings'})`}
+            className="px-3 py-1.5 text-sm border-graphite/10 dark:border-white/10 rounded-md bg-stone dark:bg-ink text-graphite dark:text-stone focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-signal w-56"
+          />
         </div>
       </div>
 
@@ -548,7 +569,7 @@ export const AnalysisView: React.FC = () => {
           {totalEarnings > 0 && (
             <div className="bg-stone dark:bg-ink rounded-panel p-5 border border-graphite/10 dark:border-white/10 shadow-inner flex flex-col justify-center items-center transition-colors">
               <span className="text-verdigris text-xs font-sans font-semibold mb-1 uppercase tracking-wide">TOTAL EARNINGS</span>
-              <span className="text-4xl font-mono tabular font-medium text-graphite dark:text-stone">${totalEarnings.toFixed(2)}</span>
+              <span className="text-4xl font-mono tabular font-medium text-graphite dark:text-stone">{currencySymbol}{totalEarnings.toFixed(2)}</span>
             </div>
           )}
         </div>
@@ -698,7 +719,7 @@ export const AnalysisView: React.FC = () => {
                           <td className="px-4 py-2.5 text-right text-graphite dark:text-stone font-mono tabular">{tc.durationHours.toFixed(2)}</td>
                           {totalEarnings > 0 && (
                             <td className="px-4 py-2.5 text-right text-graphite dark:text-stone font-mono tabular">
-                              {tc.earnings > 0 ? `$${tc.earnings.toFixed(2)}` : '-'}
+                              {tc.earnings > 0 ? `${currencySymbol}${tc.earnings.toFixed(2)}` : '-'}
                             </td>
                           )}
                         </tr>
