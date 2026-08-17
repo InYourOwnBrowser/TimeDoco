@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { checkOverlap, calculateDuration, applyRounding } from './timeUtils';
+import { checkOverlap, calculateDuration, applyRounding, calculateTaxBreakdown } from './timeUtils';
 import type { Entry, PauseSegment } from '../types';
 
 describe('timeUtils', () => {
@@ -156,6 +156,21 @@ describe('timeUtils', () => {
       ];
       // Diff = 3600. Pause = 7200. Result = -3600 -> 0.
       expect(calculateDuration(start, end, pauses)).toBe(0);
+    });
+  });
+
+  describe('calculateTaxBreakdown', () => {
+    it('calculateTaxBreakdown: exclusive adds tax on top', () => {
+      const r = calculateTaxBreakdown(100, 15, false);
+      expect(r.subtotal).toBe(100);
+      expect(r.tax).toBeCloseTo(15);
+      expect(r.total).toBeCloseTo(115);
+    });
+    it('calculateTaxBreakdown: inclusive extracts tax from the total', () => {
+      const r = calculateTaxBreakdown(115, 15, true);
+      expect(r.subtotal).toBeCloseTo(100);
+      expect(r.tax).toBeCloseTo(15);
+      expect(r.total).toBe(115);
     });
   });
 });

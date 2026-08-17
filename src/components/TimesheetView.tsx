@@ -5,7 +5,7 @@ import { CalendarDays, Grid3x3 } from 'lucide-react';
 import { Button } from './ui/Button';
 
 export const TimesheetView: React.FC = () => {
-  const [viewMode, setViewMode] = useState<'calendar' | 'matrix'>('calendar');
+  const [viewMode, setViewMode] = useState<'calendar' | 'matrix'>('matrix');
 
   return (
     <div className="w-full max-w-5xl mx-auto pb-16">

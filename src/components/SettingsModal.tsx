@@ -313,6 +313,62 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ onClose }) => {
                 />
               </div>
 
+              <h3 className="text-md font-semibold text-graphite dark:text-stone mb-3 border-b border-graphite/10 dark:border-white/10 pb-1 mt-6">Tax</h3>
+              <div className="mb-4">
+                <label className="flex items-center gap-2 cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={settings?.taxEnabled || false}
+                    onChange={(e) => updateSettings({ taxEnabled: e.target.checked })}
+                    className="w-4 h-4 text-signal rounded border-graphite/10 dark:border-white/10 focus:ring-signal"
+                  />
+                  <span className="text-sm font-medium text-graphite dark:text-stone">Enable Tax</span>
+                  <HelpTooltip text="Adds before/after-tax totals to earnings and PDF reports." />
+                </label>
+              </div>
+              {settings?.taxEnabled && (
+                <>
+                  <div className="flex items-center justify-between mb-4">
+                    <label className="text-sm font-medium text-graphite dark:text-stone">Tax Label</label>
+                    <input
+                      type="text"
+                      value={settings?.taxLabel ?? ''}
+                      onChange={(e) => updateSettings({ taxLabel: e.target.value })}
+                      placeholder="Tax"
+                      className="w-32 px-3 py-1.5 border border-graphite/10 dark:border-white/10 rounded outline-none focus-visible:ring-2 focus-visible:ring-signal text-sm bg-stone dark:bg-graphite text-graphite dark:text-stone"
+                    />
+                  </div>
+                  <div className="flex items-center justify-between mb-4">
+                    <label className="text-sm font-medium text-graphite dark:text-stone">Tax Rate (%)</label>
+                    <input
+                      type="number"
+                      min="0"
+                      step="0.1"
+                      value={settings?.taxRate ?? ''}
+                      onChange={(e) => updateSettings({ taxRate: e.target.value === '' ? null : parseFloat(e.target.value) })}
+                      placeholder="15"
+                      className="w-24 px-3 py-1.5 border border-graphite/10 dark:border-white/10 rounded outline-none focus-visible:ring-2 focus-visible:ring-signal text-sm bg-stone dark:bg-graphite text-graphite dark:text-stone text-right"
+                    />
+                  </div>
+                  <div className="mb-4">
+                    <label className="text-sm font-medium text-graphite dark:text-stone flex items-center mb-2">
+                      Your hourly rates are
+                      <HelpTooltip text="Exclusive: tax is added on top of your rate. Inclusive: your rate already includes tax." />
+                    </label>
+                    <div className="flex gap-4 text-sm">
+                      <label className="flex items-center gap-1.5 cursor-pointer">
+                        <input type="radio" checked={!settings?.taxInclusive} onChange={() => updateSettings({ taxInclusive: false })} className="text-signal focus:ring-signal" />
+                        Exclusive of tax
+                      </label>
+                      <label className="flex items-center gap-1.5 cursor-pointer">
+                        <input type="radio" checked={!!settings?.taxInclusive} onChange={() => updateSettings({ taxInclusive: true })} className="text-signal focus:ring-signal" />
+                        Inclusive of tax
+                      </label>
+                    </div>
+                  </div>
+                </>
+              )}
+
               <h3 className="text-md font-semibold text-graphite dark:text-stone mb-3 border-b border-graphite/10 dark:border-white/10 pb-1 mt-6">Weekly Target Hours</h3>
               <div className="flex items-center justify-between mb-4">
                 <label className="text-sm font-medium text-graphite dark:text-stone">Weekly Target Hours</label>

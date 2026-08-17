@@ -4,14 +4,15 @@ import { startOfDay, endOfDay, startOfWeek, endOfWeek, startOfMonth, endOfMonth,
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, PieChart, Pie, Cell, Legend } from 'recharts';
 import { Download, Printer, AlertTriangle, Calendar } from 'lucide-react';
 import { HelpTooltip } from './ui/HelpTooltip';
-import { applyRounding, calculateDuration } from '../utils/timeUtils';
+import { applyRounding, calculateDuration, calculateTaxBreakdown } from '../utils/timeUtils';
 import { createEvents, type EventAttributes } from 'ics';
 import { LOGO_PRINT_BASE64 } from '../assets/logoPrint';
+import { X } from 'lucide-react';
 
 type DatePreset = 'today' | 'week' | 'month' | 'lastMonth' | 'lastQuarter' | 'custom';
 
 export const AnalysisView: React.FC = () => {
-  const { entries, timecodes, groups, settings } = useTimeTracker();
+  const { entries, timecodes, groups, settings, updateSettings } = useTimeTracker();
   const currencySymbol = settings?.currencySymbol || '$';
 
   const [preset, setPreset] = useState<DatePreset>('today');
@@ -179,7 +180,7 @@ export const AnalysisView: React.FC = () => {
     return detectedGaps;
   }, [filteredEntries]);
 
-  const { timecodeData, groupData, totalSeconds, totalEarnings } = useMemo(() => {
+  const { timecodeData, groupData, totalSeconds, totalEarnings, taxBreakdown } = useMemo(() => {
     let tSec = 0;
     let tEarn = 0;
     const tcMap = new Map<string, { duration: number, earnings: number }>();
@@ -238,8 +239,18 @@ export const AnalysisView: React.FC = () => {
       };
     }).sort((a, b) => b.durationHours - a.durationHours);
 
-    return { timecodeData: formattedTcData, groupData: formattedGrpData, totalSeconds: tSec, totalEarnings: tEarn };
-  }, [filteredEntries, dateRange, timecodes, groups, settings?.roundingRule]);
+    const calculatedTax = settings?.taxEnabled && settings?.taxRate
+      ? calculateTaxBreakdown(tEarn, settings.taxRate, !!settings.taxInclusive)
+      : null;
+
+    return {
+      timecodeData: formattedTcData,
+      groupData: formattedGrpData,
+      totalSeconds: tSec,
+      totalEarnings: tEarn,
+      taxBreakdown: calculatedTax
+    };
+  }, [filteredEntries, dateRange, timecodes, groups, settings?.roundingRule, settings?.taxEnabled, settings?.taxRate, settings?.taxInclusive]);
 
   const formatDuration = (seconds: number) => {
     const hrs = Math.floor(seconds / 3600);
@@ -411,11 +422,19 @@ export const AnalysisView: React.FC = () => {
       return [tc.name, groupName, rate, tc.durationHours.toFixed(2), tc.earnings > 0 ? `${currencySymbol}${tc.earnings.toFixed(2)}` : '-'];
     });
 
+    const foot = taxBreakdown
+      ? [
+          ['', '', '', 'Subtotal', `${currencySymbol}${taxBreakdown.subtotal.toFixed(2)}`],
+          ['', '', '', `${settings?.taxLabel || 'Tax'} (${settings?.taxRate}%)`, `${currencySymbol}${taxBreakdown.tax.toFixed(2)}`],
+          ['', 'Total', '', (totalSeconds / 3600).toFixed(2), `${currencySymbol}${taxBreakdown.total.toFixed(2)}`],
+        ]
+      : [['', 'Total', '', (totalSeconds / 3600).toFixed(2), totalEarnings > 0 ? `${currencySymbol}${totalEarnings.toFixed(2)}` : '-']];
+
     autoTable(doc, {
       startY: y + 4,
       head: [['Timecode', 'Group', 'Rate', 'Hours', 'Total']],
       body: summaryRows,
-      foot: [['', 'Total', '', (totalSeconds / 3600).toFixed(2), totalEarnings > 0 ? `${currencySymbol}${totalEarnings.toFixed(2)}` : '-']],
+      foot,
       footStyles: { fontStyle: 'bold', fillColor: [238, 240, 236], textColor: [16, 22, 28] },
       margin: { top: 25 },
       didDrawPage: (data) => ensureHeader(data.pageNumber),
@@ -567,12 +586,45 @@ export const AnalysisView: React.FC = () => {
             <span className="text-4xl font-mono tabular font-medium text-graphite dark:text-stone">{formatDuration(totalSeconds)}</span>
           </div>
           {totalEarnings > 0 && (
-            <div className="bg-stone dark:bg-ink rounded-panel p-5 border border-graphite/10 dark:border-white/10 shadow-inner flex flex-col justify-center items-center transition-colors">
-              <span className="text-verdigris text-xs font-sans font-semibold mb-1 uppercase tracking-wide">TOTAL EARNINGS</span>
-              <span className="text-4xl font-mono tabular font-medium text-graphite dark:text-stone">{currencySymbol}{totalEarnings.toFixed(2)}</span>
+            <div className="bg-stone dark:bg-ink rounded-panel p-5 border border-graphite/10 dark:border-white/10 shadow-inner flex flex-col justify-center transition-colors">
+              {taxBreakdown ? (
+                  <>
+                    <span className="text-verdigris text-xs font-sans font-semibold mb-2 uppercase tracking-wide text-center">Earnings</span>
+                    <div className="space-y-1">
+                      <div className="flex justify-between text-sm text-gray-500 dark:text-gray-400">
+                        <span>Subtotal</span>
+                        <span className="font-mono tabular">{currencySymbol}{taxBreakdown.subtotal.toFixed(2)}</span>
+                      </div>
+                      <div className="flex justify-between text-sm text-gray-500 dark:text-gray-400">
+                        <span>{settings?.taxLabel || 'Tax'} ({settings?.taxRate}%)</span>
+                        <span className="font-mono tabular">{currencySymbol}{taxBreakdown.tax.toFixed(2)}</span>
+                      </div>
+                      <div className="flex justify-between text-lg font-medium text-graphite dark:text-stone pt-1 border-t border-graphite/10 dark:border-white/10">
+                        <span>Total</span>
+                        <span className="font-mono tabular">{currencySymbol}{taxBreakdown.total.toFixed(2)}</span>
+                      </div>
+                    </div>
+                  </>
+              ) : (
+                <div className="flex flex-col items-center">
+                  <span className="text-verdigris text-xs font-sans font-semibold mb-1 uppercase tracking-wide">TOTAL EARNINGS</span>
+                  <span className="text-4xl font-mono tabular font-medium text-graphite dark:text-stone">{currencySymbol}{totalEarnings.toFixed(2)}</span>
+                </div>
+              )}
             </div>
           )}
         </div>
+
+        {totalEarnings > 0 && !settings?.taxEnabled && !settings?.taxPromptDismissed && (
+          <div className="mb-8 p-4 bg-stone dark:bg-ink border border-graphite/10 dark:border-white/10 rounded-panel shadow-inner flex items-start justify-between gap-3">
+            <p className="text-sm text-gray-600 dark:text-gray-300">
+              Add a tax rate in Settings to show before/after-tax totals on your earnings and reports.
+            </p>
+            <button onClick={() => updateSettings({ taxPromptDismissed: true })} className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-200 shrink-0" aria-label="Dismiss">
+              <X size={16} />
+            </button>
+          </div>
+        )}
 
 
 

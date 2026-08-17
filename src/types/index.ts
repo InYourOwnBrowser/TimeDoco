@@ -69,4 +69,9 @@ export interface Settings {
   preparerName?: string;
   preparerCompany?: string;
   currencySymbol?: string;
+  taxEnabled?: boolean;
+  taxRate?: number | null;
+  taxLabel?: string;
+  taxInclusive?: boolean;
+  taxPromptDismissed?: boolean;
 }
