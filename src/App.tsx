@@ -1,4 +1,4 @@
-import { useState, useEffect, Suspense, lazy, useRef } from 'react';
+import { useState, useEffect, Suspense, lazy, useRef, useCallback } from 'react';
 import { TimeTrackerProvider } from './context/TimeTrackerContext';
 import { ActiveTimer } from './components/ActiveTimer';
 import { EntryList } from './components/EntryList';
@@ -27,6 +27,7 @@ const AppContent = () => {
   const { activeEntries, stopTimer, startTimer, timecodes, entries, settings, forgotToStopEntry, exportData } = useTimeTracker();
   const { addToast } = useToast();
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
+  const handleCloseSettings = useCallback(() => setIsSettingsOpen(false), []);
   const [activeTab, setActiveTab] = useState<'tracker' | 'timesheet' | 'analysis' | 'management' | 'resources'>('tracker');
   const [showNewTimer, setShowNewTimer] = useState(false);
   const [isFallbackMode, setIsFallbackMode] = useState(false);
@@ -298,7 +299,7 @@ const AppContent = () => {
           {activeTab === 'resources' && <Suspense fallback={<div className="p-8 text-center text-gray-500">Loading resources...</div>}><ResourcesView /></Suspense>}
         </main>
 
-        {isSettingsOpen && <SettingsModal onClose={() => setIsSettingsOpen(false)} />}
+        {isSettingsOpen && <SettingsModal onClose={handleCloseSettings} />}
 
         <IdleDetector />
 

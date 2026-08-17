@@ -59,6 +59,12 @@ export const Modal: React.FC<ModalProps> = ({ onClose, children, className = '',
 
     document.addEventListener('keydown', handleKeyDown);
 
+    return () => {
+      document.removeEventListener('keydown', handleKeyDown);
+    };
+  }, [onClose, isDirty]);
+
+  useEffect(() => {
     // Initial focus on the modal
     if (modalRef.current) {
         const focusableElements = modalRef.current.querySelectorAll(
@@ -70,11 +76,7 @@ export const Modal: React.FC<ModalProps> = ({ onClose, children, className = '',
             modalRef.current.focus();
         }
     }
-
-    return () => {
-      document.removeEventListener('keydown', handleKeyDown);
-    };
-  }, [onClose, isDirty]);
+  }, []);
 
   const handleBackdropClick = (e: React.MouseEvent<HTMLDivElement>) => {
     if (e.target === e.currentTarget) {
