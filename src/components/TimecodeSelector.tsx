@@ -10,7 +10,7 @@ interface TimecodeSelectorProps {
 }
 
 export const TimecodeSelector: React.FC<TimecodeSelectorProps> = ({ onSelect, selectedId }) => {
-  const { timecodes, groups, addTimecode, entries, settings } = useTimeTracker();
+  const { timecodes, groups, addTimecode, addGroup, entries, settings } = useTimeTracker();
   const currencySymbol = settings?.currencySymbol || '$';
   const selectedTimecode = selectedId ? timecodes.find(t => t.id === selectedId) : null;
   const [isOpen, setIsOpen] = useState(false);
@@ -21,6 +21,19 @@ export const TimecodeSelector: React.FC<TimecodeSelectorProps> = ({ onSelect, se
   const [newColor, setNewColor] = useState(COLORS[0]);
   const [newGroupId, setNewGroupId] = useState<string>('');
   const [newHourlyRate, setNewHourlyRate] = useState<string>('');
+
+  const [creatingGroup, setCreatingGroup] = useState(false);
+  const [newGroupName, setNewGroupName] = useState('');
+
+  const handleCreateGroupInline = async () => {
+    const trimmed = newGroupName.trim();
+    if (!trimmed) return;
+    const color = COLORS[groups.length % COLORS.length];
+    const newGroup = await addGroup(trimmed, color);
+    setNewGroupId(newGroup.id);
+    setCreatingGroup(false);
+    setNewGroupName('');
+  };
 
   const filteredTimecodes = useMemo(() => {
     const unarchived = timecodes.filter(t => !t.archived);
@@ -247,16 +260,34 @@ export const TimecodeSelector: React.FC<TimecodeSelectorProps> = ({ onSelect, se
 
               <div className="mb-3">
                 <label className="block text-xs text-gray-500 dark:text-gray-400 mb-1">Group (optional)</label>
-                <select
-                  className="w-full text-sm p-1.5 border border-graphite/10 dark:border-white/10 rounded bg-stone dark:bg-graphite text-graphite dark:text-stone focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-signal"
-                  value={newGroupId}
-                  onChange={(e) => setNewGroupId(e.target.value)}
-                >
-                  <option value="">No Group</option>
-                  {groups.map(g => (
-                    <option key={g.id} value={g.id}>{g.name}</option>
-                  ))}
-                </select>
+                {creatingGroup ? (
+                  <div className="flex gap-1.5">
+                    <input
+                      type="text"
+                      autoFocus
+                      value={newGroupName}
+                      onChange={(e) => setNewGroupName(e.target.value)}
+                      onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); handleCreateGroupInline(); } }}
+                      placeholder="New group name"
+                      className="flex-1 text-sm p-1.5 border border-graphite/10 dark:border-white/10 rounded bg-stone dark:bg-graphite text-graphite dark:text-stone focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-signal"
+                    />
+                    <button type="button" onClick={handleCreateGroupInline} className="px-2 text-xs bg-graphite hover:bg-ink dark:bg-stone dark:hover:bg-gray-300 text-stone dark:text-ink rounded">Add</button>
+                    <button type="button" onClick={() => { setCreatingGroup(false); setNewGroupName(''); }} className="px-2 text-xs text-gray-500">✕</button>
+                  </div>
+                ) : (
+                  <select
+                    className="w-full text-sm p-1.5 border border-graphite/10 dark:border-white/10 rounded bg-stone dark:bg-graphite text-graphite dark:text-stone focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-signal"
+                    value={newGroupId}
+                    onChange={(e) => {
+                      if (e.target.value === '__new__') { setCreatingGroup(true); }
+                      else { setNewGroupId(e.target.value); }
+                    }}
+                  >
+                    <option value="">No Group</option>
+                    {groups.map(g => <option key={g.id} value={g.id}>{g.name}</option>)}
+                    <option value="__new__">+ Add New Group…</option>
+                  </select>
+                )}
               </div>
 
               <div className="mb-3">

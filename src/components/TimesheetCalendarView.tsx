@@ -6,7 +6,7 @@ import { ChevronLeft, ChevronRight } from 'lucide-react';
 import { Button } from './ui/Button';
 
 export const TimesheetCalendarView: React.FC = () => {
-  const { entries, settings } = useTimeTracker();
+  const { entries, settings, timecodes } = useTimeTracker();
   const [currentDate, setCurrentDate] = useState(new Date());
 
   const firstDayOfMonth = startOfMonth(currentDate);
@@ -88,31 +88,43 @@ export const TimesheetCalendarView: React.FC = () => {
         })}
       </div>
 
-      {selectedDayEntries && (
-        <div className="mt-6 p-4 bg-stone dark:bg-graphite border border-graphite/10 dark:border-white/10 rounded-panel">
-          <h3 className="text-lg font-semibold text-graphite dark:text-stone mb-4 flex justify-between items-center">
-            <span>Entries for {format(selectedDayEntries, 'MMMM d, yyyy')}</span>
-            <Button variant="ghost" size="sm" onClick={() => setSelectedDayEntries(null)}>Close</Button>
-          </h3>
-          <div className="space-y-2">
-            {entries.filter(e => format(parseISO(e.startTime), 'yyyy-MM-dd') === format(selectedDayEntries, 'yyyy-MM-dd')).length === 0 ? (
-              <p className="text-sm text-gray-500 italic">No entries for this day.</p>
-            ) : (
-              entries.filter(e => format(parseISO(e.startTime), 'yyyy-MM-dd') === format(selectedDayEntries, 'yyyy-MM-dd')).map(entry => (
-                <div key={entry.id} className="flex justify-between items-center bg-gray-50 dark:bg-gray-800/30 p-2 rounded text-sm border border-graphite/5 dark:border-white/5">
-                  <div className="flex flex-col">
-                    <span className="font-medium text-graphite dark:text-stone">{entry.note || 'No note'}</span>
-                    <span className="text-xs text-gray-500">{format(parseISO(entry.startTime), 'h:mm a')} - {entry.endTime ? format(parseISO(entry.endTime), 'h:mm a') : 'Now'}</span>
-                  </div>
-                  <span className="font-mono text-gray-600 dark:text-gray-300">
-                    {(applyRounding(entry.duration, settings?.roundingRule || 'none') / 3600).toFixed(2)}h
-                  </span>
-                </div>
-              ))
-            )}
+      {selectedDayEntries && (() => {
+        const dayEntries = entries.filter(e => format(parseISO(e.startTime), 'yyyy-MM-dd') === format(selectedDayEntries, 'yyyy-MM-dd'));
+        return (
+          <div className="mt-6 p-4 bg-stone dark:bg-graphite border border-graphite/10 dark:border-white/10 rounded-panel">
+            <h3 className="text-lg font-semibold text-graphite dark:text-stone mb-4 flex justify-between items-center">
+              <span>Entries for {format(selectedDayEntries, 'MMMM d, yyyy')}</span>
+              <Button variant="ghost" size="sm" onClick={() => setSelectedDayEntries(null)}>Close</Button>
+            </h3>
+            <div className="space-y-2">
+              {dayEntries.length === 0 ? (
+                <p className="text-sm text-gray-500 italic">No entries for this day.</p>
+              ) : (
+                dayEntries.map(entry => {
+                  const tc = timecodes.find(t => t.id === entry.timecodeId);
+                  return (
+                    <div key={entry.id} className="flex justify-between items-center bg-gray-50 dark:bg-gray-800/30 p-2 rounded text-sm border border-graphite/5 dark:border-white/5">
+                      <div className="flex flex-col">
+                        <span className="font-medium text-graphite dark:text-stone flex items-center gap-1.5">
+                          <span className="w-2 h-2 rounded-full shrink-0" style={{ backgroundColor: tc?.color || '#9ca3af' }} />
+                          {tc?.name ?? 'Unknown'}
+                        </span>
+                        <span className="text-xs text-gray-500">
+                          {format(parseISO(entry.startTime), 'h:mm a')} - {entry.endTime ? format(parseISO(entry.endTime), 'h:mm a') : 'Now'}
+                          {entry.note ? ` · ${entry.note}` : ''}
+                        </span>
+                      </div>
+                      <span className="font-mono text-gray-600 dark:text-gray-300">
+                        {(applyRounding(entry.duration, settings?.roundingRule || 'none') / 3600).toFixed(2)}h
+                      </span>
+                    </div>
+                  );
+                })
+              )}
+            </div>
           </div>
-        </div>
-      )}
+        );
+      })()}
     </div>
   );
 };

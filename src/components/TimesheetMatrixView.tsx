@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useTimeTracker } from '../context/TimeTrackerContext';
 import { format, startOfWeek, endOfWeek, addWeeks, subWeeks, eachDayOfInterval, parseISO, setHours, setMinutes, addSeconds } from 'date-fns';
 import { applyRounding } from '../utils/timeUtils';
@@ -14,6 +14,12 @@ export const TimesheetMatrixView: React.FC = () => {
   const { addToast } = useToast();
   const [currentWeekStart, setCurrentWeekStart] = useState(startOfWeek(new Date(), { weekStartsOn: 1 }));
 
+  const [manuallyShownIds, setManuallyShownIds] = useState<Set<string>>(new Set());
+
+  useEffect(() => {
+    setManuallyShownIds(new Set()); // reset when navigating to a different week
+  }, [currentWeekStart]);
+
   const weekDays = eachDayOfInterval({
     start: currentWeekStart,
     end: endOfWeek(currentWeekStart, { weekStartsOn: 1 })
@@ -21,17 +27,6 @@ export const TimesheetMatrixView: React.FC = () => {
 
   const activeTimecodes = timecodes.filter(t => !t.archived);
   const activeGroups = groups.filter(g => !g.archived);
-
-  // Group timecodes by group
-  const groupedTimecodes = activeGroups.map(g => ({
-    ...g,
-    timecodes: activeTimecodes.filter(t => t.groupId === g.id)
-  })).filter(g => g.timecodes.length > 0);
-
-  const unassignedTimecodes = activeTimecodes.filter(t => !t.groupId);
-  if (unassignedTimecodes.length > 0) {
-    groupedTimecodes.push({ id: 'unassigned', name: 'Unassigned', color: '#9ca3af', archived: false, updatedAt: '', timecodes: unassignedTimecodes });
-  }
 
   const getCellEntries = (timecodeId: string, date: Date) => {
     const dateStr = format(date, 'yyyy-MM-dd');
@@ -47,6 +42,21 @@ export const TimesheetMatrixView: React.FC = () => {
   const getRowTotalHours = (timecodeId: string) => {
     return weekDays.reduce((sum, day) => sum + getCellHours(timecodeId, day), 0);
   };
+
+  const isVisible = (tcId: string) => getRowTotalHours(tcId) > 0 || manuallyShownIds.has(tcId);
+
+  // Group timecodes by group
+  const groupedTimecodes = activeGroups.map(g => ({
+    ...g,
+    timecodes: activeTimecodes.filter(t => t.groupId === g.id && isVisible(t.id))
+  })).filter(g => g.timecodes.length > 0);
+
+  const unassignedTimecodes = activeTimecodes.filter(t => !t.groupId && isVisible(t.id));
+  if (unassignedTimecodes.length > 0) {
+    groupedTimecodes.push({ id: 'unassigned', name: 'Unassigned', color: '#9ca3af', archived: false, updatedAt: '', timecodes: unassignedTimecodes });
+  }
+
+  const hiddenTimecodes = activeTimecodes.filter(t => !isVisible(t.id));
 
   const getColTotalHours = (date: Date) => {
     return activeTimecodes.reduce((sum, tc) => sum + getCellHours(tc.id, date), 0);
@@ -183,6 +193,18 @@ export const TimesheetMatrixView: React.FC = () => {
           </tfoot>
         </table>
       </Panel>
+      {hiddenTimecodes.length > 0 && (
+        <div className="mt-3 min-w-[800px]">
+          <select
+            value=""
+            onChange={(e) => { if (e.target.value) setManuallyShownIds(prev => new Set(prev).add(e.target.value)); }}
+            className="text-sm px-3 py-1.5 border border-graphite/10 dark:border-white/10 rounded bg-stone dark:bg-ink text-graphite dark:text-stone"
+          >
+            <option value="">+ Add a timecode to this week…</option>
+            {hiddenTimecodes.map(tc => <option key={tc.id} value={tc.id}>{tc.name}</option>)}
+          </select>
+        </div>
+      )}
     </div>
   );
 };

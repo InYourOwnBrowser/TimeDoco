@@ -68,3 +68,12 @@ export const formatElapsedSeconds = (totalSeconds: number): string => {
   }
   return `${pad(mins)}:${pad(secs)}`;
 };
+
+export const calculateTaxBreakdown = (amount: number, taxRate: number, inclusive: boolean) => {
+  if (inclusive) {
+    const subtotal = amount / (1 + taxRate / 100);
+    return { subtotal, tax: amount - subtotal, total: amount };
+  }
+  const tax = amount * (taxRate / 100);
+  return { subtotal: amount, tax, total: amount + tax };
+};
