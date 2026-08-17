@@ -6,6 +6,7 @@ import { Modal } from './ui/Modal';
 import { Panel } from './ui/Panel';
 import { parseISO } from 'date-fns';
 import { HelpTooltip } from './ui/HelpTooltip';
+import { useToast } from '../context/ToastContext';
 
 interface SettingsModalProps {
   onClose: () => void;
@@ -13,6 +14,7 @@ interface SettingsModalProps {
 
 export const SettingsModal: React.FC<SettingsModalProps> = ({ onClose }) => {
   const { exportData, importData, settings, updateSettings, bulkAddManualEntries, addTimecode, timecodes, deletedEntries, restoreEntry, hardDeleteEntry, deletedTimecodes, restoreTimecode, hardDeleteTimecode, deletedGroups, restoreGroup, hardDeleteGroup, emptyTrash } = useTimeTracker();
+  const { addToast } = useToast();
   const fileInputRef = useRef<HTMLInputElement>(null);
   const csvInputRef = useRef<HTMLInputElement>(null);
 
@@ -24,6 +26,22 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ onClose }) => {
   const [activeTab, setActiveTab] = useState<'general' | 'data' | 'trash'>('general');
   const [justSaved, setJustSaved] = useState(false);
   const saveTimeoutRef = useRef<number | null>(null);
+
+  const MAX_LOGO_BYTES = 1024 * 1024; // 1MB — keeps backups/exports lean, since this gets embedded in every export
+
+  const handleLogoUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    if (file.size > MAX_LOGO_BYTES) {
+      addToast('Logo image is too large — please use a file under 1MB.', 'error');
+      e.target.value = '';
+      return;
+    }
+    const reader = new FileReader();
+    reader.onload = () => handleUpdateSettings({ userLogoBase64: reader.result as string });
+    reader.readAsDataURL(file);
+    e.target.value = '';
+  };
 
   const handleUpdateSettings = async (updates: any) => {
     await updateSettings(updates);
@@ -330,6 +348,25 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ onClose }) => {
                   className="w-16 px-3 py-1.5 border border-graphite/10 dark:border-white/10 rounded outline-none focus-visible:ring-2 focus-visible:ring-signal text-sm bg-stone dark:bg-graphite text-graphite dark:text-stone text-center"
                 />
               </div>
+                <div className="mb-4">
+                  <label className="text-sm font-medium text-graphite dark:text-stone flex items-center mb-2">
+                    Your Logo
+                    <HelpTooltip text="Shown alongside the TimeDoco logo at the top of PDF reports. PNG, JPEG, or WEBP, under 1MB." />
+                  </label>
+                  {settings?.userLogoBase64 ? (
+                    <div className="flex items-center gap-3">
+                      <img src={settings.userLogoBase64} alt="Your logo" className="h-12 max-w-[160px] object-contain bg-white rounded border border-graphite/10 p-1" />
+                      <button onClick={() => handleUpdateSettings({ userLogoBase64: null })} className="text-sm text-rust hover:underline">Remove</button>
+                    </div>
+                  ) : (
+                    <input
+                      type="file"
+                      accept="image/png,image/jpeg,image/webp"
+                      onChange={handleLogoUpload}
+                      className="text-sm text-gray-500 dark:text-gray-400 file:mr-3 file:py-1.5 file:px-3 file:rounded file:border-0 file:text-sm file:font-medium file:bg-graphite file:text-stone dark:file:bg-stone dark:file:text-ink hover:file:opacity-90 file:cursor-pointer cursor-pointer"
+                    />
+                  )}
+                </div>
               <div className="mb-2">
                 <label className="text-sm font-medium text-graphite dark:text-stone flex items-center mb-2">
                   Custom Report Fields

@@ -137,22 +137,30 @@ export const EntryList: React.FC = () => {
             ))}
           </select>
         </div>
-        <div className="flex flex-col sm:flex-row gap-4 items-center">
-          <input
-            type="date"
-            value={dateFrom}
-            onChange={(e) => setDateFrom(e.target.value)}
-            className="block w-full sm:w-auto pl-3 pr-10 py-2 text-base border-graphite/10 dark:border-white/10 shadow-inner focus:outline-none focus:ring-signal focus:border-signal sm:text-sm rounded-panel bg-stone dark:bg-ink text-gray-900 dark:text-white focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-signal"
-            aria-label="From Date"
-          />
+        <div className="flex flex-col sm:flex-row gap-4 items-start sm:items-center">
+          <div className="flex flex-col gap-1 w-full sm:w-auto">
+            <label htmlFor="entry-date-from" className="text-xs text-gray-500 dark:text-gray-400 sm:hidden">From</label>
+            <input
+              id="entry-date-from"
+              type="date"
+              value={dateFrom}
+              onChange={(e) => setDateFrom(e.target.value)}
+              className="block w-full sm:w-auto pl-3 pr-10 py-2 text-base border-graphite/10 dark:border-white/10 shadow-inner focus:outline-none focus:ring-signal focus:border-signal sm:text-sm rounded-panel bg-stone dark:bg-ink text-gray-900 dark:text-white focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-signal"
+              aria-label="From Date"
+            />
+          </div>
           <span className="text-gray-500 hidden sm:inline">to</span>
-          <input
-            type="date"
-            value={dateTo}
-            onChange={(e) => setDateTo(e.target.value)}
-            className="block w-full sm:w-auto pl-3 pr-10 py-2 text-base border-graphite/10 dark:border-white/10 shadow-inner focus:outline-none focus:ring-signal focus:border-signal sm:text-sm rounded-panel bg-stone dark:bg-ink text-gray-900 dark:text-white focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-signal"
-            aria-label="To Date"
-          />
+          <div className="flex flex-col gap-1 w-full sm:w-auto">
+            <label htmlFor="entry-date-to" className="text-xs text-gray-500 dark:text-gray-400 sm:hidden">To</label>
+            <input
+              id="entry-date-to"
+              type="date"
+              value={dateTo}
+              onChange={(e) => setDateTo(e.target.value)}
+              className="block w-full sm:w-auto pl-3 pr-10 py-2 text-base border-graphite/10 dark:border-white/10 shadow-inner focus:outline-none focus:ring-signal focus:border-signal sm:text-sm rounded-panel bg-stone dark:bg-ink text-gray-900 dark:text-white focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-signal"
+              aria-label="To Date"
+            />
+          </div>
           <select
             value={selectedGroupId}
             onChange={(e) => setSelectedGroupId(e.target.value)}

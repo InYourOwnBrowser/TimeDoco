@@ -395,10 +395,30 @@ export const AnalysisView: React.FC = () => {
       const pageWidth = doc.internal.pageSize.getWidth();
 
       const drawHeader = () => {
-        doc.addImage(LOGO_PRINT_BASE64, 'PNG', 14, 10, 37.5, 10);
+        const userLogo = settings?.userLogoBase64;
+
+        if (userLogo) {
+          try {
+            const props = doc.getImageProperties(userLogo);
+            const maxW = 35, maxH = 12;
+            const ratio = props.width / props.height;
+            const w = ratio > maxW / maxH ? maxW : maxH * ratio;
+            const h = ratio > maxW / maxH ? maxW / ratio : maxH;
+            doc.addImage(userLogo, props.fileType, 14, 10, w, h);
+          } catch (e) {
+            console.error('Failed to render user logo in PDF, falling back to TimeDoco logo only:', e);
+            doc.addImage(LOGO_PRINT_BASE64, 'PNG', 14, 10, 37.5, 10);
+          }
+          // TimeDoco becomes a small secondary credit, top-right
+          doc.addImage(LOGO_PRINT_BASE64, 'PNG', pageWidth - 14 - 25, 8, 25, 6.67);
+        } else {
+          // No user logo configured — unchanged from today
+          doc.addImage(LOGO_PRINT_BASE64, 'PNG', 14, 10, 37.5, 10);
+        }
+
         doc.setFontSize(9);
         doc.setTextColor(140);
-        doc.text('Time & Activity Report', pageWidth - 14, 15, { align: 'right' });
+        doc.text('Time & Activity Report', pageWidth - 14, userLogo ? 18 : 15, { align: 'right' });
       };
 
       let headerDrawnPage = 0;
