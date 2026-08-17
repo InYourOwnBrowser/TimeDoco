@@ -74,4 +74,5 @@ export interface Settings {
   taxLabel?: string;
   taxInclusive?: boolean;
   taxPromptDismissed?: boolean;
+  customFields?: { id: string; label: string; value: string }[];
 }
