@@ -75,4 +75,5 @@ export interface Settings {
   taxInclusive?: boolean;
   taxPromptDismissed?: boolean;
   customFields?: { id: string; label: string; value: string }[];
+  userLogoBase64?: string | null;
 }

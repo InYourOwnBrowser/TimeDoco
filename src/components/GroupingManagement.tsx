@@ -6,7 +6,8 @@ import type { Group, Timecode } from '../types';
 import { HelpTooltip } from './ui/HelpTooltip';
 
 export const GroupingManagement: React.FC = () => {
-  const { groups, timecodes, addGroup, updateGroup, deleteGroup, addTimecode, updateTimecode, deleteTimecode, mergeTimecodes } = useTimeTracker();
+  const { groups, timecodes, addGroup, updateGroup, deleteGroup, addTimecode, updateTimecode, deleteTimecode, mergeTimecodes, settings } = useTimeTracker();
+  const currencySymbol = settings?.currencySymbol || '$';
   const { addToast } = useToast();
 
   const [editingGroupId, setEditingGroupId] = useState<string | null>(null);
@@ -277,18 +278,21 @@ export const GroupingManagement: React.FC = () => {
                           <option key={g.id} value={g.id}>{g.name}</option>
                         ))}
                       </select>
-                      <input
-                        type="number"
-                        placeholder="Rate (opt)"
-                        value={editingTimecodeData.hourlyRate}
-                        onChange={(e) => {
-                          const val = e.target.value;
-                          setEditingTimecodeData({ ...editingTimecodeData, hourlyRate: val !== '' && Number(val) < 0 ? '0' : val });
-                        }}
-                        className="w-24 px-3 py-1 border border-graphite/10 dark:border-white/10 rounded outline-none focus-visible:ring-2 focus-visible:ring-signal bg-stone dark:bg-graphite text-graphite dark:text-stone text-sm"
-                        min="0"
-                        step="0.01"
-                      />
+                      <div className="relative">
+                        <span className="absolute left-2.5 top-1.5 text-gray-400 dark:text-gray-500">{currencySymbol}</span>
+                        <input
+                          type="number"
+                          placeholder="Rate"
+                          value={editingTimecodeData.hourlyRate}
+                          onChange={(e) => {
+                            const val = e.target.value;
+                            setEditingTimecodeData({ ...editingTimecodeData, hourlyRate: val !== '' && Number(val) < 0 ? '0' : val });
+                          }}
+                          className="w-24 pl-6 pr-3 py-1 border border-graphite/10 dark:border-white/10 rounded outline-none focus-visible:ring-2 focus-visible:ring-signal bg-stone dark:bg-graphite text-graphite dark:text-stone text-sm"
+                          min="0"
+                          step="0.01"
+                        />
+                      </div>
                       <button onClick={() => handleEditTimecodeSave(tc.id)} className="p-1 text-verdigris hover:bg-verdigris/10 transition-colors" aria-label="Save Timecode Edit">
                         <Check size={18} />
                       </button>
@@ -417,18 +421,21 @@ export const GroupingManagement: React.FC = () => {
               <option key={g.id} value={g.id}>{g.name}</option>
             ))}
           </select>
-          <input
-            type="number"
-            placeholder="Rate (opt)"
-            value={newTimecodeRate}
-            onChange={(e) => {
-              const val = e.target.value;
-              setNewTimecodeRate(val !== '' && Number(val) < 0 ? '0' : val);
-            }}
-            className="w-24 px-3 py-2 border border-graphite/10 dark:border-white/10 rounded outline-none focus-visible:ring-2 focus-visible:ring-signal text-sm bg-stone dark:bg-graphite text-graphite dark:text-stone placeholder-gray-400 dark:placeholder-gray-500"
-            min="0"
-            step="0.01"
-          />
+          <div className="relative">
+            <span className="absolute left-2.5 top-2.5 text-gray-400 dark:text-gray-500">{currencySymbol}</span>
+            <input
+              type="number"
+              placeholder="Rate"
+              value={newTimecodeRate}
+              onChange={(e) => {
+                const val = e.target.value;
+                setNewTimecodeRate(val !== '' && Number(val) < 0 ? '0' : val);
+              }}
+              className="w-24 pl-6 pr-3 py-2 border border-graphite/10 dark:border-white/10 rounded outline-none focus-visible:ring-2 focus-visible:ring-signal text-sm bg-stone dark:bg-graphite text-graphite dark:text-stone placeholder-gray-400 dark:placeholder-gray-500"
+              min="0"
+              step="0.01"
+            />
+          </div>
           <button
             onClick={handleCreateTimecode}
             disabled={!newTimecodeName.trim()}
