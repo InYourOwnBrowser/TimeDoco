@@ -5,7 +5,7 @@ import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, PieChart, Pi
 import { Download, Printer, AlertTriangle, Calendar, Loader2, X } from 'lucide-react';
 import { HelpTooltip } from './ui/HelpTooltip';
 import { useToast } from '../context/ToastContext';
-import { applyRounding, calculateDuration, calculateTaxBreakdown } from '../utils/timeUtils';
+import { applyRounding, calculateDuration, calculateTaxBreakdown, calculateTotalPausedSeconds, formatDurationShort } from '../utils/timeUtils';
 import { createEvents, type EventAttributes } from 'ics';
 import { LOGO_PRINT_BASE64 } from '../assets/logoPrint';
 
@@ -488,11 +488,15 @@ export const AnalysisView: React.FC = () => {
         .map(e => {
           const tc = timecodeById.get(e.timecodeId);
           const hrs = (applyRounding(e.duration, settings?.roundingRule ?? 'none') / 3600).toFixed(2);
+          const paused = e.endTime
+            ? formatDurationShort(calculateTotalPausedSeconds(parseISO(e.startTime), parseISO(e.endTime), e.pausedSegments))
+            : '—';
           return [
             format(parseISO(e.startTime), 'MMM d'),
             tc?.name ?? 'Unknown',
             format(parseISO(e.startTime), 'HH:mm'),
             e.endTime ? format(parseISO(e.endTime), 'HH:mm') : 'Running',
+            paused,
             hrs,
             e.note || '—',
           ];
@@ -500,10 +504,10 @@ export const AnalysisView: React.FC = () => {
 
       autoTable(doc, {
         startY: (doc as any).lastAutoTable.finalY + 10,
-        head: [['Date', 'Timecode', 'Start', 'End', 'Hours', 'Note']],
+        head: [['Date', 'Timecode', 'Start', 'End', 'Paused', 'Hours', 'Note']],
         body: detailRows,
         styles: { fontSize: 8, cellPadding: 2 },
-        columnStyles: { 5: { cellWidth: 60 } },
+        columnStyles: { 6: { cellWidth: 60 } },
         margin: { top: 25 },
         didDrawPage: (data) => ensureHeader(data.pageNumber),
       });

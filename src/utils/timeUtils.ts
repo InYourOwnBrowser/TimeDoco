@@ -1,5 +1,25 @@
 import type { Entry, PauseSegment } from '../types';
 
+export const calculateTotalPausedSeconds = (start: Date, end: Date, pausedSegments: PauseSegment[]): number => {
+  let totalPauseMs = 0;
+  pausedSegments.forEach(segment => {
+    const segmentStart = new Date(segment.pauseStart);
+    const segmentEnd = segment.pauseEnd ? new Date(segment.pauseEnd) : end;
+    const pStartMs = Math.max(segmentStart.getTime(), start.getTime());
+    const pEndMs = Math.min(segmentEnd.getTime(), end.getTime());
+    if (pEndMs > pStartMs) totalPauseMs += (pEndMs - pStartMs);
+  });
+  return Math.round(totalPauseMs / 1000);
+};
+
+export const formatDurationShort = (totalSeconds: number): string => {
+  if (totalSeconds <= 0) return '—';
+  const hrs = Math.floor(totalSeconds / 3600);
+  const mins = Math.round((totalSeconds % 3600) / 60);
+  if (hrs > 0) return mins > 0 ? `${hrs}h ${mins}m` : `${hrs}h`;
+  return `${mins}m`;
+};
+
 export const checkOverlap = (start: Date, end: Date, entries: Entry[], excludeId?: string, timecodeId?: string, allowConcurrentTimers?: boolean): boolean => {
   return entries.some(e => {
     if (excludeId && e.id === excludeId) return false;

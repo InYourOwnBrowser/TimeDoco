@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { checkOverlap, calculateDuration, applyRounding, calculateTaxBreakdown } from './timeUtils';
+import { checkOverlap, calculateDuration, applyRounding, calculateTaxBreakdown, calculateTotalPausedSeconds, formatDurationShort } from './timeUtils';
 import type { Entry, PauseSegment } from '../types';
 
 describe('timeUtils', () => {
@@ -157,6 +157,27 @@ describe('timeUtils', () => {
       // Diff = 3600. Pause = 7200. Result = -3600 -> 0.
       expect(calculateDuration(start, end, pauses)).toBe(0);
     });
+  });
+
+  describe('calculateTotalPausedSeconds', () => {
+    it('sums completed pause segments clamped to the entry window', () => {
+      const start = new Date('2026-01-01T09:00:00Z');
+      const end = new Date('2026-01-01T12:00:00Z');
+      const pauses = [{ pauseStart: '2026-01-01T10:00:00Z', pauseEnd: '2026-01-01T10:15:00Z' }];
+      expect(calculateTotalPausedSeconds(start, end, pauses)).toBe(15 * 60);
+    });
+    it('returns 0 for no pauses', () => {
+      const start = new Date('2026-01-01T09:00:00Z');
+      const end = new Date('2026-01-01T12:00:00Z');
+      expect(calculateTotalPausedSeconds(start, end, [])).toBe(0);
+    });
+  });
+
+  describe('formatDurationShort', () => {
+    it('formats minutes only under an hour', () => expect(formatDurationShort(15 * 60)).toBe('15m'));
+    it('formats hours and minutes', () => expect(formatDurationShort(65 * 60)).toBe('1h 5m'));
+    it('formats whole hours without a redundant 0m', () => expect(formatDurationShort(2 * 3600)).toBe('2h'));
+    it('returns an em dash for zero', () => expect(formatDurationShort(0)).toBe('—'));
   });
 
   describe('calculateTaxBreakdown', () => {
