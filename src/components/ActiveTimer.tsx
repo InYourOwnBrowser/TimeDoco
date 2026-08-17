@@ -98,7 +98,7 @@ export const ActiveTimer: React.FC<{ activeEntry: Entry | null }> = ({ activeEnt
   };
 
   return (
-    <div className="bg-stone dark:bg-ink p-6 rounded-panel shadow-inner border border-graphite/10 dark:border-white/10 max-w-md w-full mx-auto flex flex-col items-center transition-colors">
+    <div className="bg-stone dark:bg-ink p-6 rounded-panel shadow-sm border border-graphite/20 dark:border-white/15 max-w-md w-full mx-auto flex flex-col items-center transition-colors">
       {!activeEntry ? (
         <div className="w-full flex flex-col items-center gap-6">
           <div className="text-5xl text-gray-300 dark:text-gray-600 font-mono tracking-wider tabular">

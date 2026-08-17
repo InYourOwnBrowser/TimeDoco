@@ -55,7 +55,7 @@ export const WeeklySummary: React.FC = () => {
 
   if (!targetHours) {
     return (
-      <div className="w-full max-w-md mx-auto mt-6 bg-stone dark:bg-ink p-5 rounded-panel shadow-inner border border-graphite/10 dark:border-white/10 text-center text-sm text-gray-500">
+      <div className="w-full max-w-md mx-auto mt-6 bg-stone dark:bg-ink p-5 rounded-panel shadow-sm border border-graphite/20 dark:border-white/15 text-center text-sm text-gray-500">
         Set a weekly target in Settings to track your goal progress.
       </div>
     );
@@ -64,7 +64,7 @@ export const WeeklySummary: React.FC = () => {
   const progress = Math.min((weeklyData / targetHours) * 100, 100);
 
   return (
-    <div className="w-full max-w-md mx-auto mt-6 bg-stone dark:bg-ink p-5 rounded-panel shadow-inner border border-graphite/10 dark:border-white/10 transition-colors">
+    <div className="w-full max-w-md mx-auto mt-6 bg-stone dark:bg-ink p-5 rounded-panel shadow-sm border border-graphite/20 dark:border-white/15 transition-colors">
       <div className="flex items-center justify-between mb-3">
         <div className="flex items-center gap-2">
           <Target size={18} className="text-signal" />

@@ -3,6 +3,7 @@ import { useTimeTracker } from '../context/TimeTrackerContext';
 import { X, Upload, Download, AlertTriangle, CheckCircle2 } from 'lucide-react';
 import Papa from 'papaparse';
 import { Modal } from './ui/Modal';
+import { Panel } from './ui/Panel';
 import { parseISO } from 'date-fns';
 import { HelpTooltip } from './ui/HelpTooltip';
 
@@ -21,6 +22,17 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ onClose }) => {
   const [showReplaceConfirm, setShowReplaceConfirm] = useState(false);
   const [replaceConfirmText, setReplaceConfirmText] = useState('');
   const [activeTab, setActiveTab] = useState<'general' | 'data' | 'trash'>('general');
+  const [justSaved, setJustSaved] = useState(false);
+  const saveTimeoutRef = useRef<number | null>(null);
+
+  const handleUpdateSettings = async (updates: any) => {
+    await updateSettings(updates);
+    setJustSaved(true);
+    if (saveTimeoutRef.current) {
+      window.clearTimeout(saveTimeoutRef.current);
+    }
+    saveTimeoutRef.current = window.setTimeout(() => setJustSaved(false), 1500);
+  };
 
   const handleExport = async () => {
     try {
@@ -201,7 +213,10 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ onClose }) => {
     <Modal onClose={onClose}>
       <div className="bg-stone dark:bg-ink rounded-panel shadow-inner border border-graphite/10 dark:border-white/10 w-full max-w-md max-h-[90vh] overflow-hidden flex flex-col">
         <div className="px-6 py-4 border-b border-graphite/10 dark:border-white/10 flex justify-between items-center bg-stone dark:bg-ink">
-          <h2 className="text-lg font-semibold font-sans text-graphite dark:text-stone">Settings & Data Management</h2>
+          <div className="flex items-center gap-3">
+            <h2 className="text-lg font-semibold font-sans text-graphite dark:text-stone">Settings & Data Management</h2>
+            {justSaved && <span className="text-xs font-medium text-verdigris transition-opacity duration-300">Saved</span>}
+          </div>
           <button onClick={onClose} className="text-gray-400 dark:text-gray-500 hover:text-graphite dark:hover:text-stone transition-colors focus-visible:ring-2 focus-visible:ring-signal focus-visible:ring-offset-2 rounded-full p-1">
             <X size={20} />
           </button>
@@ -238,16 +253,16 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ onClose }) => {
             </div>
           )}
 
-          <div className="space-y-6">
+          <div className="space-y-4">
           {activeTab === 'general' && (
             <>
-            <section>
-              <h3 className="text-md font-semibold text-graphite dark:text-stone mb-3 border-b border-graphite/10 dark:border-white/10 pb-1">Appearance</h3>
+            <Panel className="p-5">
+              <h3 className="text-md font-semibold text-graphite dark:text-stone mb-3">Appearance</h3>
               <div className="flex items-center justify-between mb-2">
                 <label className="text-sm font-medium text-graphite dark:text-stone">Theme</label>
                 <select
                   value={settings?.theme || 'system'}
-                  onChange={(e) => updateSettings({ theme: e.target.value as 'light' | 'dark' | 'system' })}
+                  onChange={(e) => handleUpdateSettings({ theme: e.target.value as 'light' | 'dark' | 'system' })}
                   className="px-3 py-1.5 border border-graphite/10 dark:border-white/10 rounded outline-none focus-visible:ring-2 focus-visible:ring-signal text-sm bg-stone dark:bg-graphite text-graphite dark:text-stone"
                 >
                   <option value="light">Light</option>
@@ -255,16 +270,16 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ onClose }) => {
                   <option value="system">System</option>
                 </select>
               </div>
-            </section>
+            </Panel>
 
-            <section>
-              <h3 className="text-md font-semibold text-graphite dark:text-stone mb-3 border-b border-graphite/10 dark:border-white/10 pb-1">Behavior</h3>
+            <Panel className="p-5">
+              <h3 className="text-md font-semibold text-graphite dark:text-stone mb-3">Behavior</h3>
               <div className="flex flex-col mb-4">
                 <label className="flex items-center gap-2 cursor-pointer">
                   <input
                     type="checkbox"
                     checked={settings?.allowConcurrentTimers || false}
-                    onChange={(e) => updateSettings({ allowConcurrentTimers: e.target.checked })}
+                    onChange={(e) => handleUpdateSettings({ allowConcurrentTimers: e.target.checked })}
                     className="w-4 h-4 text-signal rounded border-graphite/10 dark:border-white/10 focus:ring-signal"
                   />
                   <span className="text-sm font-medium text-graphite dark:text-stone">Allow Multiple Concurrent Timers</span>
@@ -274,7 +289,10 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ onClose }) => {
                   When disabled, starting a new timer automatically stops any existing active timer.
                 </p>
               </div>
-              <h3 className="text-md font-semibold text-graphite dark:text-stone mb-3 border-b border-graphite/10 dark:border-white/10 pb-1 mt-6">Report Details</h3>
+            </Panel>
+
+            <Panel className="p-5">
+              <h3 className="text-md font-semibold text-graphite dark:text-stone mb-3">Report Details</h3>
               <div className="flex items-center justify-between mb-4">
                 <label className="text-sm font-medium text-graphite dark:text-stone flex items-center">
                   Your Name
@@ -283,7 +301,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ onClose }) => {
                 <input
                   type="text"
                   value={settings?.preparerName ?? ''}
-                  onChange={(e) => updateSettings({ preparerName: e.target.value })}
+                  onChange={(e) => handleUpdateSettings({ preparerName: e.target.value })}
                   placeholder="Jane Smith"
                   className="w-48 px-3 py-1.5 border border-graphite/10 dark:border-white/10 rounded outline-none focus-visible:ring-2 focus-visible:ring-signal text-sm bg-stone dark:bg-graphite text-graphite dark:text-stone"
                 />
@@ -293,7 +311,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ onClose }) => {
                 <input
                   type="text"
                   value={settings?.preparerCompany ?? ''}
-                  onChange={(e) => updateSettings({ preparerCompany: e.target.value })}
+                  onChange={(e) => handleUpdateSettings({ preparerCompany: e.target.value })}
                   placeholder="Acme Freelancing LLC"
                   className="w-48 px-3 py-1.5 border border-graphite/10 dark:border-white/10 rounded outline-none focus-visible:ring-2 focus-visible:ring-signal text-sm bg-stone dark:bg-graphite text-graphite dark:text-stone"
                 />
@@ -307,19 +325,21 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ onClose }) => {
                   type="text"
                   maxLength={5}
                   value={settings?.currencySymbol ?? ''}
-                  onChange={(e) => updateSettings({ currencySymbol: e.target.value })}
+                  onChange={(e) => handleUpdateSettings({ currencySymbol: e.target.value })}
                   placeholder="$"
                   className="w-16 px-3 py-1.5 border border-graphite/10 dark:border-white/10 rounded outline-none focus-visible:ring-2 focus-visible:ring-signal text-sm bg-stone dark:bg-graphite text-graphite dark:text-stone text-center"
                 />
               </div>
+            </Panel>
 
-              <h3 className="text-md font-semibold text-graphite dark:text-stone mb-3 border-b border-graphite/10 dark:border-white/10 pb-1 mt-6">Tax</h3>
+            <Panel className="p-5">
+              <h3 className="text-md font-semibold text-graphite dark:text-stone mb-3">Tax</h3>
               <div className="mb-4">
                 <label className="flex items-center gap-2 cursor-pointer">
                   <input
                     type="checkbox"
                     checked={settings?.taxEnabled || false}
-                    onChange={(e) => updateSettings({ taxEnabled: e.target.checked })}
+                    onChange={(e) => handleUpdateSettings({ taxEnabled: e.target.checked })}
                     className="w-4 h-4 text-signal rounded border-graphite/10 dark:border-white/10 focus:ring-signal"
                   />
                   <span className="text-sm font-medium text-graphite dark:text-stone">Enable Tax</span>
@@ -333,7 +353,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ onClose }) => {
                     <input
                       type="text"
                       value={settings?.taxLabel ?? ''}
-                      onChange={(e) => updateSettings({ taxLabel: e.target.value })}
+                      onChange={(e) => handleUpdateSettings({ taxLabel: e.target.value })}
                       placeholder="Tax"
                       className="w-32 px-3 py-1.5 border border-graphite/10 dark:border-white/10 rounded outline-none focus-visible:ring-2 focus-visible:ring-signal text-sm bg-stone dark:bg-graphite text-graphite dark:text-stone"
                     />
@@ -345,7 +365,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ onClose }) => {
                       min="0"
                       step="0.1"
                       value={settings?.taxRate ?? ''}
-                      onChange={(e) => updateSettings({ taxRate: e.target.value === '' ? null : parseFloat(e.target.value) })}
+                      onChange={(e) => handleUpdateSettings({ taxRate: e.target.value === '' ? null : parseFloat(e.target.value) })}
                       placeholder="15"
                       className="w-24 px-3 py-1.5 border border-graphite/10 dark:border-white/10 rounded outline-none focus-visible:ring-2 focus-visible:ring-signal text-sm bg-stone dark:bg-graphite text-graphite dark:text-stone text-right"
                     />
@@ -357,26 +377,28 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ onClose }) => {
                     </label>
                     <div className="flex gap-4 text-sm">
                       <label className="flex items-center gap-1.5 cursor-pointer">
-                        <input type="radio" checked={!settings?.taxInclusive} onChange={() => updateSettings({ taxInclusive: false })} className="text-signal focus:ring-signal" />
+                        <input type="radio" checked={!settings?.taxInclusive} onChange={() => handleUpdateSettings({ taxInclusive: false })} className="text-signal focus:ring-signal" />
                         Exclusive of tax
                       </label>
                       <label className="flex items-center gap-1.5 cursor-pointer">
-                        <input type="radio" checked={!!settings?.taxInclusive} onChange={() => updateSettings({ taxInclusive: true })} className="text-signal focus:ring-signal" />
+                        <input type="radio" checked={!!settings?.taxInclusive} onChange={() => handleUpdateSettings({ taxInclusive: true })} className="text-signal focus:ring-signal" />
                         Inclusive of tax
                       </label>
                     </div>
                   </div>
                 </>
               )}
+            </Panel>
 
-              <h3 className="text-md font-semibold text-graphite dark:text-stone mb-3 border-b border-graphite/10 dark:border-white/10 pb-1 mt-6">Weekly Target Hours</h3>
+            <Panel className="p-5">
+              <h3 className="text-md font-semibold text-graphite dark:text-stone mb-3">Weekly Target Hours</h3>
               <div className="flex items-center justify-between mb-4">
                 <label className="text-sm font-medium text-graphite dark:text-stone">Weekly Target Hours</label>
                 <input
                   type="number"
                   min="0"
                   value={settings?.weeklyTargetHours ?? ''}
-                  onChange={(e) => updateSettings({ weeklyTargetHours: e.target.value ? Math.max(0, Number(e.target.value)) : null })}
+                  onChange={(e) => handleUpdateSettings({ weeklyTargetHours: e.target.value ? Math.max(0, Number(e.target.value)) : null })}
                   placeholder="e.g. 40"
                   className="w-24 px-3 py-1.5 border border-graphite/10 dark:border-white/10 rounded outline-none focus-visible:ring-2 focus-visible:ring-signal text-sm bg-stone dark:bg-graphite text-graphite dark:text-stone"
                 />
@@ -390,7 +412,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ onClose }) => {
                   type="number"
                   min="0"
                   value={settings?.targetAlertMinutes ?? ''}
-                  onChange={(e) => updateSettings({ targetAlertMinutes: e.target.value ? Math.max(0, Number(e.target.value)) : null })}
+                  onChange={(e) => handleUpdateSettings({ targetAlertMinutes: e.target.value ? Math.max(0, Number(e.target.value)) : null })}
                   placeholder="e.g. 25"
                   className="w-24 px-3 py-1.5 border border-graphite/10 dark:border-white/10 rounded outline-none focus-visible:ring-2 focus-visible:ring-signal text-sm bg-stone dark:bg-graphite text-graphite dark:text-stone"
                 />
@@ -404,7 +426,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ onClose }) => {
                   type="number"
                   min="1"
                   value={settings?.idleThresholdMinutes ?? 15}
-                  onChange={(e) => updateSettings({ idleThresholdMinutes: Math.max(1, Number(e.target.value)) })}
+                  onChange={(e) => handleUpdateSettings({ idleThresholdMinutes: Math.max(1, Number(e.target.value)) })}
                   className="w-24 px-3 py-1.5 border border-graphite/10 dark:border-white/10 rounded outline-none focus-visible:ring-2 focus-visible:ring-signal text-sm bg-stone dark:bg-graphite text-graphite dark:text-stone"
                 />
               </div>
@@ -414,7 +436,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ onClose }) => {
                   type="number"
                   min="1"
                   value={settings?.reminderIntervalDays ?? 7}
-                  onChange={(e) => updateSettings({ reminderIntervalDays: Math.max(1, Number(e.target.value)) })}
+                  onChange={(e) => handleUpdateSettings({ reminderIntervalDays: Math.max(1, Number(e.target.value)) })}
                   className="w-24 px-3 py-1.5 border border-graphite/10 dark:border-white/10 rounded outline-none focus-visible:ring-2 focus-visible:ring-signal text-sm bg-stone dark:bg-graphite text-graphite dark:text-stone"
                 />
               </div>
@@ -425,7 +447,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ onClose }) => {
                 </label>
                 <select
                   value={settings?.roundingRule ?? 'none'}
-                  onChange={(e) => updateSettings({ roundingRule: e.target.value as 'none' | '5min' | '10min' | '15min' })}
+                  onChange={(e) => handleUpdateSettings({ roundingRule: e.target.value as 'none' | '5min' | '10min' | '15min' })}
                   className="px-3 py-1.5 border border-graphite/10 dark:border-white/10 rounded outline-none focus-visible:ring-2 focus-visible:ring-signal text-sm bg-stone dark:bg-graphite text-graphite dark:text-stone"
                 >
                   <option value="none">None</option>
@@ -434,12 +456,12 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ onClose }) => {
                   <option value="15min">Nearest 15 Minutes</option>
                 </select>
               </div>
-            </section>
+            </Panel>
             </>
           )}
           {activeTab === 'data' && (
-            <>
-            <section>
+            <div className="space-y-4">
+            <Panel className="p-5">
               <div className="mb-6 bg-yellow-50 dark:bg-yellow-900/30 border border-yellow-200 dark:border-yellow-700 rounded-md p-3">
                 <h4 className="text-sm font-semibold text-yellow-800 dark:text-yellow-400 flex items-center gap-1.5 mb-1">
                   <AlertTriangle size={16} /> Privacy Note
@@ -449,7 +471,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ onClose }) => {
                 </p>
               </div>
 
-              <h3 className="text-md font-semibold text-graphite dark:text-stone mb-3 border-b border-graphite/10 dark:border-white/10 pb-1">Export Data</h3>
+              <h3 className="text-md font-semibold text-graphite dark:text-stone mb-3">Export Data</h3>
               <p className="text-sm text-gray-600 dark:text-gray-400 mb-3">
                 Download all your tracked time, groups, and settings as a secure local JSON file.
               </p>
@@ -468,10 +490,10 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ onClose }) => {
                 <Download size={18} />
                 Export Backup File
               </button>
-            </section>
+            </Panel>
 
-            <section>
-              <h3 className="text-md font-semibold text-graphite dark:text-stone mb-3 border-b border-graphite/10 dark:border-white/10 pb-1">Import / Restore Data</h3>
+            <Panel className="p-5">
+              <h3 className="text-md font-semibold text-graphite dark:text-stone mb-3">Import / Restore Data</h3>
               <p className="text-sm text-gray-600 dark:text-gray-400 mb-4">
                 Restore your data from a previously exported backup file.
               </p>
@@ -580,10 +602,10 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ onClose }) => {
                   </>
                 )}
               </div>
-            </section>
+            </Panel>
 
-            <section>
-              <h3 className="text-md font-semibold text-graphite dark:text-stone mb-3 border-b border-graphite/10 dark:border-white/10 pb-1">Import CSV Data</h3>
+            <Panel className="p-5">
+              <h3 className="text-md font-semibold text-graphite dark:text-stone mb-3">Import CSV Data</h3>
               <p className="text-sm text-gray-600 dark:text-gray-400 mb-4">
                 Import time entries from a generic CSV file. Ensure it has "Start Time", "End Time", and "Timecode" columns.
               </p>
@@ -608,8 +630,8 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ onClose }) => {
                   Import CSV
                 </button>
               </div>
-            </section>
-            </>
+            </Panel>
+            </div>
           )}
           {activeTab === 'trash' && (
             <div className="space-y-4">

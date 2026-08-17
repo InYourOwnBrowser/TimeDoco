@@ -47,7 +47,7 @@ export const BackupReminderBanner: React.FC = () => {
     } else {
       setIsVisible(false);
     }
-  }, [settings]);
+  }, [settings, entries.length, timecodes.length, groups.length]);
 
   const handleDismiss = () => {
     localStorage.setItem('backupReminderDismissed', JSON.stringify({ timestamp: Date.now() }));
