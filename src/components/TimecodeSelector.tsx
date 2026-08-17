@@ -10,7 +10,8 @@ interface TimecodeSelectorProps {
 }
 
 export const TimecodeSelector: React.FC<TimecodeSelectorProps> = ({ onSelect, selectedId }) => {
-  const { timecodes, groups, addTimecode, entries } = useTimeTracker();
+  const { timecodes, groups, addTimecode, entries, settings } = useTimeTracker();
+  const currencySymbol = settings?.currencySymbol || '$';
   const selectedTimecode = selectedId ? timecodes.find(t => t.id === selectedId) : null;
   const [isOpen, setIsOpen] = useState(false);
   const [search, setSearch] = useState('');
@@ -261,7 +262,7 @@ export const TimecodeSelector: React.FC<TimecodeSelectorProps> = ({ onSelect, se
               <div className="mb-3">
                 <label className="block text-xs text-gray-500 dark:text-gray-400 mb-1">Hourly Rate (optional)</label>
                 <div className="relative">
-                  <span className="absolute left-2.5 top-1.5 text-gray-400 dark:text-gray-500">$</span>
+                  <span className="absolute left-2.5 top-1.5 text-gray-400 dark:text-gray-500">{currencySymbol}</span>
                   <input
                     type="number"
                     min="0"

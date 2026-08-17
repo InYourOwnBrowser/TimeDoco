@@ -68,4 +68,5 @@ export interface Settings {
   templates?: EntryTemplate[];
   preparerName?: string;
   preparerCompany?: string;
+  currencySymbol?: string;
 }

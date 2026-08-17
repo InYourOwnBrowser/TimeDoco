@@ -298,6 +298,20 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ onClose }) => {
                   className="w-48 px-3 py-1.5 border border-graphite/10 dark:border-white/10 rounded outline-none focus-visible:ring-2 focus-visible:ring-signal text-sm bg-stone dark:bg-graphite text-graphite dark:text-stone"
                 />
               </div>
+              <div className="flex items-center justify-between mb-4">
+                <label className="text-sm font-medium text-graphite dark:text-stone flex items-center">
+                  Currency Symbol
+                  <HelpTooltip text="Used wherever earnings/rates are shown, including PDF reports." />
+                </label>
+                <input
+                  type="text"
+                  maxLength={5}
+                  value={settings?.currencySymbol ?? ''}
+                  onChange={(e) => updateSettings({ currencySymbol: e.target.value })}
+                  placeholder="$"
+                  className="w-16 px-3 py-1.5 border border-graphite/10 dark:border-white/10 rounded outline-none focus-visible:ring-2 focus-visible:ring-signal text-sm bg-stone dark:bg-graphite text-graphite dark:text-stone text-center"
+                />
+              </div>
 
               <h3 className="text-md font-semibold text-graphite dark:text-stone mb-3 border-b border-graphite/10 dark:border-white/10 pb-1 mt-6">Weekly Target Hours</h3>
               <div className="flex items-center justify-between mb-4">
