@@ -60,7 +60,7 @@ export interface Settings {
   lastBackupDate: string | null; // ISO datetime
   reminderIntervalDays: number;
   roundingRule: 'none' | '5min' | '10min' | '15min';
-  idleThresholdMinutes: number;
+  idleThresholdMinutes: number | null;
   weeklyTargetHours: number | null;
   targetAlertMinutes?: number | null;
   theme?: 'light' | 'dark' | 'system';

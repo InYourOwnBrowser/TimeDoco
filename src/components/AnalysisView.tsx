@@ -595,28 +595,36 @@ export const AnalysisView: React.FC = () => {
             </button>
           )}
           <HelpTooltip text="Filters everything below, including the CSV, ICS, and PDF exports — use this to send a client-specific breakdown." />
-          <input
-            type="text"
-            value={preparedForOverride}
-            onChange={(e) => setPreparedForOverride(e.target.value)}
-            placeholder={`Prepared for (default: ${scopeLabel})`}
-            className="px-3 py-1.5 text-sm border-graphite/10 dark:border-white/10 rounded-md bg-stone dark:bg-ink text-graphite dark:text-stone focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-signal w-56 ml-auto"
-          />
-          <input
-            type="text"
-            value={preparedByOverride}
-            onChange={(e) => setPreparedByOverride(e.target.value)}
-            placeholder={`Prepared by (default: ${[settings?.preparerName, settings?.preparerCompany].filter(Boolean).join(' — ') || 'not set in Settings'})`}
-            className="px-3 py-1.5 text-sm border-graphite/10 dark:border-white/10 rounded-md bg-stone dark:bg-ink text-graphite dark:text-stone focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-signal w-56"
-          />
+        </div>
+        <div className="flex flex-col gap-2 mb-4 max-w-md">
+          <div className="flex items-center gap-2">
+            <label className="text-xs text-gray-500 dark:text-gray-400 w-20 shrink-0">Prepared for</label>
+            <input
+              type="text"
+              value={preparedForOverride}
+              onChange={(e) => setPreparedForOverride(e.target.value)}
+              placeholder={scopeLabel}
+              className="flex-1 px-3 py-1.5 text-sm border-graphite/10 dark:border-white/10 rounded-md bg-stone dark:bg-ink text-graphite dark:text-stone focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-signal"
+            />
+          </div>
+          <div className="flex items-center gap-2">
+            <label className="text-xs text-gray-500 dark:text-gray-400 w-20 shrink-0">Prepared by</label>
+            <input
+              type="text"
+              value={preparedByOverride}
+              onChange={(e) => setPreparedByOverride(e.target.value)}
+              placeholder={[settings?.preparerName, settings?.preparerCompany].filter(Boolean).join(' — ') || 'not set in Settings'}
+              className="flex-1 px-3 py-1.5 text-sm border-graphite/10 dark:border-white/10 rounded-md bg-stone dark:bg-ink text-graphite dark:text-stone focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-signal"
+            />
+          </div>
           {reportFields.map((f, i) => (
-            <div key={f.id} className="flex gap-1 items-center">
-              <input type="text" value={f.label} onChange={(e) => updateReportField(i, { label: e.target.value })} placeholder="Label" className="w-24 px-2 py-1.5 text-xs border border-graphite/10 dark:border-white/10 rounded bg-stone dark:bg-ink text-graphite dark:text-stone" />
-              <input type="text" value={f.value} onChange={(e) => updateReportField(i, { value: e.target.value })} placeholder="Value" className="w-28 px-2 py-1.5 text-xs border border-graphite/10 dark:border-white/10 rounded bg-stone dark:bg-ink text-graphite dark:text-stone" />
-              <button onClick={() => setReportFields(prev => prev.filter((_, j) => j !== i))} aria-label="Remove field" className="text-gray-400 hover:text-rust"><X size={14} /></button>
+            <div key={f.id} className="flex items-center gap-2">
+              <input type="text" value={f.label} onChange={(e) => updateReportField(i, { label: e.target.value })} placeholder="Label" className="w-20 shrink-0 px-2 py-1.5 text-xs border border-graphite/10 dark:border-white/10 rounded bg-stone dark:bg-ink text-graphite dark:text-stone" />
+              <input type="text" value={f.value} onChange={(e) => updateReportField(i, { value: e.target.value })} placeholder="Value" className="flex-1 px-2 py-1.5 text-xs border border-graphite/10 dark:border-white/10 rounded bg-stone dark:bg-ink text-graphite dark:text-stone" />
+              <button onClick={() => setReportFields(prev => prev.filter((_, j) => j !== i))} aria-label="Remove field" className="text-gray-400 hover:text-rust shrink-0"><X size={14} /></button>
             </div>
           ))}
-          <button onClick={() => setReportFields(prev => [...prev, { id: crypto.randomUUID(), label: '', value: '' }])} className="text-xs text-signal hover:text-signal-dim">+ Field</button>
+          <button onClick={() => setReportFields(prev => [...prev, { id: crypto.randomUUID(), label: '', value: '' }])} className="text-xs text-signal hover:text-signal-dim self-start">+ Field</button>
         </div>
       </div>
 

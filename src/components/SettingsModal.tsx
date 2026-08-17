@@ -457,13 +457,14 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ onClose }) => {
               <div className="flex items-center justify-between mb-4">
                 <label className="text-sm font-medium text-graphite dark:text-stone flex items-center">
                   Idle Threshold (Minutes)
-                  <HelpTooltip text="If your mouse/keyboard is inactive longer than this, the app will prompt to discard the idle time from the running timer." />
+                  <HelpTooltip text="If your mouse/keyboard is inactive longer than this, the app will prompt to discard the idle time from the running timer. Leave blank to disable." />
                 </label>
                 <input
                   type="number"
                   min="1"
-                  value={settings?.idleThresholdMinutes ?? 15}
-                  onChange={(e) => handleUpdateSettings({ idleThresholdMinutes: Math.max(1, Number(e.target.value)) })}
+                  value={settings?.idleThresholdMinutes ?? ''}
+                  onChange={(e) => handleUpdateSettings({ idleThresholdMinutes: e.target.value ? Math.max(1, Number(e.target.value)) : null })}
+                  placeholder="Off"
                   className="w-24 px-3 py-1.5 border border-graphite/10 dark:border-white/10 rounded outline-none focus-visible:ring-2 focus-visible:ring-signal text-sm bg-stone dark:bg-graphite text-graphite dark:text-stone"
                 />
               </div>
