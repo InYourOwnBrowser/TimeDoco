@@ -1,0 +1,98 @@
+<!doctype html>
+<html lang="en" class="dark">
+  <head>
+    <meta charset="UTF-8" />
+    <link rel="icon" type="image/svg+xml" href="../../favicon.svg" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="theme-color" content="#10161C" />
+    <title>Why Client-Side Privacy Matters for Contractors — TimeDoco</title>
+    <meta name="description" content="Discover why 100% client-side local storage protects client confidentiality, eliminates cloud vendor risk, and guarantees uninterrupted productivity." />
+    <link rel="canonical" href="https://lukeafullard.github.io/TimeTag/blog/why-client-side-privacy-matters/" />
+
+    <!-- Open Graph -->
+    <meta property="og:title" content="Why Client-Side Privacy Matters for Contractors — TimeDoco" />
+    <meta property="og:description" content="Discover why local storage protects client confidentiality and eliminates cloud downtime risks." />
+    <meta property="og:image" content="https://lukeafullard.github.io/TimeTag/pwa-512x512.png" />
+    <meta property="og:url" content="https://lukeafullard.github.io/TimeTag/blog/why-client-side-privacy-matters/" />
+    <meta property="og:type" content="article" />
+
+    <!-- Twitter Card -->
+    <meta name="twitter:card" content="summary" />
+    <meta name="twitter:title" content="Why Client-Side Privacy Matters for Contractors" />
+    <meta name="twitter:description" content="Discover why local storage protects client confidentiality and eliminates cloud downtime risks." />
+    <meta name="twitter:image" content="https://lukeafullard.github.io/TimeTag/pwa-512x512.png" />
+
+    <link rel="stylesheet" href="/src/index.css" />
+  </head>
+  <body class="min-h-screen bg-stone dark:bg-ink text-gray-900 dark:text-gray-100 font-sans antialiased flex flex-col justify-between">
+    <div>
+      <header class="border-b border-graphite/10 dark:border-white/10 bg-stone dark:bg-ink sticky top-0 z-50">
+        <div class="max-w-5xl mx-auto px-4 py-4 flex items-center justify-between">
+          <a href="../../" class="flex items-center gap-2 text-xl font-bold tracking-tight text-graphite dark:text-stone">
+            <svg class="h-8 w-8" viewBox="0 0 100 100" fill="none" xmlns="http://www.w3.org/2000/svg">
+              <rect x="10" y="10" width="80" height="80" rx="20" class="fill-graphite dark:fill-stone" />
+              <circle cx="50" cy="50" r="28" class="stroke-stone dark:stroke-graphite" stroke-width="8" />
+              <path d="M50 30V50L64 57" class="stroke-signal" stroke-width="8" stroke-linecap="round" stroke-linejoin="round" />
+            </svg>
+            <span>Time<span class="text-signal">Doco</span></span>
+          </a>
+          <nav class="flex items-center gap-6 text-sm font-medium">
+            <a href="../../faq/" class="text-gray-600 dark:text-gray-300 hover:text-signal transition-colors">FAQ</a>
+            <a href="../../blog/" class="text-signal font-semibold">Blog</a>
+            <a href="../../app/" class="px-4 py-2 rounded-panel bg-graphite hover:bg-ink dark:bg-stone dark:hover:bg-gray-300 text-stone dark:text-ink font-semibold transition-colors shadow-sm">
+              Launch App
+            </a>
+          </nav>
+        </div>
+      </header>
+
+      <main class="max-w-3xl mx-auto px-4 py-12">
+        <div class="mb-6 text-xs text-signal font-mono">June 2026 &bull; Privacy &amp; Security</div>
+        <h1 class="text-3xl sm:text-4xl font-extrabold mb-6 text-graphite dark:text-stone leading-tight">
+          Why Client-Side Privacy Matters for Contractors and Freelancers
+        </h1>
+
+        <div class="prose dark:prose-invert max-w-none space-y-6 text-gray-700 dark:text-gray-300 leading-relaxed">
+          <p>
+            When you run an independent consultancy or contracting business, your time tracking data contains some of your most sensitive operational intelligence: confidential client names, project scope details, internal billable rates, and precise daily activity logs.
+          </p>
+
+          <h2 class="text-xl font-bold text-graphite dark:text-stone mt-8">1. Eliminating Cloud Security Exposure</h2>
+          <p>
+            Traditional SaaS time tracking applications transmit every keystroke, timer update, and project label to a centralized server. While convenient, this architecture inherently introduces risk. Third-party cloud breaches, database misconfigurations, or employee leaks can expose your confidential client lists and financial earnings.
+          </p>
+          <p>
+            TimeDoco takes a radically different approach: <strong>100% client-side execution</strong>. Stored strictly in browser IndexedDB, your data remains physically confined to your machine.
+          </p>
+
+          <h2 class="text-xl font-bold text-graphite dark:text-stone mt-8">2. Zero Reliance on Cloud Uptime</h2>
+          <p>
+            When a cloud SaaS vendor experiences an outage or API breakdown, your workflow grinds to a halt. As a Progressive Web App (PWA), TimeDoco works completely offline. Whether you are on an airplane, in a low-connectivity zone, or working through cloud provider outages, your timers and reports function flawlessly.
+          </p>
+
+          <h2 class="text-xl font-bold text-graphite dark:text-stone mt-8">3. Total Data Ownership</h2>
+          <p>
+            Cloud services frequently enforce vendor lock-in or charge monthly fees to access historical data. With TimeDoco, you own your raw data in full. You can export complete JSON backups at any time, run offline PDF/CSV reports, and migrate seamlessly across devices without paying subscription fees.
+          </p>
+        </div>
+
+        <div class="mt-12 pt-8 border-t border-graphite/10 dark:border-white/10 flex justify-between items-center">
+          <a href="../" class="text-sm font-semibold text-signal hover:underline">&larr; Back to Blog Index</a>
+          <a href="../../app/" class="px-4 py-2 rounded-panel bg-signal text-ink font-bold text-sm hover:bg-amber-600 transition-colors">Try TimeDoco Free</a>
+        </div>
+      </main>
+    </div>
+
+    <footer class="border-t border-graphite/10 dark:border-white/10 py-8 text-center text-xs text-gray-500 dark:text-gray-400">
+      <div class="max-w-5xl mx-auto px-4 flex flex-col sm:flex-row items-center justify-between gap-4">
+        <div>&copy; TimeDoco &mdash; Privacy-First Time Tracker.</div>
+        <div class="flex items-center gap-4">
+          <a href="../../app/" class="hover:underline">App</a>
+          <a href="../../faq/" class="hover:underline">FAQ</a>
+          <a href="../../blog/" class="hover:underline">Blog</a>
+          <a href="https://github.com/lukeafullard/TimeTag" target="_blank" rel="noopener noreferrer" class="hover:underline">GitHub</a>
+        </div>
+      </div>
+    </footer>
+  </body>
+</html>

@@ -1,0 +1,15 @@
+# TimeDoco — Privacy-First Time Tracker
+
+> TimeDoco is a 100% client-side, privacy-first time tracking web application. Data is stored strictly on-device in browser IndexedDB with no account, server, telemetry, or tracking.
+
+## Core Pages & App
+
+- [Landing Page](https://lukeafullard.github.io/TimeTag/): Feature breakdown, Toggl/Harvest privacy comparison, and overview of client-side tracking.
+- [TimeDoco Web App](https://lukeafullard.github.io/TimeTag/app/): The full time tracking application interface (timer, timesheet matrix, analysis/PDF reports, grouping management).
+- [Frequently Asked Questions](https://lukeafullard.github.io/TimeTag/faq/): Questions and answers regarding IndexedDB local storage, PDF/CSV/ICS exports, multi-currency options, and offline PWA capability.
+- [Blog Index](https://lukeafullard.github.io/TimeTag/blog/): Articles and guides for contractors, freelancers, and privacy advocates.
+
+## Articles
+
+- [Why Client-Side Privacy Matters for Contractors](https://lukeafullard.github.io/TimeTag/blog/why-client-side-privacy-matters/): Deep dive into client data confidentiality and zero cloud vulnerability.
+- [Guide to Tax and Multi-Currency Reporting](https://lukeafullard.github.io/TimeTag/blog/tax-and-currency-reporting-guide/): How TimeDoco handles tax inclusive/exclusive configurations and unrounded CSV exports for accounting software.

@@ -1,3 +1,4 @@
+import { resolve } from 'path'
 import { defineConfig } from 'vitest/config'
 import react from '@vitejs/plugin-react'
 import { VitePWA } from 'vite-plugin-pwa'
@@ -5,6 +6,18 @@ import { VitePWA } from 'vite-plugin-pwa'
 // https://vite.dev/config/
 export default defineConfig({
   base: '/TimeTag/',
+  build: {
+    rollupOptions: {
+      input: {
+        index: resolve(import.meta.dirname, 'index.html'),
+        app: resolve(import.meta.dirname, 'app/index.html'),
+        faq: resolve(import.meta.dirname, 'faq/index.html'),
+        blog: resolve(import.meta.dirname, 'blog/index.html'),
+        blogPrivacy: resolve(import.meta.dirname, 'blog/why-client-side-privacy-matters/index.html'),
+        blogTax: resolve(import.meta.dirname, 'blog/tax-and-currency-reporting-guide/index.html'),
+      },
+    },
+  },
   plugins: [
     react(),
     VitePWA({
@@ -15,7 +28,7 @@ export default defineConfig({
         short_name: 'TimeDoco',
         description: 'Privacy-first, 100% client-side Time Tracker App',
         scope: '/TimeTag/',
-        start_url: '/TimeTag/',
+        start_url: '/TimeTag/app/',
         background_color: '#EEF0EC',
         theme_color: '#10161C',
         icons: [
