@@ -448,4 +448,51 @@ describe('TimeTrackerContext Reducer Logic', () => {
       expect(ctx!.groups[0].name).toBe('Newer Group'); // Remains Newer Group
     });
   });
+
+  it('performance benchmark: batch entry deletion speed', async () => {
+    let ctx: ReturnType<typeof useTimeTracker> | undefined;
+
+    render(
+      <ToastProvider><TimeTrackerProvider>
+        <TestConsumer onReady={(c) => (ctx = c)} />
+      </TimeTrackerProvider></ToastProvider>
+    );
+
+    await waitFor(() => expect(ctx?.groups).toBeDefined());
+
+    let tcId = '';
+    await act(async () => {
+      const tc = await ctx!.addTimecode('Benchmark TC');
+      tcId = tc.id;
+    });
+
+    const numEntries = 50;
+    const entriesData = Array.from({ length: numEntries }, (_, i) => ({
+      startTime: '2024-01-01T10:00:00Z',
+      endTime: '2024-01-01T11:00:00Z',
+      timecodeId: tcId,
+      note: `Benchmark Entry ${i}`,
+    }));
+
+    await act(async () => {
+      await ctx!.bulkAddManualEntries(entriesData);
+    });
+
+    await waitFor(() => {
+      expect(ctx!.entries.length).toBe(numEntries);
+    });
+
+    const start = performance.now();
+    await act(async () => {
+      await ctx!.hardDeleteTimecode(tcId);
+    });
+    const duration = performance.now() - start;
+
+    console.log(`[BENCHMARK] Deleting ${numEntries} entries baseline duration: ${duration.toFixed(2)} ms`);
+
+    await waitFor(() => {
+      expect(ctx!.timecodes.find((t) => t.id === tcId)).toBeUndefined();
+      expect(ctx!.entries.length).toBe(0);
+    });
+  });
 });
