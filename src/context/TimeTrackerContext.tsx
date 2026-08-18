@@ -177,20 +177,23 @@ export const TimeTrackerProvider: React.FC<{ children: ReactNode }> = ({ childre
 
       for (const tc of timecodesToDelete) {
         const relatedEntries = [...loadedEntries].filter((e) => e.timecodeId === tc.id);
-        for (const e of relatedEntries) {
-          await db.deleteEntry(e.id);
+        if (relatedEntries.length > 0) {
+          await Promise.all(relatedEntries.map((e) => db.deleteEntry(e.id)));
         }
         await db.deleteTimecode(tc.id);
         purged = true;
       }
 
-      for (const entry of entriesToDelete) {
-        // Need to check if it wasn't already deleted during timecode deletion
-        const exists = await db.getEntry(entry.id);
-        if (exists) {
-          await db.deleteEntry(entry.id);
-          purged = true;
-        }
+      if (entriesToDelete.length > 0) {
+        await Promise.all(
+          entriesToDelete.map(async (entry) => {
+            const exists = await db.getEntry(entry.id);
+            if (exists) {
+              await db.deleteEntry(entry.id);
+            }
+          })
+        );
+        purged = true;
       }
 
       if (purged) {
@@ -434,13 +437,13 @@ export const TimeTrackerProvider: React.FC<{ children: ReactNode }> = ({ childre
     for (const tc of deletedTimecodes) {
       // Hard deleting a timecode also requires hard deleting its associated entries
       const entriesToDelete = [...entries, ...deletedEntries].filter((e) => e.timecodeId === tc.id);
-      for (const e of entriesToDelete) {
-        await db.deleteEntry(e.id);
+      if (entriesToDelete.length > 0) {
+        await Promise.all(entriesToDelete.map((e) => db.deleteEntry(e.id)));
       }
       await db.deleteTimecode(tc.id);
     }
-    for (const entry of deletedEntries) {
-      await db.deleteEntry(entry.id);
+    if (deletedEntries.length > 0) {
+      await Promise.all(deletedEntries.map((entry) => db.deleteEntry(entry.id)));
     }
     await refreshData();
   };
@@ -713,8 +716,8 @@ export const TimeTrackerProvider: React.FC<{ children: ReactNode }> = ({ childre
 
   const hardDeleteTimecode = async (id: string) => {
     const entriesToDelete = [...entries, ...deletedEntries].filter((e) => e.timecodeId === id);
-    for (const entry of entriesToDelete) {
-      await db.deleteEntry(entry.id);
+    if (entriesToDelete.length > 0) {
+      await Promise.all(entriesToDelete.map((entry) => db.deleteEntry(entry.id)));
     }
     await db.deleteTimecode(id);
 
