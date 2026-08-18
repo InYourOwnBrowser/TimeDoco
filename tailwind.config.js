@@ -2,6 +2,9 @@
 export default {
   content: [
     "./index.html",
+    "./app/**/*.html",
+    "./faq/**/*.html",
+    "./blog/**/*.html",
     "./src/**/*.{js,ts,jsx,tsx}",
   ],
   darkMode: 'class',

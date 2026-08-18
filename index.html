@@ -1,15 +1,15 @@
 <!doctype html>
-<html lang="en">
+<html lang="en" class="dark">
   <head>
     <meta charset="UTF-8" />
     <link rel="icon" type="image/svg+xml" href="./favicon.svg" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <meta name="theme-color" content="#10161C" />
-    <title>TimeDoco</title>
-    <meta name="description" content="TimeDoco — a privacy-first, 100% client-side time tracker. Track hours, generate professional client reports, and keep your data on your own device." />
+    <title>TimeDoco — Privacy-First Client-Side Time Tracker</title>
+    <meta name="description" content="A privacy-first, 100% client-side time tracker with professional client reporting, tax & currency controls, and offline IndexedDB storage." />
     <link rel="canonical" href="https://lukeafullard.github.io/TimeTag/" />
 
-    <!-- Open Graph (Slack, Discord, LinkedIn, etc.) -->
+    <!-- Open Graph -->
     <meta property="og:title" content="TimeDoco — Privacy-First Time Tracking" />
     <meta property="og:description" content="Track hours, generate professional client reports, and keep your data 100% on-device. No account, no server, no tracking." />
     <meta property="og:image" content="https://lukeafullard.github.io/TimeTag/pwa-512x512.png" />
@@ -21,10 +21,147 @@
     <meta name="twitter:title" content="TimeDoco — Privacy-First Time Tracking" />
     <meta name="twitter:description" content="Track hours, generate professional client reports, and keep your data 100% on-device." />
     <meta name="twitter:image" content="https://lukeafullard.github.io/TimeTag/pwa-512x512.png" />
+
+    <!-- Schema.org WebApplication JSON-LD -->
+    <script type="application/ld+json">
+    {
+      "@context": "https://schema.org",
+      "@type": "WebApplication",
+      "name": "TimeDoco",
+      "applicationCategory": "BusinessApplication",
+      "operatingSystem": "Any (Progressive Web App)",
+      "offers": {
+        "@type": "Offer",
+        "price": "0",
+        "priceCurrency": "USD"
+      },
+      "description": "A privacy-first, 100% client-side time tracker with professional client reporting.",
+      "url": "https://lukeafullard.github.io/TimeTag/"
+    }
+    </script>
+    <link rel="stylesheet" href="/src/index.css" />
   </head>
-  <body>
-    <noscript>TimeDoco requires JavaScript to run — it's a fully client-side app with no server component. Please enable JavaScript to use it.</noscript>
-    <div id="root"></div>
-    <script type="module" src="/src/main.tsx"></script>
+  <body class="min-h-screen bg-stone dark:bg-ink text-gray-900 dark:text-gray-100 font-sans antialiased flex flex-col justify-between">
+    <div>
+      <header class="border-b border-graphite/10 dark:border-white/10 bg-stone dark:bg-ink sticky top-0 z-50">
+        <div class="max-w-5xl mx-auto px-4 py-4 flex items-center justify-between">
+          <a href="./" class="flex items-center gap-2 text-xl font-bold tracking-tight text-graphite dark:text-stone">
+            <svg class="h-8 w-8" viewBox="0 0 100 100" fill="none" xmlns="http://www.w3.org/2000/svg">
+              <rect x="10" y="10" width="80" height="80" rx="20" class="fill-graphite dark:fill-stone" />
+              <circle cx="50" cy="50" r="28" class="stroke-stone dark:stroke-graphite" stroke-width="8" />
+              <path d="M50 30V50L64 57" class="stroke-signal" stroke-width="8" stroke-linecap="round" stroke-linejoin="round" />
+            </svg>
+            <span>Time<span class="text-signal">Doco</span></span>
+          </a>
+          <nav class="flex items-center gap-6 text-sm font-medium">
+            <a href="./faq/" class="text-gray-600 dark:text-gray-300 hover:text-signal transition-colors">FAQ</a>
+            <a href="./blog/" class="text-gray-600 dark:text-gray-300 hover:text-signal transition-colors">Blog</a>
+            <a href="./app/" class="px-4 py-2 rounded-panel bg-graphite hover:bg-ink dark:bg-stone dark:hover:bg-gray-300 text-stone dark:text-ink font-semibold transition-colors shadow-sm">
+              Launch App
+            </a>
+          </nav>
+        </div>
+      </header>
+
+      <main class="max-w-5xl mx-auto px-4 py-16">
+        <!-- Hero Section -->
+        <section class="text-center max-w-3xl mx-auto mb-20">
+          <div class="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-signal/10 border border-signal/30 text-signal-dim dark:text-signal text-xs font-semibold uppercase tracking-wider mb-6">
+            <span class="w-2 h-2 rounded-full bg-verdigris recording-dot"></span> 100% Client-Side &amp; Privacy-First
+          </div>
+          <h1 class="text-4xl sm:text-5xl font-extrabold tracking-tight mb-6 text-graphite dark:text-stone">
+            Time tracking without servers, accounts, or surveillance.
+          </h1>
+          <p class="text-lg sm:text-xl text-gray-600 dark:text-gray-300 mb-8 leading-relaxed">
+            TimeDoco is a zero-latency, full-featured time tracker that runs entirely in your browser. Your time logs and client billing data never leave your local device.
+          </p>
+          <div class="flex flex-col sm:flex-row items-center justify-center gap-4">
+            <a href="./app/" class="w-full sm:w-auto px-8 py-3.5 rounded-panel bg-signal hover:bg-amber-600 text-ink font-bold text-base transition-all shadow-md text-center">
+              Start Tracking Now &mdash; Free Forever
+            </a>
+            <a href="./faq/" class="w-full sm:w-auto px-6 py-3.5 rounded-panel border border-graphite/20 dark:border-white/20 text-graphite dark:text-stone hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors text-center font-medium">
+              Read FAQ
+            </a>
+          </div>
+        </section>
+
+        <!-- Key Features Grid -->
+        <section class="mb-20">
+          <h2 class="text-2xl font-bold text-center mb-10 text-graphite dark:text-stone">Engineered for Freelancers, Contractors, and Privacy Advocates</h2>
+          <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
+            <div class="p-6 rounded-panel bg-stone/50 dark:bg-graphite/40 border border-graphite/10 dark:border-white/10 shadow-sm">
+              <div class="text-signal text-2xl font-bold mb-3">🔒 100% On-Device</div>
+              <h3 class="text-lg font-semibold mb-2 text-graphite dark:text-stone">Zero Cloud Storage</h3>
+              <p class="text-sm text-gray-600 dark:text-gray-300">All data is stored locally in your browser via IndexedDB. No telemetry, no backend server, and no third-party analytics.</p>
+            </div>
+            <div class="p-6 rounded-panel bg-stone/50 dark:bg-graphite/40 border border-graphite/10 dark:border-white/10 shadow-sm">
+              <div class="text-signal text-2xl font-bold mb-3">📄 Professional Reports</div>
+              <h3 class="text-lg font-semibold mb-2 text-graphite dark:text-stone">PDF, CSV &amp; ICS Export</h3>
+              <p class="text-sm text-gray-600 dark:text-gray-300">Generate client-ready PDF summaries, unrounded CSV timesheet exports, and ICS calendar files for external sync.</p>
+            </div>
+            <div class="p-6 rounded-panel bg-stone/50 dark:bg-graphite/40 border border-graphite/10 dark:border-white/10 shadow-sm">
+              <div class="text-signal text-2xl font-bold mb-3">⚡ Offline PWA</div>
+              <h3 class="text-lg font-semibold mb-2 text-graphite dark:text-stone">Works Everywhere</h3>
+              <p class="text-sm text-gray-600 dark:text-gray-300">Install as a standalone Progressive Web App. Works seamlessly offline without needing an active internet connection.</p>
+            </div>
+          </div>
+        </section>
+
+        <!-- Comparison Table -->
+        <section class="mb-20">
+          <h2 class="text-2xl font-bold text-center mb-8 text-graphite dark:text-stone">How TimeDoco Compares</h2>
+          <div class="overflow-x-auto">
+            <table class="w-full text-left text-sm border-collapse rounded-panel overflow-hidden border border-graphite/10 dark:border-white/10">
+              <thead>
+                <tr class="bg-graphite/10 dark:bg-graphite/80 text-graphite dark:text-stone">
+                  <th class="p-4 font-semibold">Feature</th>
+                  <th class="p-4 font-semibold text-signal">TimeDoco</th>
+                  <th class="p-4 font-semibold text-gray-500">Cloud Trackers (Toggl, Harvest)</th>
+                </tr>
+              </thead>
+              <tbody class="divide-y divide-graphite/10 dark:divide-white/10 bg-stone/30 dark:bg-graphite/20">
+                <tr>
+                  <td class="p-4 font-medium">Data Storage Location</td>
+                  <td class="p-4 text-verdigris dark:text-verdigris-light font-semibold">Local Browser (IndexedDB)</td>
+                  <td class="p-4 text-gray-500">Centralized Cloud Server</td>
+                </tr>
+                <tr>
+                  <td class="p-4 font-medium">User Account Required</td>
+                  <td class="p-4 text-verdigris dark:text-verdigris-light font-semibold">No Account Required</td>
+                  <td class="p-4 text-gray-500">Mandatory Registration</td>
+                </tr>
+                <tr>
+                  <td class="p-4 font-medium">Pricing Model</td>
+                  <td class="p-4 text-verdigris dark:text-verdigris-light font-semibold">100% Free &amp; Open Source</td>
+                  <td class="p-4 text-gray-500">$10 &ndash; $20+ / user / month</td>
+                </tr>
+                <tr>
+                  <td class="p-4 font-medium">Offline Capability</td>
+                  <td class="p-4 text-verdigris dark:text-verdigris-light font-semibold">Full Functionality Offline</td>
+                  <td class="p-4 text-gray-500">Limited / Requires Sync</td>
+                </tr>
+                <tr>
+                  <td class="p-4 font-medium">Data Backup &amp; Portability</td>
+                  <td class="p-4 text-verdigris dark:text-verdigris-light font-semibold">One-Click JSON Export &amp; Restore</td>
+                  <td class="p-4 text-gray-500">Vendor Lock-In Risk</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </section>
+      </main>
+    </div>
+
+    <footer class="border-t border-graphite/10 dark:border-white/10 py-8 text-center text-xs text-gray-500 dark:text-gray-400">
+      <div class="max-w-5xl mx-auto px-4 flex flex-col sm:flex-row items-center justify-between gap-4">
+        <div>&copy; TimeDoco &mdash; Privacy-First Time Tracker.</div>
+        <div class="flex items-center gap-4">
+          <a href="./app/" class="hover:underline">App</a>
+          <a href="./faq/" class="hover:underline">FAQ</a>
+          <a href="./blog/" class="hover:underline">Blog</a>
+          <a href="https://github.com/lukeafullard/TimeTag" target="_blank" rel="noopener noreferrer" class="hover:underline">GitHub</a>
+        </div>
+      </div>
+    </footer>
   </body>
 </html>

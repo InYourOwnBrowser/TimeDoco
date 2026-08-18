@@ -1,0 +1,95 @@
+<!doctype html>
+<html lang="en" class="dark">
+  <head>
+    <meta charset="UTF-8" />
+    <link rel="icon" type="image/svg+xml" href="../../favicon.svg" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="theme-color" content="#10161C" />
+    <title>A Guide to Tax and Multi-Currency Reporting — TimeDoco</title>
+    <meta name="description" content="Learn how to configure tax rates, custom currency symbols, unrounded CSV exports, and client PDF reports in TimeDoco." />
+    <link rel="canonical" href="https://lukeafullard.github.io/TimeTag/blog/tax-and-currency-reporting-guide/" />
+
+    <!-- Open Graph -->
+    <meta property="og:title" content="A Guide to Tax and Multi-Currency Reporting — TimeDoco" />
+    <meta property="og:description" content="Configure tax settings, custom currencies, and accurate client reports in TimeDoco." />
+    <meta property="og:image" content="https://lukeafullard.github.io/TimeTag/pwa-512x512.png" />
+    <meta property="og:url" content="https://lukeafullard.github.io/TimeTag/blog/tax-and-currency-reporting-guide/" />
+    <meta property="og:type" content="article" />
+
+    <!-- Twitter Card -->
+    <meta name="twitter:card" content="summary" />
+    <meta name="twitter:title" content="A Guide to Tax and Multi-Currency Reporting — TimeDoco" />
+    <meta name="twitter:description" content="Configure tax settings, custom currencies, and accurate client reports in TimeDoco." />
+    <meta name="twitter:image" content="https://lukeafullard.github.io/TimeTag/pwa-512x512.png" />
+
+    <link rel="stylesheet" href="/src/index.css" />
+  </head>
+  <body class="min-h-screen bg-stone dark:bg-ink text-gray-900 dark:text-gray-100 font-sans antialiased flex flex-col justify-between">
+    <div>
+      <header class="border-b border-graphite/10 dark:border-white/10 bg-stone dark:bg-ink sticky top-0 z-50">
+        <div class="max-w-5xl mx-auto px-4 py-4 flex items-center justify-between">
+          <a href="../../" class="flex items-center gap-2 text-xl font-bold tracking-tight text-graphite dark:text-stone">
+            <svg class="h-8 w-8" viewBox="0 0 100 100" fill="none" xmlns="http://www.w3.org/2000/svg">
+              <rect x="10" y="10" width="80" height="80" rx="20" class="fill-graphite dark:fill-stone" />
+              <circle cx="50" cy="50" r="28" class="stroke-stone dark:stroke-graphite" stroke-width="8" />
+              <path d="M50 30V50L64 57" class="stroke-signal" stroke-width="8" stroke-linecap="round" stroke-linejoin="round" />
+            </svg>
+            <span>Time<span class="text-signal">Doco</span></span>
+          </a>
+          <nav class="flex items-center gap-6 text-sm font-medium">
+            <a href="../../faq/" class="text-gray-600 dark:text-gray-300 hover:text-signal transition-colors">FAQ</a>
+            <a href="../../blog/" class="text-signal font-semibold">Blog</a>
+            <a href="../../app/" class="px-4 py-2 rounded-panel bg-graphite hover:bg-ink dark:bg-stone dark:hover:bg-gray-300 text-stone dark:text-ink font-semibold transition-colors shadow-sm">
+              Launch App
+            </a>
+          </nav>
+        </div>
+      </header>
+
+      <main class="max-w-3xl mx-auto px-4 py-12">
+        <div class="mb-6 text-xs text-signal font-mono">June 2026 &bull; Invoicing &amp; Taxes</div>
+        <h1 class="text-3xl sm:text-4xl font-extrabold mb-6 text-graphite dark:text-stone leading-tight">
+          A Guide to Tax and Multi-Currency Reporting in TimeDoco
+        </h1>
+
+        <div class="prose dark:prose-invert max-w-none space-y-6 text-gray-700 dark:text-gray-300 leading-relaxed">
+          <p>
+            Generating precise billing reports for global clients requires flexible taxation calculations and clean data exports. TimeDoco provides built-in tools for handling tax inclusive/exclusive configurations, custom currency formatting, and spreadsheet-friendly exports.
+          </p>
+
+          <h2 class="text-xl font-bold text-graphite dark:text-stone mt-8">1. Flexible Tax Rate Configurations</h2>
+          <p>
+            Tax settings in TimeDoco can be specified globally in Settings or adjusted on a per-report basis in the Analysis &amp; Reports view. You can define custom tax labels (e.g. VAT, GST, Sales Tax), percentage rates, and choose whether rates are <strong>Inclusive</strong> (built into hourly rates) or <strong>Exclusive</strong> (calculated additionally on total subtotal).
+          </p>
+
+          <h2 class="text-xl font-bold text-graphite dark:text-stone mt-8">2. Multi-Currency Symbols</h2>
+          <p>
+            Whether billing in USD ($), EUR (&euro;), GBP (&pound;), JPY (&yen;), or custom regional currencies, you can customize the default currency symbol in Settings. In visual UI views and PDF invoices, symbols are cleanly displayed alongside formatted totals.
+          </p>
+
+          <h2 class="text-xl font-bold text-graphite dark:text-stone mt-8">3. Spreadsheet-Friendly Numeric CSVs</h2>
+          <p>
+            When exporting data to CSV format for accounting tools (Excel, Google Sheets, QuickBooks), embedded currency symbols like "$150.00" can break automated spreadsheet formula parsing. TimeDoco's CSV export engine automatically strips currency symbols and outputs unrounded raw numbers, ensuring seamless importing into financial software.
+          </p>
+        </div>
+
+        <div class="mt-12 pt-8 border-t border-graphite/10 dark:border-white/10 flex justify-between items-center">
+          <a href="../" class="text-sm font-semibold text-signal hover:underline">&larr; Back to Blog Index</a>
+          <a href="../../app/" class="px-4 py-2 rounded-panel bg-signal text-ink font-bold text-sm hover:bg-amber-600 transition-colors">Try TimeDoco Free</a>
+        </div>
+      </main>
+    </div>
+
+    <footer class="border-t border-graphite/10 dark:border-white/10 py-8 text-center text-xs text-gray-500 dark:text-gray-400">
+      <div class="max-w-5xl mx-auto px-4 flex flex-col sm:flex-row items-center justify-between gap-4">
+        <div>&copy; TimeDoco &mdash; Privacy-First Time Tracker.</div>
+        <div class="flex items-center gap-4">
+          <a href="../../app/" class="hover:underline">App</a>
+          <a href="../../faq/" class="hover:underline">FAQ</a>
+          <a href="../../blog/" class="hover:underline">Blog</a>
+          <a href="https://github.com/lukeafullard/TimeTag" target="_blank" rel="noopener noreferrer" class="hover:underline">GitHub</a>
+        </div>
+      </div>
+    </footer>
+  </body>
+</html>

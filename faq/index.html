@@ -1,0 +1,108 @@
+<!doctype html>
+<html lang="en" class="dark">
+  <head>
+    <meta charset="UTF-8" />
+    <link rel="icon" type="image/svg+xml" href="../favicon.svg" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="theme-color" content="#10161C" />
+    <title>Frequently Asked Questions — TimeDoco</title>
+    <meta name="description" content="Find answers to common questions about TimeDoco: privacy model, IndexedDB local storage, backup & restore, tax & currency options, and offline PWA capability." />
+    <link rel="canonical" href="https://lukeafullard.github.io/TimeTag/faq/" />
+
+    <!-- Open Graph -->
+    <meta property="og:title" content="Frequently Asked Questions — TimeDoco" />
+    <meta property="og:description" content="Everything you need to know about TimeDoco's client-side architecture, data backups, reports, and privacy features." />
+    <meta property="og:image" content="https://lukeafullard.github.io/TimeTag/pwa-512x512.png" />
+    <meta property="og:url" content="https://lukeafullard.github.io/TimeTag/faq/" />
+    <meta property="og:type" content="website" />
+
+    <!-- Twitter Card -->
+    <meta name="twitter:card" content="summary" />
+    <meta name="twitter:title" content="Frequently Asked Questions — TimeDoco" />
+    <meta name="twitter:description" content="Learn how TimeDoco keeps your time tracking data 100% private and on-device." />
+    <meta name="twitter:image" content="https://lukeafullard.github.io/TimeTag/pwa-512x512.png" />
+
+    <link rel="stylesheet" href="/src/index.css" />
+  </head>
+  <body class="min-h-screen bg-stone dark:bg-ink text-gray-900 dark:text-gray-100 font-sans antialiased flex flex-col justify-between">
+    <div>
+      <header class="border-b border-graphite/10 dark:border-white/10 bg-stone dark:bg-ink sticky top-0 z-50">
+        <div class="max-w-5xl mx-auto px-4 py-4 flex items-center justify-between">
+          <a href="../" class="flex items-center gap-2 text-xl font-bold tracking-tight text-graphite dark:text-stone">
+            <svg class="h-8 w-8" viewBox="0 0 100 100" fill="none" xmlns="http://www.w3.org/2000/svg">
+              <rect x="10" y="10" width="80" height="80" rx="20" class="fill-graphite dark:fill-stone" />
+              <circle cx="50" cy="50" r="28" class="stroke-stone dark:stroke-graphite" stroke-width="8" />
+              <path d="M50 30V50L64 57" class="stroke-signal" stroke-width="8" stroke-linecap="round" stroke-linejoin="round" />
+            </svg>
+            <span>Time<span class="text-signal">Doco</span></span>
+          </a>
+          <nav class="flex items-center gap-6 text-sm font-medium">
+            <a href="../faq/" class="text-signal font-semibold">FAQ</a>
+            <a href="../blog/" class="text-gray-600 dark:text-gray-300 hover:text-signal transition-colors">Blog</a>
+            <a href="../app/" class="px-4 py-2 rounded-panel bg-graphite hover:bg-ink dark:bg-stone dark:hover:bg-gray-300 text-stone dark:text-ink font-semibold transition-colors shadow-sm">
+              Launch App
+            </a>
+          </nav>
+        </div>
+      </header>
+
+      <main class="max-w-3xl mx-auto px-4 py-12">
+        <h1 class="text-3xl font-extrabold mb-8 text-graphite dark:text-stone">Frequently Asked Questions</h1>
+
+        <div class="space-y-8">
+          <article class="p-6 rounded-panel bg-stone/50 dark:bg-graphite/40 border border-graphite/10 dark:border-white/10">
+            <h2 class="text-xl font-bold mb-3 text-graphite dark:text-stone">Where is my time tracking data stored?</h2>
+            <p class="text-gray-600 dark:text-gray-300 leading-relaxed">
+              Your data is stored 100% locally in your browser using IndexedDB. TimeDoco does not operate a database server, and no entries, timecodes, client names, or financial rates are ever sent across the network.
+            </p>
+          </article>
+
+          <article class="p-6 rounded-panel bg-stone/50 dark:bg-graphite/40 border border-graphite/10 dark:border-white/10">
+            <h2 class="text-xl font-bold mb-3 text-graphite dark:text-stone">Does TimeDoco sync across multiple devices automatically?</h2>
+            <p class="text-gray-600 dark:text-gray-300 leading-relaxed">
+              Because TimeDoco is strictly client-side without cloud accounts, automatic background syncing across devices is not supported. You can easily transfer your data between devices using the full JSON Backup and Restore feature in Settings.
+            </p>
+          </article>
+
+          <article class="p-6 rounded-panel bg-stone/50 dark:bg-graphite/40 border border-graphite/10 dark:border-white/10">
+            <h2 class="text-xl font-bold mb-3 text-graphite dark:text-stone">What reporting and export formats are available?</h2>
+            <p class="text-gray-600 dark:text-gray-300 leading-relaxed">
+              TimeDoco provides comprehensive exporting options:
+            </p>
+            <ul class="list-disc list-inside mt-2 space-y-1 text-gray-600 dark:text-gray-300">
+              <li><strong>PDF Summaries:</strong> Clean, professional PDFs complete with client headers, tax calculations, custom metadata, and breakdown tables.</li>
+              <li><strong>CSV Exports:</strong> Both aggregated matrix summaries and raw entry logs with numeric values unformatted for spreadsheet compatibility.</li>
+              <li><strong>ICS Calendar Feeds:</strong> Standard iCalendar files to visualize logged entries directly inside Apple Calendar, Google Calendar, or Outlook.</li>
+            </ul>
+          </article>
+
+          <article class="p-6 rounded-panel bg-stone/50 dark:bg-graphite/40 border border-graphite/10 dark:border-white/10">
+            <h2 class="text-xl font-bold mb-3 text-graphite dark:text-stone">How do tax and currency configurations work?</h2>
+            <p class="text-gray-600 dark:text-gray-300 leading-relaxed">
+              Tax rates (inclusive or exclusive) and custom currency symbols are configured in Settings or customized on the fly within the Analysis &amp; Reports view. Tax calculations apply directly to financial summaries and PDF invoices without modifying hourly logs.
+            </p>
+          </article>
+
+          <article class="p-6 rounded-panel bg-stone/50 dark:bg-graphite/40 border border-graphite/10 dark:border-white/10">
+            <h2 class="text-xl font-bold mb-3 text-graphite dark:text-stone">Can I install TimeDoco as a native desktop or mobile app?</h2>
+            <p class="text-gray-600 dark:text-gray-300 leading-relaxed">
+              Yes! TimeDoco is a Progressive Web App (PWA). Click the "Install App" button in the application interface or use your browser's install option to add TimeDoco directly to your desktop or home screen for standalone offline access.
+            </p>
+          </article>
+        </div>
+      </main>
+    </div>
+
+    <footer class="border-t border-graphite/10 dark:border-white/10 py-8 text-center text-xs text-gray-500 dark:text-gray-400">
+      <div class="max-w-5xl mx-auto px-4 flex flex-col sm:flex-row items-center justify-between gap-4">
+        <div>&copy; TimeDoco &mdash; Privacy-First Time Tracker.</div>
+        <div class="flex items-center gap-4">
+          <a href="../app/" class="hover:underline">App</a>
+          <a href="../faq/" class="hover:underline">FAQ</a>
+          <a href="../blog/" class="hover:underline">Blog</a>
+          <a href="https://github.com/lukeafullard/TimeTag" target="_blank" rel="noopener noreferrer" class="hover:underline">GitHub</a>
+        </div>
+      </div>
+    </footer>
+  </body>
+</html>
