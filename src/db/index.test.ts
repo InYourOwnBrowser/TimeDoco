@@ -1,4 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
+import type { Group } from "../types";
 
 describe("db error fallback mode", () => {
   beforeEach(() => {
@@ -49,7 +50,7 @@ describe("db error fallback mode", () => {
     );
 
     // Verify subsequent getGroups call hits fallback mode directly and returns items in fallbackMemoryDB
-    const mockGroup = { id: "g1", name: "Fallback Group", color: "#3b82f6", createdAt: "2026-01-01", updatedAt: "2026-01-01" };
+    const mockGroup: Group = { id: "g1", name: "Fallback Group", color: "#3b82f6", archived: false, updatedAt: "2026-01-01" };
     await putGroup(mockGroup);
     const fallbackGroups = await getGroups();
     expect(fallbackGroups).toEqual([mockGroup]);
