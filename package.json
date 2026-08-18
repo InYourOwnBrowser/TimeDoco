@@ -2,6 +2,17 @@
   "name": "time-doco",
   "private": true,
   "version": "0.1.0",
+  "description": "TimeDoco — a privacy-first, 100% client-side time tracker with professional client reporting.",
+  "keywords": [
+    "time-tracking",
+    "pwa",
+    "privacy",
+    "indexeddb",
+    "react",
+    "invoicing"
+  ],
+  "author": "Luke Fullard",
+  "license": "MIT",
   "type": "module",
   "scripts": {
     "dev": "vite",
