@@ -29,6 +29,9 @@ export const AnalysisView: React.FC = () => {
   const [reportFields, setReportFields] = useState<{ id: string; label: string; value: string }[]>([]);
   const [isGeneratingPdf, setIsGeneratingPdf] = useState(false);
 
+  const timecodeMap = useMemo(() => new Map(timecodes.map(t => [t.id, t])), [timecodes]);
+  const groupMap = useMemo(() => new Map(groups.map(g => [g.id, g])), [groups]);
+
   useEffect(() => {
     setReportFields((settings?.customFields || []).map(f => ({ ...f })));
   }, [settings?.customFields]);
@@ -47,10 +50,10 @@ export const AnalysisView: React.FC = () => {
   }, [timecodeOptions, selectedTimecodeId]);
 
   const scopeLabel = useMemo(() => {
-    if (selectedTimecodeId !== 'all') return timecodes.find(t => t.id === selectedTimecodeId)?.name ?? 'All';
-    if (selectedGroupId !== 'all') return groups.find(g => g.id === selectedGroupId)?.name ?? 'All';
+    if (selectedTimecodeId !== 'all') return timecodeMap.get(selectedTimecodeId)?.name ?? 'All';
+    if (selectedGroupId !== 'all') return groupMap.get(selectedGroupId)?.name ?? 'All';
     return 'All';
-  }, [selectedGroupId, selectedTimecodeId, groups, timecodes]);
+  }, [selectedGroupId, selectedTimecodeId, groupMap, timecodeMap]);
 
   const scopeSlug = scopeLabel.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '');
 
@@ -99,14 +102,14 @@ export const AnalysisView: React.FC = () => {
       // So entryStart <= rangeEnd AND entryEnd >= rangeStart
       const inRange = entryStart <= dateRange.end && entryEnd >= dateRange.start;
 
-      const tc = timecodes.find(t => t.id === entry.timecodeId);
+      const tc = timecodeMap.get(entry.timecodeId);
       const matchesGroup = selectedGroupId === 'all' || tc?.groupId === selectedGroupId;
       const matchesTimecode = selectedTimecodeId === 'all' || entry.timecodeId === selectedTimecodeId;
 
       return inRange && matchesGroup && matchesTimecode;
     });
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [entries, dateRange, tick, selectedGroupId, selectedTimecodeId, timecodes]);
+  }, [entries, dateRange, tick, selectedGroupId, selectedTimecodeId, timecodeMap]);
 
 
   // Detect overlaps in the filtered entries
@@ -214,7 +217,7 @@ export const AnalysisView: React.FC = () => {
 
       tSec += actualDuration;
 
-      const tc = timecodes.find(t => t.id === entry.timecodeId);
+      const tc = timecodeMap.get(entry.timecodeId);
       const earnings = tc?.hourlyRate ? (actualDuration / 3600) * tc.hourlyRate : 0;
       tEarn += earnings;
 
@@ -230,18 +233,18 @@ export const AnalysisView: React.FC = () => {
     });
 
     const formattedTcData = Array.from(tcMap.entries()).map(([tcId, data]) => {
-      const tc = timecodes.find(t => t.id === tcId);
+      const tc = timecodeMap.get(tcId);
       return {
         id: tcId,
         name: tc?.name || 'Unknown',
         durationHours: Number((data.duration / 3600).toFixed(2)),
         earnings: data.earnings,
-        color: tc?.color || groups.find(g => g.id === tc?.groupId)?.color || '#cbd5e1'
+        color: tc?.color || (tc?.groupId ? groupMap.get(tc.groupId)?.color : undefined) || '#cbd5e1'
       };
     }).sort((a, b) => b.durationHours - a.durationHours);
 
     const formattedGrpData = Array.from(grpMap.entries()).map(([grpId, duration]) => {
-      const grp = groups.find(g => g.id === grpId);
+      const grp = groupMap.get(grpId);
       return {
         id: grpId,
         name: grpId === 'ungrouped' ? 'Ungrouped' : grp?.name || 'Unknown',
@@ -261,7 +264,7 @@ export const AnalysisView: React.FC = () => {
       totalEarnings: tEarn,
       taxBreakdown: calculatedTax
     };
-  }, [filteredEntries, dateRange, timecodes, groups, settings?.roundingRule, settings?.taxEnabled, settings?.taxRate, settings?.taxInclusive]);
+  }, [filteredEntries, dateRange, timecodeMap, groupMap, settings?.roundingRule, settings?.taxEnabled, settings?.taxRate, settings?.taxInclusive]);
 
   const formatDuration = (seconds: number) => {
     const hrs = Math.floor(seconds / 3600);
@@ -280,8 +283,8 @@ export const AnalysisView: React.FC = () => {
   const handleExportCSV = () => {
     const headers = ['Timecode', 'Group', 'Duration (Hours)', 'Earnings'];
     const rows = timecodeData.map(tc => {
-      const timecode = timecodes.find(t => t.id === tc.id);
-      const groupName = timecode?.groupId ? groups.find(g => g.id === timecode.groupId)?.name || 'Unknown' : 'Ungrouped';
+      const timecode = timecodeMap.get(tc.id);
+      const groupName = timecode?.groupId ? groupMap.get(timecode.groupId)?.name || 'Unknown' : 'Ungrouped';
       return [
         escapeCSV(tc.name),
         escapeCSV(groupName),
@@ -305,7 +308,7 @@ export const AnalysisView: React.FC = () => {
   // Implements the raw/detailed entry-level CSV export feature requested in the audit report
   const handleExportICS = () => {
     const events: EventAttributes[] = filteredEntries.map(e => {
-      const tc = timecodes.find(t => t.id === e.timecodeId);
+      const tc = timecodeMap.get(e.timecodeId);
       const start = parseISO(e.startTime);
       const end = e.endTime ? parseISO(e.endTime) : new Date();
 
@@ -356,8 +359,8 @@ export const AnalysisView: React.FC = () => {
   const downloadDetailedRawCSV = () => {
     const headers = ['Date', 'Timecode', 'Group', 'Start', 'End', 'Duration (h)', 'Note'];
     const rows = filteredEntries.map(e => {
-      const tc = timecodes.find(t => t.id === e.timecodeId);
-      const grp = groups.find(g => g.id === tc?.groupId);
+      const tc = timecodeMap.get(e.timecodeId);
+      const grp = tc?.groupId ? groupMap.get(tc.groupId) : undefined;
       return [
         escapeCSV(format(parseISO(e.startTime), 'yyyy-MM-dd')),
         escapeCSV(tc?.name ?? 'Unknown'),
@@ -454,12 +457,9 @@ export const AnalysisView: React.FC = () => {
       doc.setFont('helvetica', 'bold');
       doc.text('Summary', 14, y);
 
-      const timecodeById = new Map(timecodes.map(t => [t.id, t]));
-      const groupById = new Map(groups.map(g => [g.id, g]));
-
       const summaryRows = timecodeData.map(tc => {
-        const timecode = timecodeById.get(tc.id);
-        const groupName = timecode?.groupId ? groupById.get(timecode.groupId)?.name || 'Unknown' : 'Ungrouped';
+        const timecode = timecodeMap.get(tc.id);
+        const groupName = timecode?.groupId ? groupMap.get(timecode.groupId)?.name || 'Unknown' : 'Ungrouped';
         const rate = timecode?.hourlyRate ? `${currencySymbol}${timecode.hourlyRate.toFixed(2)}/hr` : '-';
         return [tc.name, groupName, rate, tc.durationHours.toFixed(2), tc.earnings > 0 ? `${currencySymbol}${tc.earnings.toFixed(2)}` : '-'];
       });
@@ -486,7 +486,7 @@ export const AnalysisView: React.FC = () => {
       const detailRows = [...filteredEntries]
         .sort((a, b) => new Date(a.startTime).getTime() - new Date(b.startTime).getTime())
         .map(e => {
-          const tc = timecodeById.get(e.timecodeId);
+          const tc = timecodeMap.get(e.timecodeId);
           const hrs = (applyRounding(e.duration, settings?.roundingRule ?? 'none') / 3600).toFixed(2);
           const paused = e.endTime
             ? formatDurationShort(calculateTotalPausedSeconds(parseISO(e.startTime), parseISO(e.endTime), e.pausedSegments))
@@ -762,8 +762,8 @@ export const AnalysisView: React.FC = () => {
                 const leftPercent = (startSeconds / totalDaySeconds) * 100;
                 const widthPercent = ((endSeconds - startSeconds) / totalDaySeconds) * 100;
 
-                const tc = timecodes.find(t => t.id === entry.timecodeId);
-                const color = tc?.color || groups.find(g => g.id === tc?.groupId)?.color || '#cbd5e1';
+                const tc = timecodeMap.get(entry.timecodeId);
+                const color = tc?.color || (tc?.groupId ? groupMap.get(tc.groupId)?.color : undefined) || '#cbd5e1';
 
                 return (
                   <div
