@@ -113,15 +113,15 @@ export const ActiveTimer: React.FC<{ activeEntry: Entry | null }> = ({ activeEnt
           <div className="w-full space-y-2">
             <input
               type="text"
-              placeholder="What are you doing? (optional note)"
-              className="w-full text-center text-sm p-2 border border-transparent hover:border-gray-200 dark:hover:border-gray-600 focus:border-signal focus:ring-1 focus:ring-signal rounded outline-none transition-colors bg-stone dark:bg-ink text-gray-900 dark:text-white placeholder-gray-400 dark:placeholder-gray-500 focus-visible:ring-2 focus-visible:ring-signal focus-visible:ring-offset-2"
+              placeholder="What are you working on? (optional note)"
+              className="w-full text-center text-sm px-3 py-2 border border-graphite/10 dark:border-white/10 hover:border-graphite/30 dark:hover:border-white/30 focus:border-signal dark:focus:border-signal rounded-panel outline-none transition-colors bg-stone dark:bg-ink text-gray-900 dark:text-white placeholder-gray-400 dark:placeholder-gray-500 focus-visible:ring-2 focus-visible:ring-signal focus-visible:ring-offset-2"
               value={preStartNote}
               onChange={(e) => setPreStartNote(e.target.value)}
             />
             <input
               type="text"
-              placeholder="Tags (comma separated)"
-              className="w-full text-center text-sm p-2 border border-transparent hover:border-gray-200 dark:hover:border-gray-600 focus:border-signal focus:ring-1 focus:ring-signal rounded outline-none transition-colors bg-stone dark:bg-ink text-gray-900 dark:text-white placeholder-gray-400 dark:placeholder-gray-500 focus-visible:ring-2 focus-visible:ring-signal focus-visible:ring-offset-2"
+              placeholder="Tags (e.g. design, client)"
+              className="w-full text-center text-xs px-3 py-1.5 border border-graphite/10 dark:border-white/10 hover:border-graphite/30 dark:hover:border-white/30 focus:border-signal dark:focus:border-signal rounded-panel outline-none transition-colors bg-stone dark:bg-ink text-gray-900 dark:text-white placeholder-gray-400 dark:placeholder-gray-500 focus-visible:ring-2 focus-visible:ring-signal focus-visible:ring-offset-2"
               value={preStartTags}
               onChange={(e) => setPreStartTags(e.target.value)}
             />
@@ -169,15 +169,15 @@ export const ActiveTimer: React.FC<{ activeEntry: Entry | null }> = ({ activeEnt
           <div className="w-full mt-2 mb-2 space-y-2">
             <input
               type="text"
-              placeholder="What are you doing? (optional note)"
-              className="w-full text-center text-sm p-2 border border-transparent hover:border-gray-200 dark:hover:border-gray-600 focus:border-signal dark:focus:border-signal focus:ring-1 focus:ring-signal dark:focus:ring-signal rounded outline-none transition-colors bg-stone dark:bg-ink focus:bg-white dark:focus:bg-gray-800 text-gray-900 dark:text-white placeholder-gray-400 dark:placeholder-gray-500 focus-visible:ring-2 focus-visible:ring-signal focus-visible:ring-offset-2"
+              placeholder="Add a note..."
+              className="w-full text-center text-sm px-3 py-2 border border-graphite/10 dark:border-white/10 hover:border-graphite/30 dark:hover:border-white/30 focus:border-signal dark:focus:border-signal rounded-panel outline-none transition-colors bg-stone dark:bg-ink text-gray-900 dark:text-white placeholder-gray-400 dark:placeholder-gray-500 focus-visible:ring-2 focus-visible:ring-signal focus-visible:ring-offset-2"
               value={localNote}
               onChange={(e) => setLocalNote(e.target.value)}
             />
             <input
               type="text"
-              placeholder="Tags (comma separated)"
-              className="w-full text-center text-sm p-2 border border-transparent hover:border-gray-200 dark:hover:border-gray-600 focus:border-signal dark:focus:border-signal focus:ring-1 focus:ring-signal dark:focus:ring-signal rounded outline-none transition-colors bg-stone dark:bg-ink focus:bg-white dark:focus:bg-gray-800 text-gray-900 dark:text-white placeholder-gray-400 dark:placeholder-gray-500 focus-visible:ring-2 focus-visible:ring-signal focus-visible:ring-offset-2"
+              placeholder="Tags (e.g. design, review)"
+              className="w-full text-center text-xs px-3 py-1.5 border border-graphite/10 dark:border-white/10 hover:border-graphite/30 dark:hover:border-white/30 focus:border-signal dark:focus:border-signal rounded-panel outline-none transition-colors bg-stone dark:bg-ink text-gray-900 dark:text-white placeholder-gray-400 dark:placeholder-gray-500 focus-visible:ring-2 focus-visible:ring-signal focus-visible:ring-offset-2"
               value={localTags}
               onChange={(e) => setLocalTags(e.target.value)}
             />

@@ -16,7 +16,7 @@ export const Button: React.FC<ButtonProps> = ({ variant = 'secondary', size = 'm
     baseClass += ' bg-transparent hover:bg-gray-100 dark:hover:bg-gray-800 text-gray-700 dark:text-gray-300';
   } else {
     // secondary
-    baseClass += ' bg-white border border-gray-300 hover:bg-gray-50 dark:bg-gray-700 dark:text-gray-200 dark:border-gray-600 dark:hover:bg-gray-600 text-gray-700';
+    baseClass += ' bg-stone border border-graphite/20 hover:bg-gray-100 dark:bg-graphite dark:text-stone dark:border-white/15 dark:hover:bg-gray-800 text-graphite';
   }
 
   if (size === 'sm') baseClass += ' px-3 py-1.5 text-sm';

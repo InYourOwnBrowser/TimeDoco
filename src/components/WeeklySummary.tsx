@@ -77,7 +77,7 @@ export const WeeklySummary: React.FC = () => {
         </div>
       </div>
 
-      <div className="w-full bg-gray-200 dark:bg-gray-700 rounded-full h-2.5 overflow-hidden">
+      <div className="w-full bg-gray-200/80 dark:bg-gray-800 rounded-full h-2.5 overflow-hidden">
         <div
           className={`h-2.5 rounded-full transition-all duration-500 ease-out ${
             weeklyData >= targetHours ? 'bg-verdigris' : 'bg-signal'

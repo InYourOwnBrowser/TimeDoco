@@ -160,29 +160,30 @@ const AppContent = () => {
             ⚠️ Storage Error: App is running in memory fallback mode. Your data will not be saved after you close this page.
           </div>
         )}
-        <div className="w-full max-w-3xl absolute top-4 right-4 flex justify-end gap-2">
+        <div className="w-full max-w-3xl absolute top-4 right-4 flex justify-end gap-2 items-center">
           {canInstall && (
             <button
               onClick={promptInstall}
-              className="flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium rounded-full bg-graphite hover:bg-ink dark:bg-stone dark:hover:bg-gray-300 text-stone dark:text-ink transition-colors"
+              className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-panel bg-graphite hover:bg-ink dark:bg-stone dark:hover:bg-gray-300 text-stone dark:text-ink transition-colors focus-visible:ring-2 focus-visible:ring-signal focus-visible:ring-offset-2"
             >
               <Download size={14} /> Install App
             </button>
           )}
           <button
             onClick={() => exportData()}
-            className="p-2 text-gray-500 dark:text-gray-400 hover:text-gray-800 dark:hover:text-gray-200 hover:bg-gray-200 dark:hover:bg-gray-800 rounded-full transition-colors"
+            className="p-2 text-gray-500 dark:text-gray-400 hover:text-gray-800 dark:hover:text-gray-200 hover:bg-gray-200/60 dark:hover:bg-gray-800/60 rounded-panel transition-colors focus-visible:ring-2 focus-visible:ring-signal focus-visible:ring-offset-2"
             aria-label="Backup data"
             title="Backup data"
           >
-            <Save size={24} />
+            <Save size={20} />
           </button>
           <button
             onClick={() => setIsSettingsOpen(true)}
-            className="p-2 text-gray-500 dark:text-gray-400 hover:text-gray-800 dark:hover:text-gray-200 hover:bg-gray-200 dark:hover:bg-gray-800 rounded-full transition-colors"
+            className="p-2 text-gray-500 dark:text-gray-400 hover:text-gray-800 dark:hover:text-gray-200 hover:bg-gray-200/60 dark:hover:bg-gray-800/60 rounded-panel transition-colors focus-visible:ring-2 focus-visible:ring-signal focus-visible:ring-offset-2"
             aria-label="Settings"
+            title="Settings"
           >
-            <Settings size={24} />
+            <Settings size={20} />
           </button>
         </div>
 
@@ -201,13 +202,13 @@ const AppContent = () => {
           <p className="text-gray-500 dark:text-gray-400 mb-6">100% Client-Side. Privacy First.</p>
 
           <div className="flex justify-center mb-4 w-full px-4 sm:px-0">
-            <div className="bg-stone dark:bg-ink p-1 rounded-panel flex w-full sm:w-auto overflow-x-auto hide-scrollbar border border-graphite/10 dark:border-white/10 shadow-inner">
+            <div className="bg-stone dark:bg-ink p-1 rounded-panel flex w-full sm:w-auto overflow-x-auto hide-scrollbar border border-graphite/10 dark:border-white/10 shadow-inner gap-1">
               <button
                 onClick={() => setActiveTab('tracker')}
-                className={`flex-1 sm:flex-none flex items-center justify-center sm:justify-start px-3 sm:px-4 py-2 text-sm font-medium transition-colors focus-visible:ring-2 focus-visible:ring-signal focus-visible:ring-offset-2 ${
+                className={`flex-1 sm:flex-none flex items-center justify-center sm:justify-start px-3.5 sm:px-4 py-2 text-sm font-medium transition-colors rounded-panel focus-visible:ring-2 focus-visible:ring-signal focus-visible:ring-offset-2 ${
                   activeTab === 'tracker'
-                    ? 'bg-signal/10 text-signal-dim dark:text-signal border-b-2 border-signal rounded-none'
-                    : 'text-graphite dark:text-stone hover:text-gray-900 dark:hover:text-white rounded-panel'
+                    ? 'bg-signal/10 text-signal-dim dark:text-signal border border-signal/30 font-semibold'
+                    : 'text-graphite/80 dark:text-stone/80 hover:text-gray-900 dark:hover:text-white hover:bg-gray-100 dark:hover:bg-gray-800/50'
                 }`}
                 aria-label="Tracker"
                 title="Tracker"
@@ -217,10 +218,10 @@ const AppContent = () => {
               </button>
               <button
                 onClick={() => setActiveTab('timesheet')}
-                className={`flex-1 sm:flex-none flex items-center justify-center sm:justify-start px-3 sm:px-4 py-2 text-sm font-medium transition-colors focus-visible:ring-2 focus-visible:ring-signal focus-visible:ring-offset-2 ${
+                className={`flex-1 sm:flex-none flex items-center justify-center sm:justify-start px-3.5 sm:px-4 py-2 text-sm font-medium transition-colors rounded-panel focus-visible:ring-2 focus-visible:ring-signal focus-visible:ring-offset-2 ${
                   activeTab === 'timesheet'
-                    ? 'bg-signal/10 text-signal-dim dark:text-signal border-b-2 border-signal rounded-none'
-                    : 'text-graphite dark:text-stone hover:text-gray-900 dark:hover:text-white rounded-panel'
+                    ? 'bg-signal/10 text-signal-dim dark:text-signal border border-signal/30 font-semibold'
+                    : 'text-graphite/80 dark:text-stone/80 hover:text-gray-900 dark:hover:text-white hover:bg-gray-100 dark:hover:bg-gray-800/50'
                 }`}
                 aria-label="Timesheet"
                 title="Timesheet"
@@ -230,10 +231,10 @@ const AppContent = () => {
               </button>
               <button
                 onClick={() => setActiveTab('analysis')}
-                className={`flex-1 sm:flex-none flex items-center justify-center sm:justify-start px-3 sm:px-4 py-2 text-sm font-medium transition-colors focus-visible:ring-2 focus-visible:ring-signal focus-visible:ring-offset-2 ${
+                className={`flex-1 sm:flex-none flex items-center justify-center sm:justify-start px-3.5 sm:px-4 py-2 text-sm font-medium transition-colors rounded-panel focus-visible:ring-2 focus-visible:ring-signal focus-visible:ring-offset-2 ${
                   activeTab === 'analysis'
-                    ? 'bg-signal/10 text-signal-dim dark:text-signal border-b-2 border-signal rounded-none'
-                    : 'text-graphite dark:text-stone hover:text-gray-900 dark:hover:text-white rounded-panel'
+                    ? 'bg-signal/10 text-signal-dim dark:text-signal border border-signal/30 font-semibold'
+                    : 'text-graphite/80 dark:text-stone/80 hover:text-gray-900 dark:hover:text-white hover:bg-gray-100 dark:hover:bg-gray-800/50'
                 }`}
                 aria-label="Analysis"
                 title="Analysis"
@@ -243,10 +244,10 @@ const AppContent = () => {
               </button>
               <button
                 onClick={() => setActiveTab('management')}
-                className={`flex-1 sm:flex-none flex items-center justify-center sm:justify-start px-3 sm:px-4 py-2 text-sm font-medium transition-colors focus-visible:ring-2 focus-visible:ring-signal focus-visible:ring-offset-2 ${
+                className={`flex-1 sm:flex-none flex items-center justify-center sm:justify-start px-3.5 sm:px-4 py-2 text-sm font-medium transition-colors rounded-panel focus-visible:ring-2 focus-visible:ring-signal focus-visible:ring-offset-2 ${
                   activeTab === 'management'
-                    ? 'bg-signal/10 text-signal-dim dark:text-signal border-b-2 border-signal rounded-none'
-                    : 'text-graphite dark:text-stone hover:text-gray-900 dark:hover:text-white rounded-panel'
+                    ? 'bg-signal/10 text-signal-dim dark:text-signal border border-signal/30 font-semibold'
+                    : 'text-graphite/80 dark:text-stone/80 hover:text-gray-900 dark:hover:text-white hover:bg-gray-100 dark:hover:bg-gray-800/50'
                 }`}
                 aria-label="Management"
                 title="Management"
@@ -256,10 +257,10 @@ const AppContent = () => {
               </button>
               <button
                 onClick={() => setActiveTab('resources')}
-                className={`flex-1 sm:flex-none flex items-center justify-center sm:justify-start px-3 sm:px-4 py-2 text-sm font-medium transition-colors focus-visible:ring-2 focus-visible:ring-signal focus-visible:ring-offset-2 ${
+                className={`flex-1 sm:flex-none flex items-center justify-center sm:justify-start px-3.5 sm:px-4 py-2 text-sm font-medium transition-colors rounded-panel focus-visible:ring-2 focus-visible:ring-signal focus-visible:ring-offset-2 ${
                   activeTab === 'resources'
-                    ? 'bg-signal/10 text-signal-dim dark:text-signal border-b-2 border-signal rounded-none'
-                    : 'text-graphite dark:text-stone hover:text-gray-900 dark:hover:text-white rounded-panel'
+                    ? 'bg-signal/10 text-signal-dim dark:text-signal border border-signal/30 font-semibold'
+                    : 'text-graphite/80 dark:text-stone/80 hover:text-gray-900 dark:hover:text-white hover:bg-gray-100 dark:hover:bg-gray-800/50'
                 }`}
                 aria-label="Resources"
                 title="Resources"
