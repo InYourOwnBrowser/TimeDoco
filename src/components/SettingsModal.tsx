@@ -28,10 +28,16 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ onClose }) => {
   const saveTimeoutRef = useRef<number | null>(null);
 
   const MAX_LOGO_BYTES = 1024 * 1024; // 1MB — keeps backups/exports lean, since this gets embedded in every export
+  const ALLOWED_LOGO_MIME_TYPES = ['image/png', 'image/jpeg', 'image/webp'];
 
   const handleLogoUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
+    if (!ALLOWED_LOGO_MIME_TYPES.includes(file.type)) {
+      addToast('Invalid file type — please upload a PNG, JPEG, or WEBP image.', 'error');
+      e.target.value = '';
+      return;
+    }
     if (file.size > MAX_LOGO_BYTES) {
       addToast('Logo image is too large — please use a file under 1MB.', 'error');
       e.target.value = '';
