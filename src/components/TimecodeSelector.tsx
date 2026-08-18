@@ -331,7 +331,7 @@ export const TimecodeSelector: React.FC<TimecodeSelectorProps> = ({ onSelect, se
                   id="option-create-new"
                   role="option"
                   aria-selected={activeId === 'create-new'}
-                  className={`w-full flex items-center gap-2 px-4 py-3 text-left text-signal border-b border-graphite/10 dark:border-white/10 transition-colors ${activeId === 'create-new' ? 'bg-signal/10' : 'hover:bg-signal/10'}`}
+                  className={`w-full flex items-center gap-2 px-4 py-3 text-left text-signal-dim dark:text-signal border-b border-graphite/10 dark:border-white/10 transition-colors ${activeId === 'create-new' ? 'bg-signal/10' : 'hover:bg-signal/10'}`}
                   onClick={() => setShowAddForm(true)}
                 >
                   <Plus size={16} />
@@ -368,7 +368,7 @@ export const TimecodeSelector: React.FC<TimecodeSelectorProps> = ({ onSelect, se
                           <span>{tc.name}</span>
                           {group && <span className="text-xs text-gray-400 dark:text-gray-500 ml-1">in {group.name}</span>}
                         </div>
-                        {selectedId === tc.id && <Check size={16} className="text-signal" />}
+                        {selectedId === tc.id && <Check size={16} className="text-signal-dim dark:text-signal" />}
                       </button>
                     );
                   })}
@@ -392,7 +392,7 @@ export const TimecodeSelector: React.FC<TimecodeSelectorProps> = ({ onSelect, se
                           id={`option-tc-${tc.id}`}
                           role="option"
                           aria-selected={activeId === `tc-${tc.id}`}
-                          className={`w-full flex items-center gap-2 px-4 py-2 text-left outline-none transition-colors ${activeId === `tc-${tc.id}` ? 'bg-gray-50 dark:bg-gray-800 text-signal' : 'text-graphite dark:text-stone hover:bg-gray-50 dark:hover:bg-gray-800 focus:bg-gray-50 dark:focus:bg-gray-800'}`}
+                          className={`w-full flex items-center gap-2 px-4 py-2 text-left outline-none transition-colors ${activeId === `tc-${tc.id}` ? 'bg-gray-50 dark:bg-gray-800 text-signal-dim dark:text-signal' : 'text-graphite dark:text-stone hover:bg-gray-50 dark:hover:bg-gray-800 focus:bg-gray-50 dark:focus:bg-gray-800'}`}
                           onClick={() => handleSelect(tc.id)}
                         >
                           <div className="w-3 h-3 rounded-full flex-shrink-0" style={{ backgroundColor: color }}></div>

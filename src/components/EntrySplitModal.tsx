@@ -50,7 +50,7 @@ export const EntrySplitModal: React.FC<EntrySplitModalProps> = ({ entry, onClose
       <div className="bg-white dark:bg-gray-800 rounded-lg shadow-xl w-full max-w-md max-h-[90vh] overflow-hidden flex flex-col">
         <div className="flex justify-between items-center p-4 border-b border-gray-200 dark:border-gray-700">
           <h2 className="text-lg font-semibold text-gray-900 dark:text-white">Split Time Entry</h2>
-          <button onClick={onClose} className="text-gray-400 hover:text-gray-600 dark:text-gray-400 dark:hover:text-gray-300">
+          <button onClick={onClose} aria-label="Close" className="text-gray-400 hover:text-gray-600 dark:text-gray-400 dark:hover:text-gray-300">
             <X className="w-5 h-5" />
           </button>
         </div>

@@ -95,7 +95,7 @@ export const ManualEntryModal: React.FC<ManualEntryModalProps> = ({ onClose }) =
       <div className="bg-stone dark:bg-graphite rounded-panel shadow-xl w-full max-w-md max-h-[90vh] overflow-hidden flex flex-col border border-graphite/10 dark:border-white/10">
         <div className="flex justify-between items-center p-4 border-b border-graphite/10 dark:border-white/10">
           <h2 className="text-lg font-semibold text-graphite dark:text-stone">Add Manual Entry</h2>
-          <button onClick={onClose} className="text-gray-400 hover:text-gray-600 dark:text-gray-400 dark:hover:text-gray-300">
+          <button onClick={onClose} aria-label="Close" className="text-gray-400 hover:text-gray-600 dark:text-gray-400 dark:hover:text-gray-300">
             <X className="w-5 h-5" />
           </button>
         </div>
@@ -160,7 +160,7 @@ export const ManualEntryModal: React.FC<ManualEntryModalProps> = ({ onClose }) =
           )}
 
           {warning && (
-            <div className="flex items-center text-signal text-sm mt-2 bg-signal/10 p-2 rounded">
+            <div className="flex items-center text-signal-dim dark:text-signal text-sm mt-2 bg-signal/10 p-2 rounded">
               <AlertCircle className="w-4 h-4 mr-1 flex-shrink-0" />
               {warning}
             </div>

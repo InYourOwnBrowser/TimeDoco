@@ -19,7 +19,7 @@ export const TimesheetView: React.FC = () => {
             variant="ghost"
             size="sm"
             onClick={() => setViewMode('calendar')}
-            className={viewMode === 'calendar' ? 'bg-signal/10 text-signal' : 'text-gray-500'}
+            className={viewMode === 'calendar' ? 'bg-signal/10 text-signal-dim dark:text-signal' : 'text-gray-500'}
           >
             <CalendarDays size={16} className="mr-2" />
             Calendar
@@ -28,7 +28,7 @@ export const TimesheetView: React.FC = () => {
             variant="ghost"
             size="sm"
             onClick={() => setViewMode('matrix')}
-            className={viewMode === 'matrix' ? 'bg-signal/10 text-signal' : 'text-gray-500'}
+            className={viewMode === 'matrix' ? 'bg-signal/10 text-signal-dim dark:text-signal' : 'text-gray-500'}
           >
             <Grid3x3 size={16} className="mr-2" />
             Matrix

@@ -12,7 +12,7 @@ export const HelpTooltip: React.FC<{ text: string }> = ({ text }) => {
         onBlur={() => setOpen(false)}
         onMouseEnter={() => setOpen(true)}
         onMouseLeave={() => setOpen(false)}
-        className="text-graphite/40 dark:text-stone/40 hover:text-signal focus-visible:ring-2 focus-visible:ring-signal rounded-full"
+        className="text-graphite/40 dark:text-stone/40 hover:text-signal-dim dark:hover:text-signal focus-visible:ring-2 focus-visible:ring-signal rounded-full"
       >
         <HelpCircle size={14} />
       </button>

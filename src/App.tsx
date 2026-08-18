@@ -206,7 +206,7 @@ const AppContent = () => {
                 onClick={() => setActiveTab('tracker')}
                 className={`flex-1 sm:flex-none flex items-center justify-center sm:justify-start px-3 sm:px-4 py-2 text-sm font-medium transition-colors focus-visible:ring-2 focus-visible:ring-signal focus-visible:ring-offset-2 ${
                   activeTab === 'tracker'
-                    ? 'bg-signal/10 text-signal border-b-2 border-signal rounded-none'
+                    ? 'bg-signal/10 text-signal-dim dark:text-signal border-b-2 border-signal rounded-none'
                     : 'text-graphite dark:text-stone hover:text-gray-900 dark:hover:text-white rounded-panel'
                 }`}
                 aria-label="Tracker"
@@ -219,7 +219,7 @@ const AppContent = () => {
                 onClick={() => setActiveTab('timesheet')}
                 className={`flex-1 sm:flex-none flex items-center justify-center sm:justify-start px-3 sm:px-4 py-2 text-sm font-medium transition-colors focus-visible:ring-2 focus-visible:ring-signal focus-visible:ring-offset-2 ${
                   activeTab === 'timesheet'
-                    ? 'bg-signal/10 text-signal border-b-2 border-signal rounded-none'
+                    ? 'bg-signal/10 text-signal-dim dark:text-signal border-b-2 border-signal rounded-none'
                     : 'text-graphite dark:text-stone hover:text-gray-900 dark:hover:text-white rounded-panel'
                 }`}
                 aria-label="Timesheet"
@@ -232,7 +232,7 @@ const AppContent = () => {
                 onClick={() => setActiveTab('analysis')}
                 className={`flex-1 sm:flex-none flex items-center justify-center sm:justify-start px-3 sm:px-4 py-2 text-sm font-medium transition-colors focus-visible:ring-2 focus-visible:ring-signal focus-visible:ring-offset-2 ${
                   activeTab === 'analysis'
-                    ? 'bg-signal/10 text-signal border-b-2 border-signal rounded-none'
+                    ? 'bg-signal/10 text-signal-dim dark:text-signal border-b-2 border-signal rounded-none'
                     : 'text-graphite dark:text-stone hover:text-gray-900 dark:hover:text-white rounded-panel'
                 }`}
                 aria-label="Analysis"
@@ -245,7 +245,7 @@ const AppContent = () => {
                 onClick={() => setActiveTab('management')}
                 className={`flex-1 sm:flex-none flex items-center justify-center sm:justify-start px-3 sm:px-4 py-2 text-sm font-medium transition-colors focus-visible:ring-2 focus-visible:ring-signal focus-visible:ring-offset-2 ${
                   activeTab === 'management'
-                    ? 'bg-signal/10 text-signal border-b-2 border-signal rounded-none'
+                    ? 'bg-signal/10 text-signal-dim dark:text-signal border-b-2 border-signal rounded-none'
                     : 'text-graphite dark:text-stone hover:text-gray-900 dark:hover:text-white rounded-panel'
                 }`}
                 aria-label="Management"
@@ -258,7 +258,7 @@ const AppContent = () => {
                 onClick={() => setActiveTab('resources')}
                 className={`flex-1 sm:flex-none flex items-center justify-center sm:justify-start px-3 sm:px-4 py-2 text-sm font-medium transition-colors focus-visible:ring-2 focus-visible:ring-signal focus-visible:ring-offset-2 ${
                   activeTab === 'resources'
-                    ? 'bg-signal/10 text-signal border-b-2 border-signal rounded-none'
+                    ? 'bg-signal/10 text-signal-dim dark:text-signal border-b-2 border-signal rounded-none'
                     : 'text-graphite dark:text-stone hover:text-gray-900 dark:hover:text-white rounded-panel'
                 }`}
                 aria-label="Resources"
@@ -274,6 +274,7 @@ const AppContent = () => {
         <main className={`w-full flex flex-col items-center ${activeTab === 'timesheet' || activeTab === 'management' ? 'max-w-5xl' : 'max-w-3xl'}`}>
           {activeTab === 'tracker' && (
             <>
+              <h1 className="sr-only">TimeDoco — Time Tracker</h1>
               {activeEntries.map(entry => (
                 <ActiveTimer key={entry.id} activeEntry={entry} />
               ))}

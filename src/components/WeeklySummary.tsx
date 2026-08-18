@@ -67,7 +67,7 @@ export const WeeklySummary: React.FC = () => {
     <div className="w-full max-w-md mx-auto mt-6 bg-stone dark:bg-ink p-5 rounded-panel shadow-sm border border-graphite/20 dark:border-white/15 transition-colors">
       <div className="flex items-center justify-between mb-3">
         <div className="flex items-center gap-2">
-          <Target size={18} className="text-signal" />
+          <Target size={18} className="text-signal-dim dark:text-signal" />
           <h3 className="text-xs font-sans uppercase tracking-wide font-semibold text-gray-800 dark:text-gray-200">WEEKLY TARGET</h3>
         </div>
         <div className="text-sm font-mono tabular font-medium text-gray-600 dark:text-gray-400">

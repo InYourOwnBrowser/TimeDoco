@@ -198,7 +198,7 @@ export const TimesheetMatrixView: React.FC = () => {
                   {getColTotalHours(day).toFixed(2)}
                 </td>
               ))}
-              <td className="px-4 py-3 text-right font-bold tabular-nums text-signal">
+              <td className="px-4 py-3 text-right font-bold tabular-nums text-signal-dim dark:text-signal">
                 {getWeekTotalHours().toFixed(2)}
               </td>
             </tr>
