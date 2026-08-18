@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { checkOverlap, calculateDuration, applyRounding, calculateTaxBreakdown, calculateTotalPausedSeconds, formatDurationShort } from './timeUtils';
+import { checkOverlap, calculateDuration, applyRounding, calculateTaxBreakdown, calculateTotalPausedSeconds, formatDurationShort, getElapsedTimeMs } from './timeUtils';
 import type { Entry, PauseSegment } from '../types';
 
 describe('timeUtils', () => {
@@ -192,6 +192,48 @@ describe('timeUtils', () => {
       expect(r.subtotal).toBeCloseTo(100);
       expect(r.tax).toBeCloseTo(15);
       expect(r.total).toBe(115);
+    });
+  });
+
+  describe("getElapsedTimeMs", () => {
+    it("calculates elapsed time in milliseconds without pauses", () => {
+      const startTime = "2026-01-01T10:00:00.000Z";
+      const endTimeOverride = "2026-01-01T10:05:00.000Z"; // 5 mins = 300,000 ms
+      expect(getElapsedTimeMs(startTime, [], endTimeOverride)).toBe(300000);
+    });
+
+    it("calculates elapsed time with completed pause segments", () => {
+      const startTime = "2026-01-01T10:00:00.000Z";
+      const endTimeOverride = "2026-01-01T10:10:00.000Z"; // 10 mins = 600,000 ms
+      const pauses: PauseSegment[] = [
+        { pauseStart: "2026-01-01T10:02:00.000Z", pauseEnd: "2026-01-01T10:05:00.000Z" } // 3 mins pause = 180,000 ms
+      ];
+      expect(getElapsedTimeMs(startTime, pauses, endTimeOverride)).toBe(420000); // 600,000 - 180,000 = 420,000 ms
+    });
+
+    it("calculates elapsed time with an ongoing pause segment (no pauseEnd)", () => {
+      const startTime = "2026-01-01T10:00:00.000Z";
+      const endTimeOverride = "2026-01-01T10:10:00.000Z"; // now = 10:10
+      const pauses: PauseSegment[] = [
+        { pauseStart: "2026-01-01T10:04:00.000Z" } // ongoing pause started 6 mins ago
+      ];
+      expect(getElapsedTimeMs(startTime, pauses, endTimeOverride)).toBe(240000);
+    });
+
+    it("calculates elapsed time with multiple pause segments", () => {
+      const startTime = "2026-01-01T10:00:00.000Z";
+      const endTimeOverride = "2026-01-01T10:20:00.000Z"; // 20 mins = 1,200,000 ms
+      const pauses: PauseSegment[] = [
+        { pauseStart: "2026-01-01T10:02:00.000Z", pauseEnd: "2026-01-01T10:05:00.000Z" }, // 3 mins pause
+        { pauseStart: "2026-01-01T10:10:00.000Z", pauseEnd: "2026-01-01T10:12:00.000Z" }  // 2 mins pause
+      ];
+      expect(getElapsedTimeMs(startTime, pauses, endTimeOverride)).toBe(900000);
+    });
+
+    it("clamps negative elapsed time to 0 when start time is in the future", () => {
+      const startTime = "2026-01-01T10:10:00.000Z";
+      const endTimeOverride = "2026-01-01T10:00:00.000Z";
+      expect(getElapsedTimeMs(startTime, [], endTimeOverride)).toBe(0);
     });
   });
 });
