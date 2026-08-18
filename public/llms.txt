@@ -8,6 +8,8 @@
 - [TimeDoco Web App](https://lukeafullard.github.io/TimeTag/app/): The full time tracking application interface (timer, timesheet matrix, analysis/PDF reports, grouping management).
 - [Frequently Asked Questions](https://lukeafullard.github.io/TimeTag/faq/): Questions and answers regarding IndexedDB local storage, PDF/CSV/ICS exports, multi-currency options, and offline PWA capability.
 - [Blog Index](https://lukeafullard.github.io/TimeTag/blog/): Articles and guides for contractors, freelancers, and privacy advocates.
+- [Privacy Policy](https://lukeafullard.github.io/TimeTag/privacy/): Details on 100% client-side storage, zero server tracking, zero analytics, and hosting disclaimers.
+- [Terms of Use](https://lukeafullard.github.io/TimeTag/terms/): Terms governing application usage, user backup responsibilities, tax disclaimers, and warranty limitations.
 
 ## Articles
 

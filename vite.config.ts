@@ -15,6 +15,8 @@ export default defineConfig({
         blog: resolve(import.meta.dirname, 'blog/index.html'),
         blogPrivacy: resolve(import.meta.dirname, 'blog/why-client-side-privacy-matters/index.html'),
         blogTax: resolve(import.meta.dirname, 'blog/tax-and-currency-reporting-guide/index.html'),
+        privacy: resolve(import.meta.dirname, 'privacy/index.html'),
+        terms: resolve(import.meta.dirname, 'terms/index.html'),
       },
     },
   },

@@ -30,6 +30,8 @@ jobs:
           cache: 'npm'
       - name: Install dependencies
         run: npm ci
+      - name: License compliance check
+        run: npx license-checker --production --failOn "GPL;AGPL;LGPL;SSPL;CC-BY-NC"
       - name: Lint
         run: npm run lint
       - name: Test
