@@ -2,37 +2,37 @@
 <urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
   <url>
     <loc>https://lukeafullard.github.io/TimeTag/</loc>
-    <lastmod>2026-06-01</lastmod>
+    <lastmod>2026-08-18</lastmod>
     <changefreq>weekly</changefreq>
     <priority>1.0</priority>
   </url>
   <url>
     <loc>https://lukeafullard.github.io/TimeTag/app/</loc>
-    <lastmod>2026-06-01</lastmod>
+    <lastmod>2026-08-18</lastmod>
     <changefreq>daily</changefreq>
     <priority>0.9</priority>
   </url>
   <url>
     <loc>https://lukeafullard.github.io/TimeTag/faq/</loc>
-    <lastmod>2026-06-01</lastmod>
+    <lastmod>2026-08-18</lastmod>
     <changefreq>monthly</changefreq>
     <priority>0.8</priority>
   </url>
   <url>
     <loc>https://lukeafullard.github.io/TimeTag/blog/</loc>
-    <lastmod>2026-06-01</lastmod>
+    <lastmod>2026-08-18</lastmod>
     <changefreq>weekly</changefreq>
     <priority>0.8</priority>
   </url>
   <url>
     <loc>https://lukeafullard.github.io/TimeTag/blog/why-client-side-privacy-matters/</loc>
-    <lastmod>2026-06-01</lastmod>
+    <lastmod>2026-08-18</lastmod>
     <changefreq>monthly</changefreq>
     <priority>0.7</priority>
   </url>
   <url>
     <loc>https://lukeafullard.github.io/TimeTag/blog/tax-and-currency-reporting-guide/</loc>
-    <lastmod>2026-06-01</lastmod>
+    <lastmod>2026-08-18</lastmod>
     <changefreq>monthly</changefreq>
     <priority>0.7</priority>
   </url>

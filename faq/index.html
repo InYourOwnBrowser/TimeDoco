@@ -12,15 +12,67 @@
     <!-- Open Graph -->
     <meta property="og:title" content="Frequently Asked Questions — TimeDoco" />
     <meta property="og:description" content="Everything you need to know about TimeDoco's client-side architecture, data backups, reports, and privacy features." />
-    <meta property="og:image" content="https://lukeafullard.github.io/TimeTag/pwa-512x512.png" />
+    <meta property="og:image" content="https://lukeafullard.github.io/TimeTag/og-image.png" />
+    <meta property="og:image:width" content="1200" />
+    <meta property="og:image:height" content="630" />
     <meta property="og:url" content="https://lukeafullard.github.io/TimeTag/faq/" />
     <meta property="og:type" content="website" />
 
     <!-- Twitter Card -->
-    <meta name="twitter:card" content="summary" />
+    <meta name="twitter:card" content="summary_large_image" />
     <meta name="twitter:title" content="Frequently Asked Questions — TimeDoco" />
     <meta name="twitter:description" content="Learn how TimeDoco keeps your time tracking data 100% private and on-device." />
-    <meta name="twitter:image" content="https://lukeafullard.github.io/TimeTag/pwa-512x512.png" />
+    <meta name="twitter:image" content="https://lukeafullard.github.io/TimeTag/og-image.png" />
+
+    <!-- Schema.org FAQPage JSON-LD -->
+    <script type="application/ld+json">
+    {
+      "@context": "https://schema.org",
+      "@type": "FAQPage",
+      "mainEntity": [
+        {
+          "@type": "Question",
+          "name": "Where is my time tracking data stored?",
+          "acceptedAnswer": {
+            "@type": "Answer",
+            "text": "Your data is stored 100% locally in your browser using IndexedDB. TimeDoco does not operate a database server, and no entries, timecodes, client names, or financial rates are ever sent across the network."
+          }
+        },
+        {
+          "@type": "Question",
+          "name": "Does TimeDoco sync across multiple devices automatically?",
+          "acceptedAnswer": {
+            "@type": "Answer",
+            "text": "Because TimeDoco is strictly client-side without cloud accounts, automatic background syncing across devices is not supported. You can easily transfer your data between devices using the full JSON Backup and Restore feature in Settings."
+          }
+        },
+        {
+          "@type": "Question",
+          "name": "What reporting and export formats are available?",
+          "acceptedAnswer": {
+            "@type": "Answer",
+            "text": "TimeDoco provides comprehensive exporting options: PDF summaries with client headers and tax calculations, CSV exports (both matrix summaries and raw unrounded logs), and ICS calendar feeds for calendar visualization."
+          }
+        },
+        {
+          "@type": "Question",
+          "name": "How do tax and currency configurations work?",
+          "acceptedAnswer": {
+            "@type": "Answer",
+            "text": "Tax rates (inclusive or exclusive) and custom currency symbols are configured in Settings or customized on the fly within the Analysis & Reports view. Tax calculations apply directly to financial summaries and PDF invoices without modifying hourly logs."
+          }
+        },
+        {
+          "@type": "Question",
+          "name": "Can I install TimeDoco as a native desktop or mobile app?",
+          "acceptedAnswer": {
+            "@type": "Answer",
+            "text": "Yes! TimeDoco is a Progressive Web App (PWA). Click the 'Install App' button in the application interface or use your browser's install option to add TimeDoco directly to your desktop or home screen for standalone offline access."
+          }
+        }
+      ]
+    }
+    </script>
 
     <link rel="stylesheet" href="/src/index.css" />
   </head>
