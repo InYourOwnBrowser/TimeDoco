@@ -495,4 +495,46 @@ describe('TimeTrackerContext Reducer Logic', () => {
       expect(ctx!.entries.length).toBe(0);
     });
   });
+
+  it('performance benchmark: hardDeleteGroup batch timecode updates speed', async () => {
+    let ctx: ReturnType<typeof useTimeTracker> | undefined;
+
+    render(
+      <ToastProvider><TimeTrackerProvider>
+        <TestConsumer onReady={(c) => (ctx = c)} />
+      </TimeTrackerProvider></ToastProvider>
+    );
+
+    await waitFor(() => expect(ctx?.groups).toBeDefined());
+
+    let groupId = '';
+    await act(async () => {
+      const g = await ctx!.addGroup('Bench Group', 'blue');
+      groupId = g.id;
+    });
+
+    const numTimecodes = 50;
+    await act(async () => {
+      for (let i = 0; i < numTimecodes; i++) {
+        await ctx!.addTimecode(`TC ${i}`, undefined, groupId);
+      }
+    });
+
+    await waitFor(() => {
+      expect(ctx!.timecodes.filter(t => t.groupId === groupId).length).toBe(numTimecodes);
+    });
+
+    const start = performance.now();
+    await act(async () => {
+      await ctx!.hardDeleteGroup(groupId);
+    });
+    const duration = performance.now() - start;
+
+    console.log(`[BENCHMARK] Hard deleting group with ${numTimecodes} timecodes duration: ${duration.toFixed(2)} ms`);
+
+    await waitFor(() => {
+      expect(ctx!.groups.find((g) => g.id === groupId)).toBeUndefined();
+      expect(ctx!.timecodes.every(t => t.groupId !== groupId)).toBe(true);
+    });
+  });
 });
