@@ -148,6 +148,21 @@ describe('timeUtils', () => {
       expect(calculateDuration(start, end, pauses)).toBe(900);
     });
 
+    it('returns 0 when start date is after end date', () => {
+      const start = new Date('2023-10-27T11:00:00Z');
+      const end = new Date('2023-10-27T10:00:00Z');
+      expect(calculateDuration(start, end, [])).toBe(0);
+    });
+
+    it('returns 0 when start date is after end date even with pause segments', () => {
+      const start = new Date('2023-10-27T11:00:00Z');
+      const end = new Date('2023-10-27T10:00:00Z');
+      const pauses: PauseSegment[] = [
+        { pauseStart: '2023-10-27T10:15:00Z', pauseEnd: '2023-10-27T10:30:00Z' }
+      ];
+      expect(calculateDuration(start, end, pauses)).toBe(0);
+    });
+
     it('clamps negative duration to 0', () => {
       const start = new Date('2023-10-27T10:00:00Z');
       const end = new Date('2023-10-27T11:00:00Z');
