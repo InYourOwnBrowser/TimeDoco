@@ -168,8 +168,8 @@ export const TimeTrackerProvider: React.FC<{ children: ReactNode }> = ({ childre
       // We perform the deletion safely like emptyTrash does
       for (const group of groupsToDelete) {
         const timecodesToUpdate = [...loadedTimecodes].filter((tc) => tc.groupId === group.id);
-        for (const tc of timecodesToUpdate) {
-          await db.putTimecode({ ...tc, groupId: null });
+        if (timecodesToUpdate.length > 0) {
+          await Promise.all(timecodesToUpdate.map((tc) => db.putTimecode({ ...tc, groupId: null })));
         }
         await db.deleteGroup(group.id);
         purged = true;
@@ -429,8 +429,8 @@ export const TimeTrackerProvider: React.FC<{ children: ReactNode }> = ({ childre
     for (const group of deletedGroups) {
       // Cascading: set groupId to null for all timecodes in this group
       const timecodesToUpdate = [...timecodes, ...deletedTimecodes].filter((tc) => tc.groupId === group.id);
-      for (const tc of timecodesToUpdate) {
-        await db.putTimecode({ ...tc, groupId: null });
+      if (timecodesToUpdate.length > 0) {
+        await Promise.all(timecodesToUpdate.map((tc) => db.putTimecode({ ...tc, groupId: null })));
       }
       await db.deleteGroup(group.id);
     }
@@ -451,8 +451,8 @@ export const TimeTrackerProvider: React.FC<{ children: ReactNode }> = ({ childre
   const hardDeleteGroup = async (id: string) => {
     // Cascading: set groupId to null for all timecodes in this group
     const timecodesToUpdate = [...timecodes, ...deletedTimecodes].filter((tc) => tc.groupId === id);
-    for (const tc of timecodesToUpdate) {
-      await db.putTimecode({ ...tc, groupId: null });
+    if (timecodesToUpdate.length > 0) {
+      await Promise.all(timecodesToUpdate.map((tc) => db.putTimecode({ ...tc, groupId: null })));
     }
     await db.deleteGroup(id);
     await refreshData();
@@ -631,18 +631,18 @@ export const TimeTrackerProvider: React.FC<{ children: ReactNode }> = ({ childre
 
 
   const mergeTimecodes = async (sourceId: string, destId: string) => {
+    const now = new Date().toISOString();
     // 1. Update all entries referencing sourceId to point to destId
     const entriesToUpdate = entries.filter((e) => e.timecodeId === sourceId);
-    for (const entry of entriesToUpdate) {
-      await db.putEntry({ ...entry, timecodeId: destId, updatedAt: new Date().toISOString() });
+    if (entriesToUpdate.length > 0) {
+      await Promise.all(entriesToUpdate.map((entry) => db.putEntry({ ...entry, timecodeId: destId, updatedAt: now })));
     }
 
     // 2. Update active entries as well, if any are running on the source timecode
     const currentActive = await db.getActiveEntries();
-    for (const entry of currentActive) {
-      if (entry.timecodeId === sourceId) {
-        await db.putEntry({ ...entry, timecodeId: destId, updatedAt: new Date().toISOString() });
-      }
+    const activeToUpdate = currentActive.filter((entry) => entry.timecodeId === sourceId);
+    if (activeToUpdate.length > 0) {
+      await Promise.all(activeToUpdate.map((entry) => db.putEntry({ ...entry, timecodeId: destId, updatedAt: now })));
     }
 
     // 3. Update templates
