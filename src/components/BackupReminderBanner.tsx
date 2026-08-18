@@ -61,9 +61,9 @@ export const BackupReminderBanner: React.FC = () => {
       <div className="flex items-center justify-between flex-wrap">
         <div className="w-0 flex-1 flex items-center">
           <span className="flex p-2 rounded-lg bg-signal/20 dark:bg-signal/30">
-            <AlertCircle className="h-5 w-5 text-signal dark:text-signal" aria-hidden="true" />
+            <AlertCircle className="h-5 w-5 text-signal-dim dark:text-signal" aria-hidden="true" />
           </span>
-          <p className="ml-3 font-medium text-signal dark:text-signal truncate">
+          <p className="ml-3 font-medium text-signal-dim dark:text-signal truncate">
             <span>It has been a while since your last backup. We recommend exporting your data soon.</span>
           </p>
         </div>
@@ -83,7 +83,7 @@ export const BackupReminderBanner: React.FC = () => {
             onClick={handleDismiss}
           >
             <span className="sr-only">Dismiss</span>
-            <X className="h-5 w-5 text-signal dark:text-signal" aria-hidden="true" />
+            <X className="h-5 w-5 text-signal-dim dark:text-signal" aria-hidden="true" />
           </button>
         </div>
       </div>

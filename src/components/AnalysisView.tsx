@@ -613,7 +613,7 @@ export const AnalysisView: React.FC = () => {
           {(selectedGroupId !== 'all' || selectedTimecodeId !== 'all') && (
             <button
               onClick={() => { setSelectedGroupId('all'); setSelectedTimecodeId('all'); }}
-              className="text-sm text-gray-500 hover:text-signal dark:text-gray-400 transition-colors"
+              className="text-sm text-gray-500 hover:text-signal-dim dark:hover:text-signal dark:text-gray-400 transition-colors"
             >
               Clear filter
             </button>
@@ -648,7 +648,7 @@ export const AnalysisView: React.FC = () => {
               <button onClick={() => setReportFields(prev => prev.filter((_, j) => j !== i))} aria-label="Remove field" className="text-gray-400 hover:text-rust shrink-0"><X size={14} /></button>
             </div>
           ))}
-          <button onClick={() => setReportFields(prev => [...prev, { id: crypto.randomUUID(), label: '', value: '' }])} className="text-xs text-signal hover:text-signal-dim self-start">+ Field</button>
+          <button onClick={() => setReportFields(prev => [...prev, { id: crypto.randomUUID(), label: '', value: '' }])} className="text-xs text-signal-dim dark:text-signal hover:underline self-start">+ Field</button>
         </div>
       </div>
 
@@ -656,7 +656,7 @@ export const AnalysisView: React.FC = () => {
         {scopeLabel !== 'All' && <p className="text-sm text-gray-500 mb-2">Showing: {scopeLabel}</p>}
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-8">
           <div className="bg-stone dark:bg-ink rounded-panel p-5 border border-graphite/10 dark:border-white/10 shadow-inner flex flex-col justify-center items-center transition-colors">
-            <span className="text-signal text-xs font-sans font-semibold mb-1 uppercase tracking-wide">TOTAL TRACKED TIME</span>
+            <span className="text-signal-dim dark:text-signal text-xs font-sans font-semibold mb-1 uppercase tracking-wide">TOTAL TRACKED TIME</span>
             <span className="text-4xl font-mono tabular font-medium text-graphite dark:text-stone">{formatDuration(totalSeconds)}</span>
           </div>
           {totalEarnings > 0 && (
@@ -704,7 +704,7 @@ export const AnalysisView: React.FC = () => {
 
         {gaps.length > 0 && (
           <div className="mb-8 p-4 bg-stone dark:bg-ink border border-graphite/10 dark:border-white/10 rounded-panel shadow-inner flex items-start gap-3">
-            <AlertTriangle className="text-signal mt-0.5 shrink-0" size={20} />
+            <AlertTriangle className="text-signal-dim dark:text-signal mt-0.5 shrink-0" size={20} />
             <div>
               <h4 className="font-medium text-graphite dark:text-stone">Untracked Time Gaps Detected</h4>
               <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">

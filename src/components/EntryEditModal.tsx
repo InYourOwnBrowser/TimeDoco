@@ -115,7 +115,7 @@ export const EntryEditModal: React.FC<EntryEditModalProps> = ({ entry, onClose }
       <div className="bg-stone dark:bg-graphite rounded-panel shadow-xl w-full max-w-md max-h-[90vh] overflow-hidden flex flex-col border border-graphite/10 dark:border-white/10">
         <div className="flex justify-between items-center p-4 border-b border-graphite/10 dark:border-white/10">
           <h2 className="text-lg font-semibold text-graphite dark:text-stone">Edit Time Entry</h2>
-          <button onClick={onClose} className="text-gray-400 hover:text-gray-600 dark:text-gray-400 dark:hover:text-gray-300">
+          <button onClick={onClose} aria-label="Close" className="text-gray-400 hover:text-gray-600 dark:text-gray-400 dark:hover:text-gray-300">
             <X className="w-5 h-5" />
           </button>
         </div>
@@ -200,7 +200,7 @@ export const EntryEditModal: React.FC<EntryEditModalProps> = ({ entry, onClose }
                     {segment.pauseEnd ? (
                       <><span className="font-semibold">Resumed:</span> {format(parseISO(segment.pauseEnd), 'MMM d, h:mm:ss a')}</>
                     ) : (
-                      <span className="font-semibold text-signal">Ongoing</span>
+                      <span className="font-semibold text-signal-dim dark:text-signal">Ongoing</span>
                     )}
                   </span>
                 </div>

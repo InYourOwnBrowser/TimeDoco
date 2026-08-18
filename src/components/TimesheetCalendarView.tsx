@@ -75,7 +75,7 @@ export const TimesheetCalendarView: React.FC = () => {
               onClick={() => setSelectedDayEntries(isSelected ? null : day)}
               className={`min-h-[80px] p-2 border rounded-md flex flex-col justify-between transition-colors cursor-pointer hover:border-signal/50 ${isSelected ? 'border-signal ring-1 ring-signal' : 'border-graphite/10 dark:border-white/10'} ${!isCurrentMonth ? 'opacity-40 bg-gray-50 dark:bg-gray-800/20' : 'bg-stone dark:bg-graphite'} ${isToday(day) && !isSelected ? 'ring-2 ring-signal ring-inset' : ''} ${isCurrentMonth ? getIntensityColor(hours) : ''}`}
             >
-              <div className={`text-sm font-medium ${isToday(day) ? 'text-signal' : 'text-gray-500 dark:text-gray-400'}`}>
+              <div className={`text-sm font-medium ${isToday(day) ? 'text-signal-dim dark:text-signal' : 'text-gray-500 dark:text-gray-400'}`}>
                 {format(day, 'd')}
               </div>
               {hours > 0 && (

@@ -235,7 +235,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ onClose }) => {
             <h2 className="text-lg font-semibold font-sans text-graphite dark:text-stone">Settings & Data Management</h2>
             {justSaved && <span className="text-xs font-medium text-verdigris transition-opacity duration-300">Saved</span>}
           </div>
-          <button onClick={onClose} className="text-gray-400 dark:text-gray-500 hover:text-graphite dark:hover:text-stone transition-colors focus-visible:ring-2 focus-visible:ring-signal focus-visible:ring-offset-2 rounded-full p-1">
+          <button onClick={onClose} aria-label="Close" className="text-gray-400 dark:text-gray-500 hover:text-graphite dark:hover:text-stone transition-colors focus-visible:ring-2 focus-visible:ring-signal focus-visible:ring-offset-2 rounded-full p-1">
             <X size={20} />
           </button>
         </div>
@@ -243,19 +243,19 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ onClose }) => {
         <div className="flex border-b border-graphite/10 dark:border-white/10 shrink-0 bg-stone dark:bg-ink">
           <button
             onClick={() => setActiveTab('general')}
-            className={`flex-1 py-2 text-sm font-medium text-center transition-colors focus-visible:ring-2 focus-visible:ring-signal focus-visible:ring-offset-2 ${activeTab === 'general' ? 'border-b-2 border-signal text-signal' : 'border-b-2 border-transparent text-gray-500 dark:text-gray-400 hover:text-graphite dark:hover:text-stone'}`}
+            className={`flex-1 py-2 text-sm font-medium text-center transition-colors focus-visible:ring-2 focus-visible:ring-signal focus-visible:ring-offset-2 ${activeTab === 'general' ? 'border-b-2 border-signal text-signal-dim dark:text-signal' : 'border-b-2 border-transparent text-gray-500 dark:text-gray-400 hover:text-graphite dark:hover:text-stone'}`}
           >
             General
           </button>
           <button
             onClick={() => setActiveTab('data')}
-            className={`flex-1 py-2 text-sm font-medium text-center transition-colors focus-visible:ring-2 focus-visible:ring-signal focus-visible:ring-offset-2 ${activeTab === 'data' ? 'border-b-2 border-signal text-signal' : 'border-b-2 border-transparent text-gray-500 dark:text-gray-400 hover:text-graphite dark:hover:text-stone'}`}
+            className={`flex-1 py-2 text-sm font-medium text-center transition-colors focus-visible:ring-2 focus-visible:ring-signal focus-visible:ring-offset-2 ${activeTab === 'data' ? 'border-b-2 border-signal text-signal-dim dark:text-signal' : 'border-b-2 border-transparent text-gray-500 dark:text-gray-400 hover:text-graphite dark:hover:text-stone'}`}
           >
             Data
           </button>
           <button
             onClick={() => setActiveTab('trash')}
-            className={`flex-1 py-2 text-sm font-medium text-center transition-colors focus-visible:ring-2 focus-visible:ring-signal focus-visible:ring-offset-2 ${activeTab === 'trash' ? 'border-b-2 border-signal text-signal' : 'border-b-2 border-transparent text-gray-500 dark:text-gray-400 hover:text-graphite dark:hover:text-stone'}`}
+            className={`flex-1 py-2 text-sm font-medium text-center transition-colors focus-visible:ring-2 focus-visible:ring-signal focus-visible:ring-offset-2 ${activeTab === 'trash' ? 'border-b-2 border-signal text-signal-dim dark:text-signal' : 'border-b-2 border-transparent text-gray-500 dark:text-gray-400 hover:text-graphite dark:hover:text-stone'}`}
           >
             Trash
           </button>
@@ -399,7 +399,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ onClose }) => {
                 ))}
                 <button
                   onClick={() => handleUpdateSettings({ customFields: [...(settings?.customFields || []), { id: crypto.randomUUID(), label: '', value: '' }] })}
-                  className="text-sm text-signal hover:text-signal-dim"
+                  className="text-sm text-signal-dim dark:text-signal hover:underline"
                 >
                   + Add Field
                 </button>
@@ -735,7 +735,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ onClose }) => {
                     <div key={e.id} className="flex justify-between items-center bg-gray-50 dark:bg-gray-800/30 p-2 rounded text-sm">
                       <span className="truncate flex-1 text-graphite dark:text-stone">Entry: {e.note || 'No note'}</span>
                       <div className="flex gap-2 shrink-0 ml-2">
-                        <button onClick={() => restoreEntry(e.id)} className="text-signal hover:underline">Restore</button>
+                        <button onClick={() => restoreEntry(e.id)} className="text-signal-dim dark:text-signal hover:underline">Restore</button>
                         <button onClick={() => window.confirm('Permanently delete this entry?') && hardDeleteEntry(e.id)} className="text-rust hover:underline">Delete</button>
                       </div>
                     </div>
@@ -744,7 +744,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ onClose }) => {
                     <div key={tc.id} className="flex justify-between items-center bg-gray-50 dark:bg-gray-800/30 p-2 rounded text-sm">
                       <span className="truncate flex-1 text-graphite dark:text-stone">Timecode: {tc.name}</span>
                       <div className="flex gap-2 shrink-0 ml-2">
-                        <button onClick={() => restoreTimecode(tc.id)} className="text-signal hover:underline">Restore</button>
+                        <button onClick={() => restoreTimecode(tc.id)} className="text-signal-dim dark:text-signal hover:underline">Restore</button>
                         <button onClick={() => window.confirm('Permanently delete this timecode?') && hardDeleteTimecode(tc.id)} className="text-rust hover:underline">Delete</button>
                       </div>
                     </div>
@@ -753,7 +753,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ onClose }) => {
                     <div key={g.id} className="flex justify-between items-center bg-gray-50 dark:bg-gray-800/30 p-2 rounded text-sm">
                       <span className="truncate flex-1 text-graphite dark:text-stone">Group: {g.name}</span>
                       <div className="flex gap-2 shrink-0 ml-2">
-                        <button onClick={() => restoreGroup(g.id)} className="text-signal hover:underline">Restore</button>
+                        <button onClick={() => restoreGroup(g.id)} className="text-signal-dim dark:text-signal hover:underline">Restore</button>
                         <button onClick={() => window.confirm('Permanently delete this group?') && hardDeleteGroup(g.id)} className="text-rust hover:underline">Delete</button>
                       </div>
                     </div>

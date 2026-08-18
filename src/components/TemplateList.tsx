@@ -132,7 +132,7 @@ export const TemplateList: React.FC = () => {
         </h3>
         <button
           onClick={() => handleOpenModal()}
-          className="text-xs flex items-center text-signal hover:text-signal-dim transition-colors"
+          className="text-xs flex items-center text-signal-dim dark:text-signal hover:underline transition-colors"
         >
           <Plus size={14} className="mr-1" /> New Template
         </button>
@@ -166,13 +166,13 @@ export const TemplateList: React.FC = () => {
                   style={{ backgroundColor: tcColor }}
                 />
                 <span className="text-sm font-medium text-graphite dark:text-stone py-1.5 whitespace-nowrap">
-                  {template.title} {template.durationMinutes !== null ? <span className="text-gray-400 font-normal text-xs ml-1">({template.durationMinutes}m)</span> : <span className="text-signal font-normal text-xs ml-1">▶ Start</span>}
+                  {template.title} {template.durationMinutes !== null ? <span className="text-gray-400 font-normal text-xs ml-1">({template.durationMinutes}m)</span> : <span className="text-signal-dim dark:text-signal font-normal text-xs ml-1">▶ Start</span>}
                 </span>
 
                 <div className="flex items-center opacity-0 group-hover:opacity-100 transition-opacity ml-2">
                   <button
                     onClick={(e) => { e.stopPropagation(); handleOpenModal(template); }}
-                    className="p-1.5 text-gray-400 hover:text-signal dark:hover:text-signal rounded-full focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-signal"
+                    className="p-1.5 text-gray-400 hover:text-signal-dim dark:hover:text-signal rounded-full focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-signal"
                     title="Edit template"
                     aria-label="Edit template"
                   >

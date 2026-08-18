@@ -174,7 +174,7 @@ export const EntryList: React.FC = () => {
           {hasActiveFilters && (
             <button
               onClick={handleClearFilters}
-              className="text-sm text-gray-500 hover:text-signal dark:text-gray-400 transition-colors whitespace-nowrap"
+              className="text-sm text-gray-500 hover:text-signal-dim dark:hover:text-signal dark:text-gray-400 transition-colors whitespace-nowrap"
             >
               Clear filters
             </button>
@@ -229,7 +229,7 @@ export const EntryList: React.FC = () => {
                           {getTimecodeName(entry.timecodeId)}
                         </span>
                         {entry.isRunning && (
-                          <span className="ml-2 inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-signal/10 text-signal border border-signal/20">
+                          <span className="ml-2 inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-signal/10 text-signal-dim dark:text-signal border border-signal/20">
                             Running
                           </span>
                         )}
@@ -285,7 +285,7 @@ export const EntryList: React.FC = () => {
                         )}
                         <button
                           onClick={() => setEditingEntry(entry)}
-                          className="text-gray-400 dark:text-gray-500 hover:text-signal dark:hover:text-signal-dim focus:outline-none focus-visible:ring-2 focus-visible:ring-signal focus-visible:ring-offset-2 rounded transition-colors"
+                          className="text-gray-400 dark:text-gray-500 hover:text-signal-dim dark:hover:text-signal focus:outline-none focus-visible:ring-2 focus-visible:ring-signal focus-visible:ring-offset-2 rounded transition-colors"
                           title="Edit Entry"
                           aria-label="Edit Entry"
                         >
