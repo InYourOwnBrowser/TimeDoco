@@ -21,6 +21,7 @@ import { GlobalActiveTimerBar } from './components/GlobalActiveTimerBar';
 import { useInstallPrompt } from './hooks/useInstallPrompt';
 import { Logo } from './components/ui/Logo';
 import { Download, Save } from 'lucide-react';
+import { SocialLinks } from './components/SocialLinks';
 
 // Extracted inner component so we can use TimeTrackerContext
 const AppContent = () => {
@@ -300,6 +301,10 @@ const AppContent = () => {
           {activeTab === 'management' && <Suspense fallback={<div className="p-8 text-center text-gray-500">Loading management...</div>}><GroupingManagement /></Suspense>}
           {activeTab === 'resources' && <Suspense fallback={<div className="p-8 text-center text-gray-500">Loading resources...</div>}><ResourcesView /></Suspense>}
         </main>
+
+        <footer className="mt-12 mb-4 flex justify-center">
+          <SocialLinks />
+        </footer>
 
         {isSettingsOpen && <SettingsModal onClose={handleCloseSettings} />}
 
