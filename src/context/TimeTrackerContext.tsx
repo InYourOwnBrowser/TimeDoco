@@ -1,5 +1,5 @@
 import React, { createContext, useContext, useState, useEffect, useCallback, useRef, type ReactNode } from 'react';
-import type { Group, Timecode, Entry, Settings } from '../types';
+import type { Group, Timecode, Entry, Settings, PauseSegment } from '../types';
 import * as db from '../db';
 import { differenceInSeconds } from 'date-fns';
 import { calculateDuration } from '../utils/timeUtils';
@@ -26,7 +26,7 @@ interface TimeTrackerContextType {
   updateEntry: (id: string, updates: Partial<Entry>) => Promise<void>;
   deleteEntry: (id: string) => Promise<void>;
   splitEntry: (entryId: string, splitTime: string, newTimecodeId?: string) => Promise<void>;
-  addManualEntry: (entryData: { startTime: string, endTime: string, timecodeId: string, note: string, tags?: string[] }) => Promise<void>;
+  addManualEntry: (entryData: { startTime: string; endTime: string; timecodeId: string; note: string; tags?: string[]; pausedSegments?: PauseSegment[]; manualAmount?: number | null }) => Promise<void>;
   bulkAddManualEntries: (entriesData: { startTime: string, endTime: string, timecodeId: string, note: string, tags?: string[] }[]) => Promise<void>;
   forgotToStopEntry: Entry | null;
   dismissForgotToStop: () => void;
@@ -34,6 +34,7 @@ interface TimeTrackerContextType {
   updateSettings: (updates: Partial<Settings>) => Promise<void>;
   exportData: () => Promise<void>;
   importData: (file: File, mode: 'merge' | 'replace') => Promise<void>;
+  wipeAllData: () => Promise<void>;
   lastStoppedEntry: Entry | null;
   undoStopTimer: (entry: Entry) => Promise<void>;
 clearLastStoppedEntry: () => void;
@@ -528,7 +529,9 @@ export const TimeTrackerProvider: React.FC<{ children: ReactNode }> = ({ childre
     let newDuration = entryToUpdate.duration;
     let newIsRunning = entryToUpdate.isRunning;
     let newIsPaused = entryToUpdate.isPaused;
-    let newPausedSegments = [...entryToUpdate.pausedSegments];
+    let newPausedSegments = updates.pausedSegments !== undefined
+      ? [...updates.pausedSegments]
+      : [...entryToUpdate.pausedSegments];
 
     const finalStartTime = updates.startTime || entryToUpdate.startTime;
     const finalEndTime = updates.endTime !== undefined ? updates.endTime : entryToUpdate.endTime;
@@ -577,28 +580,39 @@ export const TimeTrackerProvider: React.FC<{ children: ReactNode }> = ({ childre
     await refreshData();
   };
 
-  const addManualEntry = async (entryData: { startTime: string, endTime: string, timecodeId: string, note: string, tags?: string[] }) => {
+  const addManualEntry = async (entryData: { startTime: string; endTime: string; timecodeId: string; note: string; tags?: string[]; pausedSegments?: PauseSegment[]; manualAmount?: number | null }) => {
     const now = new Date().toISOString();
-    const durationMs = new Date(entryData.endTime).getTime() - new Date(entryData.startTime).getTime();
-    const duration = Math.max(0, Math.floor(durationMs / 1000));
+    const pausedSegments = entryData.pausedSegments || [];
+    const duration = calculateDuration(new Date(entryData.startTime), new Date(entryData.endTime), pausedSegments);
 
     const newEntry: Entry = {
       id: crypto.randomUUID(),
       timecodeId: entryData.timecodeId,
       startTime: entryData.startTime,
       endTime: entryData.endTime,
-      duration: duration > 0 ? duration : 0,
+      duration,
       note: entryData.note,
       tags: entryData.tags || [],
       isRunning: false,
       isPaused: false,
-      pausedSegments: [],
+      pausedSegments,
+      manualAmount: entryData.manualAmount ?? null,
       editHistory: [],
       createdAt: now,
       updatedAt: now,
     };
 
     await db.putEntry(newEntry);
+    await refreshData();
+  };
+
+  const wipeAllData = async () => {
+    await db.wipeAllData();
+    localStorage.removeItem('backupReminderDismissed');
+    localStorage.removeItem('dismissedForgotToStopIds');
+    setDismissedForgotToStopIds([]);
+    setForgotToStopEntry(null);
+    setLastStoppedEntry(null);
     await refreshData();
   };
 
@@ -1003,6 +1017,7 @@ export const TimeTrackerProvider: React.FC<{ children: ReactNode }> = ({ childre
       updateSettings,
       exportData,
       importData,
+      wipeAllData,
       lastStoppedEntry,
       undoStopTimer,
       clearLastStoppedEntry,

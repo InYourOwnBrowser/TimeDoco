@@ -1,6 +1,6 @@
 import React, { useState, useRef } from 'react';
 import { useTimeTracker } from '../context/TimeTrackerContext';
-import { X, Upload, Download, AlertTriangle, CheckCircle2 } from 'lucide-react';
+import { X, Upload, Download, AlertTriangle, CheckCircle2, Trash2 } from 'lucide-react';
 import Papa from 'papaparse';
 import { Modal } from './ui/Modal';
 import { Panel } from './ui/Panel';
@@ -13,7 +13,7 @@ interface SettingsModalProps {
 }
 
 export const SettingsModal: React.FC<SettingsModalProps> = ({ onClose }) => {
-  const { exportData, importData, settings, updateSettings, bulkAddManualEntries, addTimecode, timecodes, deletedEntries, restoreEntry, hardDeleteEntry, deletedTimecodes, restoreTimecode, hardDeleteTimecode, deletedGroups, restoreGroup, hardDeleteGroup, emptyTrash } = useTimeTracker();
+  const { exportData, importData, wipeAllData, settings, updateSettings, bulkAddManualEntries, addTimecode, timecodes, deletedEntries, restoreEntry, hardDeleteEntry, deletedTimecodes, restoreTimecode, hardDeleteTimecode, deletedGroups, restoreGroup, hardDeleteGroup, emptyTrash } = useTimeTracker();
   const { addToast } = useToast();
   const fileInputRef = useRef<HTMLInputElement>(null);
   const csvInputRef = useRef<HTMLInputElement>(null);
@@ -26,6 +26,29 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ onClose }) => {
   const [activeTab, setActiveTab] = useState<'general' | 'data' | 'trash'>('general');
   const [justSaved, setJustSaved] = useState(false);
   const saveTimeoutRef = useRef<number | null>(null);
+
+  const [showWipeConfirm, setShowWipeConfirm] = useState(false);
+  const [wipeConfirmText, setWipeConfirmText] = useState('');
+  const [wipeAcknowledged, setWipeAcknowledged] = useState(false);
+  const [isWiping, setIsWiping] = useState(false);
+  const WIPE_CONFIRM_PHRASE = 'DELETE ALL DATA';
+
+  const handleWipeAllData = async () => {
+    if (!wipeAcknowledged || wipeConfirmText !== WIPE_CONFIRM_PHRASE) return;
+    setIsWiping(true);
+    try {
+      await wipeAllData();
+      addToast('All data has been permanently deleted.', 'success');
+      setShowWipeConfirm(false);
+      setWipeConfirmText('');
+      setWipeAcknowledged(false);
+      onClose();
+    } catch {
+      addToast('Failed to delete data. Please try again.', 'error');
+    } finally {
+      setIsWiping(false);
+    }
+  };
 
   const MAX_LOGO_BYTES = 1024 * 1024; // 1MB — keeps backups/exports lean, since this gets embedded in every export
   const ALLOWED_LOGO_MIME_TYPES = ['image/png', 'image/jpeg', 'image/webp'];
@@ -711,6 +734,78 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ onClose }) => {
                   Import CSV
                 </button>
               </div>
+            </Panel>
+
+            <Panel className="p-5 border-2 border-rust/30">
+              <h3 className="text-md font-semibold text-rust flex items-center gap-1.5 mb-3">
+                <AlertTriangle size={18} /> Danger Zone
+              </h3>
+              <p className="text-sm text-gray-600 dark:text-gray-400 mb-4">
+                Permanently delete every group, timecode, entry, and setting stored in this browser.
+                This cannot be undone — export a backup first if you might need this data again.
+              </p>
+
+              {!showWipeConfirm ? (
+                <button
+                  onClick={() => setShowWipeConfirm(true)}
+                  className="w-full flex items-center justify-center gap-2 bg-stone dark:bg-graphite border border-rust text-rust px-4 py-2 rounded hover:bg-rust/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-rust transition-colors"
+                >
+                  <Trash2 size={18} /> Delete All Data Permanently
+                </button>
+              ) : (
+                <div className="bg-red-50 dark:bg-red-900/20 p-4 rounded-md border border-red-200 dark:border-red-800/30 space-y-3">
+                  <p className="text-sm text-red-700 dark:text-red-400 font-medium">
+                    This will permanently erase all app data from this device. There is no undo.
+                  </p>
+                  <button
+                    onClick={handleExport}
+                    className="w-full flex items-center justify-center gap-2 text-sm bg-stone dark:bg-graphite border border-graphite/10 dark:border-white/10 text-graphite dark:text-stone px-3 py-2 rounded hover:bg-gray-50 dark:hover:bg-gray-800/50 transition-colors"
+                  >
+                    <Download size={14} /> Export a backup first
+                  </button>
+
+                  <label className="flex items-start gap-2 cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={wipeAcknowledged}
+                      onChange={(e) => setWipeAcknowledged(e.target.checked)}
+                      className="mt-0.5 text-rust focus:ring-rust border-graphite/10 dark:border-white/10 bg-stone dark:bg-graphite"
+                    />
+                    <span className="text-sm text-graphite dark:text-stone">
+                      I understand this permanently deletes all data and cannot be undone.
+                    </span>
+                  </label>
+
+                  <div>
+                    <label className="block text-sm text-red-700 dark:text-red-400 font-medium mb-1">
+                      Type <strong>{WIPE_CONFIRM_PHRASE}</strong> to confirm.
+                    </label>
+                    <input
+                      type="text"
+                      value={wipeConfirmText}
+                      onChange={(e) => setWipeConfirmText(e.target.value)}
+                      placeholder={WIPE_CONFIRM_PHRASE}
+                      className="w-full text-sm p-2 border border-red-300 dark:border-red-700 rounded bg-stone dark:bg-graphite text-graphite dark:text-stone focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-rust"
+                    />
+                  </div>
+
+                  <div className="flex gap-2">
+                    <button
+                      onClick={() => { setShowWipeConfirm(false); setWipeConfirmText(''); setWipeAcknowledged(false); }}
+                      className="flex-1 px-3 py-2 text-sm text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 rounded transition-colors border border-graphite/10 dark:border-white/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-signal"
+                    >
+                      Cancel
+                    </button>
+                    <button
+                      onClick={handleWipeAllData}
+                      disabled={isWiping || !wipeAcknowledged || wipeConfirmText !== WIPE_CONFIRM_PHRASE}
+                      className="flex-1 flex items-center justify-center gap-2 bg-rust text-white px-3 py-2 rounded hover:bg-rust/80 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-rust disabled:opacity-50 transition-colors"
+                    >
+                      <Trash2 size={16} /> Permanently Delete Everything
+                    </button>
+                  </div>
+                </div>
+              )}
             </Panel>
             </div>
           )}
