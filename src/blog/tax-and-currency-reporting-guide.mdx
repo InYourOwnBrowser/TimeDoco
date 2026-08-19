@@ -1,0 +1,21 @@
+export const meta = {
+  title: "A Guide to Tax and Multi-Currency Reporting in TimeDoco",
+  date: "2026-06-01",
+  tags: ["invoicing", "taxes"]
+};
+
+# A Guide to Tax and Multi-Currency Reporting in TimeDoco
+
+Generating precise billing reports for global clients requires flexible taxation calculations and clean data exports. TimeDoco provides built-in tools for handling tax inclusive/exclusive configurations, custom currency formatting, and spreadsheet-friendly exports.
+
+## 1. Flexible Tax Rate Configurations
+
+Tax settings in TimeDoco can be specified globally in Settings or adjusted on a per-report basis in the Analysis & Reports view. You can define custom tax labels (e.g. VAT, GST, Sales Tax), percentage rates, and choose whether rates are **Inclusive** (built into hourly rates) or **Exclusive** (calculated additionally on total subtotal).
+
+## 2. Multi-Currency Symbols
+
+Whether billing in USD ($), EUR (€), GBP (£), JPY (¥), or custom regional currencies, you can customize the default currency symbol in Settings. In visual UI views and PDF invoices, symbols are cleanly displayed alongside formatted totals.
+
+## 3. Spreadsheet-Friendly Numeric CSVs
+
+When exporting data to CSV format for accounting tools (Excel, Google Sheets, QuickBooks), embedded currency symbols like "$150.00" can break automated spreadsheet formula parsing. TimeDoco's CSV export engine automatically strips currency symbols and outputs unrounded raw numbers, ensuring seamless importing into financial software.

@@ -1,5 +1,8 @@
 import { useState, useEffect, Suspense, lazy, useRef, useCallback } from 'react';
+import { BrowserRouter, Routes, Route } from 'react-router-dom';
 import { TimeTrackerProvider } from './context/TimeTrackerContext';
+import { BlogIndex } from './components/BlogIndex';
+import { BlogPost } from './components/BlogPost';
 import { ActiveTimer } from './components/ActiveTimer';
 import { EntryList } from './components/EntryList';
 import { ForgotToStopPrompt } from './components/ForgotToStopPrompt';
@@ -318,11 +321,17 @@ const AppContent = () => {
 
 function App() {
   return (
-    <ToastProvider>
-      <TimeTrackerProvider>
-        <AppContent />
-      </TimeTrackerProvider>
-    </ToastProvider>
+    <BrowserRouter basename={import.meta.env.BASE_URL ? import.meta.env.BASE_URL.replace(/\/$/, '') : ''}>
+      <ToastProvider>
+        <TimeTrackerProvider>
+          <Routes>
+            <Route path="/blog" element={<BlogIndex />} />
+            <Route path="/blog/:slug" element={<BlogPost />} />
+            <Route path="*" element={<AppContent />} />
+          </Routes>
+        </TimeTrackerProvider>
+      </ToastProvider>
+    </BrowserRouter>
   );
 }
 
