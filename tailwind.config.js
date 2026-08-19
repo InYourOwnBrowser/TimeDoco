@@ -4,8 +4,7 @@ export default {
     "./index.html",
     "./app/**/*.html",
     "./faq/**/*.html",
-    "./blog/**/*.html",
-    "./src/**/*.{js,ts,jsx,tsx}",
+    "./src/**/*.{js,ts,jsx,tsx,md,mdx}",
   ],
   darkMode: 'class',
   theme: {
@@ -28,6 +27,7 @@ export default {
     },
   },
   plugins: [
+    require('@tailwindcss/typography'),
     require("tailwindcss-animate")
   ],
 }
