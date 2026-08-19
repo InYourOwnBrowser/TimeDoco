@@ -261,6 +261,7 @@ export const TemplateList: React.FC = () => {
             <input
               type="text"
               value={note}
+              maxLength={2000}
               onChange={(e) => setNote(e.target.value)}
               placeholder="Default note for this entry"
               className="w-full px-3 py-2 border border-graphite/10 dark:border-white/10 rounded-md bg-stone dark:bg-graphite text-graphite dark:text-stone focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-signal"

@@ -111,7 +111,7 @@ export const EntryEditModal: React.FC<EntryEditModalProps> = ({ entry, onClose }
       await updateEntry(entry.id, {
         timecodeId,
         note,
-        tags: tagsStr.split(',').map(t => t.trim()).filter(t => t !== ''),
+        tags: tagsStr.split(',').map(t => t.trim()).filter(t => t !== '').slice(0, 20),
         startTime: instant.toISOString(),
         endTime: instant.toISOString(),
         pausedSegments: [],
@@ -151,7 +151,7 @@ export const EntryEditModal: React.FC<EntryEditModalProps> = ({ entry, onClose }
     const updates: Partial<Entry> = {
       timecodeId,
       note,
-      tags: tagsStr.split(',').map(t => t.trim()).filter(t => t !== ''),
+      tags: tagsStr.split(',').map(t => t.trim()).filter(t => t !== '').slice(0, 20),
       startTime: start.toISOString(),
       manualAmount: manualAmount ? parseFloat(manualAmount) : null,
     };
@@ -283,6 +283,7 @@ export const EntryEditModal: React.FC<EntryEditModalProps> = ({ entry, onClose }
             <label className="block text-sm font-medium text-graphite dark:text-stone mb-1">Note</label>
             <textarea
               value={note}
+              maxLength={2000}
               onChange={(e) => setNote(e.target.value)}
               rows={2}
               className="w-full px-3 py-2 border border-graphite/10 dark:border-white/10 rounded-md shadow-sm focus:outline-none focus-visible:ring-2 focus-visible:ring-signal sm:text-sm bg-stone dark:bg-graphite text-graphite dark:text-stone"
@@ -294,6 +295,7 @@ export const EntryEditModal: React.FC<EntryEditModalProps> = ({ entry, onClose }
             <input
               type="text"
               value={tagsStr}
+              maxLength={500}
               onChange={(e) => setTagsStr(e.target.value)}
               placeholder="e.g. design, meeting, high-priority"
               className="w-full px-3 py-2 border border-graphite/10 dark:border-white/10 rounded-md shadow-sm focus:outline-none focus-visible:ring-2 focus-visible:ring-signal sm:text-sm bg-stone dark:bg-graphite text-graphite dark:text-stone"

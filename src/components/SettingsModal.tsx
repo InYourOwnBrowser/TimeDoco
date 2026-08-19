@@ -7,6 +7,7 @@ import { Panel } from './ui/Panel';
 import { parseISO } from 'date-fns';
 import { HelpTooltip } from './ui/HelpTooltip';
 import { useToast } from '../context/ToastContext';
+import { validateBackupPayload, MAX_IMPORT_FILE_BYTES } from '../utils/importValidation';
 
 interface SettingsModalProps {
   onClose: () => void;
@@ -103,6 +104,11 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ onClose }) => {
 
     const file = fileInputRef.current.files[0];
 
+    if (file.size > MAX_IMPORT_FILE_BYTES) {
+      setStatusMsg({ type: 'error', text: 'Backup file size exceeds the 20MB limit.' });
+      return;
+    }
+
     if (!importPreview) {
       // First click: Validate file and show preview
       try {
@@ -117,9 +123,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ onClose }) => {
         });
 
         const parsed = JSON.parse(content);
-        if (!parsed || typeof parsed !== 'object' || !Array.isArray(parsed.entries) || !Array.isArray(parsed.timecodes) || !Array.isArray(parsed.groups)) {
-          throw new Error('Invalid TimeDoco backup file structure.');
-        }
+        validateBackupPayload(parsed);
 
         setImportPreview({
           groups: parsed.groups.length,
@@ -173,6 +177,10 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ onClose }) => {
     }
 
     const file = csvInputRef.current.files[0];
+    if (file.size > MAX_IMPORT_FILE_BYTES) {
+      setStatusMsg({ type: 'error', text: 'CSV file size exceeds the 20MB limit.' });
+      return;
+    }
     setIsProcessing(true);
     setStatusMsg(null);
 
