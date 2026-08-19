@@ -213,7 +213,7 @@ export const AnalysisView: React.FC = () => {
 
       actualDuration = applyRounding(actualDuration, settings?.roundingRule || 'none');
 
-      if (actualDuration <= 0) return;
+      if (actualDuration <= 0 && entry.manualAmount == null) return;
 
       tSec += actualDuration;
 

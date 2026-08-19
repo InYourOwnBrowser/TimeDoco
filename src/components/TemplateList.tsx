@@ -82,8 +82,14 @@ export const TemplateList: React.FC = () => {
   const handleDelete = async (e: React.MouseEvent, id: string) => {
     e.stopPropagation();
     const templateToDelete = templates.find(t => t.id === id);
+    if (!templateToDelete) return;
+
+    if (!window.confirm(`Delete template "${templateToDelete.title}"? This can be undone from the toast for a few seconds.`)) {
+      return;
+    }
+
     const newTemplates = templates.filter(t => t.id !== id);
-    if (settings && templateToDelete) {
+    if (settings) {
       await updateSettings({ ...settings, templates: newTemplates });
       addToast('Template deleted', 'success', {
         label: 'Undo',

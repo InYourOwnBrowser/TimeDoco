@@ -21,10 +21,12 @@ export const ManualEntryModal: React.FC<ManualEntryModalProps> = ({ onClose }) =
   const [tagsStr, setTagsStr] = useState('');
   const [breakMinutes, setBreakMinutes] = useState('');
   const [manualAmount, setManualAmount] = useState('');
+  const [isFixedCost, setIsFixedCost] = useState(false);
+  const [fixedCostDate, setFixedCostDate] = useState(() => new Date().toISOString().split('T')[0]);
   const [error, setError] = useState<string | null>(null);
   const [warning, setWarning] = useState<string | null>(null);
 
-  const isDirty = startTime !== '' || endTime !== '' || timecodeId !== '' || note !== '' || tagsStr !== '' || breakMinutes !== '' || manualAmount !== '';
+  const isDirty = startTime !== '' || endTime !== '' || timecodeId !== '' || note !== '' || tagsStr !== '' || breakMinutes !== '' || manualAmount !== '' || isFixedCost;
 
   useEffect(() => {
     if (!startTime || !endTime) {
@@ -56,6 +58,33 @@ export const ManualEntryModal: React.FC<ManualEntryModalProps> = ({ onClose }) =
 
     if (!timecodeId) {
       setError('Please select a timecode.');
+      return;
+    }
+
+    if (isFixedCost) {
+      if (!fixedCostDate) {
+        setError('Please select a date.');
+        return;
+      }
+      if (!manualAmount || parseFloat(manualAmount) <= 0) {
+        setError('Please enter a fixed amount.');
+        return;
+      }
+
+      const instant = new Date(`${fixedCostDate}T12:00:00`);
+
+      await addManualEntry({
+        timecodeId,
+        startTime: instant.toISOString(),
+        endTime: instant.toISOString(),
+        note,
+        tags: tagsStr.split(',').map(t => t.trim()).filter(t => t !== ''),
+        pausedSegments: [],
+        manualAmount: parseFloat(manualAmount),
+      });
+
+      addToast('Entry added successfully', 'success');
+      onClose();
       return;
     }
 
@@ -121,45 +150,73 @@ export const ManualEntryModal: React.FC<ManualEntryModalProps> = ({ onClose }) =
             </div>
           </div>
 
-          <div className="grid grid-cols-2 gap-4">
-            <div>
-              <label className="block text-sm font-medium text-graphite dark:text-stone mb-1">Start Time</label>
+          {timecodeId && !timecodes.find(t => t.id === timecodeId)?.hourlyRate && (
+            <label className="flex items-center gap-2 cursor-pointer">
               <input
-                type="datetime-local"
-                step="1"
-                value={startTime}
-                onChange={(e) => { setStartTime(e.target.value); setError(null); }}
-                className="w-full px-3 py-2 border border-graphite/10 dark:border-white/10 rounded-md shadow-sm focus:outline-none focus-visible:ring-2 focus-visible:ring-signal sm:text-sm bg-stone dark:bg-graphite text-graphite dark:text-stone"
+                type="checkbox"
+                checked={isFixedCost}
+                onChange={(e) => { setIsFixedCost(e.target.checked); setError(null); }}
+                className="rounded border-graphite/10 dark:border-white/10 text-signal focus:ring-signal"
               />
-            </div>
-            <div>
-              <label className="block text-sm font-medium text-graphite dark:text-stone mb-1">End Time</label>
-              <input
-                type="datetime-local"
-                step="1"
-                value={endTime}
-                onChange={(e) => { setEndTime(e.target.value); setError(null); }}
-                className="w-full px-3 py-2 border border-graphite/10 dark:border-white/10 rounded-md shadow-sm focus:outline-none focus-visible:ring-2 focus-visible:ring-signal sm:text-sm bg-stone dark:bg-graphite text-graphite dark:text-stone"
-              />
-            </div>
-          </div>
+              <span className="text-sm font-medium text-graphite dark:text-stone">
+                This is a fixed cost (no time tracking)
+              </span>
+            </label>
+          )}
 
-          <div>
-            <label className="block text-sm font-medium text-graphite dark:text-stone mb-1">Break (minutes)</label>
-            <input
-              type="number"
-              min="0"
-              value={breakMinutes}
-              onChange={(e) => setBreakMinutes(e.target.value)}
-              placeholder="0"
-              className="w-full px-3 py-2 border border-graphite/10 dark:border-white/10 rounded-md shadow-sm focus:outline-none focus-visible:ring-2 focus-visible:ring-signal sm:text-sm bg-stone dark:bg-graphite text-graphite dark:text-stone"
-            />
-          </div>
+          {isFixedCost ? (
+            <div>
+              <label className="block text-sm font-medium text-graphite dark:text-stone mb-1">Date</label>
+              <input
+                type="date"
+                value={fixedCostDate}
+                onChange={(e) => { setFixedCostDate(e.target.value); setError(null); }}
+                className="w-full px-3 py-2 border border-graphite/10 dark:border-white/10 rounded-md shadow-sm focus:outline-none focus-visible:ring-2 focus-visible:ring-signal sm:text-sm bg-stone dark:bg-graphite text-graphite dark:text-stone"
+              />
+            </div>
+          ) : (
+            <div className="grid grid-cols-2 gap-4">
+              <div>
+                <label className="block text-sm font-medium text-graphite dark:text-stone mb-1">Start Time</label>
+                <input
+                  type="datetime-local"
+                  step="1"
+                  value={startTime}
+                  onChange={(e) => { setStartTime(e.target.value); setError(null); }}
+                  className="w-full px-3 py-2 border border-graphite/10 dark:border-white/10 rounded-md shadow-sm focus:outline-none focus-visible:ring-2 focus-visible:ring-signal sm:text-sm bg-stone dark:bg-graphite text-graphite dark:text-stone"
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-graphite dark:text-stone mb-1">End Time</label>
+                <input
+                  type="datetime-local"
+                  step="1"
+                  value={endTime}
+                  onChange={(e) => { setEndTime(e.target.value); setError(null); }}
+                  className="w-full px-3 py-2 border border-graphite/10 dark:border-white/10 rounded-md shadow-sm focus:outline-none focus-visible:ring-2 focus-visible:ring-signal sm:text-sm bg-stone dark:bg-graphite text-graphite dark:text-stone"
+                />
+              </div>
+            </div>
+          )}
+
+          {!isFixedCost && (
+            <div>
+              <label className="block text-sm font-medium text-graphite dark:text-stone mb-1">Break (minutes)</label>
+              <input
+                type="number"
+                min="0"
+                value={breakMinutes}
+                onChange={(e) => setBreakMinutes(e.target.value)}
+                placeholder="0"
+                className="w-full px-3 py-2 border border-graphite/10 dark:border-white/10 rounded-md shadow-sm focus:outline-none focus-visible:ring-2 focus-visible:ring-signal sm:text-sm bg-stone dark:bg-graphite text-graphite dark:text-stone"
+              />
+            </div>
+          )}
 
           {timecodeId && !timecodes.find(t => t.id === timecodeId)?.hourlyRate && (
             <div>
               <label className="block text-sm font-medium text-graphite dark:text-stone mb-1">
-                Fixed Amount ({settings?.currencySymbol || '$'}) — optional
+                Fixed Amount ({settings?.currencySymbol || '$'}){isFixedCost ? ' *' : ' — optional'}
               </label>
               <input
                 type="number"
@@ -168,6 +225,7 @@ export const ManualEntryModal: React.FC<ManualEntryModalProps> = ({ onClose }) =
                 value={manualAmount}
                 onChange={(e) => setManualAmount(e.target.value)}
                 placeholder="e.g. 150.00"
+                required={isFixedCost}
                 className="w-full px-3 py-2 border border-graphite/10 dark:border-white/10 rounded-md shadow-sm focus:outline-none focus-visible:ring-2 focus-visible:ring-signal sm:text-sm bg-stone dark:bg-graphite text-graphite dark:text-stone"
               />
               <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
