@@ -179,10 +179,10 @@ export const EntryEditModal: React.FC<EntryEditModalProps> = ({ entry, onClose }
 
   return (
     <Modal onClose={onClose} isDirty={isDirty}>
-      <div className="bg-stone dark:bg-graphite rounded-panel shadow-xl w-full max-w-md max-h-[90vh] overflow-hidden flex flex-col border border-graphite/10 dark:border-white/10">
-        <div className="flex justify-between items-center p-4 border-b border-graphite/10 dark:border-white/10">
+      <div className="bg-white dark:bg-graphite rounded-panel shadow-xl w-full max-w-md max-h-[90vh] overflow-hidden flex flex-col border border-graphite/20 dark:border-white/20">
+        <div className="flex justify-between items-center p-4 border-b border-graphite/20 dark:border-white/20">
           <h2 className="text-lg font-semibold text-graphite dark:text-stone">Edit Time Entry</h2>
-          <button onClick={onClose} aria-label="Close" className="text-gray-400 hover:text-gray-600 dark:text-gray-400 dark:hover:text-gray-300">
+          <button onClick={onClose} aria-label="Close" className="text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-300">
             <X className="w-5 h-5" />
           </button>
         </div>
@@ -201,7 +201,7 @@ export const EntryEditModal: React.FC<EntryEditModalProps> = ({ entry, onClose }
                 type="checkbox"
                 checked={isFixedCost}
                 onChange={(e) => { setIsFixedCost(e.target.checked); setError(null); }}
-                className="rounded border-graphite/10 dark:border-white/10 text-signal focus:ring-signal"
+                className="rounded border-graphite/20 dark:border-white/20 text-signal focus:ring-signal"
               />
               <span className="text-sm font-medium text-graphite dark:text-stone">
                 This is a fixed cost (no time tracking)
@@ -216,7 +216,7 @@ export const EntryEditModal: React.FC<EntryEditModalProps> = ({ entry, onClose }
                 type="date"
                 value={fixedCostDate}
                 onChange={(e) => { setFixedCostDate(e.target.value); setError(null); }}
-                className="w-full px-3 py-2 border border-graphite/10 dark:border-white/10 rounded-md shadow-sm focus:outline-none focus-visible:ring-2 focus-visible:ring-signal sm:text-sm bg-stone dark:bg-graphite text-graphite dark:text-stone"
+                className="w-full px-3 py-2 border border-graphite/20 dark:border-white/20 rounded-md shadow-sm focus:outline-none focus-visible:ring-2 focus-visible:ring-signal sm:text-sm bg-white dark:bg-graphite text-graphite dark:text-stone"
               />
             </div>
           ) : (
@@ -228,7 +228,7 @@ export const EntryEditModal: React.FC<EntryEditModalProps> = ({ entry, onClose }
                   step="1"
                   value={startTime}
                   onChange={(e) => { setStartTime(e.target.value); setError(null); }}
-                  className="w-full px-3 py-2 border border-graphite/10 dark:border-white/10 rounded-md shadow-sm focus:outline-none focus-visible:ring-2 focus-visible:ring-signal sm:text-sm bg-stone dark:bg-graphite text-graphite dark:text-stone"
+                  className="w-full px-3 py-2 border border-graphite/20 dark:border-white/20 rounded-md shadow-sm focus:outline-none focus-visible:ring-2 focus-visible:ring-signal sm:text-sm bg-white dark:bg-graphite text-graphite dark:text-stone"
                 />
               </div>
               <div>
@@ -238,7 +238,7 @@ export const EntryEditModal: React.FC<EntryEditModalProps> = ({ entry, onClose }
                   step="1"
                   value={endTime}
                   onChange={(e) => { setEndTime(e.target.value); setError(null); }}
-                  className="w-full px-3 py-2 border border-graphite/10 dark:border-white/10 rounded-md shadow-sm focus:outline-none focus-visible:ring-2 focus-visible:ring-signal sm:text-sm bg-stone dark:bg-graphite text-graphite dark:text-stone"
+                  className="w-full px-3 py-2 border border-graphite/20 dark:border-white/20 rounded-md shadow-sm focus:outline-none focus-visible:ring-2 focus-visible:ring-signal sm:text-sm bg-white dark:bg-graphite text-graphite dark:text-stone"
                 />
               </div>
             </div>
@@ -253,7 +253,7 @@ export const EntryEditModal: React.FC<EntryEditModalProps> = ({ entry, onClose }
                 value={breakMinutes}
                 onChange={(e) => setBreakMinutes(e.target.value)}
                 placeholder="0"
-                className="w-full px-3 py-2 border border-graphite/10 dark:border-white/10 rounded-md shadow-sm focus:outline-none focus-visible:ring-2 focus-visible:ring-signal sm:text-sm bg-stone dark:bg-graphite text-graphite dark:text-stone"
+                className="w-full px-3 py-2 border border-graphite/20 dark:border-white/20 rounded-md shadow-sm focus:outline-none focus-visible:ring-2 focus-visible:ring-signal sm:text-sm bg-white dark:bg-graphite text-graphite dark:text-stone"
               />
             </div>
           )}
@@ -271,9 +271,9 @@ export const EntryEditModal: React.FC<EntryEditModalProps> = ({ entry, onClose }
                 onChange={(e) => setManualAmount(e.target.value)}
                 placeholder="e.g. 150.00"
                 required={isFixedCost}
-                className="w-full px-3 py-2 border border-graphite/10 dark:border-white/10 rounded-md shadow-sm focus:outline-none focus-visible:ring-2 focus-visible:ring-signal sm:text-sm bg-stone dark:bg-graphite text-graphite dark:text-stone"
+                className="w-full px-3 py-2 border border-graphite/20 dark:border-white/20 rounded-md shadow-sm focus:outline-none focus-visible:ring-2 focus-visible:ring-signal sm:text-sm bg-white dark:bg-graphite text-graphite dark:text-stone"
               />
-              <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
+              <p className="text-xs text-gray-600 dark:text-gray-400 mt-1">
                 For non-time costs (e.g. materials, a flat fee). Overrides hourly-rate calculation on reports.
               </p>
             </div>
@@ -286,7 +286,7 @@ export const EntryEditModal: React.FC<EntryEditModalProps> = ({ entry, onClose }
               maxLength={2000}
               onChange={(e) => setNote(e.target.value)}
               rows={2}
-              className="w-full px-3 py-2 border border-graphite/10 dark:border-white/10 rounded-md shadow-sm focus:outline-none focus-visible:ring-2 focus-visible:ring-signal sm:text-sm bg-stone dark:bg-graphite text-graphite dark:text-stone"
+              className="w-full px-3 py-2 border border-graphite/20 dark:border-white/20 rounded-md shadow-sm focus:outline-none focus-visible:ring-2 focus-visible:ring-signal sm:text-sm bg-white dark:bg-graphite text-graphite dark:text-stone"
             />
           </div>
 
@@ -298,19 +298,19 @@ export const EntryEditModal: React.FC<EntryEditModalProps> = ({ entry, onClose }
               maxLength={500}
               onChange={(e) => setTagsStr(e.target.value)}
               placeholder="e.g. design, meeting, high-priority"
-              className="w-full px-3 py-2 border border-graphite/10 dark:border-white/10 rounded-md shadow-sm focus:outline-none focus-visible:ring-2 focus-visible:ring-signal sm:text-sm bg-stone dark:bg-graphite text-graphite dark:text-stone"
+              className="w-full px-3 py-2 border border-graphite/20 dark:border-white/20 rounded-md shadow-sm focus:outline-none focus-visible:ring-2 focus-visible:ring-signal sm:text-sm bg-white dark:bg-graphite text-graphite dark:text-stone"
             />
           </div>
 
           {error && (
-            <div className="flex items-center text-red-600 text-sm mt-2">
+            <div className="flex items-center text-rust dark:text-orange-300 text-sm mt-2">
               <AlertCircle className="w-4 h-4 mr-1" />
               {error}
             </div>
           )}
 
           {warning && (
-            <div className="flex items-center text-yellow-600 dark:text-yellow-200 text-sm mt-2 bg-yellow-50 dark:bg-yellow-900/50 p-2 rounded">
+            <div className="flex items-center text-signal-dim dark:text-signal text-sm mt-2 bg-signal/10 p-2 rounded">
               <AlertCircle className="w-4 h-4 mr-1 flex-shrink-0" />
               {warning}
             </div>
@@ -318,17 +318,17 @@ export const EntryEditModal: React.FC<EntryEditModalProps> = ({ entry, onClose }
         </div>
 
         {entry.pausedSegments && entry.pausedSegments.length > 0 && (
-          <div className="p-4 border-t border-graphite/10 dark:border-white/10">
+          <div className="p-4 border-t border-graphite/20 dark:border-white/20">
             <h4 className="text-sm font-medium text-graphite dark:text-stone mb-2">Pause History</h4>
             <div className="space-y-2 max-h-32 overflow-y-auto">
               {entry.pausedSegments.map((segment, idx) => (
-                <div key={idx} className="text-xs text-gray-600 dark:text-gray-400 bg-gray-50 dark:bg-gray-800/50 p-2 rounded flex justify-between">
+                <div key={idx} className="text-xs text-gray-600 dark:text-gray-400 bg-stone dark:bg-gray-800/50 p-2 rounded flex justify-between border border-graphite/10 dark:border-white/10">
                   <span>
-                    <span className="font-semibold">Paused:</span> {format(parseISO(segment.pauseStart), 'MMM d, h:mm:ss a')}
+                    <span className="font-semibold text-graphite dark:text-stone">Paused:</span> {format(parseISO(segment.pauseStart), 'MMM d, h:mm:ss a')}
                   </span>
                   <span>
                     {segment.pauseEnd ? (
-                      <><span className="font-semibold">Resumed:</span> {format(parseISO(segment.pauseEnd), 'MMM d, h:mm:ss a')}</>
+                      <><span className="font-semibold text-graphite dark:text-stone">Resumed:</span> {format(parseISO(segment.pauseEnd), 'MMM d, h:mm:ss a')}</>
                     ) : (
                       <span className="font-semibold text-signal-dim dark:text-signal">Ongoing</span>
                     )}
@@ -340,15 +340,15 @@ export const EntryEditModal: React.FC<EntryEditModalProps> = ({ entry, onClose }
         )}
 
         {entry.editHistory && entry.editHistory.length > 0 && (
-          <div className="p-4 border-t border-graphite/10 dark:border-white/10">
+          <div className="p-4 border-t border-graphite/20 dark:border-white/20">
             <h4 className="text-sm font-medium text-graphite dark:text-stone mb-2">Edit History</h4>
             <div className="space-y-2 max-h-32 overflow-y-auto">
               {entry.editHistory.map((change, idx) => (
-                <div key={idx} className="text-xs text-gray-600 dark:text-gray-400 bg-gray-50 dark:bg-gray-800/50 p-2 rounded">
+                <div key={idx} className="text-xs text-gray-600 dark:text-gray-400 bg-stone dark:bg-gray-800/50 p-2 rounded border border-graphite/10 dark:border-white/10">
                   <span className="font-semibold text-graphite dark:text-stone">{change.field}</span> changed at {format(new Date(change.editedAt), 'MMM d, h:mm a')}:
                   <div className="mt-1 flex flex-col gap-1">
-                    <div className="text-rust line-through truncate" title={String(change.oldValue)}>{String(change.oldValue) || '(empty)'}</div>
-                    <div className="text-verdigris truncate" title={String(change.newValue)}>{String(change.newValue) || '(empty)'}</div>
+                    <div className="text-rust dark:text-orange-300 line-through truncate" title={String(change.oldValue)}>{String(change.oldValue) || '(empty)'}</div>
+                    <div className="text-verdigris dark:text-emerald-400 truncate" title={String(change.newValue)}>{String(change.newValue) || '(empty)'}</div>
                   </div>
                 </div>
               ))}
@@ -356,7 +356,7 @@ export const EntryEditModal: React.FC<EntryEditModalProps> = ({ entry, onClose }
           </div>
         )}
 
-        <div className="bg-gray-50 dark:bg-gray-800/30 px-4 py-3 sm:px-6 flex flex-wrap flex-row-reverse gap-2">
+        <div className="bg-stone dark:bg-gray-800/30 px-4 py-3 sm:px-6 flex flex-wrap flex-row-reverse gap-2 border-t border-graphite/20 dark:border-white/20">
           <button
             onClick={handleSave}
             className="w-full inline-flex justify-center rounded-panel border border-transparent px-4 py-2 bg-graphite hover:bg-ink dark:bg-stone dark:hover:bg-gray-300 text-stone dark:text-ink text-base font-medium focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-signal sm:w-auto sm:text-sm transition-colors"
@@ -365,7 +365,7 @@ export const EntryEditModal: React.FC<EntryEditModalProps> = ({ entry, onClose }
           </button>
           <button
             onClick={onClose}
-            className="mt-3 sm:mt-0 w-full inline-flex justify-center rounded-panel border border-graphite/10 dark:border-white/10 px-4 py-2 bg-stone dark:bg-graphite text-graphite dark:text-stone text-base font-medium hover:bg-gray-50 dark:hover:bg-gray-800/50 focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-signal sm:w-auto sm:text-sm transition-colors"
+            className="mt-3 sm:mt-0 w-full inline-flex justify-center rounded-panel border border-graphite/20 dark:border-white/20 px-4 py-2 bg-white dark:bg-graphite text-graphite dark:text-stone text-base font-medium hover:bg-gray-100 dark:hover:bg-gray-800/50 focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-signal sm:w-auto sm:text-sm transition-colors"
           >
             Cancel
           </button>

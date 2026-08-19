@@ -132,7 +132,7 @@ export const TemplateList: React.FC = () => {
   return (
     <div className="w-full max-w-md mx-auto mt-8 mb-8">
       <div className="flex justify-between items-center mb-3">
-        <h3 className="text-sm font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider">
+        <h3 className="text-sm font-semibold text-gray-600 dark:text-gray-400 uppercase tracking-wider">
           Quick Log Templates
           <HelpTooltip text="One-click shortcuts. Set a fixed duration to instantly log a completed block, or leave duration off to start a live timer instead." />
         </h3>
@@ -145,7 +145,7 @@ export const TemplateList: React.FC = () => {
       </div>
 
       {templates.length === 0 ? (
-        <p className="text-sm text-gray-500 dark:text-gray-400 italic">No templates created. Add one to quickly log recurring tasks (like Standup or Admin time).</p>
+        <p className="text-sm text-gray-600 dark:text-gray-400 italic">No templates created. Add one to quickly log recurring tasks (like Standup or Admin time).</p>
       ) : (
         <div className="flex flex-wrap gap-2">
           {templates.map(template => {
@@ -155,7 +155,7 @@ export const TemplateList: React.FC = () => {
             return (
               <div
                 key={template.id}
-                className="group relative flex items-center bg-stone dark:bg-graphite border border-graphite/10 dark:border-white/10 rounded-full shadow-sm hover:shadow-md hover:border-signal/50 dark:hover:border-signal/50 transition-all cursor-pointer pr-1"
+                className="group relative flex items-center bg-white dark:bg-graphite border border-graphite/20 dark:border-white/20 rounded-full shadow-sm hover:shadow-md hover:border-signal/50 dark:hover:border-signal/50 transition-all cursor-pointer pr-1"
                 onClick={() => handleLogTemplate(template)}
                 onKeyDown={(e) => {
                   if (e.key === 'Enter' || e.key === ' ') {
@@ -172,13 +172,13 @@ export const TemplateList: React.FC = () => {
                   style={{ backgroundColor: tcColor }}
                 />
                 <span className="text-sm font-medium text-graphite dark:text-stone py-1.5 whitespace-nowrap">
-                  {template.title} {template.durationMinutes !== null ? <span className="text-gray-500 dark:text-gray-400 font-normal text-xs ml-1">({template.durationMinutes}m)</span> : <span className="text-signal-dim dark:text-signal font-normal text-xs ml-1">▶ Start</span>}
+                  {template.title} {template.durationMinutes !== null ? <span className="text-gray-600 dark:text-gray-400 font-normal text-xs ml-1">({template.durationMinutes}m)</span> : <span className="text-signal-dim dark:text-signal font-normal text-xs ml-1">▶ Start</span>}
                 </span>
 
                 <div className="flex items-center opacity-0 group-hover:opacity-100 transition-opacity ml-2">
                   <button
                     onClick={(e) => { e.stopPropagation(); handleOpenModal(template); }}
-                    className="p-1.5 text-gray-400 dark:text-gray-500 hover:text-signal-dim dark:hover:text-signal rounded-full focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-signal"
+                    className="p-1.5 text-gray-500 dark:text-gray-400 hover:text-signal-dim dark:hover:text-signal rounded-full focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-signal"
                     title="Edit template"
                     aria-label="Edit template"
                   >
@@ -186,7 +186,7 @@ export const TemplateList: React.FC = () => {
                   </button>
                   <button
                     onClick={(e) => handleDelete(e, template.id)}
-                    className="p-1.5 text-gray-400 dark:text-gray-500 hover:text-rust dark:hover:text-rust rounded-full mr-1 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-rust"
+                    className="p-1.5 text-gray-500 dark:text-gray-400 hover:text-rust dark:hover:text-rust rounded-full mr-1 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-rust"
                     title="Delete template"
                     aria-label="Delete template"
                   >
@@ -204,8 +204,8 @@ export const TemplateList: React.FC = () => {
         onClose={handleCloseModal}
         isDirty={isDirty}
       >
-        <div className="bg-stone dark:bg-graphite rounded-panel shadow-xl w-full max-w-md mx-4 max-h-[90vh] flex flex-col pointer-events-auto border border-graphite/10 dark:border-white/10">
-          <div className="flex justify-between items-center p-4 border-b border-graphite/10 dark:border-white/10">
+        <div className="bg-white dark:bg-graphite rounded-panel shadow-xl w-full max-w-md mx-4 max-h-[90vh] flex flex-col pointer-events-auto border border-graphite/20 dark:border-white/20">
+          <div className="flex justify-between items-center p-4 border-b border-graphite/20 dark:border-white/20">
             <h2 className="text-lg font-semibold text-graphite dark:text-stone">
               {editingTemplate ? "Edit Template" : "New Template"}
             </h2>
@@ -223,7 +223,7 @@ export const TemplateList: React.FC = () => {
               value={title}
               onChange={(e) => setTitle(e.target.value)}
               placeholder="e.g. Daily Standup"
-              className="w-full px-3 py-2 border border-graphite/10 dark:border-white/10 rounded-md bg-stone dark:bg-graphite text-graphite dark:text-stone focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-signal"
+              className="w-full px-3 py-2 border border-graphite/20 dark:border-white/20 rounded-md bg-white dark:bg-graphite text-graphite dark:text-stone focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-signal"
               required
             />
           </div>
@@ -240,7 +240,7 @@ export const TemplateList: React.FC = () => {
                 type="checkbox"
                 checked={isFixedDuration}
                 onChange={(e) => setIsFixedDuration(e.target.checked)}
-                className="rounded border-graphite/10 dark:border-white/10 text-signal focus:ring-signal"
+                className="rounded border-graphite/20 dark:border-white/20 text-signal focus:ring-signal"
               />
               <span>Fixed duration</span>
             </label>
@@ -251,7 +251,7 @@ export const TemplateList: React.FC = () => {
                 step="1"
                 value={durationMinutes}
                 onChange={(e) => setDurationMinutes(Math.max(1, Number(e.target.value)))}
-                className="w-full px-3 py-2 mt-1 border border-graphite/10 dark:border-white/10 rounded-md bg-stone dark:bg-graphite text-graphite dark:text-stone focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-signal"
+                className="w-full px-3 py-2 mt-1 border border-graphite/20 dark:border-white/20 rounded-md bg-white dark:bg-graphite text-graphite dark:text-stone focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-signal"
                 required={isFixedDuration}
               />
             )}
@@ -264,15 +264,15 @@ export const TemplateList: React.FC = () => {
               maxLength={2000}
               onChange={(e) => setNote(e.target.value)}
               placeholder="Default note for this entry"
-              className="w-full px-3 py-2 border border-graphite/10 dark:border-white/10 rounded-md bg-stone dark:bg-graphite text-graphite dark:text-stone focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-signal"
+              className="w-full px-3 py-2 border border-graphite/20 dark:border-white/20 rounded-md bg-white dark:bg-graphite text-graphite dark:text-stone focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-signal"
             />
           </div>
 
-              <div className="flex justify-end gap-2 pt-4 border-t border-graphite/10 dark:border-white/10 mt-4">
+              <div className="flex justify-end gap-2 pt-4 border-t border-graphite/20 dark:border-white/20 mt-4">
                 <button
                   type="button"
                   onClick={handleCloseModal}
-                  className="px-4 py-2 text-sm font-medium text-graphite dark:text-stone bg-gray-50 dark:bg-gray-800/30 border border-graphite/10 dark:border-white/10 rounded-md hover:bg-gray-100 dark:hover:bg-gray-800/50 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-signal"
+                  className="px-4 py-2 text-sm font-medium text-graphite dark:text-stone bg-white dark:bg-gray-800/30 border border-graphite/20 dark:border-white/20 rounded-md hover:bg-gray-100 dark:hover:bg-gray-800/50 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-signal"
                 >
                   Cancel
                 </button>

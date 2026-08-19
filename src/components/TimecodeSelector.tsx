@@ -176,7 +176,7 @@ export const TimecodeSelector: React.FC<TimecodeSelectorProps> = ({ onSelect, se
   return (
     <div className="relative w-full max-w-sm" onKeyDown={handleKeyDown}>
       <div
-        className="flex items-center justify-between px-3 py-2 bg-stone dark:bg-graphite border border-graphite/10 dark:border-white/10 rounded-md shadow-sm cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-800/50 focus-within:ring-2 focus-within:ring-signal focus-within:ring-offset-2 transition-colors"
+        className="flex items-center justify-between px-3 py-2 bg-white dark:bg-graphite border border-graphite/20 dark:border-white/20 rounded-md shadow-sm cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-800/50 focus-within:ring-2 focus-within:ring-signal focus-within:ring-offset-2 transition-colors"
         onClick={() => !isOpen && setIsOpen(true)}
       >
         <input
@@ -206,18 +206,18 @@ export const TimecodeSelector: React.FC<TimecodeSelectorProps> = ({ onSelect, se
                 onSelect('');
                 setSearch('');
               }}
-              className="p-1 rounded-full text-gray-400 hover:text-graphite dark:text-gray-500 dark:hover:text-stone focus:outline-none transition-colors"
+              className="p-1 rounded-full text-gray-500 hover:text-graphite dark:text-gray-400 dark:hover:text-stone focus:outline-none transition-colors"
               title="Clear selection"
             >
               <X size={16} />
             </button>
           )}
-          <ChevronDown size={18} className="text-gray-400 dark:text-gray-500" />
+          <ChevronDown size={18} className="text-gray-500 dark:text-gray-400" />
         </div>
       </div>
 
       {isOpen && (
-        <div id="timecode-listbox" role="listbox" className="absolute z-10 w-full mt-1 bg-stone dark:bg-graphite border border-graphite/10 dark:border-white/10 rounded-md shadow-lg max-h-96 overflow-y-auto">
+        <div id="timecode-listbox" role="listbox" className="absolute z-10 w-full mt-1 bg-white dark:bg-graphite border border-graphite/20 dark:border-white/20 rounded-md shadow-lg max-h-96 overflow-y-auto">
 
           {/* Backdrop for click outside */}
           <div className="fixed inset-0 z-[-1]" onClick={() => {
@@ -227,22 +227,22 @@ export const TimecodeSelector: React.FC<TimecodeSelectorProps> = ({ onSelect, se
           }}></div>
 
           {showAddForm ? (
-            <div className="p-4 bg-gray-50 dark:bg-gray-800/30 border-b border-graphite/10 dark:border-white/10">
+            <div className="p-4 bg-stone dark:bg-gray-800/30 border-b border-graphite/20 dark:border-white/20">
               <h4 className="text-sm font-medium text-graphite dark:text-stone mb-2">Create New Timecode</h4>
 
               <div className="mb-3">
-                <label className="block text-xs text-gray-500 dark:text-gray-400 mb-1">Name</label>
+                <label className="block text-xs text-gray-600 dark:text-gray-400 mb-1">Name</label>
                 <input
                   type="text"
                   value={search}
                   onChange={(e) => setSearch(e.target.value)}
                   autoFocus={true}
-                  className="w-full text-sm p-1.5 border border-graphite/10 dark:border-white/10 rounded bg-stone dark:bg-graphite text-graphite dark:text-stone focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-signal"
+                  className="w-full text-sm p-1.5 border border-graphite/20 dark:border-white/20 rounded bg-white dark:bg-graphite text-graphite dark:text-stone focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-signal"
                 />
               </div>
 
               <div className="mb-3">
-                <label className="block text-xs text-gray-500 dark:text-gray-400 mb-1">Color</label>
+                <label className="block text-xs text-gray-600 dark:text-gray-400 mb-1">Color</label>
                 <div className="flex gap-1 flex-wrap">
                   {COLORS.map(c => (
                     <button
@@ -259,7 +259,7 @@ export const TimecodeSelector: React.FC<TimecodeSelectorProps> = ({ onSelect, se
               </div>
 
               <div className="mb-3">
-                <label className="block text-xs text-gray-500 dark:text-gray-400 mb-1">Group (optional)</label>
+                <label className="block text-xs text-gray-600 dark:text-gray-400 mb-1">Group (optional)</label>
                 {creatingGroup ? (
                   <div className="flex gap-1.5">
                     <input
@@ -269,14 +269,14 @@ export const TimecodeSelector: React.FC<TimecodeSelectorProps> = ({ onSelect, se
                       onChange={(e) => setNewGroupName(e.target.value)}
                       onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); handleCreateGroupInline(); } }}
                       placeholder="New group name"
-                      className="flex-1 text-sm p-1.5 border border-graphite/10 dark:border-white/10 rounded bg-stone dark:bg-graphite text-graphite dark:text-stone focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-signal"
+                      className="flex-1 text-sm p-1.5 border border-graphite/20 dark:border-white/20 rounded bg-white dark:bg-graphite text-graphite dark:text-stone focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-signal"
                     />
                     <button type="button" onClick={handleCreateGroupInline} className="px-2 text-xs bg-graphite hover:bg-ink dark:bg-stone dark:hover:bg-gray-300 text-stone dark:text-ink rounded">Add</button>
-                    <button type="button" onClick={() => { setCreatingGroup(false); setNewGroupName(''); }} className="px-2 text-xs text-gray-500 dark:text-gray-400">✕</button>
+                    <button type="button" onClick={() => { setCreatingGroup(false); setNewGroupName(''); }} className="px-2 text-xs text-gray-600 dark:text-gray-400">✕</button>
                   </div>
                 ) : (
                   <select
-                    className="w-full text-sm p-1.5 border border-graphite/10 dark:border-white/10 rounded bg-stone dark:bg-graphite text-graphite dark:text-stone focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-signal"
+                    className="w-full text-sm p-1.5 border border-graphite/20 dark:border-white/20 rounded bg-white dark:bg-graphite text-graphite dark:text-stone focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-signal"
                     value={newGroupId}
                     onChange={(e) => {
                       if (e.target.value === '__new__') { setCreatingGroup(true); }
@@ -291,9 +291,9 @@ export const TimecodeSelector: React.FC<TimecodeSelectorProps> = ({ onSelect, se
               </div>
 
               <div className="mb-3">
-                <label className="block text-xs text-gray-500 dark:text-gray-400 mb-1">Hourly Rate (optional)</label>
+                <label className="block text-xs text-gray-600 dark:text-gray-400 mb-1">Hourly Rate (optional)</label>
                 <div className="relative">
-                  <span className="absolute left-2.5 top-1.5 text-gray-400 dark:text-gray-500">{currencySymbol}</span>
+                  <span className="absolute left-2.5 top-1.5 text-gray-500 dark:text-gray-400">{currencySymbol}</span>
                   <input
                     type="number"
                     min="0"
@@ -304,7 +304,7 @@ export const TimecodeSelector: React.FC<TimecodeSelectorProps> = ({ onSelect, se
                       const val = e.target.value;
                       setNewHourlyRate(val !== '' && Number(val) < 0 ? '0' : val);
                     }}
-                    className="w-full text-sm p-1.5 pl-6 border border-graphite/10 dark:border-white/10 rounded bg-stone dark:bg-graphite text-graphite dark:text-stone placeholder-gray-400 dark:placeholder-gray-500 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-signal"
+                    className="w-full text-sm p-1.5 pl-6 border border-graphite/20 dark:border-white/20 rounded bg-white dark:bg-graphite text-graphite dark:text-stone placeholder-gray-500 dark:placeholder-gray-400 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-signal"
                   />
                 </div>
               </div>
@@ -331,7 +331,7 @@ export const TimecodeSelector: React.FC<TimecodeSelectorProps> = ({ onSelect, se
                   id="option-create-new"
                   role="option"
                   aria-selected={activeId === 'create-new'}
-                  className={`w-full flex items-center gap-2 px-4 py-3 text-left text-signal-dim dark:text-signal border-b border-graphite/10 dark:border-white/10 transition-colors ${activeId === 'create-new' ? 'bg-signal/10' : 'hover:bg-signal/10'}`}
+                  className={`w-full flex items-center gap-2 px-4 py-3 text-left text-signal-dim dark:text-signal border-b border-graphite/20 dark:border-white/20 transition-colors ${activeId === 'create-new' ? 'bg-signal/10' : 'hover:bg-signal/10'}`}
                   onClick={() => setShowAddForm(true)}
                 >
                   <Plus size={16} />
@@ -340,15 +340,15 @@ export const TimecodeSelector: React.FC<TimecodeSelectorProps> = ({ onSelect, se
               )}
 
               {filteredTimecodes.length === 0 && !search && (
-                <div className="px-4 py-8 text-center text-gray-500 dark:text-gray-400 text-sm">
+                <div className="px-4 py-8 text-center text-gray-600 dark:text-gray-400 text-sm">
                   No timecodes yet. Type to create one.
                 </div>
               )}
 
 
               {recentTimecodes.length > 0 && (
-                <div className="py-1 border-b border-graphite/10 dark:border-white/10">
-                  <div className="px-3 py-1 text-xs font-semibold text-gray-400 dark:text-gray-500 uppercase tracking-wider flex items-center gap-1.5">
+                <div className="py-1 border-b border-graphite/20 dark:border-white/20">
+                  <div className="px-3 py-1 text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider flex items-center gap-1.5">
                     Recently Used
                   </div>
                   {recentTimecodes.map(tc => {
@@ -366,7 +366,7 @@ export const TimecodeSelector: React.FC<TimecodeSelectorProps> = ({ onSelect, se
                         <div className="flex items-center gap-2">
                           <div className="w-3 h-3 rounded-full" style={{ backgroundColor: color }}></div>
                           <span>{tc.name}</span>
-                          {group && <span className="text-xs text-gray-400 dark:text-gray-500 ml-1">in {group.name}</span>}
+                          {group && <span className="text-xs text-gray-500 dark:text-gray-400 ml-1">in {group.name}</span>}
                         </div>
                         {selectedId === tc.id && <Check size={16} className="text-signal-dim dark:text-signal" />}
                       </button>
@@ -379,7 +379,7 @@ export const TimecodeSelector: React.FC<TimecodeSelectorProps> = ({ onSelect, se
                 return (
                   <div key={gId || 'ungrouped'} className="py-1">
                     {group && (
-                      <div className="px-3 py-1 text-xs font-semibold text-gray-400 dark:text-gray-500 uppercase tracking-wider flex items-center gap-1.5">
+                      <div className="px-3 py-1 text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider flex items-center gap-1.5">
                         <div className="w-2 h-2 rounded-full" style={{ backgroundColor: group.color }}></div>
                         {group.name}
                       </div>
@@ -392,7 +392,7 @@ export const TimecodeSelector: React.FC<TimecodeSelectorProps> = ({ onSelect, se
                           id={`option-tc-${tc.id}`}
                           role="option"
                           aria-selected={activeId === `tc-${tc.id}`}
-                          className={`w-full flex items-center gap-2 px-4 py-2 text-left outline-none transition-colors ${activeId === `tc-${tc.id}` ? 'bg-gray-50 dark:bg-gray-800 text-signal-dim dark:text-signal' : 'text-graphite dark:text-stone hover:bg-gray-50 dark:hover:bg-gray-800 focus:bg-gray-50 dark:focus:bg-gray-800'}`}
+                          className={`w-full flex items-center gap-2 px-4 py-2 text-left outline-none transition-colors ${activeId === `tc-${tc.id}` ? 'bg-gray-100 dark:bg-gray-800 text-signal-dim dark:text-signal' : 'text-graphite dark:text-stone hover:bg-gray-100 dark:hover:bg-gray-800 focus:bg-gray-100 dark:focus:bg-gray-800'}`}
                           onClick={() => handleSelect(tc.id)}
                         >
                           <div className="w-3 h-3 rounded-full flex-shrink-0" style={{ backgroundColor: color }}></div>

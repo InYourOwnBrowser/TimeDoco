@@ -12,14 +12,14 @@ export const TimesheetView: React.FC = () => {
       <div className="flex justify-between items-end mb-8 border-b border-graphite/20 dark:border-white/20 pb-4">
         <div>
           <h1 className="text-2xl font-bold text-graphite dark:text-stone mb-1">Timesheet</h1>
-          <p className="text-sm text-gray-500 dark:text-gray-400">Overview and manual time entry</p>
+          <p className="text-sm text-gray-600 dark:text-gray-400">Overview and manual time entry</p>
         </div>
-        <div className="flex bg-stone dark:bg-graphite p-1 rounded-panel border border-graphite/20 dark:border-white/20 shadow-sm">
+        <div className="flex bg-white dark:bg-graphite p-1 rounded-panel border border-graphite/20 dark:border-white/20 shadow-sm">
           <Button
             variant="ghost"
             size="sm"
             onClick={() => setViewMode('calendar')}
-            className={viewMode === 'calendar' ? 'bg-signal/10 text-signal-dim dark:text-signal font-semibold' : 'text-gray-500 dark:text-gray-400'}
+            className={viewMode === 'calendar' ? 'bg-signal/10 text-signal-dim dark:text-signal font-semibold' : 'text-gray-600 dark:text-gray-400'}
           >
             <CalendarDays size={16} className="mr-2" />
             Calendar
@@ -28,7 +28,7 @@ export const TimesheetView: React.FC = () => {
             variant="ghost"
             size="sm"
             onClick={() => setViewMode('matrix')}
-            className={viewMode === 'matrix' ? 'bg-signal/10 text-signal-dim dark:text-signal font-semibold' : 'text-gray-500 dark:text-gray-400'}
+            className={viewMode === 'matrix' ? 'bg-signal/10 text-signal-dim dark:text-signal font-semibold' : 'text-gray-600 dark:text-gray-400'}
           >
             <Grid3x3 size={16} className="mr-2" />
             Matrix

@@ -58,7 +58,7 @@ export const TimesheetCalendarView: React.FC = () => {
 
       <div className="grid grid-cols-7 gap-1 mb-2">
         {['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'].map(day => (
-          <div key={day} className="text-center text-sm font-medium text-gray-500 dark:text-gray-400 py-2">
+          <div key={day} className="text-center text-sm font-medium text-gray-600 dark:text-gray-400 py-2">
             {day}
           </div>
         ))}
@@ -73,9 +73,9 @@ export const TimesheetCalendarView: React.FC = () => {
             <div
               key={day.toISOString()}
               onClick={() => setSelectedDayEntries(isSelected ? null : day)}
-              className={`min-h-[80px] p-2 border rounded-md flex flex-col justify-between transition-colors cursor-pointer hover:border-signal/50 ${isSelected ? 'border-signal ring-1 ring-signal' : 'border-graphite/10 dark:border-white/10'} ${!isCurrentMonth ? 'opacity-40 bg-gray-50 dark:bg-gray-800/20' : 'bg-stone dark:bg-graphite'} ${isToday(day) && !isSelected ? 'ring-2 ring-signal ring-inset' : ''} ${isCurrentMonth ? getIntensityColor(hours) : ''}`}
+              className={`min-h-[80px] p-2 border rounded-md flex flex-col justify-between transition-colors cursor-pointer hover:border-signal/50 ${isSelected ? 'border-signal ring-1 ring-signal' : 'border-graphite/20 dark:border-white/20'} ${!isCurrentMonth ? 'opacity-40 bg-gray-50 dark:bg-gray-800/20' : 'bg-white dark:bg-graphite'} ${isToday(day) && !isSelected ? 'ring-2 ring-signal ring-inset' : ''} ${isCurrentMonth ? getIntensityColor(hours) : ''}`}
             >
-              <div className={`text-sm font-medium ${isToday(day) ? 'text-signal-dim dark:text-signal' : 'text-gray-500 dark:text-gray-400'}`}>
+              <div className={`text-sm font-medium ${isToday(day) ? 'text-signal-dim dark:text-signal' : 'text-gray-600 dark:text-gray-400'}`}>
                 {format(day, 'd')}
               </div>
               {hours > 0 && (
@@ -91,25 +91,25 @@ export const TimesheetCalendarView: React.FC = () => {
       {selectedDayEntries && (() => {
         const dayEntries = entries.filter(e => format(parseISO(e.startTime), 'yyyy-MM-dd') === format(selectedDayEntries, 'yyyy-MM-dd'));
         return (
-          <div className="mt-6 p-4 bg-stone dark:bg-graphite border border-graphite/10 dark:border-white/10 rounded-panel">
+          <div className="mt-6 p-4 bg-white dark:bg-graphite border border-graphite/20 dark:border-white/20 rounded-panel">
             <h3 className="text-lg font-semibold text-graphite dark:text-stone mb-4 flex justify-between items-center">
               <span>Entries for {format(selectedDayEntries, 'MMMM d, yyyy')}</span>
               <Button variant="ghost" size="sm" onClick={() => setSelectedDayEntries(null)}>Close</Button>
             </h3>
             <div className="space-y-2">
               {dayEntries.length === 0 ? (
-                <p className="text-sm text-gray-500 dark:text-gray-400 italic">No entries for this day.</p>
+                <p className="text-sm text-gray-600 dark:text-gray-400 italic">No entries for this day.</p>
               ) : (
                 dayEntries.map(entry => {
                   const tc = timecodes.find(t => t.id === entry.timecodeId);
                   return (
-                    <div key={entry.id} className="flex justify-between items-center bg-gray-50 dark:bg-gray-800/30 p-2 rounded text-sm border border-graphite/5 dark:border-white/5">
+                    <div key={entry.id} className="flex justify-between items-center bg-stone dark:bg-gray-800/30 p-2 rounded text-sm border border-graphite/10 dark:border-white/10">
                       <div className="flex flex-col">
                         <span className="font-medium text-graphite dark:text-stone flex items-center gap-1.5">
                           <span className="w-2 h-2 rounded-full shrink-0" style={{ backgroundColor: tc?.color || '#9ca3af' }} />
                           {tc?.name ?? 'Unknown'}
                         </span>
-                        <span className="text-xs text-gray-500 dark:text-gray-400">
+                        <span className="text-xs text-gray-600 dark:text-gray-400">
                           {format(parseISO(entry.startTime), 'h:mm a')} - {entry.endTime ? format(parseISO(entry.endTime), 'h:mm a') : 'Now'}
                           {entry.note ? ` · ${entry.note}` : ''}
                         </span>

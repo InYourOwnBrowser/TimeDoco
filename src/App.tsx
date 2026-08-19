@@ -171,7 +171,7 @@ const AppContent = () => {
           )}
           <button
             onClick={() => exportData()}
-            className="p-2 text-gray-500 dark:text-gray-400 hover:text-gray-800 dark:hover:text-gray-200 hover:bg-gray-200/60 dark:hover:bg-gray-800/60 rounded-panel transition-colors focus-visible:ring-2 focus-visible:ring-signal focus-visible:ring-offset-2"
+            className="p-2 text-gray-600 dark:text-gray-400 hover:text-gray-800 dark:hover:text-gray-200 hover:bg-gray-200/60 dark:hover:bg-gray-800/60 rounded-panel transition-colors focus-visible:ring-2 focus-visible:ring-signal focus-visible:ring-offset-2"
             aria-label="Backup data"
             title="Backup data"
           >
@@ -179,7 +179,7 @@ const AppContent = () => {
           </button>
           <button
             onClick={() => setIsSettingsOpen(true)}
-            className="p-2 text-gray-500 dark:text-gray-400 hover:text-gray-800 dark:hover:text-gray-200 hover:bg-gray-200/60 dark:hover:bg-gray-800/60 rounded-panel transition-colors focus-visible:ring-2 focus-visible:ring-signal focus-visible:ring-offset-2"
+            className="p-2 text-gray-600 dark:text-gray-400 hover:text-gray-800 dark:hover:text-gray-200 hover:bg-gray-200/60 dark:hover:bg-gray-800/60 rounded-panel transition-colors focus-visible:ring-2 focus-visible:ring-signal focus-visible:ring-offset-2"
             aria-label="Settings"
             title="Settings"
           >
@@ -199,10 +199,10 @@ const AppContent = () => {
 
         <header className="mb-8 text-center">
           <Logo className="h-20 w-auto mx-auto mb-2" />
-          <p className="text-gray-500 dark:text-gray-400 mb-6">100% Client-Side. Privacy First.</p>
+          <p className="text-gray-600 dark:text-gray-400 mb-6">100% Client-Side. Privacy First.</p>
 
           <div className="flex justify-center mb-4 w-full px-4 sm:px-0">
-            <div className="bg-stone dark:bg-graphite p-1 rounded-panel flex w-full sm:w-auto overflow-x-auto hide-scrollbar border border-graphite/20 dark:border-white/20 shadow-sm gap-1">
+            <div className="bg-white dark:bg-graphite p-1 rounded-panel flex w-full sm:w-auto overflow-x-auto hide-scrollbar border border-graphite/20 dark:border-white/20 shadow-sm gap-1">
               <button
                 onClick={() => setActiveTab('tracker')}
                 className={`flex-1 sm:flex-none flex items-center justify-center sm:justify-start px-3.5 sm:px-4 py-2 text-sm font-medium transition-colors rounded-panel focus-visible:ring-2 focus-visible:ring-signal focus-visible:ring-offset-2 ring-offset-stone dark:ring-offset-ink ${
@@ -285,7 +285,7 @@ const AppContent = () => {
               {activeEntries.length > 0 && !showNewTimer && settings?.allowConcurrentTimers && (
                 <button
                   onClick={() => setShowNewTimer(true)}
-                  className="mb-8 px-4 py-2 text-sm font-medium text-graphite/60 dark:text-stone/60 bg-gray-50 dark:bg-gray-800/30 hover:bg-gray-100 dark:hover:bg-gray-800/50 rounded-panel transition-colors border border-graphite/20 dark:border-white/20 focus-visible:ring-2 focus-visible:ring-signal focus-visible:ring-offset-2"
+                  className="mb-8 px-4 py-2 text-sm font-medium text-graphite/80 dark:text-stone/80 bg-white dark:bg-gray-800/30 hover:bg-gray-100 dark:hover:bg-gray-800/50 rounded-panel transition-colors border border-graphite/20 dark:border-white/20 focus-visible:ring-2 focus-visible:ring-signal focus-visible:ring-offset-2"
                 >
                   + Start Another Timer
                 </button>

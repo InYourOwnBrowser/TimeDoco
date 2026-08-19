@@ -55,7 +55,7 @@ export const WeeklySummary: React.FC = () => {
 
   if (!targetHours) {
     return (
-      <div className="w-full max-w-md mx-auto mt-6 bg-stone dark:bg-graphite p-5 rounded-panel shadow-sm border border-graphite/20 dark:border-white/20 text-center text-sm text-gray-500 dark:text-gray-400">
+      <div className="w-full max-w-md mx-auto mt-6 bg-white dark:bg-graphite p-5 rounded-panel shadow-sm border border-graphite/20 dark:border-white/20 text-center text-sm text-gray-600 dark:text-gray-400">
         Set a weekly target in Settings to track your goal progress.
       </div>
     );
@@ -64,7 +64,7 @@ export const WeeklySummary: React.FC = () => {
   const progress = Math.min((weeklyData / targetHours) * 100, 100);
 
   return (
-    <div className="w-full max-w-md mx-auto mt-6 bg-stone dark:bg-graphite p-5 rounded-panel shadow-sm border border-graphite/20 dark:border-white/20 transition-colors">
+    <div className="w-full max-w-md mx-auto mt-6 bg-white dark:bg-graphite p-5 rounded-panel shadow-sm border border-graphite/20 dark:border-white/20 transition-colors">
       <div className="flex items-center justify-between mb-3">
         <div className="flex items-center gap-2">
           <Target size={18} className="text-signal-dim dark:text-signal" />
@@ -77,7 +77,7 @@ export const WeeklySummary: React.FC = () => {
         </div>
       </div>
 
-      <div className="w-full bg-gray-200/80 dark:bg-gray-800 rounded-full h-2.5 overflow-hidden">
+      <div className="w-full bg-stone dark:bg-gray-800 rounded-full h-2.5 overflow-hidden">
         <div
           className={`h-2.5 rounded-full transition-all duration-500 ease-out ${
             weeklyData >= targetHours ? 'bg-verdigris' : 'bg-signal'
