@@ -130,15 +130,15 @@ export const TimesheetMatrixView: React.FC = () => {
         </div>
       </div>
 
-      <Panel className="min-w-[800px] overflow-hidden border border-graphite/10 dark:border-white/10">
+      <Panel className="min-w-[800px] overflow-hidden border border-graphite/20 dark:border-white/20">
         <table className="w-full text-sm text-left">
-          <thead className="bg-gray-50 dark:bg-gray-800/50 border-b border-graphite/10 dark:border-white/10">
+          <thead className="bg-gray-50 dark:bg-gray-800/50 border-b border-graphite/20 dark:border-white/20">
             <tr>
-              <th className="px-4 py-3 font-semibold text-gray-500 w-1/4">Timecode</th>
+              <th className="px-4 py-3 font-semibold text-gray-500 dark:text-gray-400 w-1/4">Timecode</th>
               {weekDays.map(day => (
-                <th key={day.toISOString()} className="px-2 py-3 font-semibold text-gray-500 text-center w-24">
+                <th key={day.toISOString()} className="px-2 py-3 font-semibold text-gray-500 dark:text-gray-400 text-center w-24">
                   <div>{format(day, 'EEE')}</div>
-                  <div className="text-xs font-normal">{format(day, 'MMM d')}</div>
+                  <div className="text-xs font-normal text-gray-500 dark:text-gray-400">{format(day, 'MMM d')}</div>
                 </th>
               ))}
               <th className="px-4 py-3 font-bold text-graphite dark:text-stone text-right w-24">Total</th>
@@ -149,7 +149,7 @@ export const TimesheetMatrixView: React.FC = () => {
               <React.Fragment key={group.id}>
                 {group.id !== 'unassigned' && (
                   <tr className="bg-gray-50/50 dark:bg-gray-800/30">
-                    <td colSpan={9} className="px-4 py-2 font-medium text-xs uppercase tracking-wider text-gray-500 flex items-center">
+                    <td colSpan={9} className="px-4 py-2 font-medium text-xs uppercase tracking-wider text-gray-500 dark:text-gray-400 flex items-center">
                       <div className="w-2 h-2 rounded-full mr-2" style={{ backgroundColor: group.color }}></div>
                       {group.name}
                     </td>
@@ -177,7 +177,7 @@ export const TimesheetMatrixView: React.FC = () => {
                               commitCell(tc.id, day, 0);
                             }
                           }}
-                          className="w-full text-center p-1.5 bg-transparent border border-transparent hover:border-graphite/20 dark:hover:border-white/20 focus-visible:ring-2 focus-visible:ring-signal focus-visible:ring-offset-2 rounded tabular-nums focus:outline-none focus:bg-stone dark:focus:bg-graphite transition-all text-graphite dark:text-stone"
+                          className="w-full text-center p-1.5 bg-transparent border border-transparent hover:border-graphite/20 dark:hover:border-white/20 focus-visible:ring-2 focus-visible:ring-signal focus-visible:ring-offset-2 ring-offset-stone dark:ring-offset-graphite rounded tabular-nums focus:outline-none focus:bg-stone dark:focus:bg-graphite transition-all text-graphite dark:text-stone"
                           placeholder="-"
                         />
                       </td>
@@ -210,7 +210,7 @@ export const TimesheetMatrixView: React.FC = () => {
           <select
             value=""
             onChange={(e) => { if (e.target.value) setManuallyShownIds(prev => new Set(prev).add(e.target.value)); }}
-            className="text-sm px-3 py-1.5 border border-graphite/10 dark:border-white/10 rounded bg-stone dark:bg-ink text-graphite dark:text-stone"
+            className="text-sm px-3 py-1.5 border border-graphite/20 dark:border-white/20 rounded bg-stone dark:bg-graphite text-graphite dark:text-stone"
           >
             <option value="">+ Add a timecode to this week…</option>
             {hiddenTimecodes.map(tc => <option key={tc.id} value={tc.id}>{tc.name}</option>)}

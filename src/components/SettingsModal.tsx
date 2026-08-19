@@ -266,33 +266,33 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ onClose }) => {
 
   return (
     <Modal onClose={onClose}>
-      <div className="bg-stone dark:bg-ink rounded-panel shadow-inner border border-graphite/10 dark:border-white/10 w-full max-w-md max-h-[90vh] overflow-hidden flex flex-col">
-        <div className="px-6 py-4 border-b border-graphite/10 dark:border-white/10 flex justify-between items-center bg-stone dark:bg-ink">
+      <div className="bg-stone dark:bg-graphite rounded-panel shadow-xl border border-graphite/20 dark:border-white/20 w-full max-w-md max-h-[90vh] overflow-hidden flex flex-col">
+        <div className="px-6 py-4 border-b border-graphite/20 dark:border-white/20 flex justify-between items-center bg-stone dark:bg-graphite">
           <div className="flex items-center gap-3">
             <h2 className="text-lg font-semibold font-sans text-graphite dark:text-stone">Settings & Data Management</h2>
-            {justSaved && <span className="text-xs font-medium text-verdigris transition-opacity duration-300">Saved</span>}
+            {justSaved && <span className="text-xs font-medium text-verdigris dark:text-emerald-400 transition-opacity duration-300">Saved</span>}
           </div>
-          <button onClick={onClose} aria-label="Close" className="text-gray-400 dark:text-gray-500 hover:text-graphite dark:hover:text-stone transition-colors focus-visible:ring-2 focus-visible:ring-signal focus-visible:ring-offset-2 rounded-full p-1">
+          <button onClick={onClose} aria-label="Close" className="text-gray-400 dark:text-gray-500 hover:text-graphite dark:hover:text-stone transition-colors focus-visible:ring-2 focus-visible:ring-signal focus-visible:ring-offset-2 ring-offset-stone dark:ring-offset-graphite rounded-full p-1">
             <X size={20} />
           </button>
         </div>
 
-        <div className="flex border-b border-graphite/10 dark:border-white/10 shrink-0 bg-stone dark:bg-ink">
+        <div className="flex border-b border-graphite/20 dark:border-white/20 shrink-0 bg-stone dark:bg-graphite">
           <button
             onClick={() => setActiveTab('general')}
-            className={`flex-1 py-2 text-sm font-medium text-center transition-colors focus-visible:ring-2 focus-visible:ring-signal focus-visible:ring-offset-2 ${activeTab === 'general' ? 'border-b-2 border-signal text-signal-dim dark:text-signal' : 'border-b-2 border-transparent text-gray-500 dark:text-gray-400 hover:text-graphite dark:hover:text-stone'}`}
+            className={`flex-1 py-2 text-sm font-medium text-center transition-colors focus-visible:ring-2 focus-visible:ring-signal focus-visible:ring-offset-2 ring-offset-stone dark:ring-offset-graphite ${activeTab === 'general' ? 'border-b-2 border-signal text-signal-dim dark:text-signal font-semibold' : 'border-b-2 border-transparent text-gray-500 dark:text-gray-400 hover:text-graphite dark:hover:text-stone'}`}
           >
             General
           </button>
           <button
             onClick={() => setActiveTab('data')}
-            className={`flex-1 py-2 text-sm font-medium text-center transition-colors focus-visible:ring-2 focus-visible:ring-signal focus-visible:ring-offset-2 ${activeTab === 'data' ? 'border-b-2 border-signal text-signal-dim dark:text-signal' : 'border-b-2 border-transparent text-gray-500 dark:text-gray-400 hover:text-graphite dark:hover:text-stone'}`}
+            className={`flex-1 py-2 text-sm font-medium text-center transition-colors focus-visible:ring-2 focus-visible:ring-signal focus-visible:ring-offset-2 ring-offset-stone dark:ring-offset-graphite ${activeTab === 'data' ? 'border-b-2 border-signal text-signal-dim dark:text-signal font-semibold' : 'border-b-2 border-transparent text-gray-500 dark:text-gray-400 hover:text-graphite dark:hover:text-stone'}`}
           >
             Data
           </button>
           <button
             onClick={() => setActiveTab('trash')}
-            className={`flex-1 py-2 text-sm font-medium text-center transition-colors focus-visible:ring-2 focus-visible:ring-signal focus-visible:ring-offset-2 ${activeTab === 'trash' ? 'border-b-2 border-signal text-signal-dim dark:text-signal' : 'border-b-2 border-transparent text-gray-500 dark:text-gray-400 hover:text-graphite dark:hover:text-stone'}`}
+            className={`flex-1 py-2 text-sm font-medium text-center transition-colors focus-visible:ring-2 focus-visible:ring-signal focus-visible:ring-offset-2 ring-offset-stone dark:ring-offset-graphite ${activeTab === 'trash' ? 'border-b-2 border-signal text-signal-dim dark:text-signal font-semibold' : 'border-b-2 border-transparent text-gray-500 dark:text-gray-400 hover:text-graphite dark:hover:text-stone'}`}
           >
             Trash
           </button>
@@ -318,7 +318,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ onClose }) => {
                 <select
                   value={settings?.theme || 'system'}
                   onChange={(e) => handleUpdateSettings({ theme: e.target.value as 'light' | 'dark' | 'system' })}
-                  className="px-3 py-1.5 border border-graphite/10 dark:border-white/10 rounded outline-none focus-visible:ring-2 focus-visible:ring-signal text-sm bg-stone dark:bg-graphite text-graphite dark:text-stone"
+                  className="px-3 py-1.5 border border-graphite/20 dark:border-white/20 rounded outline-none focus-visible:ring-2 focus-visible:ring-signal text-sm bg-stone dark:bg-graphite text-graphite dark:text-stone"
                 >
                   <option value="light">Light</option>
                   <option value="dark">Dark</option>
@@ -335,7 +335,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ onClose }) => {
                     type="checkbox"
                     checked={settings?.allowConcurrentTimers || false}
                     onChange={(e) => handleUpdateSettings({ allowConcurrentTimers: e.target.checked })}
-                    className="w-4 h-4 text-signal rounded border-graphite/10 dark:border-white/10 focus:ring-signal"
+                    className="w-4 h-4 text-signal rounded border-graphite/20 dark:border-white/20 focus:ring-signal"
                   />
                   <span className="text-sm font-medium text-graphite dark:text-stone">Allow Multiple Concurrent Timers</span>
                   <HelpTooltip text="Run more than one timer at once, e.g. tracking a call while a background task is still running." />
@@ -358,7 +358,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ onClose }) => {
                   value={settings?.preparerName ?? ''}
                   onChange={(e) => handleUpdateSettings({ preparerName: e.target.value })}
                   placeholder="Jane Smith"
-                  className="w-48 px-3 py-1.5 border border-graphite/10 dark:border-white/10 rounded outline-none focus-visible:ring-2 focus-visible:ring-signal text-sm bg-stone dark:bg-graphite text-graphite dark:text-stone"
+                  className="w-48 px-3 py-1.5 border border-graphite/20 dark:border-white/20 rounded outline-none focus-visible:ring-2 focus-visible:ring-signal text-sm bg-stone dark:bg-graphite text-graphite dark:text-stone"
                 />
               </div>
               <div className="flex items-center justify-between mb-4">
@@ -368,7 +368,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ onClose }) => {
                   value={settings?.preparerCompany ?? ''}
                   onChange={(e) => handleUpdateSettings({ preparerCompany: e.target.value })}
                   placeholder="Acme Freelancing LLC"
-                  className="w-48 px-3 py-1.5 border border-graphite/10 dark:border-white/10 rounded outline-none focus-visible:ring-2 focus-visible:ring-signal text-sm bg-stone dark:bg-graphite text-graphite dark:text-stone"
+                  className="w-48 px-3 py-1.5 border border-graphite/20 dark:border-white/20 rounded outline-none focus-visible:ring-2 focus-visible:ring-signal text-sm bg-stone dark:bg-graphite text-graphite dark:text-stone"
                 />
               </div>
               <div className="flex items-center justify-between mb-4">
@@ -382,7 +382,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ onClose }) => {
                   value={settings?.currencySymbol ?? ''}
                   onChange={(e) => handleUpdateSettings({ currencySymbol: e.target.value })}
                   placeholder="$"
-                  className="w-16 px-3 py-1.5 border border-graphite/10 dark:border-white/10 rounded outline-none focus-visible:ring-2 focus-visible:ring-signal text-sm bg-stone dark:bg-graphite text-graphite dark:text-stone text-center"
+                  className="w-16 px-3 py-1.5 border border-graphite/20 dark:border-white/20 rounded outline-none focus-visible:ring-2 focus-visible:ring-signal text-sm bg-stone dark:bg-graphite text-graphite dark:text-stone text-center"
                 />
               </div>
                 <div className="mb-4">
@@ -392,7 +392,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ onClose }) => {
                   </label>
                   {settings?.userLogoBase64 ? (
                     <div className="flex items-center gap-3">
-                      <img src={settings.userLogoBase64} alt="Your logo" className="h-12 max-w-[160px] object-contain bg-white rounded border border-graphite/10 p-1" />
+                      <img src={settings.userLogoBase64} alt="Your logo" className="h-12 max-w-[160px] object-contain bg-white rounded border border-graphite/20 p-1" />
                       <button onClick={() => handleUpdateSettings({ userLogoBase64: null })} className="text-sm text-rust hover:underline">Remove</button>
                     </div>
                   ) : (
@@ -418,7 +418,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ onClose }) => {
                         updated[i] = { ...updated[i], label: e.target.value };
                         handleUpdateSettings({ customFields: updated });
                       }}
-                      className="w-32 px-2 py-1.5 text-sm border border-graphite/10 dark:border-white/10 rounded bg-stone dark:bg-graphite text-graphite dark:text-stone"
+                      className="w-32 px-2 py-1.5 text-sm border border-graphite/20 dark:border-white/20 rounded bg-stone dark:bg-graphite text-graphite dark:text-stone"
                     />
                     <input
                       type="text" value={field.value} placeholder="Value"
@@ -427,7 +427,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ onClose }) => {
                         updated[i] = { ...updated[i], value: e.target.value };
                         handleUpdateSettings({ customFields: updated });
                       }}
-                      className="flex-1 px-2 py-1.5 text-sm border border-graphite/10 dark:border-white/10 rounded bg-stone dark:bg-graphite text-graphite dark:text-stone"
+                      className="flex-1 px-2 py-1.5 text-sm border border-graphite/20 dark:border-white/20 rounded bg-stone dark:bg-graphite text-graphite dark:text-stone"
                     />
                     <button onClick={() => handleUpdateSettings({ customFields: (settings?.customFields || []).filter((_, j) => j !== i) })} className="text-gray-400 hover:text-rust" aria-label="Remove field">
                       <X size={16} />
@@ -451,7 +451,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ onClose }) => {
                     type="checkbox"
                     checked={settings?.taxEnabled || false}
                     onChange={(e) => handleUpdateSettings({ taxEnabled: e.target.checked })}
-                    className="w-4 h-4 text-signal rounded border-graphite/10 dark:border-white/10 focus:ring-signal"
+                    className="w-4 h-4 text-signal rounded border-graphite/20 dark:border-white/20 focus:ring-signal"
                   />
                   <span className="text-sm font-medium text-graphite dark:text-stone">Enable Tax</span>
                   <HelpTooltip text="Adds before/after-tax totals to earnings and PDF reports." />
@@ -466,7 +466,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ onClose }) => {
                       value={settings?.taxLabel ?? ''}
                       onChange={(e) => handleUpdateSettings({ taxLabel: e.target.value })}
                       placeholder="Tax"
-                      className="w-32 px-3 py-1.5 border border-graphite/10 dark:border-white/10 rounded outline-none focus-visible:ring-2 focus-visible:ring-signal text-sm bg-stone dark:bg-graphite text-graphite dark:text-stone"
+                      className="w-32 px-3 py-1.5 border border-graphite/20 dark:border-white/20 rounded outline-none focus-visible:ring-2 focus-visible:ring-signal text-sm bg-stone dark:bg-graphite text-graphite dark:text-stone"
                     />
                   </div>
                   <div className="flex items-center justify-between mb-4">
@@ -478,7 +478,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ onClose }) => {
                       value={settings?.taxRate ?? ''}
                       onChange={(e) => handleUpdateSettings({ taxRate: e.target.value === '' ? null : parseFloat(e.target.value) })}
                       placeholder="15"
-                      className="w-24 px-3 py-1.5 border border-graphite/10 dark:border-white/10 rounded outline-none focus-visible:ring-2 focus-visible:ring-signal text-sm bg-stone dark:bg-graphite text-graphite dark:text-stone text-right"
+                      className="w-24 px-3 py-1.5 border border-graphite/20 dark:border-white/20 rounded outline-none focus-visible:ring-2 focus-visible:ring-signal text-sm bg-stone dark:bg-graphite text-graphite dark:text-stone text-right"
                     />
                   </div>
                   <div className="mb-4">
@@ -486,7 +486,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ onClose }) => {
                       Your hourly rates are
                       <HelpTooltip text="Exclusive: tax is added on top of your rate. Inclusive: your rate already includes tax." />
                     </label>
-                    <div className="flex gap-4 text-sm">
+                    <div className="flex gap-4 text-sm text-graphite dark:text-stone">
                       <label className="flex items-center gap-1.5 cursor-pointer">
                         <input type="radio" checked={!settings?.taxInclusive} onChange={() => handleUpdateSettings({ taxInclusive: false })} className="text-signal focus:ring-signal" />
                         Exclusive of tax
@@ -511,7 +511,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ onClose }) => {
                   value={settings?.weeklyTargetHours ?? ''}
                   onChange={(e) => handleUpdateSettings({ weeklyTargetHours: e.target.value ? Math.max(0, Number(e.target.value)) : null })}
                   placeholder="e.g. 40"
-                  className="w-24 px-3 py-1.5 border border-graphite/10 dark:border-white/10 rounded outline-none focus-visible:ring-2 focus-visible:ring-signal text-sm bg-stone dark:bg-graphite text-graphite dark:text-stone"
+                  className="w-24 px-3 py-1.5 border border-graphite/20 dark:border-white/20 rounded outline-none focus-visible:ring-2 focus-visible:ring-signal text-sm bg-stone dark:bg-graphite text-graphite dark:text-stone"
                 />
               </div>
               <div className="flex items-center justify-between mb-4">
@@ -525,7 +525,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ onClose }) => {
                   value={settings?.targetAlertMinutes ?? ''}
                   onChange={(e) => handleUpdateSettings({ targetAlertMinutes: e.target.value ? Math.max(0, Number(e.target.value)) : null })}
                   placeholder="e.g. 25"
-                  className="w-24 px-3 py-1.5 border border-graphite/10 dark:border-white/10 rounded outline-none focus-visible:ring-2 focus-visible:ring-signal text-sm bg-stone dark:bg-graphite text-graphite dark:text-stone"
+                  className="w-24 px-3 py-1.5 border border-graphite/20 dark:border-white/20 rounded outline-none focus-visible:ring-2 focus-visible:ring-signal text-sm bg-stone dark:bg-graphite text-graphite dark:text-stone"
                 />
               </div>
               <div className="flex items-center justify-between mb-4">
@@ -539,7 +539,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ onClose }) => {
                   value={settings?.idleThresholdMinutes ?? ''}
                   onChange={(e) => handleUpdateSettings({ idleThresholdMinutes: e.target.value ? Math.max(1, Number(e.target.value)) : null })}
                   placeholder="Off"
-                  className="w-24 px-3 py-1.5 border border-graphite/10 dark:border-white/10 rounded outline-none focus-visible:ring-2 focus-visible:ring-signal text-sm bg-stone dark:bg-graphite text-graphite dark:text-stone"
+                  className="w-24 px-3 py-1.5 border border-graphite/20 dark:border-white/20 rounded outline-none focus-visible:ring-2 focus-visible:ring-signal text-sm bg-stone dark:bg-graphite text-graphite dark:text-stone"
                 />
               </div>
               <div className="flex items-center justify-between mb-4">
@@ -549,7 +549,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ onClose }) => {
                   min="1"
                   value={settings?.reminderIntervalDays ?? 7}
                   onChange={(e) => handleUpdateSettings({ reminderIntervalDays: Math.max(1, Number(e.target.value)) })}
-                  className="w-24 px-3 py-1.5 border border-graphite/10 dark:border-white/10 rounded outline-none focus-visible:ring-2 focus-visible:ring-signal text-sm bg-stone dark:bg-graphite text-graphite dark:text-stone"
+                  className="w-24 px-3 py-1.5 border border-graphite/20 dark:border-white/20 rounded outline-none focus-visible:ring-2 focus-visible:ring-signal text-sm bg-stone dark:bg-graphite text-graphite dark:text-stone"
                 />
               </div>
               <div className="flex items-center justify-between mb-2">
@@ -560,7 +560,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ onClose }) => {
                 <select
                   value={settings?.roundingRule ?? 'none'}
                   onChange={(e) => handleUpdateSettings({ roundingRule: e.target.value as 'none' | '5min' | '10min' | '15min' })}
-                  className="px-3 py-1.5 border border-graphite/10 dark:border-white/10 rounded outline-none focus-visible:ring-2 focus-visible:ring-signal text-sm bg-stone dark:bg-graphite text-graphite dark:text-stone"
+                  className="px-3 py-1.5 border border-graphite/20 dark:border-white/20 rounded outline-none focus-visible:ring-2 focus-visible:ring-signal text-sm bg-stone dark:bg-graphite text-graphite dark:text-stone"
                 >
                   <option value="none">None</option>
                   <option value="5min">Nearest 5 Minutes</option>
@@ -597,7 +597,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ onClose }) => {
               <button
                 onClick={handleExport}
                 disabled={isProcessing}
-                className="w-full flex items-center justify-center gap-2 bg-stone dark:bg-graphite border border-graphite/10 dark:border-white/10 text-graphite dark:text-stone px-4 py-2 rounded hover:bg-gray-50 dark:hover:bg-gray-800/50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-signal disabled:opacity-50 transition-colors"
+                className="w-full flex items-center justify-center gap-2 bg-stone dark:bg-graphite border border-graphite/20 dark:border-white/20 text-graphite dark:text-stone px-4 py-2 rounded hover:bg-gray-50 dark:hover:bg-gray-800/50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-signal disabled:opacity-50 transition-colors"
               >
                 <Download size={18} />
                 Export Backup File
@@ -618,7 +618,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ onClose }) => {
                     accept=".json"
                     ref={fileInputRef}
                     onChange={() => setImportPreview(null)}
-                    className="block w-full text-sm text-gray-500 dark:text-gray-400 file:mr-4 file:py-2 file:px-4 file:rounded file:border-0 file:text-sm file:font-semibold file:bg-gray-50 dark:file:bg-gray-800/30 file:text-graphite dark:file:text-stone hover:file:bg-gray-100 dark:hover:file:bg-gray-800/50 border border-graphite/10 dark:border-white/10 rounded cursor-pointer"
+                    className="block w-full text-sm text-gray-500 dark:text-gray-400 file:mr-4 file:py-2 file:px-4 file:rounded file:border-0 file:text-sm file:font-semibold file:bg-gray-50 dark:file:bg-gray-800/30 file:text-graphite dark:file:text-stone hover:file:bg-gray-100 dark:hover:file:bg-gray-800/50 border border-graphite/20 dark:border-white/20 rounded cursor-pointer"
                   />
                 </div>
 
@@ -635,7 +635,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ onClose }) => {
                         value="merge"
                         checked={importMode === 'merge'}
                         onChange={() => setImportMode('merge')}
-                        className="text-signal focus:ring-signal border-graphite/10 dark:border-white/10 bg-stone dark:bg-graphite"
+                        className="text-signal focus:ring-signal border-graphite/20 dark:border-white/20 bg-stone dark:bg-graphite"
                       />
                       <span className="text-sm text-graphite dark:text-stone">Merge (Safer)</span>
                     </label>
@@ -646,9 +646,9 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ onClose }) => {
                         value="replace"
                         checked={importMode === 'replace'}
                         onChange={() => setImportMode('replace')}
-                        className="text-signal focus:ring-signal border-graphite/10 dark:border-white/10 bg-stone dark:bg-graphite"
+                        className="text-signal focus:ring-signal border-graphite/20 dark:border-white/20 bg-stone dark:bg-graphite"
                       />
-                      <span className="text-sm text-rust font-medium">Replace All</span>
+                      <span className="text-sm text-rust dark:text-orange-300 font-medium">Replace All</span>
                     </label>
                   </div>
                   <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
@@ -677,7 +677,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ onClose }) => {
                           setReplaceConfirmText('');
                           setStatusMsg(null);
                         }}
-                        className="flex-1 px-3 py-2 text-sm text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 rounded transition-colors border border-graphite/10 dark:border-white/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-signal"
+                        className="flex-1 px-3 py-2 text-sm text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 rounded transition-colors border border-graphite/20 dark:border-white/20 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-signal"
                       >
                         Cancel
                       </button>
@@ -694,7 +694,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ onClose }) => {
                 ) : (
                   <>
                     {importPreview && (
-                      <div className="bg-gray-50 dark:bg-gray-800/30 p-3 rounded-md border border-graphite/10 dark:border-white/10 mb-4 text-sm text-graphite dark:text-stone">
+                      <div className="bg-gray-50 dark:bg-gray-800/30 p-3 rounded-md border border-graphite/20 dark:border-white/20 mb-4 text-sm text-graphite dark:text-stone">
                         <p className="font-medium mb-1">Backup valid! Found:</p>
                         <ul className="list-disc pl-5">
                           <li>{importPreview.groups} groups</li>
@@ -729,14 +729,14 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ onClose }) => {
                     type="file"
                     accept=".csv"
                     ref={csvInputRef}
-                    className="block w-full text-sm text-gray-500 dark:text-gray-400 file:mr-4 file:py-2 file:px-4 file:rounded file:border-0 file:text-sm file:font-semibold file:bg-gray-50 dark:file:bg-gray-800/30 file:text-graphite dark:file:text-stone hover:file:bg-gray-100 dark:hover:file:bg-gray-800/50 border border-graphite/10 dark:border-white/10 rounded cursor-pointer"
+                    className="block w-full text-sm text-gray-500 dark:text-gray-400 file:mr-4 file:py-2 file:px-4 file:rounded file:border-0 file:text-sm file:font-semibold file:bg-gray-50 dark:file:bg-gray-800/30 file:text-graphite dark:file:text-stone hover:file:bg-gray-100 dark:hover:file:bg-gray-800/50 border border-graphite/20 dark:border-white/20 rounded cursor-pointer"
                   />
                 </div>
 
                 <button
                   onClick={handleImportCSV}
                   disabled={isProcessing}
-                  className="w-full flex items-center justify-center gap-2 bg-stone dark:bg-graphite border border-graphite/10 dark:border-white/10 text-graphite dark:text-stone px-4 py-2 rounded hover:bg-gray-50 dark:hover:bg-gray-800/50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-signal disabled:opacity-50 transition-colors"
+                  className="w-full flex items-center justify-center gap-2 bg-stone dark:bg-graphite border border-graphite/20 dark:border-white/20 text-graphite dark:text-stone px-4 py-2 rounded hover:bg-gray-50 dark:hover:bg-gray-800/50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-signal disabled:opacity-50 transition-colors"
                 >
                   <Upload size={18} />
                   Import CSV
@@ -745,7 +745,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ onClose }) => {
             </Panel>
 
             <Panel className="p-5 border-2 border-rust/30">
-              <h3 className="text-md font-semibold text-rust flex items-center gap-1.5 mb-3">
+              <h3 className="text-md font-semibold text-rust dark:text-orange-300 flex items-center gap-1.5 mb-3">
                 <AlertTriangle size={18} /> Danger Zone
               </h3>
               <p className="text-sm text-gray-600 dark:text-gray-400 mb-4">
@@ -756,7 +756,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ onClose }) => {
               {!showWipeConfirm ? (
                 <button
                   onClick={() => setShowWipeConfirm(true)}
-                  className="w-full flex items-center justify-center gap-2 bg-stone dark:bg-graphite border border-rust text-rust px-4 py-2 rounded hover:bg-rust/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-rust transition-colors"
+                  className="w-full flex items-center justify-center gap-2 bg-stone dark:bg-graphite border border-rust text-rust dark:text-orange-300 px-4 py-2 rounded hover:bg-rust/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-rust transition-colors"
                 >
                   <Trash2 size={18} /> Delete All Data Permanently
                 </button>
@@ -767,7 +767,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ onClose }) => {
                   </p>
                   <button
                     onClick={handleExport}
-                    className="w-full flex items-center justify-center gap-2 text-sm bg-stone dark:bg-graphite border border-graphite/10 dark:border-white/10 text-graphite dark:text-stone px-3 py-2 rounded hover:bg-gray-50 dark:hover:bg-gray-800/50 transition-colors"
+                    className="w-full flex items-center justify-center gap-2 text-sm bg-stone dark:bg-graphite border border-graphite/20 dark:border-white/20 text-graphite dark:text-stone px-3 py-2 rounded hover:bg-gray-50 dark:hover:bg-gray-800/50 transition-colors"
                   >
                     <Download size={14} /> Export a backup first
                   </button>
@@ -777,7 +777,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ onClose }) => {
                       type="checkbox"
                       checked={wipeAcknowledged}
                       onChange={(e) => setWipeAcknowledged(e.target.checked)}
-                      className="mt-0.5 text-rust focus:ring-rust border-graphite/10 dark:border-white/10 bg-stone dark:bg-graphite"
+                      className="mt-0.5 text-rust focus:ring-rust border-graphite/20 dark:border-white/20 bg-stone dark:bg-graphite"
                     />
                     <span className="text-sm text-graphite dark:text-stone">
                       I understand this permanently deletes all data and cannot be undone.
@@ -800,7 +800,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ onClose }) => {
                   <div className="flex gap-2">
                     <button
                       onClick={() => { setShowWipeConfirm(false); setWipeConfirmText(''); setWipeAcknowledged(false); }}
-                      className="flex-1 px-3 py-2 text-sm text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 rounded transition-colors border border-graphite/10 dark:border-white/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-signal"
+                      className="flex-1 px-3 py-2 text-sm text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 rounded transition-colors border border-graphite/20 dark:border-white/20 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-signal"
                     >
                       Cancel
                     </button>
@@ -819,7 +819,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ onClose }) => {
           )}
           {activeTab === 'trash' && (
             <div className="space-y-4">
-              <div className="flex justify-between items-center border-b border-graphite/10 dark:border-white/10 pb-1">
+              <div className="flex justify-between items-center border-b border-graphite/20 dark:border-white/20 pb-1">
                 <h3 className="text-md font-semibold text-graphite dark:text-stone">Recently Deleted</h3>
                 {(deletedEntries.length > 0 || deletedTimecodes.length > 0 || deletedGroups.length > 0) && (
                   <button
@@ -829,7 +829,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ onClose }) => {
                         setStatusMsg({ type: 'success', text: 'Trash emptied successfully.' });
                       }
                     }}
-                    className="text-xs font-medium text-rust hover:text-rust/80 transition-colors"
+                    className="text-xs font-medium text-rust dark:text-orange-300 hover:text-rust/80 transition-colors"
                   >
                     Empty Trash
                   </button>
@@ -837,33 +837,33 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ onClose }) => {
               </div>
 
               {deletedEntries.length === 0 && deletedTimecodes.length === 0 && deletedGroups.length === 0 ? (
-                <p className="text-sm text-gray-500">Trash is empty.</p>
+                <p className="text-sm text-gray-500 dark:text-gray-400">Trash is empty.</p>
               ) : (
                 <div className="space-y-2">
                   {deletedEntries.map(e => (
-                    <div key={e.id} className="flex justify-between items-center bg-gray-50 dark:bg-gray-800/30 p-2 rounded text-sm">
+                    <div key={e.id} className="flex justify-between items-center bg-gray-50 dark:bg-gray-800/30 p-2 rounded text-sm border border-graphite/10 dark:border-white/10">
                       <span className="truncate flex-1 text-graphite dark:text-stone">Entry: {e.note || 'No note'}</span>
                       <div className="flex gap-2 shrink-0 ml-2">
                         <button onClick={() => restoreEntry(e.id)} className="text-signal-dim dark:text-signal hover:underline">Restore</button>
-                        <button onClick={() => window.confirm('Permanently delete this entry?') && hardDeleteEntry(e.id)} className="text-rust hover:underline">Delete</button>
+                        <button onClick={() => window.confirm('Permanently delete this entry?') && hardDeleteEntry(e.id)} className="text-rust dark:text-orange-300 hover:underline">Delete</button>
                       </div>
                     </div>
                   ))}
                   {deletedTimecodes.map(tc => (
-                    <div key={tc.id} className="flex justify-between items-center bg-gray-50 dark:bg-gray-800/30 p-2 rounded text-sm">
+                    <div key={tc.id} className="flex justify-between items-center bg-gray-50 dark:bg-gray-800/30 p-2 rounded text-sm border border-graphite/10 dark:border-white/10">
                       <span className="truncate flex-1 text-graphite dark:text-stone">Timecode: {tc.name}</span>
                       <div className="flex gap-2 shrink-0 ml-2">
                         <button onClick={() => restoreTimecode(tc.id)} className="text-signal-dim dark:text-signal hover:underline">Restore</button>
-                        <button onClick={() => window.confirm('Permanently delete this timecode?') && hardDeleteTimecode(tc.id)} className="text-rust hover:underline">Delete</button>
+                        <button onClick={() => window.confirm('Permanently delete this timecode?') && hardDeleteTimecode(tc.id)} className="text-rust dark:text-orange-300 hover:underline">Delete</button>
                       </div>
                     </div>
                   ))}
                   {deletedGroups.map(g => (
-                    <div key={g.id} className="flex justify-between items-center bg-gray-50 dark:bg-gray-800/30 p-2 rounded text-sm">
+                    <div key={g.id} className="flex justify-between items-center bg-gray-50 dark:bg-gray-800/30 p-2 rounded text-sm border border-graphite/10 dark:border-white/10">
                       <span className="truncate flex-1 text-graphite dark:text-stone">Group: {g.name}</span>
                       <div className="flex gap-2 shrink-0 ml-2">
                         <button onClick={() => restoreGroup(g.id)} className="text-signal-dim dark:text-signal hover:underline">Restore</button>
-                        <button onClick={() => window.confirm('Permanently delete this group?') && hardDeleteGroup(g.id)} className="text-rust hover:underline">Delete</button>
+                        <button onClick={() => window.confirm('Permanently delete this group?') && hardDeleteGroup(g.id)} className="text-rust dark:text-orange-300 hover:underline">Delete</button>
                       </div>
                     </div>
                   ))}

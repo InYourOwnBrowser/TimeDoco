@@ -272,7 +272,7 @@ export const TimecodeSelector: React.FC<TimecodeSelectorProps> = ({ onSelect, se
                       className="flex-1 text-sm p-1.5 border border-graphite/10 dark:border-white/10 rounded bg-stone dark:bg-graphite text-graphite dark:text-stone focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-signal"
                     />
                     <button type="button" onClick={handleCreateGroupInline} className="px-2 text-xs bg-graphite hover:bg-ink dark:bg-stone dark:hover:bg-gray-300 text-stone dark:text-ink rounded">Add</button>
-                    <button type="button" onClick={() => { setCreatingGroup(false); setNewGroupName(''); }} className="px-2 text-xs text-gray-500">✕</button>
+                    <button type="button" onClick={() => { setCreatingGroup(false); setNewGroupName(''); }} className="px-2 text-xs text-gray-500 dark:text-gray-400">✕</button>
                   </div>
                 ) : (
                   <select
