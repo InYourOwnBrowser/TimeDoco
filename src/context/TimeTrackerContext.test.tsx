@@ -3,16 +3,15 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, act, waitFor } from '@testing-library/react';
 import { TimeTrackerProvider, useTimeTracker } from './TimeTrackerContext';
 import { ToastProvider } from './ToastContext';
-import { closeDB } from '../db';
-
-// Helper to reset the db between tests if needed. For now, vitest manages context pretty well, but we can clear it safely if we mock IDB properly.
-// In the current setup, we might be hitting a block on IDB deletion because the previous test's DB connection is still open.
+import * as db from '../db';
 
 const DB_NAME = 'time-tracker-db';
 const clearDB = async () => {
-  await closeDB();
+  try {
+    await db.wipeAllData();
+  } catch {}
+  await db.closeDB();
   return new Promise<void>((resolve, _reject) => {
-    // If IDB cannot be deleted because it is open, we resolve instead of blocking.
     const req = indexedDB.deleteDatabase(DB_NAME);
     req.onsuccess = () => resolve();
     req.onerror = () => resolve();
@@ -34,9 +33,6 @@ const TestConsumer: React.FC<{
 
 describe('TimeTrackerContext Reducer Logic', () => {
   beforeEach(async () => {
-    // Need to close connections before deleting the DB.
-    // Actually vitest runs tests in parallel. It is safer to mock IDB entirely or ensure graceful fallback.
-    // For this context, we resolve clearDB even on block to prevent timeouts.
     await clearDB();
   });
 
@@ -447,6 +443,24 @@ describe('TimeTrackerContext Reducer Logic', () => {
       expect(ctx!.groups.length).toBe(1);
       expect(ctx!.groups[0].name).toBe('Newer Group'); // Remains Newer Group
     });
+  });
+
+  it('importData: rejects oversized file > 20MB', async () => {
+    let ctx: ReturnType<typeof useTimeTracker> | undefined;
+
+    render(
+      <ToastProvider><TimeTrackerProvider>
+        <TestConsumer onReady={(c) => (ctx = c)} />
+      </TimeTrackerProvider></ToastProvider>
+    );
+
+    await waitFor(() => expect(ctx?.groups).toBeDefined());
+
+    // Create a dummy mock file > 20MB
+    const oversizedFile = new File(['a'], 'large-backup.json', { type: 'application/json' });
+    Object.defineProperty(oversizedFile, 'size', { value: 21 * 1024 * 1024 });
+
+    await expect(ctx!.importData(oversizedFile, 'merge')).rejects.toThrow('20MB limit');
   });
 
   it('performance benchmark: batch entry deletion speed', async () => {

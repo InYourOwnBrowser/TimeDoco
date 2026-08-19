@@ -4,6 +4,7 @@ import * as db from '../db';
 import { differenceInSeconds } from 'date-fns';
 import { calculateDuration } from '../utils/timeUtils';
 import { useToast } from './ToastContext';
+import { validateBackupPayload, MAX_IMPORT_FILE_BYTES } from '../utils/importValidation';
 
 interface TimeTrackerContextType {
   groups: Group[];
@@ -928,6 +929,10 @@ export const TimeTrackerProvider: React.FC<{ children: ReactNode }> = ({ childre
 
   const importData = async (file: File, mode: 'merge' | 'replace') => {
     return new Promise<void>((resolve, reject) => {
+      if (file.size > MAX_IMPORT_FILE_BYTES) {
+        reject(new Error('Import failed: File size exceeds the 20MB limit.'));
+        return;
+      }
       const reader = new FileReader();
       reader.onload = async (e) => {
         try {
@@ -964,6 +969,8 @@ export const TimeTrackerProvider: React.FC<{ children: ReactNode }> = ({ childre
           if (checksum !== expectedChecksum) {
             throw new Error('Data corruption detected: Checksum mismatch');
           }
+
+          validateBackupPayload(parsed);
 
           const migratedData = migrateImportData(parsed, parsed.schemaVersion);
 

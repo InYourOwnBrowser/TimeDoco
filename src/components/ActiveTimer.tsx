@@ -32,7 +32,7 @@ export const ActiveTimer: React.FC<{ activeEntry: Entry | null }> = ({ activeEnt
   useEffect(() => {
     if (!activeEntry) return;
     const handler = setTimeout(() => {
-      const tagsArray = localTags.split(',').map(t => t.trim()).filter(t => t !== '');
+      const tagsArray = localTags.split(',').map(t => t.trim()).filter(t => t !== '').slice(0, 20);
       const tagsChanged = JSON.stringify(tagsArray) !== JSON.stringify(activeEntry.tags || []);
       if (localNote !== activeEntry.note || tagsChanged) {
         updateActiveNote(activeEntry.id, localNote, tagsArray);
@@ -88,7 +88,7 @@ export const ActiveTimer: React.FC<{ activeEntry: Entry | null }> = ({ activeEnt
 
   const handleStop = async () => {
     if (activeEntry) {
-      const tagsArray = localTags.split(',').map(t => t.trim()).filter(t => t !== '');
+      const tagsArray = localTags.split(',').map(t => t.trim()).filter(t => t !== '').slice(0, 20);
       const tagsChanged = JSON.stringify(tagsArray) !== JSON.stringify(activeEntry.tags || []);
       if (localNote !== activeEntry.note || tagsChanged) {
         await updateActiveNote(activeEntry.id, localNote, tagsArray);
@@ -113,6 +113,7 @@ export const ActiveTimer: React.FC<{ activeEntry: Entry | null }> = ({ activeEnt
           <div className="w-full space-y-2">
             <input
               type="text"
+              maxLength={2000}
               placeholder="What are you working on? (optional note)"
               className="w-full text-center text-sm px-3 py-2 border border-graphite/10 dark:border-white/10 hover:border-graphite/30 dark:hover:border-white/30 focus:border-signal dark:focus:border-signal rounded-panel outline-none transition-colors bg-stone dark:bg-ink text-gray-900 dark:text-white placeholder-gray-400 dark:placeholder-gray-500 focus-visible:ring-2 focus-visible:ring-signal focus-visible:ring-offset-2"
               value={preStartNote}
@@ -120,6 +121,7 @@ export const ActiveTimer: React.FC<{ activeEntry: Entry | null }> = ({ activeEnt
             />
             <input
               type="text"
+              maxLength={500}
               placeholder="Tags (e.g. design, client)"
               className="w-full text-center text-xs px-3 py-1.5 border border-graphite/10 dark:border-white/10 hover:border-graphite/30 dark:hover:border-white/30 focus:border-signal dark:focus:border-signal rounded-panel outline-none transition-colors bg-stone dark:bg-ink text-gray-900 dark:text-white placeholder-gray-400 dark:placeholder-gray-500 focus-visible:ring-2 focus-visible:ring-signal focus-visible:ring-offset-2"
               value={preStartTags}
@@ -131,7 +133,7 @@ export const ActiveTimer: React.FC<{ activeEntry: Entry | null }> = ({ activeEnt
             disabled={!selectedTimecodeId}
             onClick={() => {
               if (!selectedTimecodeId) return;
-              const tagsArray = preStartTags.split(',').map(t => t.trim()).filter(Boolean);
+              const tagsArray = preStartTags.split(',').map(t => t.trim()).filter(Boolean).slice(0, 20);
               startTimer(selectedTimecodeId, preStartNote, tagsArray);
               setPreStartNote('');
               setPreStartTags('');
@@ -169,6 +171,7 @@ export const ActiveTimer: React.FC<{ activeEntry: Entry | null }> = ({ activeEnt
           <div className="w-full mt-2 mb-2 space-y-2">
             <input
               type="text"
+              maxLength={2000}
               placeholder="Add a note..."
               className="w-full text-center text-sm px-3 py-2 border border-graphite/10 dark:border-white/10 hover:border-graphite/30 dark:hover:border-white/30 focus:border-signal dark:focus:border-signal rounded-panel outline-none transition-colors bg-stone dark:bg-ink text-gray-900 dark:text-white placeholder-gray-400 dark:placeholder-gray-500 focus-visible:ring-2 focus-visible:ring-signal focus-visible:ring-offset-2"
               value={localNote}
@@ -176,6 +179,7 @@ export const ActiveTimer: React.FC<{ activeEntry: Entry | null }> = ({ activeEnt
             />
             <input
               type="text"
+              maxLength={500}
               placeholder="Tags (e.g. design, review)"
               className="w-full text-center text-xs px-3 py-1.5 border border-graphite/10 dark:border-white/10 hover:border-graphite/30 dark:hover:border-white/30 focus:border-signal dark:focus:border-signal rounded-panel outline-none transition-colors bg-stone dark:bg-ink text-gray-900 dark:text-white placeholder-gray-400 dark:placeholder-gray-500 focus-visible:ring-2 focus-visible:ring-signal focus-visible:ring-offset-2"
               value={localTags}

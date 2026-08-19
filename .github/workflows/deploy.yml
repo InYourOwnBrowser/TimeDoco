@@ -32,6 +32,8 @@ jobs:
         run: npm ci
       - name: License compliance check
         run: npx license-checker --production --failOn "GPL;AGPL;LGPL;SSPL;CC-BY-NC"
+      - name: Dependency vulnerability check
+        run: npm audit --omit=dev --audit-level=high
       - name: Lint
         run: npm run lint
       - name: Test
