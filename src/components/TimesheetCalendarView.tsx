@@ -58,7 +58,7 @@ export const TimesheetCalendarView: React.FC = () => {
 
       <div className="grid grid-cols-7 gap-1 mb-2">
         {['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'].map(day => (
-          <div key={day} className="text-center text-sm font-medium text-gray-500 py-2">
+          <div key={day} className="text-center text-sm font-medium text-gray-500 dark:text-gray-400 py-2">
             {day}
           </div>
         ))}
@@ -98,7 +98,7 @@ export const TimesheetCalendarView: React.FC = () => {
             </h3>
             <div className="space-y-2">
               {dayEntries.length === 0 ? (
-                <p className="text-sm text-gray-500 italic">No entries for this day.</p>
+                <p className="text-sm text-gray-500 dark:text-gray-400 italic">No entries for this day.</p>
               ) : (
                 dayEntries.map(entry => {
                   const tc = timecodes.find(t => t.id === entry.timecodeId);
@@ -109,7 +109,7 @@ export const TimesheetCalendarView: React.FC = () => {
                           <span className="w-2 h-2 rounded-full shrink-0" style={{ backgroundColor: tc?.color || '#9ca3af' }} />
                           {tc?.name ?? 'Unknown'}
                         </span>
-                        <span className="text-xs text-gray-500">
+                        <span className="text-xs text-gray-500 dark:text-gray-400">
                           {format(parseISO(entry.startTime), 'h:mm a')} - {entry.endTime ? format(parseISO(entry.endTime), 'h:mm a') : 'Now'}
                           {entry.note ? ` · ${entry.note}` : ''}
                         </span>

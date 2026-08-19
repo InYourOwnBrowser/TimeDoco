@@ -111,7 +111,7 @@ export const EntryList: React.FC = () => {
         <h2 className="text-xl font-semibold text-gray-900 dark:text-white">Recent Entries</h2>
         <button
           onClick={() => setIsManualModalOpen(true)}
-          className="inline-flex items-center px-3 py-1.5 border border-graphite/10 dark:border-white/10 shadow-inner text-sm font-medium rounded-panel text-graphite dark:text-stone bg-stone dark:bg-ink hover:bg-gray-200 dark:hover:bg-gray-800 focus:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-signal transition-colors"
+          className="inline-flex items-center px-3 py-1.5 border border-graphite/20 dark:border-white/20 shadow-sm text-sm font-medium rounded-panel text-graphite dark:text-stone bg-stone dark:bg-graphite hover:bg-gray-200 dark:hover:bg-gray-800 focus:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 ring-offset-stone dark:ring-offset-ink focus-visible:ring-signal transition-colors"
         >
           Add Manual Entry
         </button>
@@ -124,12 +124,12 @@ export const EntryList: React.FC = () => {
             placeholder="Search notes or timecode..."
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
-            className="flex-1 shadow-inner focus:ring-signal focus:border-signal block w-full sm:text-sm border-graphite/10 dark:border-white/10 rounded-panel bg-stone dark:bg-ink text-gray-900 dark:text-white placeholder-gray-400 dark:placeholder-gray-500 focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-signal"
+            className="flex-1 shadow-inner focus:ring-signal focus:border-signal block w-full sm:text-sm border-graphite/20 dark:border-white/20 rounded-panel bg-stone dark:bg-graphite text-gray-900 dark:text-white placeholder-gray-400 dark:placeholder-gray-500 focus-visible:ring-2 focus-visible:ring-offset-2 ring-offset-stone dark:ring-offset-ink focus-visible:ring-signal"
           />
           <select
             value={selectedTimecodeId}
             onChange={(e) => setSelectedTimecodeId(e.target.value)}
-            className="block w-full sm:w-48 pl-3 pr-10 py-2 text-base border-graphite/10 dark:border-white/10 shadow-inner focus:outline-none focus:ring-signal focus:border-signal sm:text-sm rounded-panel bg-stone dark:bg-ink text-gray-900 dark:text-white focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-signal"
+            className="block w-full sm:w-48 pl-3 pr-10 py-2 text-base border-graphite/20 dark:border-white/20 shadow-inner focus:outline-none focus:ring-signal focus:border-signal sm:text-sm rounded-panel bg-stone dark:bg-graphite text-gray-900 dark:text-white focus-visible:ring-2 focus-visible:ring-offset-2 ring-offset-stone dark:ring-offset-ink focus-visible:ring-signal"
           >
             <option value="all">All Timecodes</option>
             {timecodes.filter(t => !t.archived).map((tc) => (
@@ -145,11 +145,11 @@ export const EntryList: React.FC = () => {
               type="date"
               value={dateFrom}
               onChange={(e) => setDateFrom(e.target.value)}
-              className="block w-full sm:w-auto pl-3 pr-10 py-2 text-base border-graphite/10 dark:border-white/10 shadow-inner focus:outline-none focus:ring-signal focus:border-signal sm:text-sm rounded-panel bg-stone dark:bg-ink text-gray-900 dark:text-white focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-signal"
+              className="block w-full sm:w-auto pl-3 pr-10 py-2 text-base border-graphite/20 dark:border-white/20 shadow-inner focus:outline-none focus:ring-signal focus:border-signal sm:text-sm rounded-panel bg-stone dark:bg-graphite text-gray-900 dark:text-white focus-visible:ring-2 focus-visible:ring-offset-2 ring-offset-stone dark:ring-offset-ink focus-visible:ring-signal"
               aria-label="From Date"
             />
           </div>
-          <span className="text-gray-500 hidden sm:inline">to</span>
+          <span className="text-gray-500 dark:text-gray-400 hidden sm:inline">to</span>
           <div className="flex flex-col gap-1 w-full sm:w-auto">
             <label htmlFor="entry-date-to" className="text-xs text-gray-500 dark:text-gray-400 sm:hidden">To</label>
             <input
@@ -157,14 +157,14 @@ export const EntryList: React.FC = () => {
               type="date"
               value={dateTo}
               onChange={(e) => setDateTo(e.target.value)}
-              className="block w-full sm:w-auto pl-3 pr-10 py-2 text-base border-graphite/10 dark:border-white/10 shadow-inner focus:outline-none focus:ring-signal focus:border-signal sm:text-sm rounded-panel bg-stone dark:bg-ink text-gray-900 dark:text-white focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-signal"
+              className="block w-full sm:w-auto pl-3 pr-10 py-2 text-base border-graphite/20 dark:border-white/20 shadow-inner focus:outline-none focus:ring-signal focus:border-signal sm:text-sm rounded-panel bg-stone dark:bg-graphite text-gray-900 dark:text-white focus-visible:ring-2 focus-visible:ring-offset-2 ring-offset-stone dark:ring-offset-ink focus-visible:ring-signal"
               aria-label="To Date"
             />
           </div>
           <select
             value={selectedGroupId}
             onChange={(e) => setSelectedGroupId(e.target.value)}
-            className="block w-full sm:w-48 pl-3 pr-10 py-2 text-base border-graphite/10 dark:border-white/10 shadow-inner focus:outline-none focus:ring-signal focus:border-signal sm:text-sm rounded-panel bg-stone dark:bg-ink text-gray-900 dark:text-white focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-signal"
+            className="block w-full sm:w-48 pl-3 pr-10 py-2 text-base border-graphite/20 dark:border-white/20 shadow-inner focus:outline-none focus:ring-signal focus:border-signal sm:text-sm rounded-panel bg-stone dark:bg-graphite text-gray-900 dark:text-white focus-visible:ring-2 focus-visible:ring-offset-2 ring-offset-stone dark:ring-offset-ink focus-visible:ring-signal"
           >
             <option value="all">All Groups</option>
             {groups.filter(g => !g.archived).map((g) => (
@@ -182,7 +182,7 @@ export const EntryList: React.FC = () => {
         </div>
       </div>
 
-      <div className="bg-stone dark:bg-ink shadow-sm rounded-panel border border-graphite/20 dark:border-white/15 transition-colors overflow-hidden">
+      <div className="bg-stone dark:bg-graphite shadow-sm rounded-panel border border-graphite/20 dark:border-white/20 transition-colors overflow-hidden">
         {entries.length === 0 ? (
           <div className="px-4 py-8 text-center text-gray-500 dark:text-gray-400">
             No entries yet. Start tracking!
@@ -199,7 +199,7 @@ export const EntryList: React.FC = () => {
             groupContent={(index) => {
               const dateStr = sortedDates[index];
               return (
-                <div className="px-4 py-2 bg-stone dark:bg-ink border-t border-b border-graphite/10 dark:border-white/10 first:border-t-0">
+                <div className="px-4 py-2 bg-stone dark:bg-graphite/80 border-t border-b border-graphite/20 dark:border-white/20 first:border-t-0">
                   <span className="text-xs font-semibold font-sans text-gray-500 dark:text-gray-400 uppercase tracking-wider">
                     {formatDateHeader(dateStr)}
                   </span>
@@ -214,7 +214,7 @@ export const EntryList: React.FC = () => {
               if (!entry) return null;
 
               return (
-                <div className="px-4 py-4 flex items-center sm:px-6 bg-stone dark:bg-ink hover:bg-signal/5 transition-colors">
+                <div className="px-4 py-4 flex items-center sm:px-6 bg-stone dark:bg-graphite hover:bg-signal/5 transition-colors">
                   <div className="min-w-0 flex-1 sm:flex sm:items-center sm:justify-between">
                     <div>
                       <div className="flex text-sm items-center">
@@ -234,7 +234,7 @@ export const EntryList: React.FC = () => {
                           </span>
                         )}
                         {entry.isPaused && (
-                          <span className="ml-2 inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-verdigris/10 text-verdigris border border-verdigris/20">
+                          <span className="ml-2 inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-verdigris/10 text-verdigris dark:text-emerald-400 border border-verdigris/20">
                             Paused
                           </span>
                         )}
@@ -275,7 +275,7 @@ export const EntryList: React.FC = () => {
                         {entry.duration > 60 && (
                           <button
                             onClick={() => !entry.isRunning && setSplittingEntry(entry)}
-                            className={`focus:outline-none transition-colors focus-visible:ring-2 focus-visible:ring-signal focus-visible:ring-offset-2 rounded ${entry.isRunning ? 'text-gray-300 dark:text-gray-600 cursor-not-allowed opacity-50' : 'text-gray-400 dark:text-gray-500 hover:text-graphite dark:hover:text-stone'}`}
+                            className={`focus:outline-none transition-colors focus-visible:ring-2 focus-visible:ring-signal focus-visible:ring-offset-2 ring-offset-stone dark:ring-offset-graphite rounded ${entry.isRunning ? 'text-gray-300 dark:text-gray-600 cursor-not-allowed opacity-50' : 'text-gray-400 dark:text-gray-500 hover:text-graphite dark:hover:text-stone'}`}
                             title={entry.isRunning ? "Cannot split a running entry" : "Split Entry"}
                             aria-label={entry.isRunning ? "Cannot split a running entry" : "Split Entry"}
                             disabled={entry.isRunning}
@@ -285,7 +285,7 @@ export const EntryList: React.FC = () => {
                         )}
                         <button
                           onClick={() => setEditingEntry(entry)}
-                          className="text-gray-400 dark:text-gray-500 hover:text-signal-dim dark:hover:text-signal focus:outline-none focus-visible:ring-2 focus-visible:ring-signal focus-visible:ring-offset-2 rounded transition-colors"
+                          className="text-gray-400 dark:text-gray-500 hover:text-signal-dim dark:hover:text-signal focus:outline-none focus-visible:ring-2 focus-visible:ring-signal focus-visible:ring-offset-2 ring-offset-stone dark:ring-offset-graphite rounded transition-colors"
                           title="Edit Entry"
                           aria-label="Edit Entry"
                         >
@@ -297,7 +297,7 @@ export const EntryList: React.FC = () => {
                               deleteEntry(entry.id);
                             }
                           }}
-                          className="text-gray-400 dark:text-gray-500 hover:text-rust dark:hover:text-rust focus:outline-none focus-visible:ring-2 focus-visible:ring-signal focus-visible:ring-offset-2 rounded transition-colors"
+                          className="text-gray-400 dark:text-gray-500 hover:text-rust dark:hover:text-rust focus:outline-none focus-visible:ring-2 focus-visible:ring-signal focus-visible:ring-offset-2 ring-offset-stone dark:ring-offset-graphite rounded transition-colors"
                           title="Delete Entry (Move to Trash)"
                           aria-label="Delete Entry"
                         >

@@ -180,7 +180,7 @@ export const GroupingManagement: React.FC = () => {
                       onClick={() => {
                         updateGroup(group.id, { archived: !group.archived });
                       }}
-                      className={`p-1.5 rounded transition-colors ${group.archived ? 'text-verdigris hover:bg-verdigris/10' : 'text-gray-400 hover:text-signal-dim dark:hover:text-signal hover:bg-signal/10'}`}
+                      className={`p-1.5 rounded transition-colors ${group.archived ? 'text-verdigris dark:text-emerald-400 hover:bg-verdigris/10' : 'text-gray-400 dark:text-gray-500 hover:text-signal-dim dark:hover:text-signal hover:bg-signal/10'}`}
                       title={group.archived ? 'Restore' : 'Archive'}
                       aria-label={group.archived ? 'Restore Group' : 'Archive Group'}
                     >
@@ -192,7 +192,7 @@ export const GroupingManagement: React.FC = () => {
                           deleteGroup(group.id);
                         }
                       }}
-                      className="p-1.5 text-gray-400 hover:text-rust hover:bg-rust/10 rounded transition-colors"
+                      className="p-1.5 text-gray-400 dark:text-gray-500 hover:text-rust dark:hover:text-rust hover:bg-rust/10 rounded transition-colors"
                       title="Delete Group (Move to Trash)"
                       aria-label="Delete Group"
                     >
@@ -321,7 +321,7 @@ export const GroupingManagement: React.FC = () => {
                     >
                       Confirm Merge
                     </button>
-                    <button onClick={() => { setMergingTimecodeId(null); setMergeDestId(''); }} className="p-1.5 text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-800 rounded transition-colors" aria-label="Cancel Merge">
+                    <button onClick={() => { setMergingTimecodeId(null); setMergeDestId(''); }} className="p-1.5 text-gray-400 dark:text-gray-500 hover:bg-gray-100 dark:hover:bg-gray-800 rounded transition-colors" aria-label="Cancel Merge">
                       <X size={18} />
                     </button>
                   </div>
@@ -363,7 +363,7 @@ export const GroupingManagement: React.FC = () => {
                         onClick={() => {
                           updateTimecode(tc.id, { archived: !tc.archived });
                         }}
-                        className={`p-1.5 rounded transition-colors ${tc.archived ? 'text-verdigris hover:bg-verdigris/10' : 'text-gray-400 hover:text-signal-dim dark:hover:text-signal hover:bg-signal/10'}`}
+                        className={`p-1.5 rounded transition-colors ${tc.archived ? 'text-verdigris dark:text-emerald-400 hover:bg-verdigris/10' : 'text-gray-400 dark:text-gray-500 hover:text-signal-dim dark:hover:text-signal hover:bg-signal/10'}`}
                         title={tc.archived ? 'Restore' : 'Archive'}
                         aria-label={tc.archived ? 'Restore Timecode' : 'Archive Timecode'}
                       >
@@ -375,7 +375,7 @@ export const GroupingManagement: React.FC = () => {
                             deleteTimecode(tc.id);
                           }
                         }}
-                        className="p-1.5 text-gray-400 hover:text-rust hover:bg-rust/10 rounded transition-colors"
+                        className="p-1.5 text-gray-400 dark:text-gray-500 hover:text-rust dark:hover:text-rust hover:bg-rust/10 rounded transition-colors"
                         title="Delete Timecode (Move to Trash)"
                         aria-label="Delete Timecode"
                       >

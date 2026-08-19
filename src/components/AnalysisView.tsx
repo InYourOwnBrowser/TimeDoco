@@ -604,7 +604,7 @@ export const AnalysisView: React.FC = () => {
           <select
             value={selectedGroupId}
             onChange={(e) => setSelectedGroupId(e.target.value)}
-            className="px-3 py-1.5 text-sm border-graphite/10 dark:border-white/10 rounded-md bg-stone dark:bg-ink text-graphite dark:text-stone focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-signal"
+            className="px-3 py-1.5 text-sm border-graphite/20 dark:border-white/20 rounded-md bg-stone dark:bg-graphite text-graphite dark:text-stone focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-signal"
           >
             <option value="all">All Clients / Groups</option>
             {groups.filter(g => !g.archived).map(g => (
@@ -614,7 +614,7 @@ export const AnalysisView: React.FC = () => {
           <select
             value={selectedTimecodeId}
             onChange={(e) => setSelectedTimecodeId(e.target.value)}
-            className="px-3 py-1.5 text-sm border-graphite/10 dark:border-white/10 rounded-md bg-stone dark:bg-ink text-graphite dark:text-stone focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-signal"
+            className="px-3 py-1.5 text-sm border-graphite/20 dark:border-white/20 rounded-md bg-stone dark:bg-graphite text-graphite dark:text-stone focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-signal"
           >
             <option value="all">All Timecodes</option>
             {timecodeOptions.map(t => (
@@ -639,7 +639,7 @@ export const AnalysisView: React.FC = () => {
               value={preparedForOverride}
               onChange={(e) => setPreparedForOverride(e.target.value)}
               placeholder={scopeLabel}
-              className="flex-1 px-3 py-1.5 text-sm border-graphite/10 dark:border-white/10 rounded-md bg-stone dark:bg-ink text-graphite dark:text-stone focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-signal"
+              className="flex-1 px-3 py-1.5 text-sm border-graphite/20 dark:border-white/20 rounded-md bg-stone dark:bg-graphite text-graphite dark:text-stone focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-signal"
             />
           </div>
           <div className="flex items-center gap-2">
@@ -649,13 +649,13 @@ export const AnalysisView: React.FC = () => {
               value={preparedByOverride}
               onChange={(e) => setPreparedByOverride(e.target.value)}
               placeholder={[settings?.preparerName, settings?.preparerCompany].filter(Boolean).join(' — ') || 'not set in Settings'}
-              className="flex-1 px-3 py-1.5 text-sm border-graphite/10 dark:border-white/10 rounded-md bg-stone dark:bg-ink text-graphite dark:text-stone focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-signal"
+              className="flex-1 px-3 py-1.5 text-sm border-graphite/20 dark:border-white/20 rounded-md bg-stone dark:bg-graphite text-graphite dark:text-stone focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-signal"
             />
           </div>
           {reportFields.map((f, i) => (
             <div key={f.id} className="flex items-center gap-2">
-              <input type="text" value={f.label} onChange={(e) => updateReportField(i, { label: e.target.value })} placeholder="Label" className="w-20 shrink-0 px-2 py-1.5 text-xs border border-graphite/10 dark:border-white/10 rounded bg-stone dark:bg-ink text-graphite dark:text-stone" />
-              <input type="text" value={f.value} onChange={(e) => updateReportField(i, { value: e.target.value })} placeholder="Value" className="flex-1 px-2 py-1.5 text-xs border border-graphite/10 dark:border-white/10 rounded bg-stone dark:bg-ink text-graphite dark:text-stone" />
+              <input type="text" value={f.label} onChange={(e) => updateReportField(i, { label: e.target.value })} placeholder="Label" className="w-20 shrink-0 px-2 py-1.5 text-xs border border-graphite/20 dark:border-white/20 rounded bg-stone dark:bg-graphite text-graphite dark:text-stone" />
+              <input type="text" value={f.value} onChange={(e) => updateReportField(i, { value: e.target.value })} placeholder="Value" className="flex-1 px-2 py-1.5 text-xs border border-graphite/20 dark:border-white/20 rounded bg-stone dark:bg-graphite text-graphite dark:text-stone" />
               <button onClick={() => setReportFields(prev => prev.filter((_, j) => j !== i))} aria-label="Remove field" className="text-gray-400 hover:text-rust shrink-0"><X size={14} /></button>
             </div>
           ))}
@@ -664,14 +664,14 @@ export const AnalysisView: React.FC = () => {
       </div>
 
       <div className="p-6">
-        {scopeLabel !== 'All' && <p className="text-sm text-gray-500 mb-2">Showing: {scopeLabel}</p>}
+        {scopeLabel !== 'All' && <p className="text-sm text-gray-500 dark:text-gray-400 mb-2">Showing: {scopeLabel}</p>}
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-8">
-          <div className="bg-stone dark:bg-ink rounded-panel p-5 border border-graphite/10 dark:border-white/10 shadow-inner flex flex-col justify-center items-center transition-colors">
+          <div className="bg-stone dark:bg-graphite rounded-panel p-5 border border-graphite/20 dark:border-white/20 shadow-sm flex flex-col justify-center items-center transition-colors">
             <span className="text-signal-dim dark:text-signal text-xs font-sans font-semibold mb-1 uppercase tracking-wide">TOTAL TRACKED TIME</span>
             <span className="text-4xl font-mono tabular font-medium text-graphite dark:text-stone">{formatDuration(totalSeconds)}</span>
           </div>
           {totalEarnings > 0 && (
-            <div className="bg-stone dark:bg-ink rounded-panel p-5 border border-graphite/10 dark:border-white/10 shadow-inner flex flex-col justify-center transition-colors">
+            <div className="bg-stone dark:bg-graphite rounded-panel p-5 border border-graphite/20 dark:border-white/20 shadow-sm flex flex-col justify-center transition-colors">
               {taxBreakdown ? (
                   <>
                     <span className="text-verdigris text-xs font-sans font-semibold mb-2 uppercase tracking-wide text-center">Earnings</span>
@@ -701,7 +701,7 @@ export const AnalysisView: React.FC = () => {
         </div>
 
         {totalEarnings > 0 && !settings?.taxEnabled && !settings?.taxPromptDismissed && (
-          <div className="mb-8 p-4 bg-stone dark:bg-ink border border-graphite/10 dark:border-white/10 rounded-panel shadow-inner flex items-start justify-between gap-3">
+          <div className="mb-8 p-4 bg-stone dark:bg-graphite border border-graphite/20 dark:border-white/20 rounded-panel shadow-sm flex items-start justify-between gap-3">
             <p className="text-sm text-gray-600 dark:text-gray-300">
               Add a tax rate in Settings to show before/after-tax totals on your earnings and reports.
             </p>
@@ -714,7 +714,7 @@ export const AnalysisView: React.FC = () => {
 
 
         {gaps.length > 0 && (
-          <div className="mb-8 p-4 bg-stone dark:bg-ink border border-graphite/10 dark:border-white/10 rounded-panel shadow-inner flex items-start gap-3">
+          <div className="mb-8 p-4 bg-stone dark:bg-graphite border border-graphite/20 dark:border-white/20 rounded-panel shadow-sm flex items-start gap-3">
             <AlertTriangle className="text-signal-dim dark:text-signal mt-0.5 shrink-0" size={20} />
             <div>
               <h4 className="font-medium text-graphite dark:text-stone">Untracked Time Gaps Detected</h4>
@@ -726,10 +726,10 @@ export const AnalysisView: React.FC = () => {
         )}
 
         {overlaps.length > 0 && (
-          <div className="mb-8 p-4 bg-stone dark:bg-ink border border-rust/30 dark:border-rust/30 rounded-panel shadow-inner flex items-start gap-3">
-            <AlertTriangle className="text-rust mt-0.5 shrink-0" size={20} />
+          <div className="mb-8 p-4 bg-stone dark:bg-graphite border border-rust/30 dark:border-rust/30 rounded-panel shadow-sm flex items-start gap-3">
+            <AlertTriangle className="text-rust dark:text-orange-300 mt-0.5 shrink-0" size={20} />
             <div>
-              <h4 className="font-medium text-rust">Overlapping Entries Detected</h4>
+              <h4 className="font-medium text-rust dark:text-orange-300">Overlapping Entries Detected</h4>
               <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">
                 There are {overlaps.length} overlapping time entries in this period. Review your history in the Tracker tab to ensure your tracked time is accurate.
               </p>
@@ -743,7 +743,7 @@ export const AnalysisView: React.FC = () => {
          dateRange.end.getTime() === endOfDay(dateRange.start).getTime() && (
           <div className="mb-8">
             <h3 className="text-lg font-semibold text-gray-800 dark:text-white mb-4 text-center">Daily Timeline</h3>
-            <div className="relative h-12 bg-stone dark:bg-ink rounded-panel shadow-inner overflow-hidden border border-graphite/10 dark:border-white/10">
+            <div className="relative h-12 bg-stone dark:bg-graphite rounded-panel shadow-inner overflow-hidden border border-graphite/20 dark:border-white/20">
               {/* Hour markers */}
               {Array.from({ length: 25 }).map((_, i) => (
                 <div
@@ -837,16 +837,16 @@ export const AnalysisView: React.FC = () => {
 
               <div>
                 <h3 className="text-lg font-semibold text-gray-800 dark:text-white mb-3">Breakdown</h3>
-                <div className="overflow-hidden border border-graphite/10 dark:border-white/10 rounded-panel shadow-inner">
+                <div className="overflow-hidden border border-graphite/20 dark:border-white/20 rounded-panel shadow-sm">
                   <table className="min-w-full divide-y divide-graphite/10 dark:divide-white/10 text-sm">
-                    <thead className="bg-stone dark:bg-ink">
+                    <thead className="bg-stone dark:bg-graphite">
                       <tr>
                         <th className="px-4 py-3 text-left font-semibold text-gray-500 dark:text-gray-400 font-sans text-xs uppercase tracking-wide">Timecode</th>
                         <th className="px-4 py-3 text-right font-semibold text-gray-500 dark:text-gray-400 font-sans text-xs uppercase tracking-wide">Hours</th>
                         {totalEarnings > 0 && <th className="px-4 py-3 text-right font-semibold text-gray-500 dark:text-gray-400 font-sans text-xs uppercase tracking-wide">Earnings</th>}
                       </tr>
                     </thead>
-                    <tbody className="bg-stone dark:bg-ink divide-y divide-graphite/10 dark:divide-white/10">
+                    <tbody className="bg-stone dark:bg-graphite divide-y divide-graphite/10 dark:divide-white/10">
                       {timecodeData.map((tc) => (
                         <tr key={tc.id} className="hover:bg-signal/5 transition-colors">
                           <td className="px-4 py-2.5 flex items-center gap-2">
