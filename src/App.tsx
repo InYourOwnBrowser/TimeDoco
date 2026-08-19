@@ -199,7 +199,7 @@ const AppContent = () => {
 
         <header className="mb-8 text-center">
           <Logo className="h-20 w-auto mx-auto mb-2" />
-          <p className="text-gray-600 dark:text-gray-400 mb-6">100% Client-Side. Privacy First.</p>
+          <p className="text-gray-600 dark:text-gray-400 mb-6">Track time. Bill clients. Own your data.</p>
 
           <div className="flex justify-center mb-4 w-full px-4 sm:px-0">
             <div className="bg-white dark:bg-graphite p-1 rounded-panel flex w-full sm:w-auto overflow-x-auto hide-scrollbar border border-graphite/20 dark:border-white/20 shadow-sm gap-1">

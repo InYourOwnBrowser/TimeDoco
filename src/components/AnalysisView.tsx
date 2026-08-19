@@ -414,7 +414,7 @@ export const AnalysisView: React.FC = () => {
             const ratio = props.width / props.height;
             const w = ratio > maxW / maxH ? maxW : maxH * ratio;
             const h = ratio > maxW / maxH ? maxW / ratio : maxH;
-            doc.addImage(userLogo, props.fileType, 14, 10, w, h);
+            doc.addImage(userLogo, props.fileType, 14, 10, w, h, undefined, 'MEDIUM');
           } catch (e) {
             console.error('Failed to render user logo in PDF, falling back to TimeDoco logo only:', e);
             doc.addImage(LOGO_PRINT_BASE64, 'PNG', 14, 10, 37.5, 10);

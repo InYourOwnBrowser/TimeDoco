@@ -68,7 +68,47 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ onClose }) => {
       return;
     }
     const reader = new FileReader();
-    reader.onload = () => handleUpdateSettings({ userLogoBase64: reader.result as string });
+    reader.onload = () => {
+      const dataUrl = reader.result as string;
+      const img = new Image();
+      img.onload = () => {
+        const MAX_DIM = 300;
+        let width = img.width;
+        let height = img.height;
+
+        if (width > MAX_DIM || height > MAX_DIM) {
+          if (width > height) {
+            height = Math.round((height * MAX_DIM) / width);
+            width = MAX_DIM;
+          } else {
+            width = Math.round((width * MAX_DIM) / height);
+            height = MAX_DIM;
+          }
+        }
+
+        const canvas = document.createElement('canvas');
+        canvas.width = width;
+        canvas.height = height;
+        const ctx = canvas.getContext('2d');
+        if (!ctx) {
+          handleUpdateSettings({ userLogoBase64: dataUrl });
+          return;
+        }
+
+        ctx.drawImage(img, 0, 0, width, height);
+
+        const isJpeg = file.type === 'image/jpeg';
+        const resizedDataUrl = isJpeg
+          ? canvas.toDataURL('image/jpeg', 0.85)
+          : canvas.toDataURL('image/png');
+
+        handleUpdateSettings({ userLogoBase64: resizedDataUrl });
+      };
+      img.onerror = () => {
+        handleUpdateSettings({ userLogoBase64: dataUrl });
+      };
+      img.src = dataUrl;
+    };
     reader.readAsDataURL(file);
     e.target.value = '';
   };

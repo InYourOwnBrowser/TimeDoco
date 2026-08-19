@@ -82,6 +82,22 @@ describe('SettingsModal Logo Upload Validation', () => {
   });
 
   it('accepts valid PNG image and updates settings with Base64 data', async () => {
+    const originalImage = global.Image;
+    global.Image = class {
+      onload: () => void = () => {};
+      onerror: () => void = () => {};
+      width = 100;
+      height = 100;
+      _src = '';
+      set src(val: string) {
+        this._src = val;
+        setTimeout(() => this.onload(), 0);
+      }
+      get src() {
+        return this._src;
+      }
+    } as any;
+
     const { container } = renderComponent();
 
     const fileInput = container.querySelector('input[type="file"][accept*="image"]') as HTMLInputElement;
@@ -105,5 +121,6 @@ describe('SettingsModal Logo Upload Validation', () => {
     });
 
     readAsDataURLSpy.mockRestore();
+    global.Image = originalImage;
   });
 });

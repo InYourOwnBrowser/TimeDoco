@@ -114,7 +114,7 @@ export const ActiveTimer: React.FC<{ activeEntry: Entry | null }> = ({ activeEnt
             <input
               type="text"
               maxLength={2000}
-              placeholder="What are you working on? (optional note)"
+              placeholder="Add a note (optional)"
               className="w-full text-center text-sm px-3 py-2 border border-graphite/20 dark:border-white/20 hover:border-graphite/30 dark:hover:border-white/30 focus:border-signal dark:focus:border-signal rounded-panel outline-none transition-colors bg-white dark:bg-graphite text-graphite dark:text-stone placeholder-gray-500 dark:placeholder-gray-400 focus-visible:ring-2 focus-visible:ring-signal focus-visible:ring-offset-2 ring-offset-stone dark:ring-offset-graphite"
               value={preStartNote}
               onChange={(e) => setPreStartNote(e.target.value)}
