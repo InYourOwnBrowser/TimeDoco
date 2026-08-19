@@ -12,17 +12,19 @@ interface ManualEntryModalProps {
 }
 
 export const ManualEntryModal: React.FC<ManualEntryModalProps> = ({ onClose }) => {
-  const { addManualEntry, entries, settings } = useTimeTracker();
+  const { addManualEntry, entries, settings, timecodes } = useTimeTracker();
   const { addToast } = useToast();
   const [startTime, setStartTime] = useState('');
   const [endTime, setEndTime] = useState('');
   const [timecodeId, setTimecodeId] = useState('');
   const [note, setNote] = useState('');
   const [tagsStr, setTagsStr] = useState('');
+  const [breakMinutes, setBreakMinutes] = useState('');
+  const [manualAmount, setManualAmount] = useState('');
   const [error, setError] = useState<string | null>(null);
   const [warning, setWarning] = useState<string | null>(null);
 
-  const isDirty = startTime !== '' || endTime !== '' || timecodeId !== '' || note !== '' || tagsStr !== '';
+  const isDirty = startTime !== '' || endTime !== '' || timecodeId !== '' || note !== '' || tagsStr !== '' || breakMinutes !== '' || manualAmount !== '';
 
   useEffect(() => {
     if (!startTime || !endTime) {
@@ -70,6 +72,15 @@ export const ManualEntryModal: React.FC<ManualEntryModalProps> = ({ onClose }) =
       return;
     }
 
+    const breakMins = Math.max(0, parseInt(breakMinutes, 10) || 0);
+    if (breakMins * 60 >= differenceInSeconds(end, start)) {
+      setError('Break time cannot exceed the entry duration.');
+      return;
+    }
+    const pausedSegments = breakMins > 0
+      ? [{ pauseStart: start.toISOString(), pauseEnd: new Date(start.getTime() + breakMins * 60000).toISOString() }]
+      : [];
+
     if (warning) {
       if (!window.confirm(`${warning}\n\nSave anyway?`)) {
         return;
@@ -84,6 +95,8 @@ export const ManualEntryModal: React.FC<ManualEntryModalProps> = ({ onClose }) =
       endTime: end.toISOString(),
       note,
       tags: tagsArray,
+      pausedSegments,
+      manualAmount: manualAmount ? parseFloat(manualAmount) : null,
     });
 
     addToast('Entry added successfully', 'success');
@@ -130,6 +143,38 @@ export const ManualEntryModal: React.FC<ManualEntryModalProps> = ({ onClose }) =
               />
             </div>
           </div>
+
+          <div>
+            <label className="block text-sm font-medium text-graphite dark:text-stone mb-1">Break (minutes)</label>
+            <input
+              type="number"
+              min="0"
+              value={breakMinutes}
+              onChange={(e) => setBreakMinutes(e.target.value)}
+              placeholder="0"
+              className="w-full px-3 py-2 border border-graphite/10 dark:border-white/10 rounded-md shadow-sm focus:outline-none focus-visible:ring-2 focus-visible:ring-signal sm:text-sm bg-stone dark:bg-graphite text-graphite dark:text-stone"
+            />
+          </div>
+
+          {timecodeId && !timecodes.find(t => t.id === timecodeId)?.hourlyRate && (
+            <div>
+              <label className="block text-sm font-medium text-graphite dark:text-stone mb-1">
+                Fixed Amount ({settings?.currencySymbol || '$'}) — optional
+              </label>
+              <input
+                type="number"
+                min="0"
+                step="0.01"
+                value={manualAmount}
+                onChange={(e) => setManualAmount(e.target.value)}
+                placeholder="e.g. 150.00"
+                className="w-full px-3 py-2 border border-graphite/10 dark:border-white/10 rounded-md shadow-sm focus:outline-none focus-visible:ring-2 focus-visible:ring-signal sm:text-sm bg-stone dark:bg-graphite text-graphite dark:text-stone"
+              />
+              <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
+                For non-time costs (e.g. materials, a flat fee). Overrides hourly-rate calculation on reports.
+              </p>
+            </div>
+          )}
 
           <div>
             <label className="block text-sm font-medium text-graphite dark:text-stone mb-1">Note</label>

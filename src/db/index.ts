@@ -304,6 +304,32 @@ export const putSettings = async (settings: Settings): Promise<string> => {
   }
 };
 
+export const wipeAllData = async (): Promise<void> => {
+  if (isFallbackMode) {
+    fallbackMemoryDB.groups.clear();
+    fallbackMemoryDB.timecodes.clear();
+    fallbackMemoryDB.entries.clear();
+    fallbackMemoryDB.settings.clear();
+    return;
+  }
+  try {
+    const db = await getDB();
+    const tx = db.transaction(['groups', 'timecodes', 'entries', 'settings'], 'readwrite');
+    await tx.objectStore('groups').clear();
+    await tx.objectStore('timecodes').clear();
+    await tx.objectStore('entries').clear();
+    await tx.objectStore('settings').clear();
+    await tx.done;
+  } catch (error) {
+    triggerFallbackMode(error);
+    fallbackMemoryDB.groups.clear();
+    fallbackMemoryDB.timecodes.clear();
+    fallbackMemoryDB.entries.clear();
+    fallbackMemoryDB.settings.clear();
+    throw error;
+  }
+};
+
 // --- Import / Backup ---
 export const importBackup = async (
   data: { groups: Group[]; timecodes: Timecode[]; entries: Entry[]; settings?: Settings },

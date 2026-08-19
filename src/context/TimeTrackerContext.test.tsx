@@ -537,4 +537,109 @@ describe('TimeTrackerContext Reducer Logic', () => {
       expect(ctx!.timecodes.every(t => t.groupId !== groupId)).toBe(true);
     });
   });
+
+  it('wipeAllData: clears all entries, timecodes, groups, settings, and localStorage keys', async () => {
+    let ctx: ReturnType<typeof useTimeTracker> | undefined;
+
+    render(
+      <ToastProvider><TimeTrackerProvider>
+        <TestConsumer onReady={(c) => (ctx = c)} />
+      </TimeTrackerProvider></ToastProvider>
+    );
+
+    await waitFor(() => expect(ctx?.groups).toBeDefined());
+
+    await act(async () => {
+      const group = await ctx!.addGroup('Test Group', '#3b82f6');
+      const tc = await ctx!.addTimecode('Test Timecode', undefined, group.id);
+      await ctx!.addManualEntry({
+        startTime: '2024-01-01T10:00:00Z',
+        endTime: '2024-01-01T12:00:00Z',
+        timecodeId: tc.id,
+        note: 'Test entry to wipe',
+      });
+    });
+
+    localStorage.setItem('backupReminderDismissed', 'true');
+    localStorage.setItem('dismissedForgotToStopIds', JSON.stringify(['dummy-id']));
+
+    await waitFor(() => {
+      expect(ctx!.groups.length).toBe(1);
+      expect(ctx!.timecodes.length).toBe(1);
+      expect(ctx!.entries.length).toBe(1);
+    });
+
+    await act(async () => {
+      await ctx!.wipeAllData();
+    });
+
+    await waitFor(() => {
+      expect(ctx!.groups.length).toBe(0);
+      expect(ctx!.timecodes.length).toBe(0);
+      expect(ctx!.entries.length).toBe(0);
+      expect(localStorage.getItem('backupReminderDismissed')).toBeNull();
+      expect(localStorage.getItem('dismissedForgotToStopIds')).toBeNull();
+    });
+  });
+
+  it('addManualEntry and updateEntry support break time and manualAmount override', async () => {
+    let ctx: ReturnType<typeof useTimeTracker> | undefined;
+
+    render(
+      <ToastProvider><TimeTrackerProvider>
+        <TestConsumer onReady={(c) => (ctx = c)} />
+      </TimeTrackerProvider></ToastProvider>
+    );
+
+    await waitFor(() => expect(ctx?.groups).toBeDefined());
+
+    let tcId = '';
+    await act(async () => {
+      const tc = await ctx!.addTimecode('Fixed Fee TC');
+      tcId = tc.id;
+    });
+
+    // Add manual entry with 15 min break (900s) and $150 fixed fee override
+    const startTime = '2024-01-01T10:00:00Z';
+    const endTime = '2024-01-01T12:00:00Z'; // 2 hours (7200s)
+    const pausedSegments = [{ pauseStart: '2024-01-01T10:00:00Z', pauseEnd: '2024-01-01T10:15:00Z' }];
+
+    await act(async () => {
+      await ctx!.addManualEntry({
+        startTime,
+        endTime,
+        timecodeId: tcId,
+        note: 'Fixed project fee',
+        pausedSegments,
+        manualAmount: 150.0,
+      });
+    });
+
+    let createdEntry: any;
+    await waitFor(() => {
+      createdEntry = ctx!.entries[0];
+      expect(createdEntry).toBeDefined();
+    });
+
+    // Duration should be 2 hours - 15 mins break = 6300 seconds (1h 45m)
+    expect(createdEntry.duration).toBe(6300);
+    expect(createdEntry.manualAmount).toBe(150.0);
+    expect(createdEntry.pausedSegments.length).toBe(1);
+
+    // Now update entry to 30 min break and $200 manualAmount
+    const updatedPausedSegments = [{ pauseStart: '2024-01-01T10:00:00Z', pauseEnd: '2024-01-01T10:30:00Z' }];
+    await act(async () => {
+      await ctx!.updateEntry(createdEntry.id, {
+        pausedSegments: updatedPausedSegments,
+        manualAmount: 200.0,
+      });
+    });
+
+    await waitFor(() => {
+      const updated = ctx!.entries.find(e => e.id === createdEntry.id);
+      expect(updated!.duration).toBe(5400); // 2 hours - 30 mins break = 5400 seconds (1h 30m)
+      expect(updated!.manualAmount).toBe(200.0);
+      expect(updated!.pausedSegments.length).toBe(1);
+    });
+  });
 });

@@ -41,6 +41,7 @@ export interface Entry {
   isRunning: boolean; // true only for single currently active entry
   isPaused: boolean;
   pausedSegments: PauseSegment[];
+  manualAmount?: number | null;
   editHistory: EditHistory[];
   createdAt: string; // ISO datetime
   updatedAt: string; // ISO datetime

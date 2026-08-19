@@ -218,7 +218,9 @@ export const AnalysisView: React.FC = () => {
       tSec += actualDuration;
 
       const tc = timecodeMap.get(entry.timecodeId);
-      const earnings = tc?.hourlyRate ? (actualDuration / 3600) * tc.hourlyRate : 0;
+      const earnings = entry.manualAmount != null
+        ? entry.manualAmount
+        : (tc?.hourlyRate ? (actualDuration / 3600) * tc.hourlyRate : 0);
       tEarn += earnings;
 
       const currentTc = tcMap.get(entry.timecodeId) || { duration: 0, earnings: 0 };
@@ -357,17 +359,22 @@ export const AnalysisView: React.FC = () => {
 
   // Implements the raw/detailed entry-level CSV export feature requested in the audit report
   const downloadDetailedRawCSV = () => {
-    const headers = ['Date', 'Timecode', 'Group', 'Start', 'End', 'Duration (h)', 'Note'];
+    const headers = ['Date', 'Timecode', 'Group', 'Start', 'End', 'Duration (h)', 'Amount', 'Note'];
     const rows = filteredEntries.map(e => {
       const tc = timecodeMap.get(e.timecodeId);
       const grp = tc?.groupId ? groupMap.get(tc.groupId) : undefined;
+      const hrs = applyRounding(e.duration, settings?.roundingRule ?? 'none') / 3600;
+      const amount = e.manualAmount != null
+        ? e.manualAmount
+        : (tc?.hourlyRate ? hrs * tc.hourlyRate : 0);
       return [
         escapeCSV(format(parseISO(e.startTime), 'yyyy-MM-dd')),
         escapeCSV(tc?.name ?? 'Unknown'),
         escapeCSV(grp?.name ?? 'Ungrouped'),
         escapeCSV(format(parseISO(e.startTime), 'HH:mm:ss')),
         escapeCSV(e.endTime ? format(parseISO(e.endTime), 'HH:mm:ss') : ''),
-        (applyRounding(e.duration, settings?.roundingRule ?? 'none') / 3600).toFixed(2),
+        hrs.toFixed(2),
+        amount > 0 ? amount.toFixed(2) : '',
         escapeCSV(e.note),
       ].join(',');
     });
@@ -488,6 +495,9 @@ export const AnalysisView: React.FC = () => {
         .map(e => {
           const tc = timecodeMap.get(e.timecodeId);
           const hrs = (applyRounding(e.duration, settings?.roundingRule ?? 'none') / 3600).toFixed(2);
+          const amount = e.manualAmount != null
+            ? e.manualAmount
+            : (tc?.hourlyRate ? parseFloat(hrs) * tc.hourlyRate : 0);
           const paused = e.endTime
             ? formatDurationShort(calculateTotalPausedSeconds(parseISO(e.startTime), parseISO(e.endTime), e.pausedSegments))
             : '—';
@@ -498,16 +508,17 @@ export const AnalysisView: React.FC = () => {
             e.endTime ? format(parseISO(e.endTime), 'HH:mm') : 'Running',
             paused,
             hrs,
+            amount > 0 ? `${currencySymbol}${amount.toFixed(2)}` : '-',
             e.note || '—',
           ];
         });
 
       autoTable(doc, {
         startY: (doc as any).lastAutoTable.finalY + 10,
-        head: [['Date', 'Timecode', 'Start', 'End', 'Paused', 'Hours', 'Note']],
+        head: [['Date', 'Timecode', 'Start', 'End', 'Paused', 'Hours', 'Amount', 'Note']],
         body: detailRows,
         styles: { fontSize: 8, cellPadding: 2 },
-        columnStyles: { 6: { cellWidth: 60 } },
+        columnStyles: { 7: { cellWidth: 60 } },
         margin: { top: 25 },
         didDrawPage: (data) => ensureHeader(data.pageNumber),
       });

@@ -14,24 +14,38 @@ interface EntryEditModalProps {
 }
 
 export const EntryEditModal: React.FC<EntryEditModalProps> = ({ entry, onClose }) => {
-  const { updateEntry, entries, settings } = useTimeTracker();
+  const { updateEntry, entries, settings, timecodes } = useTimeTracker();
   const { addToast } = useToast();
   const [startTime, setStartTime] = useState('');
   const [endTime, setEndTime] = useState('');
   const [timecodeId, setTimecodeId] = useState(entry.timecodeId);
   const [note, setNote] = useState(entry.note);
   const [tagsStr, setTagsStr] = useState((entry.tags || []).join(', '));
+
+  const initialBreakMinutes = Math.round(
+    entry.pausedSegments.reduce((sum, seg) => {
+      const segStart = new Date(seg.pauseStart).getTime();
+      const segEnd = seg.pauseEnd ? new Date(seg.pauseEnd).getTime() : Date.now();
+      return sum + Math.max(0, segEnd - segStart);
+    }, 0) / 60000
+  ).toString();
+
+  const [breakMinutes, setBreakMinutes] = useState(!entry.isRunning ? initialBreakMinutes : '');
+  const [manualAmount, setManualAmount] = useState(entry.manualAmount != null ? entry.manualAmount.toString() : '');
   const [error, setError] = useState<string | null>(null);
   const [warning, setWarning] = useState<string | null>(null);
 
   const initialStartTime = format(parseISO(entry.startTime), "yyyy-MM-dd'T'HH:mm:ss");
   const initialEndTime = entry.endTime ? format(parseISO(entry.endTime), "yyyy-MM-dd'T'HH:mm:ss") : '';
+  const initialManualAmount = entry.manualAmount != null ? entry.manualAmount.toString() : '';
 
   const isDirty = startTime !== initialStartTime ||
     endTime !== initialEndTime ||
     timecodeId !== entry.timecodeId ||
     note !== entry.note ||
-    tagsStr !== (entry.tags || []).join(', ');
+    tagsStr !== (entry.tags || []).join(', ') ||
+    (!entry.isRunning && breakMinutes !== initialBreakMinutes) ||
+    manualAmount !== initialManualAmount;
 
   useEffect(() => {
     // Initialize formats for datetime-local inputs
@@ -99,10 +113,23 @@ export const EntryEditModal: React.FC<EntryEditModalProps> = ({ entry, onClose }
       note,
       tags: tagsStr.split(',').map(t => t.trim()).filter(t => t !== ''),
       startTime: start.toISOString(),
+      manualAmount: manualAmount ? parseFloat(manualAmount) : null,
     };
 
     if (end) {
       updates.endTime = end.toISOString();
+    }
+
+    if (!entry.isRunning && end) {
+      const breakMins = Math.max(0, parseInt(breakMinutes, 10) || 0);
+      if (breakMins * 60 >= differenceInSeconds(end, start)) {
+        setError('Break time cannot exceed the entry duration.');
+        return;
+      }
+      const pausedSegments = breakMins > 0
+        ? [{ pauseStart: start.toISOString(), pauseEnd: new Date(start.getTime() + breakMins * 60000).toISOString() }]
+        : [];
+      updates.pausedSegments = pausedSegments;
     }
 
     await updateEntry(entry.id, updates);
@@ -150,6 +177,40 @@ export const EntryEditModal: React.FC<EntryEditModalProps> = ({ entry, onClose }
               />
             </div>
           </div>
+
+          {!entry.isRunning && (
+            <div>
+              <label className="block text-sm font-medium text-graphite dark:text-stone mb-1">Break (minutes)</label>
+              <input
+                type="number"
+                min="0"
+                value={breakMinutes}
+                onChange={(e) => setBreakMinutes(e.target.value)}
+                placeholder="0"
+                className="w-full px-3 py-2 border border-graphite/10 dark:border-white/10 rounded-md shadow-sm focus:outline-none focus-visible:ring-2 focus-visible:ring-signal sm:text-sm bg-stone dark:bg-graphite text-graphite dark:text-stone"
+              />
+            </div>
+          )}
+
+          {timecodeId && !timecodes.find(t => t.id === timecodeId)?.hourlyRate && (
+            <div>
+              <label className="block text-sm font-medium text-graphite dark:text-stone mb-1">
+                Fixed Amount ({settings?.currencySymbol || '$'}) — optional
+              </label>
+              <input
+                type="number"
+                min="0"
+                step="0.01"
+                value={manualAmount}
+                onChange={(e) => setManualAmount(e.target.value)}
+                placeholder="e.g. 150.00"
+                className="w-full px-3 py-2 border border-graphite/10 dark:border-white/10 rounded-md shadow-sm focus:outline-none focus-visible:ring-2 focus-visible:ring-signal sm:text-sm bg-stone dark:bg-graphite text-graphite dark:text-stone"
+              />
+              <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
+                For non-time costs (e.g. materials, a flat fee). Overrides hourly-rate calculation on reports.
+              </p>
+            </div>
+          )}
 
           <div>
             <label className="block text-sm font-medium text-graphite dark:text-stone mb-1">Note</label>
