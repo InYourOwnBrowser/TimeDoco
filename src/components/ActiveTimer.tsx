@@ -98,15 +98,15 @@ export const ActiveTimer: React.FC<{ activeEntry: Entry | null }> = ({ activeEnt
   };
 
   return (
-    <div className="bg-stone dark:bg-graphite p-6 rounded-panel shadow-sm border border-graphite/20 dark:border-white/20 max-w-md w-full mx-auto flex flex-col items-center transition-colors">
+    <div className="bg-white dark:bg-graphite p-6 rounded-panel shadow-sm dark:shadow-[inset_0_1px_0_rgba(255,255,255,0.06)] border border-graphite/20 dark:border-white/20 max-w-md w-full mx-auto flex flex-col items-center transition-colors">
       {!activeEntry ? (
         <div className="w-full flex flex-col items-center gap-6">
-          <div className="text-5xl text-gray-300 dark:text-gray-600 font-mono tracking-wider tabular">
+          <div className="text-5xl text-gray-400 dark:text-gray-500 font-mono tracking-wider tabular">
             00:00
           </div>
 
           <div className="w-full relative z-20">
-            <label className="block text-sm font-medium text-gray-500 dark:text-gray-400 mb-2 text-center">What are you working on?</label>
+            <label className="block text-sm font-medium text-gray-600 dark:text-gray-400 mb-2 text-center">What are you working on?</label>
             <TimecodeSelector onSelect={setSelectedTimecodeId} selectedId={selectedTimecodeId} />
           </div>
 
@@ -115,7 +115,7 @@ export const ActiveTimer: React.FC<{ activeEntry: Entry | null }> = ({ activeEnt
               type="text"
               maxLength={2000}
               placeholder="What are you working on? (optional note)"
-              className="w-full text-center text-sm px-3 py-2 border border-graphite/20 dark:border-white/20 hover:border-graphite/30 dark:hover:border-white/30 focus:border-signal dark:focus:border-signal rounded-panel outline-none transition-colors bg-stone dark:bg-graphite text-graphite dark:text-stone placeholder-gray-400 dark:placeholder-gray-500 focus-visible:ring-2 focus-visible:ring-signal focus-visible:ring-offset-2 ring-offset-stone dark:ring-offset-graphite"
+              className="w-full text-center text-sm px-3 py-2 border border-graphite/20 dark:border-white/20 hover:border-graphite/30 dark:hover:border-white/30 focus:border-signal dark:focus:border-signal rounded-panel outline-none transition-colors bg-white dark:bg-graphite text-graphite dark:text-stone placeholder-gray-500 dark:placeholder-gray-400 focus-visible:ring-2 focus-visible:ring-signal focus-visible:ring-offset-2 ring-offset-stone dark:ring-offset-graphite"
               value={preStartNote}
               onChange={(e) => setPreStartNote(e.target.value)}
             />
@@ -123,7 +123,7 @@ export const ActiveTimer: React.FC<{ activeEntry: Entry | null }> = ({ activeEnt
               type="text"
               maxLength={500}
               placeholder="Tags (e.g. design, client)"
-              className="w-full text-center text-xs px-3 py-1.5 border border-graphite/20 dark:border-white/20 hover:border-graphite/30 dark:hover:border-white/30 focus:border-signal dark:focus:border-signal rounded-panel outline-none transition-colors bg-stone dark:bg-graphite text-graphite dark:text-stone placeholder-gray-400 dark:placeholder-gray-500 focus-visible:ring-2 focus-visible:ring-signal focus-visible:ring-offset-2 ring-offset-stone dark:ring-offset-graphite"
+              className="w-full text-center text-xs px-3 py-1.5 border border-graphite/20 dark:border-white/20 hover:border-graphite/30 dark:hover:border-white/30 focus:border-signal dark:focus:border-signal rounded-panel outline-none transition-colors bg-white dark:bg-graphite text-graphite dark:text-stone placeholder-gray-500 dark:placeholder-gray-400 focus-visible:ring-2 focus-visible:ring-signal focus-visible:ring-offset-2 ring-offset-stone dark:ring-offset-graphite"
               value={preStartTags}
               onChange={(e) => setPreStartTags(e.target.value)}
             />
@@ -173,7 +173,7 @@ export const ActiveTimer: React.FC<{ activeEntry: Entry | null }> = ({ activeEnt
               type="text"
               maxLength={2000}
               placeholder="Add a note..."
-              className="w-full text-center text-sm px-3 py-2 border border-graphite/20 dark:border-white/20 hover:border-graphite/30 dark:hover:border-white/30 focus:border-signal dark:focus:border-signal rounded-panel outline-none transition-colors bg-stone dark:bg-graphite text-graphite dark:text-stone placeholder-gray-400 dark:placeholder-gray-500 focus-visible:ring-2 focus-visible:ring-signal focus-visible:ring-offset-2 ring-offset-stone dark:ring-offset-graphite"
+              className="w-full text-center text-sm px-3 py-2 border border-graphite/20 dark:border-white/20 hover:border-graphite/30 dark:hover:border-white/30 focus:border-signal dark:focus:border-signal rounded-panel outline-none transition-colors bg-white dark:bg-graphite text-graphite dark:text-stone placeholder-gray-500 dark:placeholder-gray-400 focus-visible:ring-2 focus-visible:ring-signal focus-visible:ring-offset-2 ring-offset-stone dark:ring-offset-graphite"
               value={localNote}
               onChange={(e) => setLocalNote(e.target.value)}
             />
@@ -181,7 +181,7 @@ export const ActiveTimer: React.FC<{ activeEntry: Entry | null }> = ({ activeEnt
               type="text"
               maxLength={500}
               placeholder="Tags (e.g. design, review)"
-              className="w-full text-center text-xs px-3 py-1.5 border border-graphite/20 dark:border-white/20 hover:border-graphite/30 dark:hover:border-white/30 focus:border-signal dark:focus:border-signal rounded-panel outline-none transition-colors bg-stone dark:bg-graphite text-graphite dark:text-stone placeholder-gray-400 dark:placeholder-gray-500 focus-visible:ring-2 focus-visible:ring-signal focus-visible:ring-offset-2 ring-offset-stone dark:ring-offset-graphite"
+              className="w-full text-center text-xs px-3 py-1.5 border border-graphite/20 dark:border-white/20 hover:border-graphite/30 dark:hover:border-white/30 focus:border-signal dark:focus:border-signal rounded-panel outline-none transition-colors bg-white dark:bg-graphite text-graphite dark:text-stone placeholder-gray-500 dark:placeholder-gray-400 focus-visible:ring-2 focus-visible:ring-signal focus-visible:ring-offset-2 ring-offset-stone dark:ring-offset-graphite"
               value={localTags}
               onChange={(e) => setLocalTags(e.target.value)}
             />
@@ -200,7 +200,7 @@ export const ActiveTimer: React.FC<{ activeEntry: Entry | null }> = ({ activeEnt
             ) : (
               <button
                 onClick={() => pauseTimer(activeEntry.id)}
-                className="w-14 h-14 rounded-full bg-gray-200 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-300 dark:hover:bg-gray-600 flex items-center justify-center transition-colors focus-visible:ring-2 focus-visible:ring-signal focus-visible:ring-offset-2 ring-offset-stone dark:ring-offset-graphite"
+                className="w-14 h-14 rounded-full bg-stone dark:bg-gray-700 text-graphite dark:text-gray-200 hover:bg-gray-200 dark:hover:bg-gray-600 flex items-center justify-center transition-colors focus-visible:ring-2 focus-visible:ring-signal focus-visible:ring-offset-2 ring-offset-stone dark:ring-offset-graphite"
                 title="Pause"
                 aria-label="Pause Timer"
               >

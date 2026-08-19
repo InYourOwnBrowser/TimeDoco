@@ -39,7 +39,7 @@ export const GlobalActiveTimerBar: React.FC = () => {
 
   return (
     <div className="fixed bottom-6 right-6 z-50 animate-in fade-in slide-in-from-bottom-4 duration-300">
-      <div className="bg-stone dark:bg-graphite rounded-panel shadow-sm border border-graphite/20 dark:border-white/20 p-2 pr-4 flex items-center gap-4 transition-colors">
+      <div className="bg-white dark:bg-graphite rounded-panel shadow-sm border border-graphite/20 dark:border-white/20 p-2 pr-4 flex items-center gap-4 transition-colors">
 
         {/* Play/Pause control for this timer */}
         {primaryEntry.isPaused ? (
@@ -54,7 +54,7 @@ export const GlobalActiveTimerBar: React.FC = () => {
         ) : (
            <button
              onClick={() => pauseTimer(primaryEntry.id)}
-             className="w-10 h-10 rounded-full bg-gray-200 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-300 dark:hover:bg-gray-600 flex items-center justify-center transition-colors shrink-0 focus-visible:ring-2 focus-visible:ring-signal focus-visible:ring-offset-2 ring-offset-stone dark:ring-offset-graphite"
+             className="w-10 h-10 rounded-full bg-stone dark:bg-gray-700 text-graphite dark:text-gray-200 hover:bg-gray-200 dark:hover:bg-gray-600 flex items-center justify-center transition-colors shrink-0 focus-visible:ring-2 focus-visible:ring-signal focus-visible:ring-offset-2 ring-offset-stone dark:ring-offset-graphite"
              title="Pause"
              aria-label="Pause Timer"
            >
@@ -74,7 +74,7 @@ export const GlobalActiveTimerBar: React.FC = () => {
               </div>
             )}
             {activeEntries.length > 1 && (
-              <span className="text-xs font-semibold bg-gray-200 dark:bg-gray-700 text-gray-600 dark:text-gray-300 px-1.5 py-0.5 rounded-full">
+              <span className="text-xs font-semibold bg-stone dark:bg-gray-700 text-graphite dark:text-gray-300 px-1.5 py-0.5 rounded-full">
                 +{activeEntries.length - 1}
               </span>
             )}

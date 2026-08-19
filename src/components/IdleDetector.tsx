@@ -98,21 +98,21 @@ export const IdleDetector: React.FC = () => {
 
   return (
     <Modal onClose={handleKeepRunning}>
-      <div className="bg-white dark:bg-gray-800 rounded-xl shadow-xl max-w-md w-full p-6 animate-in fade-in zoom-in-95 duration-200">
-        <h2 className="text-xl font-semibold text-gray-900 dark:text-white mb-2">Still working?</h2>
+      <div className="bg-white dark:bg-graphite rounded-panel shadow-xl border border-graphite/20 dark:border-white/20 max-w-md w-full p-6 animate-in fade-in zoom-in-95 duration-200">
+        <h2 className="text-xl font-semibold text-graphite dark:text-stone mb-2">Still working?</h2>
         <p className="text-gray-600 dark:text-gray-400 mb-6">
           You've been idle for {settings?.idleThresholdMinutes} minutes. Are you still working on this task?
         </p>
         <div className="flex justify-end gap-3">
           <button
             onClick={handleStopWorking}
-            className="px-4 py-2 text-sm font-medium text-gray-700 dark:text-gray-300 bg-gray-100 dark:bg-gray-700 hover:bg-gray-200 dark:hover:bg-gray-600 rounded-lg transition-colors"
+            className="px-4 py-2 text-sm font-medium text-graphite dark:text-stone bg-white dark:bg-gray-800/30 border border-graphite/20 dark:border-white/20 hover:bg-gray-100 dark:hover:bg-gray-800/50 rounded-panel transition-colors"
           >
             No, pause timers
           </button>
           <button
             onClick={handleKeepRunning}
-            className="px-4 py-2 text-sm font-medium bg-graphite hover:bg-ink dark:bg-stone dark:hover:bg-gray-300 text-stone dark:text-ink rounded-lg transition-colors"
+            className="px-4 py-2 text-sm font-medium bg-graphite hover:bg-ink dark:bg-stone dark:hover:bg-gray-300 text-stone dark:text-ink rounded-panel transition-colors"
           >
             Yes, keep running
           </button>

@@ -542,24 +542,24 @@ export const AnalysisView: React.FC = () => {
   };
 
   return (
-    <div className="w-full bg-stone dark:bg-graphite rounded-panel shadow-sm border border-graphite/10 dark:border-white/10 overflow-hidden print:shadow-none print:border-none">
-      <div className="p-6 border-b border-graphite/10 dark:border-white/10 print:hidden">
+    <div className="w-full bg-white dark:bg-graphite rounded-panel shadow-sm border border-graphite/20 dark:border-white/20 overflow-hidden print:shadow-none print:border-none">
+      <div className="p-6 border-b border-graphite/20 dark:border-white/20 print:hidden">
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-4">
           <h2 className="text-xl font-bold text-graphite dark:text-stone">Analysis & Reports</h2>
           <div className="flex flex-wrap gap-2">
-            <button onClick={handleExportCSV} className="flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium text-graphite dark:text-stone bg-gray-50 dark:bg-gray-800/30 hover:bg-gray-100 dark:hover:bg-gray-800/50 rounded-md transition-colors border border-graphite/20 dark:border-white/20 focus-visible:ring-2 focus-visible:ring-signal" title="Summary CSV">
+            <button onClick={handleExportCSV} className="flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium text-graphite dark:text-stone bg-white dark:bg-gray-800/30 hover:bg-gray-100 dark:hover:bg-gray-800/50 rounded-md transition-colors border border-graphite/20 dark:border-white/20 focus-visible:ring-2 focus-visible:ring-signal" title="Summary CSV">
               <Download size={16} /> <span className="hidden sm:inline">Summary CSV</span><span className="sm:hidden">CSV</span>
             </button>
-            <button onClick={downloadDetailedRawCSV} className="flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium text-graphite dark:text-stone bg-gray-50 dark:bg-gray-800/30 hover:bg-gray-100 dark:hover:bg-gray-800/50 rounded-md transition-colors border border-graphite/20 dark:border-white/20 focus-visible:ring-2 focus-visible:ring-signal" title="Export Detailed CSV">
+            <button onClick={downloadDetailedRawCSV} className="flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium text-graphite dark:text-stone bg-white dark:bg-gray-800/30 hover:bg-gray-100 dark:hover:bg-gray-800/50 rounded-md transition-colors border border-graphite/20 dark:border-white/20 focus-visible:ring-2 focus-visible:ring-signal" title="Export Detailed CSV">
               <Download size={16} /> <span className="hidden sm:inline">Detailed Raw CSV</span><span className="sm:hidden">Detailed CSV</span>
             </button>
-            <button onClick={handleExportICS} className="flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium text-graphite dark:text-stone bg-gray-50 dark:bg-gray-800/30 hover:bg-gray-100 dark:hover:bg-gray-800/50 rounded-md transition-colors border border-graphite/20 dark:border-white/20 focus-visible:ring-2 focus-visible:ring-signal" title="Export Calendar (ICS)">
+            <button onClick={handleExportICS} className="flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium text-graphite dark:text-stone bg-white dark:bg-gray-800/30 hover:bg-gray-100 dark:hover:bg-gray-800/50 rounded-md transition-colors border border-graphite/20 dark:border-white/20 focus-visible:ring-2 focus-visible:ring-signal" title="Export Calendar (ICS)">
               <Calendar size={16} /> <span className="hidden sm:inline">Export ICS</span><span className="sm:hidden">ICS</span>
             </button>
             <button
               onClick={handlePrint}
               disabled={isGeneratingPdf}
-              className="flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium text-graphite dark:text-stone bg-gray-50 dark:bg-gray-800/30 hover:bg-gray-100 dark:hover:bg-gray-800/50 rounded-md transition-colors border border-graphite/20 dark:border-white/20 focus-visible:ring-2 focus-visible:ring-signal disabled:opacity-50 disabled:cursor-not-allowed"
+              className="flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium text-graphite dark:text-stone bg-white dark:bg-gray-800/30 hover:bg-gray-100 dark:hover:bg-gray-800/50 rounded-md transition-colors border border-graphite/20 dark:border-white/20 focus-visible:ring-2 focus-visible:ring-signal disabled:opacity-50 disabled:cursor-not-allowed"
             >
               {isGeneratingPdf ? <Loader2 size={16} className="animate-spin" /> : <Printer size={16} />}
               <span className="hidden sm:inline">{isGeneratingPdf ? 'Generating…' : 'PDF / Print'}</span>
@@ -574,7 +574,7 @@ export const AnalysisView: React.FC = () => {
               key={p}
               onClick={() => setPreset(p)}
               className={`px-4 py-1.5 text-sm font-medium rounded-full transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-signal ${
-                preset === p ? 'bg-graphite text-stone dark:bg-stone dark:text-ink' : 'bg-gray-100 text-gray-600 hover:bg-gray-200 dark:bg-gray-700 dark:text-gray-300 dark:hover:bg-gray-600'
+                preset === p ? 'bg-graphite text-stone dark:bg-stone dark:text-ink' : 'bg-stone text-graphite hover:bg-gray-200 dark:bg-gray-800 dark:text-gray-200 dark:hover:bg-gray-700'
               }`}
             >
               {p === 'today' ? 'Today' : p === 'week' ? 'This Week' : p === 'month' ? 'This Month' : p === 'lastMonth' ? 'Last Month' : p === 'lastQuarter' ? 'Last Quarter' : 'Custom'}
@@ -588,14 +588,14 @@ export const AnalysisView: React.FC = () => {
               type="date"
               value={customStart}
               onChange={(e) => setCustomStart(e.target.value)}
-              className="px-3 py-1.5 text-sm border border-gray-300 rounded-md dark:bg-gray-700 dark:border-gray-600 dark:text-white"
+              className="px-3 py-1.5 text-sm border border-graphite/20 dark:border-white/20 rounded-md bg-white dark:bg-graphite text-graphite dark:text-stone"
             />
-            <span className="text-gray-500 dark:text-gray-400">to</span>
+            <span className="text-gray-600 dark:text-gray-400">to</span>
             <input
               type="date"
               value={customEnd}
               onChange={(e) => setCustomEnd(e.target.value)}
-              className="px-3 py-1.5 text-sm border border-gray-300 rounded-md dark:bg-gray-700 dark:border-gray-600 dark:text-white"
+              className="px-3 py-1.5 text-sm border border-graphite/20 dark:border-white/20 rounded-md bg-white dark:bg-graphite text-graphite dark:text-stone"
             />
           </div>
         )}
@@ -604,7 +604,7 @@ export const AnalysisView: React.FC = () => {
           <select
             value={selectedGroupId}
             onChange={(e) => setSelectedGroupId(e.target.value)}
-            className="px-3 py-1.5 text-sm border-graphite/20 dark:border-white/20 rounded-md bg-stone dark:bg-graphite text-graphite dark:text-stone focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-signal"
+            className="px-3 py-1.5 text-sm border-graphite/20 dark:border-white/20 rounded-md bg-white dark:bg-graphite text-graphite dark:text-stone focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-signal"
           >
             <option value="all">All Clients / Groups</option>
             {groups.filter(g => !g.archived).map(g => (
@@ -614,7 +614,7 @@ export const AnalysisView: React.FC = () => {
           <select
             value={selectedTimecodeId}
             onChange={(e) => setSelectedTimecodeId(e.target.value)}
-            className="px-3 py-1.5 text-sm border-graphite/20 dark:border-white/20 rounded-md bg-stone dark:bg-graphite text-graphite dark:text-stone focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-signal"
+            className="px-3 py-1.5 text-sm border-graphite/20 dark:border-white/20 rounded-md bg-white dark:bg-graphite text-graphite dark:text-stone focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-signal"
           >
             <option value="all">All Timecodes</option>
             {timecodeOptions.map(t => (
@@ -624,7 +624,7 @@ export const AnalysisView: React.FC = () => {
           {(selectedGroupId !== 'all' || selectedTimecodeId !== 'all') && (
             <button
               onClick={() => { setSelectedGroupId('all'); setSelectedTimecodeId('all'); }}
-              className="text-sm text-gray-500 hover:text-signal-dim dark:hover:text-signal dark:text-gray-400 transition-colors"
+              className="text-sm text-gray-600 hover:text-signal-dim dark:hover:text-signal dark:text-gray-400 transition-colors"
             >
               Clear filter
             </button>
@@ -633,30 +633,30 @@ export const AnalysisView: React.FC = () => {
         </div>
         <div className="flex flex-col gap-2 mb-4 max-w-md">
           <div className="flex items-center gap-2">
-            <label className="text-xs text-gray-500 dark:text-gray-400 w-20 shrink-0">Prepared for</label>
+            <label className="text-xs text-gray-600 dark:text-gray-400 w-20 shrink-0">Prepared for</label>
             <input
               type="text"
               value={preparedForOverride}
               onChange={(e) => setPreparedForOverride(e.target.value)}
               placeholder={scopeLabel}
-              className="flex-1 px-3 py-1.5 text-sm border-graphite/20 dark:border-white/20 rounded-md bg-stone dark:bg-graphite text-graphite dark:text-stone focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-signal"
+              className="flex-1 px-3 py-1.5 text-sm border-graphite/20 dark:border-white/20 rounded-md bg-white dark:bg-graphite text-graphite dark:text-stone focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-signal"
             />
           </div>
           <div className="flex items-center gap-2">
-            <label className="text-xs text-gray-500 dark:text-gray-400 w-20 shrink-0">Prepared by</label>
+            <label className="text-xs text-gray-600 dark:text-gray-400 w-20 shrink-0">Prepared by</label>
             <input
               type="text"
               value={preparedByOverride}
               onChange={(e) => setPreparedByOverride(e.target.value)}
               placeholder={[settings?.preparerName, settings?.preparerCompany].filter(Boolean).join(' — ') || 'not set in Settings'}
-              className="flex-1 px-3 py-1.5 text-sm border-graphite/20 dark:border-white/20 rounded-md bg-stone dark:bg-graphite text-graphite dark:text-stone focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-signal"
+              className="flex-1 px-3 py-1.5 text-sm border-graphite/20 dark:border-white/20 rounded-md bg-white dark:bg-graphite text-graphite dark:text-stone focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-signal"
             />
           </div>
           {reportFields.map((f, i) => (
             <div key={f.id} className="flex items-center gap-2">
-              <input type="text" value={f.label} onChange={(e) => updateReportField(i, { label: e.target.value })} placeholder="Label" className="w-20 shrink-0 px-2 py-1.5 text-xs border border-graphite/20 dark:border-white/20 rounded bg-stone dark:bg-graphite text-graphite dark:text-stone" />
-              <input type="text" value={f.value} onChange={(e) => updateReportField(i, { value: e.target.value })} placeholder="Value" className="flex-1 px-2 py-1.5 text-xs border border-graphite/20 dark:border-white/20 rounded bg-stone dark:bg-graphite text-graphite dark:text-stone" />
-              <button onClick={() => setReportFields(prev => prev.filter((_, j) => j !== i))} aria-label="Remove field" className="text-gray-400 hover:text-rust shrink-0"><X size={14} /></button>
+              <input type="text" value={f.label} onChange={(e) => updateReportField(i, { label: e.target.value })} placeholder="Label" className="w-20 shrink-0 px-2 py-1.5 text-xs border border-graphite/20 dark:border-white/20 rounded bg-white dark:bg-graphite text-graphite dark:text-stone" />
+              <input type="text" value={f.value} onChange={(e) => updateReportField(i, { value: e.target.value })} placeholder="Value" className="flex-1 px-2 py-1.5 text-xs border border-graphite/20 dark:border-white/20 rounded bg-white dark:bg-graphite text-graphite dark:text-stone" />
+              <button onClick={() => setReportFields(prev => prev.filter((_, j) => j !== i))} aria-label="Remove field" className="text-gray-500 hover:text-rust shrink-0"><X size={14} /></button>
             </div>
           ))}
           <button onClick={() => setReportFields(prev => [...prev, { id: crypto.randomUUID(), label: '', value: '' }])} className="text-xs text-signal-dim dark:text-signal hover:underline self-start">+ Field</button>
@@ -664,27 +664,27 @@ export const AnalysisView: React.FC = () => {
       </div>
 
       <div className="p-6">
-        {scopeLabel !== 'All' && <p className="text-sm text-gray-500 dark:text-gray-400 mb-2">Showing: {scopeLabel}</p>}
+        {scopeLabel !== 'All' && <p className="text-sm text-gray-600 dark:text-gray-400 mb-2">Showing: {scopeLabel}</p>}
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-8">
-          <div className="bg-stone dark:bg-graphite rounded-panel p-5 border border-graphite/20 dark:border-white/20 shadow-sm flex flex-col justify-center items-center transition-colors">
+          <div className="bg-stone/50 dark:bg-graphite rounded-panel p-5 border border-graphite/20 dark:border-white/20 shadow-sm flex flex-col justify-center items-center transition-colors">
             <span className="text-signal-dim dark:text-signal text-xs font-sans font-semibold mb-1 uppercase tracking-wide">TOTAL TRACKED TIME</span>
             <span className="text-4xl font-mono tabular font-medium text-graphite dark:text-stone">{formatDuration(totalSeconds)}</span>
           </div>
           {totalEarnings > 0 && (
-            <div className="bg-stone dark:bg-graphite rounded-panel p-5 border border-graphite/20 dark:border-white/20 shadow-sm flex flex-col justify-center transition-colors">
+            <div className="bg-stone/50 dark:bg-graphite rounded-panel p-5 border border-graphite/20 dark:border-white/20 shadow-sm flex flex-col justify-center transition-colors">
               {taxBreakdown ? (
                   <>
-                    <span className="text-verdigris text-xs font-sans font-semibold mb-2 uppercase tracking-wide text-center">Earnings</span>
+                    <span className="text-verdigris dark:text-emerald-400 text-xs font-sans font-semibold mb-2 uppercase tracking-wide text-center">Earnings</span>
                     <div className="space-y-1">
-                      <div className="flex justify-between text-sm text-gray-500 dark:text-gray-400">
+                      <div className="flex justify-between text-sm text-gray-600 dark:text-gray-400">
                         <span>Subtotal</span>
                         <span className="font-mono tabular">{currencySymbol}{taxBreakdown.subtotal.toFixed(2)}</span>
                       </div>
-                      <div className="flex justify-between text-sm text-gray-500 dark:text-gray-400">
+                      <div className="flex justify-between text-sm text-gray-600 dark:text-gray-400">
                         <span>{settings?.taxLabel || 'Tax'} ({settings?.taxRate}%)</span>
                         <span className="font-mono tabular">{currencySymbol}{taxBreakdown.tax.toFixed(2)}</span>
                       </div>
-                      <div className="flex justify-between text-lg font-medium text-graphite dark:text-stone pt-1 border-t border-graphite/10 dark:border-white/10">
+                      <div className="flex justify-between text-lg font-medium text-graphite dark:text-stone pt-1 border-t border-graphite/20 dark:border-white/20">
                         <span>Total</span>
                         <span className="font-mono tabular">{currencySymbol}{taxBreakdown.total.toFixed(2)}</span>
                       </div>
@@ -692,7 +692,7 @@ export const AnalysisView: React.FC = () => {
                   </>
               ) : (
                 <div className="flex flex-col items-center">
-                  <span className="text-verdigris text-xs font-sans font-semibold mb-1 uppercase tracking-wide">TOTAL EARNINGS</span>
+                  <span className="text-verdigris dark:text-emerald-400 text-xs font-sans font-semibold mb-1 uppercase tracking-wide">TOTAL EARNINGS</span>
                   <span className="text-4xl font-mono tabular font-medium text-graphite dark:text-stone">{currencySymbol}{totalEarnings.toFixed(2)}</span>
                 </div>
               )}
@@ -701,11 +701,11 @@ export const AnalysisView: React.FC = () => {
         </div>
 
         {totalEarnings > 0 && !settings?.taxEnabled && !settings?.taxPromptDismissed && (
-          <div className="mb-8 p-4 bg-stone dark:bg-graphite border border-graphite/20 dark:border-white/20 rounded-panel shadow-sm flex items-start justify-between gap-3">
+          <div className="mb-8 p-4 bg-stone/50 dark:bg-graphite border border-graphite/20 dark:border-white/20 rounded-panel shadow-sm flex items-start justify-between gap-3">
             <p className="text-sm text-gray-600 dark:text-gray-300">
               Add a tax rate in Settings to show before/after-tax totals on your earnings and reports.
             </p>
-            <button onClick={() => updateSettings({ taxPromptDismissed: true })} className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-200 shrink-0" aria-label="Dismiss">
+            <button onClick={() => updateSettings({ taxPromptDismissed: true })} className="text-gray-500 hover:text-gray-700 dark:hover:text-gray-200 shrink-0" aria-label="Dismiss">
               <X size={16} />
             </button>
           </div>
@@ -714,11 +714,11 @@ export const AnalysisView: React.FC = () => {
 
 
         {gaps.length > 0 && (
-          <div className="mb-8 p-4 bg-stone dark:bg-graphite border border-graphite/20 dark:border-white/20 rounded-panel shadow-sm flex items-start gap-3">
+          <div className="mb-8 p-4 bg-stone/50 dark:bg-graphite border border-graphite/20 dark:border-white/20 rounded-panel shadow-sm flex items-start gap-3">
             <AlertTriangle className="text-signal-dim dark:text-signal mt-0.5 shrink-0" size={20} />
             <div>
               <h4 className="font-medium text-graphite dark:text-stone">Untracked Time Gaps Detected</h4>
-              <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">
+              <p className="text-sm text-gray-600 dark:text-gray-400 mt-1">
                 There are {gaps.length} gaps of 15+ minutes between time entries during this period.
               </p>
             </div>
@@ -726,11 +726,11 @@ export const AnalysisView: React.FC = () => {
         )}
 
         {overlaps.length > 0 && (
-          <div className="mb-8 p-4 bg-stone dark:bg-graphite border border-rust/30 dark:border-rust/30 rounded-panel shadow-sm flex items-start gap-3">
+          <div className="mb-8 p-4 bg-stone/50 dark:bg-graphite border border-rust/30 dark:border-rust/30 rounded-panel shadow-sm flex items-start gap-3">
             <AlertTriangle className="text-rust dark:text-orange-300 mt-0.5 shrink-0" size={20} />
             <div>
               <h4 className="font-medium text-rust dark:text-orange-300">Overlapping Entries Detected</h4>
-              <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">
+              <p className="text-sm text-gray-600 dark:text-gray-400 mt-1">
                 There are {overlaps.length} overlapping time entries in this period. Review your history in the Tracker tab to ensure your tracked time is accurate.
               </p>
             </div>
@@ -742,16 +742,16 @@ export const AnalysisView: React.FC = () => {
         {dateRange.start.getTime() === startOfDay(dateRange.start).getTime() &&
          dateRange.end.getTime() === endOfDay(dateRange.start).getTime() && (
           <div className="mb-8">
-            <h3 className="text-lg font-semibold text-gray-800 dark:text-white mb-4 text-center">Daily Timeline</h3>
+            <h3 className="text-lg font-semibold text-graphite dark:text-stone mb-4 text-center">Daily Timeline</h3>
             <div className="relative h-12 bg-stone dark:bg-graphite rounded-panel shadow-inner overflow-hidden border border-graphite/20 dark:border-white/20">
               {/* Hour markers */}
               {Array.from({ length: 25 }).map((_, i) => (
                 <div
                   key={i}
-                  className="absolute top-0 bottom-0 border-l border-graphite/10 dark:border-white/10"
+                  className="absolute top-0 bottom-0 border-l border-graphite/20 dark:border-white/20"
                   style={{ left: `${(i / 24) * 100}%` }}
                 >
-                  <span className="absolute top-full mt-1 -ml-3 text-[10px] font-mono tabular text-gray-400">
+                  <span className="absolute top-full mt-1 -ml-3 text-[10px] font-mono tabular text-gray-500 dark:text-gray-400">
                     {i % 4 === 0 ? (i === 0 || i === 24 ? '12A' : i === 12 ? '12P' : i > 12 ? `${i - 12}P` : `${i}A`) : ''}
                   </span>
                 </div>
@@ -793,7 +793,7 @@ export const AnalysisView: React.FC = () => {
         {timecodeData.length > 0 ? (
           <>
             <div className="mb-8 h-80">
-              <h3 className="text-lg font-semibold text-gray-800 dark:text-white mb-4 text-center">Time by Timecode</h3>
+              <h3 className="text-lg font-semibold text-graphite dark:text-stone mb-4 text-center">Time by Timecode</h3>
               <ResponsiveContainer width="100%" height="100%">
                 <BarChart data={timecodeData} margin={{ top: 20, right: 30, left: 0, bottom: 5 }}>
                   <XAxis dataKey="name" tick={{ fontSize: 12, fontFamily: 'monospace' }} />
@@ -813,7 +813,7 @@ export const AnalysisView: React.FC = () => {
 
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 mb-8">
               <div className="h-64">
-                 <h3 className="text-lg font-semibold text-gray-800 dark:text-white mb-2 text-center">Time by Group</h3>
+                 <h3 className="text-lg font-semibold text-graphite dark:text-stone mb-2 text-center">Time by Group</h3>
                  <ResponsiveContainer width="100%" height="100%">
                    <PieChart>
                      <Pie
@@ -836,17 +836,17 @@ export const AnalysisView: React.FC = () => {
               </div>
 
               <div>
-                <h3 className="text-lg font-semibold text-gray-800 dark:text-white mb-3">Breakdown</h3>
+                <h3 className="text-lg font-semibold text-graphite dark:text-stone mb-3">Breakdown</h3>
                 <div className="overflow-hidden border border-graphite/20 dark:border-white/20 rounded-panel shadow-sm">
-                  <table className="min-w-full divide-y divide-graphite/10 dark:divide-white/10 text-sm">
+                  <table className="min-w-full divide-y divide-graphite/20 dark:divide-white/20 text-sm">
                     <thead className="bg-stone dark:bg-graphite">
                       <tr>
-                        <th className="px-4 py-3 text-left font-semibold text-gray-500 dark:text-gray-400 font-sans text-xs uppercase tracking-wide">Timecode</th>
-                        <th className="px-4 py-3 text-right font-semibold text-gray-500 dark:text-gray-400 font-sans text-xs uppercase tracking-wide">Hours</th>
-                        {totalEarnings > 0 && <th className="px-4 py-3 text-right font-semibold text-gray-500 dark:text-gray-400 font-sans text-xs uppercase tracking-wide">Earnings</th>}
+                        <th className="px-4 py-3 text-left font-semibold text-gray-600 dark:text-gray-400 font-sans text-xs uppercase tracking-wide">Timecode</th>
+                        <th className="px-4 py-3 text-right font-semibold text-gray-600 dark:text-gray-400 font-sans text-xs uppercase tracking-wide">Hours</th>
+                        {totalEarnings > 0 && <th className="px-4 py-3 text-right font-semibold text-gray-600 dark:text-gray-400 font-sans text-xs uppercase tracking-wide">Earnings</th>}
                       </tr>
                     </thead>
-                    <tbody className="bg-stone dark:bg-graphite divide-y divide-graphite/10 dark:divide-white/10">
+                    <tbody className="bg-white dark:bg-graphite divide-y divide-graphite/20 dark:divide-white/20">
                       {timecodeData.map((tc) => (
                         <tr key={tc.id} className="hover:bg-signal/5 transition-colors">
                           <td className="px-4 py-2.5 flex items-center gap-2">
@@ -868,7 +868,7 @@ export const AnalysisView: React.FC = () => {
             </div>
           </>
         ) : (
-          <div className="text-center py-12 text-gray-500 dark:text-gray-400">
+          <div className="text-center py-12 text-gray-600 dark:text-gray-400">
             No time tracked for this period.
           </div>
         )}
