@@ -1,0 +1,170 @@
+import { render, fireEvent, waitFor, screen } from '@testing-library/react';
+import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { format } from 'date-fns';
+import { AnalysisView } from './AnalysisView';
+import { TemplateList } from './TemplateList';
+import { ManualEntryModal } from './ManualEntryModal';
+
+const mockUpdateSettings = vi.fn().mockResolvedValue(undefined);
+const mockAddManualEntry = vi.fn().mockResolvedValue(undefined);
+const mockAddToast = vi.fn();
+
+const todayNoon = format(new Date(), "yyyy-MM-dd'T'12:00:00");
+
+const mockEntries = [
+  {
+    id: 'entry-fixed-1',
+    timecodeId: 'tc-1',
+    startTime: todayNoon,
+    endTime: todayNoon,
+    duration: 0,
+    note: 'Materials fee',
+    manualAmount: 150.00,
+    pausedSegments: [],
+    tags: [],
+  }
+];
+
+const mockTimecodes = [
+  {
+    id: 'tc-1',
+    name: 'Materials & Expenses',
+    groupId: 'grp-1',
+    color: '#10b981',
+    hourlyRate: 0,
+    archived: false,
+  }
+];
+
+const mockGroups = [
+  {
+    id: 'grp-1',
+    name: 'Client Alpha',
+    color: '#10b981',
+    archived: false,
+  }
+];
+
+const mockSettings = {
+  currencySymbol: '$',
+  taxEnabled: false,
+  templates: [
+    {
+      id: 'template-1',
+      title: 'Daily Standup',
+      timecodeId: 'tc-1',
+      durationMinutes: 15,
+      note: 'Team sync',
+    }
+  ]
+};
+
+vi.mock('../context/TimeTrackerContext', () => ({
+  useTimeTracker: () => ({
+    entries: mockEntries,
+    timecodes: mockTimecodes,
+    groups: mockGroups,
+    settings: mockSettings,
+    updateSettings: mockUpdateSettings,
+    addManualEntry: mockAddManualEntry,
+    startTimer: vi.fn(),
+  }),
+}));
+
+vi.mock('../context/ToastContext', () => ({
+  useToast: () => ({
+    addToast: mockAddToast,
+  }),
+}));
+
+describe('Fixed Cost & Template Deletion', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  describe('AnalysisView with Fixed Cost Entries', () => {
+    it('includes zero-duration entries with manualAmount in breakdown and total earnings', () => {
+      render(<AnalysisView />);
+
+      expect(screen.getByText('TOTAL EARNINGS')).not.toBeNull();
+      expect(screen.getAllByText('$150.00').length).toBeGreaterThan(0);
+      expect(screen.getAllByText('Materials & Expenses').length).toBeGreaterThan(0);
+    });
+  });
+
+  describe('TemplateList Deletion Confirmation', () => {
+    it('cancels deletion when window.confirm returns false', () => {
+      const confirmSpy = vi.spyOn(window, 'confirm').mockReturnValue(false);
+
+      const { container } = render(<TemplateList />);
+      const deleteBtn = container.querySelector('button[aria-label="Delete template"]') as HTMLButtonElement;
+      expect(deleteBtn).not.toBeNull();
+
+      fireEvent.click(deleteBtn);
+
+      expect(confirmSpy).toHaveBeenCalledWith('Delete template "Daily Standup"? This can be undone from the toast for a few seconds.');
+      expect(mockUpdateSettings).not.toHaveBeenCalled();
+
+      confirmSpy.mockRestore();
+    });
+
+    it('proceeds with deletion when window.confirm returns true', () => {
+      const confirmSpy = vi.spyOn(window, 'confirm').mockReturnValue(true);
+
+      const { container } = render(<TemplateList />);
+      const deleteBtn = container.querySelector('button[aria-label="Delete template"]') as HTMLButtonElement;
+      expect(deleteBtn).not.toBeNull();
+
+      fireEvent.click(deleteBtn);
+
+      expect(confirmSpy).toHaveBeenCalledWith('Delete template "Daily Standup"? This can be undone from the toast for a few seconds.');
+      expect(mockUpdateSettings).toHaveBeenCalledWith({
+        ...mockSettings,
+        templates: [],
+      });
+
+      confirmSpy.mockRestore();
+    });
+  });
+
+  describe('ManualEntryModal Fixed Cost Mode', () => {
+    it('switches to fixed cost mode when checkbox is checked and calls addManualEntry with noon local time ISO string', async () => {
+      const onClose = vi.fn();
+      const { container } = render(<ManualEntryModal onClose={onClose} />);
+
+      const timecodeCombo = screen.getByPlaceholderText('Select or type to create...');
+      fireEvent.click(timecodeCombo);
+
+      const options = screen.getAllByText('Materials & Expenses');
+      fireEvent.click(options[options.length - 1]);
+
+      const checkbox = screen.getByLabelText('This is a fixed cost (no time tracking)') as HTMLInputElement;
+      expect(checkbox).not.toBeNull();
+      fireEvent.click(checkbox);
+
+      const dateInput = container.querySelector('input[type="date"]') as HTMLInputElement;
+      expect(dateInput).not.toBeNull();
+      fireEvent.change(dateInput, { target: { value: '2025-05-10' } });
+
+      const amountInput = screen.getByPlaceholderText('e.g. 150.00') as HTMLInputElement;
+      fireEvent.change(amountInput, { target: { value: '250.00' } });
+
+      const saveBtn = screen.getByText('Add Entry');
+      fireEvent.click(saveBtn);
+
+      await waitFor(() => {
+        const expectedDate = new Date('2025-05-10T12:00:00').toISOString();
+        expect(mockAddManualEntry).toHaveBeenCalledWith({
+          timecodeId: 'tc-1',
+          startTime: expectedDate,
+          endTime: expectedDate,
+          note: '',
+          tags: [],
+          pausedSegments: [],
+          manualAmount: 250,
+        });
+        expect(onClose).toHaveBeenCalled();
+      });
+    });
+  });
+});
