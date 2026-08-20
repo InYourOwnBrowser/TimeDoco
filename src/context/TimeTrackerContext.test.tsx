@@ -656,4 +656,58 @@ describe('TimeTrackerContext Reducer Logic', () => {
       expect(updated!.pausedSegments.length).toBe(1);
     });
   });
+
+  it('bulkDeleteEntries: soft-deletes multiple entries at once and supports batch restore', async () => {
+    let ctx: ReturnType<typeof useTimeTracker> | undefined;
+
+    render(
+      <ToastProvider><TimeTrackerProvider>
+        <TestConsumer onReady={(c) => (ctx = c)} />
+      </TimeTrackerProvider></ToastProvider>
+    );
+
+    await waitFor(() => expect(ctx?.groups).toBeDefined());
+
+    let tcId = '';
+    await act(async () => {
+      const tc = await ctx!.addTimecode('Bulk Delete TC');
+      tcId = tc.id;
+    });
+
+    await act(async () => {
+      await ctx!.bulkAddManualEntries([
+        { startTime: '2024-01-01T10:00:00Z', endTime: '2024-01-01T11:00:00Z', timecodeId: tcId, note: 'Entry A' },
+        { startTime: '2024-01-01T11:00:00Z', endTime: '2024-01-01T12:00:00Z', timecodeId: tcId, note: 'Entry B' },
+        { startTime: '2024-01-01T12:00:00Z', endTime: '2024-01-01T13:00:00Z', timecodeId: tcId, note: 'Entry C' },
+      ]);
+    });
+
+    let entryIds: string[] = [];
+    await waitFor(() => {
+      expect(ctx!.entries.length).toBe(3);
+      entryIds = ctx!.entries.map(e => e.id);
+    });
+
+    // Delete first two entries
+    const idsToDelete = entryIds.slice(0, 2);
+    await act(async () => {
+      await ctx!.bulkDeleteEntries(idsToDelete);
+    });
+
+    await waitFor(() => {
+      expect(ctx!.entries.length).toBe(1);
+      expect(ctx!.deletedEntries.length).toBe(2);
+      expect(ctx!.entries[0].id).toBe(entryIds[2]);
+    });
+
+    // Restore one of them
+    await act(async () => {
+      await ctx!.restoreEntry(idsToDelete[0]);
+    });
+
+    await waitFor(() => {
+      expect(ctx!.entries.length).toBe(2);
+      expect(ctx!.deletedEntries.length).toBe(1);
+    });
+  });
 });

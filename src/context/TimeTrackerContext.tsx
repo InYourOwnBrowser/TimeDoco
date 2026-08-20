@@ -26,6 +26,7 @@ interface TimeTrackerContextType {
   entries: Entry[];
   updateEntry: (id: string, updates: Partial<Entry>) => Promise<void>;
   deleteEntry: (id: string) => Promise<void>;
+  bulkDeleteEntries: (ids: string[]) => Promise<void>;
   splitEntry: (entryId: string, splitTime: string, newTimecodeId?: string) => Promise<void>;
   addManualEntry: (entryData: { startTime: string; endTime: string; timecodeId: string; note: string; tags?: string[]; pausedSegments?: PauseSegment[]; manualAmount?: number | null }) => Promise<void>;
   bulkAddManualEntries: (entriesData: { startTime: string, endTime: string, timecodeId: string, note: string, tags?: string[] }[]) => Promise<void>;
@@ -839,6 +840,22 @@ export const TimeTrackerProvider: React.FC<{ children: ReactNode }> = ({ childre
     }
   };
 
+  const bulkDeleteEntries = async (ids: string[]) => {
+    if (ids.length === 0) return;
+    const now = new Date().toISOString();
+    const targets = await Promise.all(ids.map((id) => db.getEntry(id)));
+    await Promise.all(
+      targets.filter((e): e is Entry => !!e).map((e) => db.putEntry({ ...e, deletedAt: now }))
+    );
+    addToast(
+      `${ids.length} ${ids.length === 1 ? 'entry' : 'entries'} deleted`,
+      'success',
+      { label: 'Undo', onClick: () => Promise.all(ids.map((id) => restoreEntry(id))).then(refreshData) },
+      5000
+    );
+    await refreshData();
+  };
+
   const hardDeleteEntry = async (id: string) => {
     await db.deleteEntry(id);
     await refreshData();
@@ -1015,6 +1032,7 @@ export const TimeTrackerProvider: React.FC<{ children: ReactNode }> = ({ childre
       entries,
       updateEntry,
       deleteEntry,
+      bulkDeleteEntries,
       splitEntry,
       addManualEntry,
       bulkAddManualEntries,
