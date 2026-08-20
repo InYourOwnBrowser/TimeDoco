@@ -5,11 +5,13 @@ import { BlogLayout } from './BlogLayout';
 // Fetch all MDX files
 const modules = import.meta.glob('../blog/*.mdx', { eager: true });
 
-export const posts = Object.entries(modules).map(([path, module]: [string, any]) => ({
-  slug: path.replace('../blog/', '').replace('.mdx', ''),
-  ...module.meta,
-  Component: module.default,
-}));
+export const posts = Object.entries(modules)
+  .filter(([path]) => !path.includes('/templates/') && !path.includes('/_'))
+  .map(([path, module]: [string, any]) => ({
+    slug: path.replace('../blog/', '').replace('.mdx', ''),
+    ...module.meta,
+    Component: module.default,
+  }));
 
 export const BlogIndex: React.FC = () => {
   const [search, setSearch] = useState('');
