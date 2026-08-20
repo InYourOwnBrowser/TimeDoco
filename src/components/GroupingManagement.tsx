@@ -170,7 +170,7 @@ export const GroupingManagement: React.FC = () => {
                   <div className="flex items-center gap-2">
                     <button
                       onClick={() => handleEditGroupStart(group)}
-                      className="p-2 text-gray-600 dark:text-gray-400 hover:text-signal-dim dark:hover:text-signal hover:bg-signal/10 rounded transition-colors"
+                      className="p-2.5 text-gray-600 dark:text-gray-400 hover:text-signal-dim dark:hover:text-signal hover:bg-signal/10 rounded transition-colors"
                       title="Edit Group"
                       aria-label="Edit Group"
                     >
@@ -180,7 +180,7 @@ export const GroupingManagement: React.FC = () => {
                       onClick={() => {
                         updateGroup(group.id, { archived: !group.archived });
                       }}
-                      className={`p-2 rounded transition-colors ${group.archived ? 'text-verdigris dark:text-emerald-400 hover:bg-verdigris/10' : 'text-gray-500 dark:text-gray-400 hover:text-signal-dim dark:hover:text-signal hover:bg-signal/10'}`}
+                      className={`p-2.5 rounded transition-colors ${group.archived ? 'text-verdigris dark:text-emerald-400 hover:bg-verdigris/10' : 'text-gray-500 dark:text-gray-400 hover:text-signal-dim dark:hover:text-signal hover:bg-signal/10'}`}
                       title={group.archived ? 'Restore' : 'Archive'}
                       aria-label={group.archived ? 'Restore Group' : 'Archive Group'}
                     >
@@ -192,7 +192,7 @@ export const GroupingManagement: React.FC = () => {
                           deleteGroup(group.id);
                         }
                       }}
-                      className="p-2 text-gray-500 dark:text-gray-400 hover:text-rust dark:hover:text-rust hover:bg-rust/10 rounded transition-colors"
+                      className="p-2.5 text-gray-500 dark:text-gray-400 hover:text-rust dark:hover:text-rust hover:bg-rust/10 rounded transition-colors"
                       title="Delete Group (Move to Trash)"
                       aria-label="Delete Group"
                     >
@@ -341,7 +341,7 @@ export const GroupingManagement: React.FC = () => {
                     <div className="flex items-center gap-2">
                       <button
                         onClick={() => handleEditTimecodeStart(tc)}
-                        className="p-2 text-gray-600 dark:text-gray-400 hover:text-signal-dim dark:hover:text-signal hover:bg-signal/10 rounded transition-colors"
+                        className="p-2.5 text-gray-600 dark:text-gray-400 hover:text-signal-dim dark:hover:text-signal hover:bg-signal/10 rounded transition-colors"
                         title="Edit Timecode"
                         aria-label="Edit Timecode"
                       >
@@ -352,7 +352,7 @@ export const GroupingManagement: React.FC = () => {
                           setMergingTimecodeId(tc.id);
                           setMergeDestId('');
                         }}
-                        className="p-2 text-gray-600 dark:text-gray-400 hover:text-signal-dim dark:hover:text-signal hover:bg-signal/10 rounded transition-colors"
+                        className="p-2.5 text-gray-600 dark:text-gray-400 hover:text-signal-dim dark:hover:text-signal hover:bg-signal/10 rounded transition-colors"
                         title="Merge Timecode"
                         aria-label="Merge Timecode"
                       >
@@ -363,7 +363,7 @@ export const GroupingManagement: React.FC = () => {
                         onClick={() => {
                           updateTimecode(tc.id, { archived: !tc.archived });
                         }}
-                        className={`p-2 rounded transition-colors ${tc.archived ? 'text-verdigris dark:text-emerald-400 hover:bg-verdigris/10' : 'text-gray-500 dark:text-gray-400 hover:text-signal-dim dark:hover:text-signal hover:bg-signal/10'}`}
+                        className={`p-2.5 rounded transition-colors ${tc.archived ? 'text-verdigris dark:text-emerald-400 hover:bg-verdigris/10' : 'text-gray-500 dark:text-gray-400 hover:text-signal-dim dark:hover:text-signal hover:bg-signal/10'}`}
                         title={tc.archived ? 'Restore' : 'Archive'}
                         aria-label={tc.archived ? 'Restore Timecode' : 'Archive Timecode'}
                       >
@@ -375,7 +375,7 @@ export const GroupingManagement: React.FC = () => {
                             deleteTimecode(tc.id);
                           }
                         }}
-                        className="p-2 text-gray-500 dark:text-gray-400 hover:text-rust dark:hover:text-rust hover:bg-rust/10 rounded transition-colors"
+                        className="p-2.5 text-gray-500 dark:text-gray-400 hover:text-rust dark:hover:text-rust hover:bg-rust/10 rounded transition-colors"
                         title="Delete Timecode (Move to Trash)"
                         aria-label="Delete Timecode"
                       >

@@ -1,5 +1,6 @@
 import { Component, type ErrorInfo, type ReactNode } from 'react';
-import { AlertCircle, RefreshCw } from 'lucide-react';
+import { AlertCircle, RefreshCw, Copy } from 'lucide-react';
+import { logError, formatErrorLogForClipboard } from '../utils/errorLog';
 
 interface Props {
   children?: ReactNode;
@@ -8,11 +9,13 @@ interface Props {
 interface State {
   hasError: boolean;
   error?: Error;
+  copied?: boolean;
 }
 
 export class ErrorBoundary extends Component<Props, State> {
   public state: State = {
-    hasError: false
+    hasError: false,
+    copied: false,
   };
 
   public static getDerivedStateFromError(error: Error): State {
@@ -21,6 +24,7 @@ export class ErrorBoundary extends Component<Props, State> {
 
   public componentDidCatch(error: Error, errorInfo: ErrorInfo) {
     console.error('Uncaught error:', error, errorInfo);
+    logError(error, 'render');
   }
 
   public render() {
@@ -40,13 +44,27 @@ export class ErrorBoundary extends Component<Props, State> {
                 {this.state.error.message}
               </div>
             )}
-            <button
-              onClick={() => window.location.reload()}
-              className="inline-flex items-center gap-2 px-5 py-2.5 bg-graphite hover:bg-ink dark:bg-stone dark:hover:bg-gray-300 text-stone dark:text-ink rounded-lg font-medium transition-colors w-full justify-center mt-2"
-            >
-              <RefreshCw size={16} />
-              Reload Application
-            </button>
+            <div className="flex flex-col sm:flex-row gap-2 mt-2">
+              <button
+                onClick={() => window.location.reload()}
+                className="inline-flex items-center gap-2 px-5 py-2.5 bg-graphite hover:bg-ink dark:bg-stone dark:hover:bg-gray-300 text-stone dark:text-ink rounded-lg font-medium transition-colors flex-1 justify-center"
+              >
+                <RefreshCw size={16} />
+                Reload Application
+              </button>
+              <button
+                onClick={() => {
+                  const logText = formatErrorLogForClipboard();
+                  navigator.clipboard.writeText(logText);
+                  this.setState({ copied: true });
+                  setTimeout(() => this.setState({ copied: false }), 2000);
+                }}
+                className="inline-flex items-center gap-2 px-5 py-2.5 border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg font-medium transition-colors flex-1 justify-center text-sm"
+              >
+                <Copy size={16} />
+                {this.state.copied ? 'Copied!' : 'Copy error details'}
+              </button>
+            </div>
           </div>
         </div>
       );

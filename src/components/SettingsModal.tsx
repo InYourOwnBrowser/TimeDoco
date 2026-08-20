@@ -8,6 +8,7 @@ import { parseISO } from 'date-fns';
 import { HelpTooltip } from './ui/HelpTooltip';
 import { useToast } from '../context/ToastContext';
 import { validateBackupPayload, MAX_IMPORT_FILE_BYTES } from '../utils/importValidation';
+import { formatErrorLogForClipboard } from '../utils/errorLog';
 
 interface SettingsModalProps {
   onClose: () => void;
@@ -861,19 +862,35 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ onClose }) => {
             <div className="space-y-4">
               <div className="flex justify-between items-center border-b border-graphite/20 dark:border-white/20 pb-1">
                 <h3 className="text-md font-semibold text-graphite dark:text-stone">Recently Deleted</h3>
-                {(deletedEntries.length > 0 || deletedTimecodes.length > 0 || deletedGroups.length > 0) && (
+                <div className="flex items-center gap-3">
                   <button
-                    onClick={async () => {
-                      if (window.confirm('Are you sure you want to permanently empty all items in the trash? This action cannot be undone.')) {
-                        await emptyTrash();
-                        setStatusMsg({ type: 'success', text: 'Trash emptied successfully.' });
+                    onClick={() => {
+                      const logText = formatErrorLogForClipboard();
+                      if (!logText.trim()) {
+                        addToast('Error log is empty.', 'info');
+                        return;
                       }
+                      navigator.clipboard.writeText(logText);
+                      addToast('Error log copied to clipboard.', 'success');
                     }}
-                    className="text-xs font-medium text-rust dark:text-orange-300 hover:text-rust/80 transition-colors"
+                    className="text-xs font-medium text-gray-600 dark:text-gray-400 hover:text-graphite dark:hover:text-stone transition-colors"
                   >
-                    Empty Trash
+                    Copy Error Log
                   </button>
-                )}
+                  {(deletedEntries.length > 0 || deletedTimecodes.length > 0 || deletedGroups.length > 0) && (
+                    <button
+                      onClick={async () => {
+                        if (window.confirm('Are you sure you want to permanently empty all items in the trash? This action cannot be undone.')) {
+                          await emptyTrash();
+                          setStatusMsg({ type: 'success', text: 'Trash emptied successfully.' });
+                        }
+                      }}
+                      className="text-xs font-medium text-rust dark:text-orange-300 hover:text-rust/80 transition-colors"
+                    >
+                      Empty Trash
+                    </button>
+                  )}
+                </div>
               </div>
 
               {deletedEntries.length === 0 && deletedTimecodes.length === 0 && deletedGroups.length === 0 ? (

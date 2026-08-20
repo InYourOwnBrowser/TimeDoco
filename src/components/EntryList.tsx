@@ -6,6 +6,7 @@ import { GroupedVirtuoso } from 'react-virtuoso';
 import { EntryEditModal } from './EntryEditModal';
 import { EntrySplitModal } from './EntrySplitModal';
 import { ManualEntryModal } from './ManualEntryModal';
+import { Modal } from './ui/Modal';
 import type { Entry } from '../types';
 import { applyRounding, getElapsedTimeMs } from '../utils/timeUtils';
 
@@ -25,10 +26,11 @@ const LiveEntryDuration: React.FC<{ entry: Entry, settings: any, formatDuration:
 };
 
 export const EntryList: React.FC = () => {
-  const { entries, timecodes, groups, deleteEntry, settings } = useTimeTracker();
+  const { entries, timecodes, groups, deleteEntry, bulkDeleteEntries, settings } = useTimeTracker();
   const [editingEntry, setEditingEntry] = useState<Entry | null>(null);
   const [splittingEntry, setSplittingEntry] = useState<Entry | null>(null);
   const [isManualModalOpen, setIsManualModalOpen] = useState(false);
+  const [showBulkDeleteConfirm, setShowBulkDeleteConfirm] = useState(false);
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedTimecodeId, setSelectedTimecodeId] = useState<string>('all');
   const [dateFrom, setDateFrom] = useState<string>('');
@@ -80,6 +82,19 @@ export const EntryList: React.FC = () => {
   };
 
   const hasActiveFilters = searchTerm !== '' || selectedTimecodeId !== 'all' || selectedGroupId !== 'all' || dateFrom !== '' || dateTo !== '';
+
+  const totalFilteredSeconds = filteredEntries.reduce((acc, e) => acc + applyRounding(e.duration, settings?.roundingRule || 'none'), 0);
+
+  const formatTotalDurationShort = (seconds: number) => {
+    const h = Math.floor(seconds / 3600);
+    const m = Math.floor((seconds % 3600) / 60);
+    if (h > 0 && m > 0) return `${h}h ${m}m`;
+    if (h > 0) return `${h}h`;
+    if (m > 0) return `${m}m`;
+    const s = seconds % 60;
+    if (s > 0) return `${s}s`;
+    return '0m';
+  };
 
   // Group entries by date
   const groupedEntries = filteredEntries.reduce((acc, entry) => {
@@ -172,12 +187,22 @@ export const EntryList: React.FC = () => {
             ))}
           </select>
           {hasActiveFilters && (
-            <button
-              onClick={handleClearFilters}
-              className="text-sm text-gray-600 hover:text-signal-dim dark:hover:text-signal dark:text-gray-400 transition-colors whitespace-nowrap"
-            >
-              Clear filters
-            </button>
+            <div className="flex items-center gap-3">
+              <button
+                onClick={handleClearFilters}
+                className="text-sm text-gray-600 hover:text-signal-dim dark:hover:text-signal dark:text-gray-400 transition-colors whitespace-nowrap"
+              >
+                Clear filters
+              </button>
+              {filteredEntries.length > 0 && (
+                <button
+                  onClick={() => setShowBulkDeleteConfirm(true)}
+                  className="text-sm text-rust hover:underline whitespace-nowrap"
+                >
+                  Delete all {filteredEntries.length} filtered {filteredEntries.length === 1 ? 'entry' : 'entries'}
+                </button>
+              )}
+            </div>
           )}
         </div>
       </div>
@@ -328,6 +353,44 @@ export const EntryList: React.FC = () => {
         <ManualEntryModal
           onClose={() => setIsManualModalOpen(false)}
         />
+      )}
+
+      {showBulkDeleteConfirm && (
+        <Modal onClose={() => setShowBulkDeleteConfirm(false)}>
+          <div className="bg-white dark:bg-graphite rounded-panel shadow-xl border border-graphite/20 dark:border-white/20 p-6 w-full max-w-md">
+            <h3 className="text-lg font-semibold text-graphite dark:text-stone mb-2">
+              Confirm Bulk Delete
+            </h3>
+            <p className="text-sm text-gray-700 dark:text-gray-300 mb-3">
+              Delete {filteredEntries.length} {filteredEntries.length === 1 ? 'entry' : 'entries'} totaling {formatTotalDurationShort(totalFilteredSeconds)}? They'll move to Trash and can be restored for 30 days.
+            </p>
+            <div className="bg-stone dark:bg-gray-800/40 p-3 rounded-panel text-xs text-gray-600 dark:text-gray-300 space-y-1 mb-4">
+              <div className="font-semibold text-graphite dark:text-stone">Applied Filters:</div>
+              {selectedTimecodeId !== 'all' && <div>• Timecode: {getTimecodeName(selectedTimecodeId)}</div>}
+              {selectedGroupId !== 'all' && <div>• Group: {groups.find(g => g.id === selectedGroupId)?.name || 'Unknown'}</div>}
+              {(dateFrom || dateTo) && <div>• Dates: {dateFrom || 'Start'} to {dateTo || 'End'}</div>}
+              {searchTerm && <div>• Search: "{searchTerm}"</div>}
+            </div>
+            <div className="flex justify-end gap-3">
+              <button
+                onClick={() => setShowBulkDeleteConfirm(false)}
+                className="px-4 py-2 text-sm font-medium text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-800 rounded-panel transition-colors"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={async () => {
+                  const idsToDelete = filteredEntries.map(e => e.id);
+                  setShowBulkDeleteConfirm(false);
+                  await bulkDeleteEntries(idsToDelete);
+                }}
+                className="px-4 py-2 text-sm font-medium bg-rust hover:bg-rust/90 text-white rounded-panel transition-colors"
+              >
+                Delete {filteredEntries.length} {filteredEntries.length === 1 ? 'Entry' : 'Entries'}
+              </button>
+            </div>
+          </div>
+        </Modal>
       )}
     </div>
   );

@@ -25,9 +25,17 @@ import { useInstallPrompt } from './hooks/useInstallPrompt';
 import { Logo } from './components/ui/Logo';
 import { Download, Save } from 'lucide-react';
 import { SocialLinks } from './components/SocialLinks';
+import { logError } from './utils/errorLog';
 
 // Extracted inner component so we can use TimeTrackerContext
 const AppContent = () => {
+  useEffect(() => {
+    const onError = (e: ErrorEvent) => logError(e.error ?? new Error(e.message), 'window.onerror');
+    const onRejection = (e: PromiseRejectionEvent) => logError(e.reason instanceof Error ? e.reason : new Error(String(e.reason)), 'unhandledrejection');
+    window.addEventListener('error', onError);
+    window.addEventListener('unhandledrejection', onRejection);
+    return () => { window.removeEventListener('error', onError); window.removeEventListener('unhandledrejection', onRejection); };
+  }, []);
   const { activeEntries, stopTimer, startTimer, timecodes, entries, settings, forgotToStopEntry, exportData } = useTimeTracker();
   const { addToast } = useToast();
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
