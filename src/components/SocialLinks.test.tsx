@@ -3,7 +3,7 @@ import { describe, it, expect } from 'vitest';
 import { SocialLinks } from './SocialLinks';
 
 describe('SocialLinks', () => {
-  it('renders links to X, Discord, and Medium with correct attributes', () => {
+  it('renders links to X, Discord, Medium, and GitHub with correct attributes', () => {
     render(<SocialLinks />);
 
     const xLink = screen.getByRole('link', { name: /follow on x/i }) as HTMLAnchorElement;
@@ -20,5 +20,10 @@ describe('SocialLinks', () => {
     expect(mediumLink.getAttribute('href')).toBe('https://medium.com/@InYourOwnBrowser');
     expect(mediumLink.getAttribute('target')).toBe('_blank');
     expect(mediumLink.getAttribute('rel')).toBe('noopener noreferrer');
+
+    const githubLink = screen.getByRole('link', { name: /view on github/i }) as HTMLAnchorElement;
+    expect(githubLink.getAttribute('href')).toBe('https://github.com/InYourOwnBrowser');
+    expect(githubLink.getAttribute('target')).toBe('_blank');
+    expect(githubLink.getAttribute('rel')).toBe('noopener noreferrer');
   });
 });
