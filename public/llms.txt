@@ -15,4 +15,3 @@
 
 - [Introducing TimeDoco: The Time Tracker I Couldn't Find, So I Built It](https://lukeafullard.github.io/TimeTag/blog/introducing-timedoco/): Welcome post detailing why TimeDoco was built, what it does, and its core privacy-first features.
 - [Why Client-Side Privacy Matters for Contractors](https://lukeafullard.github.io/TimeTag/blog/why-client-side-privacy-matters/): Deep dive into client data confidentiality and zero cloud vulnerability.
-- [Guide to Tax and Multi-Currency Reporting](https://lukeafullard.github.io/TimeTag/blog/tax-and-currency-reporting-guide/): How TimeDoco handles tax inclusive/exclusive configurations and unrounded CSV exports for accounting software.

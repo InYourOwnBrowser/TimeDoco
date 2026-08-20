@@ -16,7 +16,7 @@ describe('BlogIndex', () => {
     );
 
     expect(screen.getByRole('heading', { level: 1, name: 'TimeDoco Blog & Guides' })).toBeDefined();
-    expect(screen.getByText('A Guide to Tax and Multi-Currency Reporting in TimeDoco')).toBeDefined();
+    expect(screen.getByText("Introducing TimeDoco: The Time Tracker I Couldn't Find, So I Built It")).toBeDefined();
     expect(screen.getByText('Why Client-Side Privacy Matters for Contractors and Freelancers')).toBeDefined();
   });
 
@@ -28,9 +28,9 @@ describe('BlogIndex', () => {
     );
 
     const searchInput = screen.getByPlaceholderText('Search posts or tags...');
-    fireEvent.change(searchInput, { target: { value: 'Tax' } });
+    fireEvent.change(searchInput, { target: { value: 'Introducing' } });
 
-    expect(screen.getByText('A Guide to Tax and Multi-Currency Reporting in TimeDoco')).toBeDefined();
+    expect(screen.getByText("Introducing TimeDoco: The Time Tracker I Couldn't Find, So I Built It")).toBeDefined();
     expect(screen.queryByText('Why Client-Side Privacy Matters for Contractors and Freelancers')).toBeNull();
   });
 });
