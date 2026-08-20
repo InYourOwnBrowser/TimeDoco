@@ -14,6 +14,7 @@ export const ActiveTimer: React.FC<{ activeEntry: Entry | null }> = ({ activeEnt
   const [localTags, setLocalTags] = useState<string>('');
   const [preStartNote, setPreStartNote] = useState('');
   const [preStartTags, setPreStartTags] = useState('');
+  const [preStartExpectedMinutes, setPreStartExpectedMinutes] = useState('');
 
   const lastLoadedEntryIdRef = useRef<string | null>(null);
 
@@ -127,6 +128,15 @@ export const ActiveTimer: React.FC<{ activeEntry: Entry | null }> = ({ activeEnt
               value={preStartTags}
               onChange={(e) => setPreStartTags(e.target.value)}
             />
+            <input
+              type="number"
+              min="1"
+              step="1"
+              placeholder="Estimated time (minutes, optional)"
+              className="w-full text-center text-xs px-3 py-1.5 border border-graphite/20 dark:border-white/20 hover:border-graphite/30 dark:hover:border-white/30 focus:border-signal dark:focus:border-signal rounded-panel outline-none transition-colors bg-white dark:bg-graphite text-graphite dark:text-stone placeholder-gray-500 dark:placeholder-gray-400 focus-visible:ring-2 focus-visible:ring-signal focus-visible:ring-offset-2 ring-offset-stone dark:ring-offset-graphite"
+              value={preStartExpectedMinutes}
+              onChange={(e) => setPreStartExpectedMinutes(e.target.value)}
+            />
           </div>
 
           <button
@@ -134,9 +144,11 @@ export const ActiveTimer: React.FC<{ activeEntry: Entry | null }> = ({ activeEnt
             onClick={() => {
               if (!selectedTimecodeId) return;
               const tagsArray = preStartTags.split(',').map(t => t.trim()).filter(Boolean).slice(0, 20);
-              startTimer(selectedTimecodeId, preStartNote, tagsArray);
+              const expected = preStartExpectedMinutes ? Math.max(1, Number(preStartExpectedMinutes)) : null;
+              startTimer(selectedTimecodeId, preStartNote, tagsArray, expected);
               setPreStartNote('');
               setPreStartTags('');
+              setPreStartExpectedMinutes('');
             }}
             className="mt-2 w-16 h-16 rounded-full bg-signal hover:bg-signal-dim text-ink flex items-center justify-center shadow-lg disabled:opacity-50 disabled:cursor-not-allowed transition-colors focus-visible:ring-2 focus-visible:ring-signal focus-visible:ring-offset-2 ring-offset-stone dark:ring-offset-graphite"
             aria-label="Start Timer (Cmd/Ctrl+Shift+S)"
