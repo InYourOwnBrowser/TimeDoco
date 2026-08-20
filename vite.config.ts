@@ -14,6 +14,7 @@ export default defineConfig({
         app: resolve(import.meta.dirname, 'app/index.html'),
         faq: resolve(import.meta.dirname, 'faq/index.html'),
         blog: resolve(import.meta.dirname, 'blog/index.html'),
+        blogIntro: resolve(import.meta.dirname, 'blog/introducing-timedoco/index.html'),
         blogPrivacy: resolve(import.meta.dirname, 'blog/why-client-side-privacy-matters/index.html'),
         blogTax: resolve(import.meta.dirname, 'blog/tax-and-currency-reporting-guide/index.html'),
         privacy: resolve(import.meta.dirname, 'privacy/index.html'),
