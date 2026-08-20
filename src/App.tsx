@@ -22,6 +22,7 @@ import { ToastProvider, useToast } from './context/ToastContext';
 import { getElapsedTimeMs, formatElapsedSeconds } from './utils/timeUtils';
 import { GlobalActiveTimerBar } from './components/GlobalActiveTimerBar';
 import { useInstallPrompt } from './hooks/useInstallPrompt';
+import { IOSInstallModal } from './components/IOSInstallModal';
 import { Logo } from './components/ui/Logo';
 import { Download, Save } from 'lucide-react';
 import { SocialLinks } from './components/SocialLinks';
@@ -43,7 +44,16 @@ const AppContent = () => {
   const [activeTab, setActiveTab] = useState<'tracker' | 'timesheet' | 'analysis' | 'management' | 'resources'>('tracker');
   const [showNewTimer, setShowNewTimer] = useState(false);
   const [isFallbackMode, setIsFallbackMode] = useState(false);
-  const { canInstall, promptInstall, installed } = useInstallPrompt();
+  const { canInstall, promptInstall, installed, needsManualInstall } = useInstallPrompt();
+  const [showIOSInstallModal, setShowIOSInstallModal] = useState(false);
+
+  const handleInstallClick = useCallback(() => {
+    if (needsManualInstall) {
+      setShowIOSInstallModal(true);
+    } else {
+      promptInstall();
+    }
+  }, [needsManualInstall, promptInstall]);
 
   const wasInstalled = useRef(installed);
 
@@ -175,7 +185,7 @@ const AppContent = () => {
         <div className="w-full max-w-3xl absolute top-4 right-4 flex justify-end gap-2 items-center">
           {canInstall && (
             <button
-              onClick={promptInstall}
+              onClick={handleInstallClick}
               className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-panel bg-graphite hover:bg-ink dark:bg-stone dark:hover:bg-gray-300 text-stone dark:text-ink transition-colors focus-visible:ring-2 focus-visible:ring-signal focus-visible:ring-offset-2"
             >
               <Download size={14} /> Install App
@@ -318,6 +328,7 @@ const AppContent = () => {
         </footer>
 
         {isSettingsOpen && <SettingsModal onClose={handleCloseSettings} />}
+        {showIOSInstallModal && <IOSInstallModal onClose={() => setShowIOSInstallModal(false)} />}
 
         <IdleDetector />
 

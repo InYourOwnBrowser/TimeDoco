@@ -4,6 +4,8 @@ import { useInstallPrompt } from './useInstallPrompt';
 
 describe('useInstallPrompt', () => {
   const originalMatchMedia = window.matchMedia;
+  const originalUserAgent = navigator.userAgent;
+  const originalMaxTouchPoints = navigator.maxTouchPoints;
 
   const mockMatchMedia = (matches: boolean) => {
     Object.defineProperty(window, 'matchMedia', {
@@ -22,8 +24,27 @@ describe('useInstallPrompt', () => {
     });
   };
 
+  const setUserAgent = (ua: string, maxTouchPoints = 0, standalone = false) => {
+    Object.defineProperty(navigator, 'userAgent', {
+      value: ua,
+      configurable: true,
+      writable: true,
+    });
+    Object.defineProperty(navigator, 'maxTouchPoints', {
+      value: maxTouchPoints,
+      configurable: true,
+      writable: true,
+    });
+    Object.defineProperty(navigator, 'standalone', {
+      value: standalone,
+      configurable: true,
+      writable: true,
+    });
+  };
+
   beforeEach(() => {
     mockMatchMedia(false);
+    setUserAgent('Mozilla/5.0 (Windows NT 10.0; Win64; x64)');
   });
 
   afterEach(() => {
@@ -34,6 +55,8 @@ describe('useInstallPrompt', () => {
         value: originalMatchMedia,
       });
     }
+    setUserAgent(originalUserAgent, originalMaxTouchPoints);
+    delete (navigator as any).standalone;
     vi.restoreAllMocks();
   });
 
@@ -43,6 +66,8 @@ describe('useInstallPrompt', () => {
 
     expect(result.current.canInstall).toBe(false);
     expect(result.current.installed).toBe(false);
+    expect(result.current.isIOS).toBe(false);
+    expect(result.current.needsManualInstall).toBe(false);
   });
 
   it('initializes with installed=true when app is in standalone mode', () => {
@@ -129,6 +154,38 @@ describe('useInstallPrompt', () => {
       await result.current.promptInstall();
     });
 
+    expect(result.current.canInstall).toBe(false);
+  });
+
+  it('detects iPhone/iPad user agents and sets canInstall and needsManualInstall to true', () => {
+    setUserAgent('Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.0 Mobile/15E148 Safari/604.1');
+    const { result } = renderHook(() => useInstallPrompt());
+
+    expect(result.current.isIOS).toBe(true);
+    expect(result.current.canInstall).toBe(true);
+    expect(result.current.needsManualInstall).toBe(true);
+    expect(result.current.installed).toBe(false);
+  });
+
+  it('detects iPadOS 13+ desktop Mac user agent with touch points', () => {
+    setUserAgent('Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.0 Safari/605.1.15', 5);
+    const { result } = renderHook(() => useInstallPrompt());
+
+    expect(result.current.isIOS).toBe(true);
+    expect(result.current.canInstall).toBe(true);
+    expect(result.current.needsManualInstall).toBe(true);
+  });
+
+  it('returns installed=true and canInstall=false on iOS when in navigator.standalone mode', () => {
+    setUserAgent(
+      'Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.0 Mobile/15E148 Safari/604.1',
+      0,
+      true
+    );
+    const { result } = renderHook(() => useInstallPrompt());
+
+    expect(result.current.isIOS).toBe(true);
+    expect(result.current.installed).toBe(true);
     expect(result.current.canInstall).toBe(false);
   });
 });
