@@ -11,7 +11,8 @@ export const posts = Object.entries(modules)
     slug: path.replace('../blog/', '').replace('.mdx', ''),
     ...module.meta,
     Component: module.default,
-  }));
+  }))
+  .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
 
 export const BlogIndex: React.FC = () => {
   const [search, setSearch] = useState('');
