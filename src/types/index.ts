@@ -46,6 +46,7 @@ export interface Entry {
   createdAt: string; // ISO datetime
   updatedAt: string; // ISO datetime
   deletedAt?: string;
+  expectedDurationMinutes?: number | null;
 }
 
 export interface EntryTemplate {
@@ -54,6 +55,7 @@ export interface EntryTemplate {
   timecodeId: string;
   durationMinutes: number | null;
   note: string;
+  expectedDurationMinutes?: number | null;
 }
 
 export interface Settings {

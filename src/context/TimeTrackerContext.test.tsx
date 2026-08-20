@@ -132,6 +132,7 @@ describe('TimeTrackerContext Reducer Logic', () => {
     expect(entry!.pausedSegments || []).toEqual([]);
     expect(entry!.isRunning).toBe(true);
     expect(entry!.isPaused).toBe(false);
+    expect(entry!.expectedDurationMinutes).toBeNull();
 
     // Advance time by 30 mins (to 10:30:00 AM)
     const pauseTime = new Date('2024-01-01T10:30:00Z');
@@ -189,6 +190,34 @@ describe('TimeTrackerContext Reducer Logic', () => {
     expect(entry!.duration).toBeLessThanOrEqual(2701);
 
     vi.useRealTimers();
+  });
+
+  it('startTimer: persists expectedDurationMinutes on created entry', async () => {
+    let ctx: ReturnType<typeof useTimeTracker> | undefined;
+
+    render(
+      <ToastProvider><TimeTrackerProvider>
+        <TestConsumer onReady={(c) => (ctx = c)} />
+      </TimeTrackerProvider></ToastProvider>
+    );
+
+    await waitFor(() => expect(ctx?.groups).toBeDefined());
+
+    let createdTimecodeId = '';
+    await act(async () => {
+      const tc = await ctx!.addTimecode('Test Estimate TC');
+      createdTimecodeId = tc.id;
+    });
+
+    await act(async () => {
+      await ctx!.startTimer(createdTimecodeId, 'Estimate note', ['tag1'], 45);
+    });
+
+    await waitFor(() => {
+      const activeEntry = ctx!.entries.find(e => e.isRunning);
+      expect(activeEntry).toBeDefined();
+      expect(activeEntry!.expectedDurationMinutes).toBe(45);
+    });
   });
 
   it('mergeTimecodes: consolidates entries and deletes source', async () => {

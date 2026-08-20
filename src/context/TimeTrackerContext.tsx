@@ -10,7 +10,7 @@ interface TimeTrackerContextType {
   groups: Group[];
   timecodes: Timecode[];
   activeEntries: Entry[];
-  startTimer: (timecodeId: string, note?: string, tags?: string[]) => Promise<void>;
+  startTimer: (timecodeId: string, note?: string, tags?: string[], expectedDurationMinutes?: number | null) => Promise<void>;
   stopTimer: (entryId: string) => Promise<void>;
   pauseTimer: (entryId: string, pauseStartTime?: string) => Promise<void>;
   resumeTimer: (entryId: string) => Promise<void>;
@@ -207,7 +207,7 @@ export const TimeTrackerProvider: React.FC<{ children: ReactNode }> = ({ childre
     autoPurgeTrash().catch(console.error);
   }, [refreshData]);
 
-  const startTimer = async (timecodeId: string, note: string = '', tags: string[] = []) => {
+  const startTimer = async (timecodeId: string, note: string = '', tags: string[] = [], expectedDurationMinutes: number | null = null) => {
     if (isStartingTimerRef.current) return;
     isStartingTimerRef.current = true;
     try {
@@ -243,6 +243,7 @@ export const TimeTrackerProvider: React.FC<{ children: ReactNode }> = ({ childre
         editHistory: [],
         createdAt: now,
         updatedAt: now,
+        expectedDurationMinutes: expectedDurationMinutes ?? null,
       };
       await db.putEntry(newEntry);
       await refreshData();

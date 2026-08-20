@@ -20,11 +20,12 @@ export const TemplateList: React.FC = () => {
   const [timecodeId, setTimecodeId] = useState('');
   const [isFixedDuration, setIsFixedDuration] = useState(true);
   const [durationMinutes, setDurationMinutes] = useState(15);
+  const [expectedDurationMinutes, setExpectedDurationMinutes] = useState('');
   const [note, setNote] = useState('');
 
   const templates = settings?.templates || [];
 
-  const isDirty = title !== '' || note !== '' || durationMinutes !== 15 || !isFixedDuration;
+  const isDirty = title !== '' || note !== '' || durationMinutes !== 15 || !isFixedDuration || expectedDurationMinutes !== '';
 
   const handleOpenModal = (template?: EntryTemplate) => {
     if (template) {
@@ -33,6 +34,7 @@ export const TemplateList: React.FC = () => {
       setTimecodeId(template.timecodeId);
       setIsFixedDuration(template.durationMinutes !== null);
       setDurationMinutes(template.durationMinutes || 15);
+      setExpectedDurationMinutes(template.expectedDurationMinutes ? String(template.expectedDurationMinutes) : '');
       setNote(template.note);
     } else {
       setEditingTemplate(null);
@@ -40,6 +42,7 @@ export const TemplateList: React.FC = () => {
       setTimecodeId(timecodes.length > 0 ? timecodes[0].id : '');
       setIsFixedDuration(true);
       setDurationMinutes(15);
+      setExpectedDurationMinutes('');
       setNote('');
     }
     setIsModalOpen(true);
@@ -54,12 +57,15 @@ export const TemplateList: React.FC = () => {
     if (!title.trim() || !timecodeId || (isFixedDuration && durationMinutes <= 0)) return;
 
     const finalDuration = isFixedDuration ? durationMinutes : null;
+    const finalExpected = !isFixedDuration && expectedDurationMinutes
+      ? Math.max(1, Number(expectedDurationMinutes))
+      : null;
 
     let newTemplates = [...templates];
     if (editingTemplate) {
       newTemplates = newTemplates.map(t =>
         t.id === editingTemplate.id
-          ? { ...t, title: title.trim(), timecodeId, durationMinutes: finalDuration, note: note.trim() }
+          ? { ...t, title: title.trim(), timecodeId, durationMinutes: finalDuration, expectedDurationMinutes: finalExpected, note: note.trim() }
           : t
       );
     } else {
@@ -68,6 +74,7 @@ export const TemplateList: React.FC = () => {
         title: title.trim(),
         timecodeId,
         durationMinutes: finalDuration,
+        expectedDurationMinutes: finalExpected,
         note: note.trim()
       });
     }
@@ -102,7 +109,7 @@ export const TemplateList: React.FC = () => {
 
   const handleLogTemplate = async (template: EntryTemplate) => {
     if (template.durationMinutes == null) {
-      await startTimer(template.timecodeId, template.note);
+      await startTimer(template.timecodeId, template.note, undefined, template.expectedDurationMinutes ?? null);
       addToast(`Started timer for ${template.title}`, 'success');
       return;
     }
@@ -256,6 +263,22 @@ export const TemplateList: React.FC = () => {
               />
             )}
           </div>
+          {!isFixedDuration && (
+            <div>
+              <label className="block text-sm font-medium text-graphite dark:text-stone mb-1">
+                Estimated time (minutes, optional)
+              </label>
+              <input
+                type="number"
+                min="1"
+                step="1"
+                value={expectedDurationMinutes}
+                onChange={(e) => setExpectedDurationMinutes(e.target.value)}
+                placeholder="e.g. 30"
+                className="w-full px-3 py-2 border border-graphite/20 dark:border-white/20 rounded-md bg-white dark:bg-graphite text-graphite dark:text-stone focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-signal"
+              />
+            </div>
+          )}
           <div>
             <label className="block text-sm font-medium text-graphite dark:text-stone mb-1">Note (optional)</label>
             <input

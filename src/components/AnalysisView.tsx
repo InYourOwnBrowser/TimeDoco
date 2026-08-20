@@ -112,6 +112,32 @@ export const AnalysisView: React.FC = () => {
   }, [entries, dateRange, tick, selectedGroupId, selectedTimecodeId, timecodeMap]);
 
 
+  const estimateAccuracy = useMemo(() => {
+    const withEstimates = filteredEntries.filter(
+      (e) => e.expectedDurationMinutes != null && e.expectedDurationMinutes > 0 && e.endTime
+    );
+    if (withEstimates.length === 0) return null;
+
+    let totalExpectedSec = 0;
+    let totalActualSec = 0;
+    let onTimeCount = 0;
+
+    withEstimates.forEach((e) => {
+      const expectedSec = e.expectedDurationMinutes! * 60;
+      totalExpectedSec += expectedSec;
+      totalActualSec += e.duration;
+      if (e.duration <= expectedSec) onTimeCount++;
+    });
+
+    return {
+      count: withEstimates.length,
+      onTimePct: Math.round((onTimeCount / withEstimates.length) * 100),
+      avgVariancePct: totalExpectedSec > 0
+        ? Math.round(((totalActualSec - totalExpectedSec) / totalExpectedSec) * 100)
+        : 0,
+    };
+  }, [filteredEntries]);
+
   // Detect overlaps in the filtered entries
   const overlaps = useMemo(() => {
     const overlappingPairs: { e1: typeof entries[0], e2: typeof entries[0] }[] = [];
@@ -732,6 +758,28 @@ export const AnalysisView: React.FC = () => {
               <p className="text-sm text-gray-600 dark:text-gray-400 mt-1">
                 There are {overlaps.length} overlapping time entries in this period. Review your history in the Tracker tab to ensure your tracked time is accurate.
               </p>
+            </div>
+          </div>
+        )}
+
+        {estimateAccuracy && (
+          <div className="mb-8 p-4 bg-stone/50 dark:bg-graphite border border-graphite/20 dark:border-white/20 rounded-panel shadow-sm">
+            <h4 className="font-medium text-graphite dark:text-stone mb-2">Estimate Accuracy</h4>
+            <div className="flex flex-wrap gap-6 text-sm">
+              <div>
+                <span className="block text-2xl font-mono tabular text-graphite dark:text-stone">{estimateAccuracy.count}</span>
+                <span className="text-gray-600 dark:text-gray-400">tasks estimated</span>
+              </div>
+              <div>
+                <span className="block text-2xl font-mono tabular text-graphite dark:text-stone">{estimateAccuracy.onTimePct}%</span>
+                <span className="text-gray-600 dark:text-gray-400">finished on/under estimate</span>
+              </div>
+              <div>
+                <span className={`block text-2xl font-mono tabular ${estimateAccuracy.avgVariancePct > 0 ? 'text-rust dark:text-orange-300' : 'text-verdigris dark:text-emerald-400'}`}>
+                  {estimateAccuracy.avgVariancePct > 0 ? '+' : ''}{estimateAccuracy.avgVariancePct}%
+                </span>
+                <span className="text-gray-600 dark:text-gray-400">avg over/under estimate</span>
+              </div>
             </div>
           </div>
         )}

@@ -15,6 +15,7 @@ const TimesheetView = lazy(() => import('./components/TimesheetView').then(modul
 const ResourcesView = lazy(() => import('./components/ResourcesView').then(module => ({ default: module.ResourcesView })));
 import { WeeklySummary } from './components/WeeklySummary';
 import { IdleDetector } from './components/IdleDetector';
+import { OverrunDetector } from './components/OverrunDetector';
 import { Settings, BarChart2, Clock, ListTree, CalendarDays, Sparkles } from 'lucide-react';
 import { useTimeTracker } from './context/TimeTrackerContext';
 import { ToastProvider, useToast } from './context/ToastContext';
@@ -331,6 +332,7 @@ const AppContent = () => {
         {showIOSInstallModal && <IOSInstallModal onClose={() => setShowIOSInstallModal(false)} />}
 
         <IdleDetector />
+        <OverrunDetector />
 
         {/* Render persistent global active timer bar when not on tracker tab */ }
         {activeTab !== 'tracker' && <GlobalActiveTimerBar />}
