@@ -4,20 +4,30 @@ export const meta = {
   tags: ["privacy", "security"]
 };
 
-# Why Client-Side Privacy Matters for Contractors and Freelancers
+# Why Client-Side Privacy Matters for Contractors
 
-When you run an independent consultancy or contracting business, your time tracking data contains some of your most sensitive operational intelligence: confidential client names, project scope details, internal billable rates, and precise daily activity logs.
+<figure className="my-6">
+  <img
+    src="https://images.unsplash.com/photo-1595666944516-bbb485958fb5?q=80&w=1944&auto=format&fit=crop&ixlib=rb-4.1.0&ixid=M3wxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8fA%3D%3D"
+    alt="A black and white photo of a sign that says privacy please"
+    className="w-full h-auto rounded-lg shadow-md max-h-[450px] object-cover"
+  />
+  <figcaption className="text-xs text-gray-500 dark:text-gray-400 mt-2 text-center">
+    Photo via <a href="https://unsplash.com/photos/a-black-and-white-photo-of-a-sign-that-says-privacy-please-JFk0dVyvdvw" target="_blank" rel="noopener noreferrer" className="underline hover:text-signal">Unsplash</a>. St. Louis, MO, USA. Published on July 25, 2020. SONY, ILCE-6000. Free to use under the Unsplash License.
+  </figcaption>
+</figure>
 
-## 1. Eliminating Cloud Security Exposure
+If you freelance or consult, your time tracking data is highly sensitive. You are logging confidential client names, project scopes, and your actual billable rates.
 
-Traditional SaaS time tracking applications transmit every keystroke, timer update, and project label to a centralized server. While convenient, this architecture inherently introduces risk. Third-party cloud breaches, database misconfigurations, or employee leaks can expose your confidential client lists and financial earnings.
+When I was looking for a tracker for my own data science and software projects, handing my clients' information over to a third party just felt wrong. Almost every SaaS app sends all this data to a central server. I built TimeDoco to work differently.
 
-TimeDoco takes a radically different approach: **100% client-side execution**. Stored strictly in browser IndexedDB, your data remains physically confined to your machine.
+## 1. Zero Cloud Exposure
+Most trackers log every timer update and project label to the cloud, making your data vulnerable to breaches or server misconfigurations. TimeDoco runs entirely client-side. Your data lives in your browser's IndexedDB, physically staying on your machine.
 
-## 2. Zero Reliance on Cloud Uptime
+## 2. It Actually Works Offline
+Cloud outages break workflows. Because TimeDoco is a PWA, it doesn't care if your internet drops or a server goes down. You can log time on a flight or during a connectivity blackout, and everything works perfectly.
 
-When a cloud SaaS vendor experiences an outage or API breakdown, your workflow grinds to a halt. As a Progressive Web App (PWA), TimeDoco works completely offline. Whether you are on an airplane, in a low-connectivity zone, or working through cloud provider outages, your timers and reports function flawlessly.
+## 3. You Own Your Data
+I hate vendor lock-in, which is why the web app is completely free. You can export a JSON backup, generate PDFs, or pull CSVs whenever you want without hitting a paywall.
 
-## 3. Total Data Ownership
-
-Cloud services frequently enforce vendor lock-in or charge monthly fees to access historical data. With TimeDoco, you own your raw data in full. You can export complete JSON backups at any time, run offline PDF/CSV reports, and migrate seamlessly across devices without paying subscription fees.
+Try it out. Your data stays with you, and it doesn't cost a thing.
