@@ -562,8 +562,7 @@ export const AnalysisView: React.FC = () => {
               className="flex items-center gap-2 px-4 py-2 text-sm font-semibold rounded-panel transition-colors bg-graphite hover:bg-ink dark:bg-stone dark:hover:bg-gray-300 text-stone dark:text-ink focus-visible:ring-2 focus-visible:ring-signal focus-visible:ring-offset-2 ring-offset-stone dark:ring-offset-graphite disabled:opacity-50 disabled:cursor-not-allowed"
             >
               {isGeneratingPdf ? <Loader2 size={16} className="animate-spin" /> : <Printer size={16} />}
-              <span className="hidden sm:inline">{isGeneratingPdf ? 'Generating…' : 'Generate Report (PDF)'}</span>
-              <span className="sm:hidden">{isGeneratingPdf ? '...' : 'PDF'}</span>
+              <span>{isGeneratingPdf ? 'Generating…' : 'Generate Report (PDF)'}</span>
             </button>
           </div>
         </div>
