@@ -122,6 +122,7 @@ export const EntryList: React.FC = () => {
 
   return (
     <div className="w-full max-w-3xl mx-auto mt-8">
+      <hr className="my-8 border-graphite/20 dark:border-white/20" />
       <div className="flex justify-between items-center mb-4">
         <h2 className="text-xl font-semibold text-graphite dark:text-stone">Recent Entries</h2>
         <button
