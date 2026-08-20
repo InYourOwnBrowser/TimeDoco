@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { Link } from 'react-router-dom';
+import { BlogLayout } from './BlogLayout';
 
 // Fetch all MDX files
 const modules = import.meta.glob('../blog/*.mdx', { eager: true });
@@ -19,29 +20,31 @@ export const BlogIndex: React.FC = () => {
   );
 
   return (
-    <div className="max-w-4xl mx-auto py-8 px-4">
-      <h1 className="text-3xl font-bold mb-6 text-graphite dark:text-stone">Blog</h1>
-      <input
-        type="text"
-        className="w-full p-2 mb-8 border rounded dark:bg-gray-800 dark:border-gray-700 dark:text-stone"
-        onChange={(e) => setSearch(e.target.value)}
-        placeholder="Search posts or tags..."
-      />
-      <div className="grid gap-6">
-        {filteredPosts.map(post => (
-          <Link className="block p-6 border rounded hover:shadow-lg transition-shadow dark:border-gray-700 bg-white/50 dark:bg-graphite/40" key={post.slug} to={`/blog/${post.slug}`}>
-            <h2 className="text-2xl font-semibold mb-2 text-graphite dark:text-stone">{post.title}</h2>
-            <p className="text-sm text-gray-500 dark:text-gray-400 mb-4">{post.date}</p>
-            <div className="flex gap-2">
-              {post.tags?.map((tag: string) => (
-                <span key={tag} className="px-2 py-1 bg-gray-200 dark:bg-gray-700 rounded text-xs text-gray-800 dark:text-gray-200">
-                  {tag}
-                </span>
-              ))}
-            </div>
-          </Link>
-        ))}
+    <BlogLayout>
+      <div className="max-w-3xl mx-auto py-12 px-4">
+        <h1 className="text-3xl font-extrabold mb-8 text-graphite dark:text-stone">TimeDoco Blog &amp; Guides</h1>
+        <input
+          type="text"
+          className="w-full p-3 mb-8 border border-graphite/20 dark:border-white/20 rounded-panel dark:bg-graphite/80 dark:text-stone shadow-sm focus:outline-none focus:ring-2 focus:ring-signal"
+          onChange={(e) => setSearch(e.target.value)}
+          placeholder="Search posts or tags..."
+        />
+        <div className="grid gap-6">
+          {filteredPosts.map(post => (
+            <Link className="block p-6 rounded-panel border border-graphite/10 dark:border-white/10 hover:border-signal/50 transition-all bg-stone/50 dark:bg-graphite/40 shadow-sm" key={post.slug} to={`/blog/${post.slug}`}>
+              <h2 className="text-2xl font-bold mb-2 text-graphite dark:text-stone hover:text-signal transition-colors">{post.title}</h2>
+              <p className="text-xs text-signal font-mono mb-4">{post.date}</p>
+              <div className="flex gap-2">
+                {post.tags?.map((tag: string) => (
+                  <span key={tag} className="px-2.5 py-1 bg-graphite/10 dark:bg-white/10 rounded text-xs text-gray-700 dark:text-gray-300 font-medium">
+                    {tag}
+                  </span>
+                ))}
+              </div>
+            </Link>
+          ))}
+        </div>
       </div>
-    </div>
+    </BlogLayout>
   );
 };

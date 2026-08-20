@@ -326,7 +326,9 @@ function App() {
         <TimeTrackerProvider>
           <Routes>
             <Route path="/blog" element={<BlogIndex />} />
+            <Route path="/blog/" element={<BlogIndex />} />
             <Route path="/blog/:slug" element={<BlogPost />} />
+            <Route path="/blog/:slug/" element={<BlogPost />} />
             <Route path="*" element={<AppContent />} />
           </Routes>
         </TimeTrackerProvider>
