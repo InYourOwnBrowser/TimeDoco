@@ -554,16 +554,16 @@ export const AnalysisView: React.FC = () => {
               <Download size={16} /> <span className="hidden sm:inline">Detailed Raw CSV</span><span className="sm:hidden">Detailed CSV</span>
             </button>
             <button onClick={handleExportICS} className="flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium text-graphite dark:text-stone bg-white dark:bg-gray-800/30 hover:bg-gray-100 dark:hover:bg-gray-800/50 rounded-md transition-colors border border-graphite/20 dark:border-white/20 focus-visible:ring-2 focus-visible:ring-signal" title="Export Calendar (ICS)">
-              <Calendar size={16} /> <span className="hidden sm:inline">Export ICS</span><span className="sm:hidden">ICS</span>
+              <Calendar size={16} /> <span className="hidden sm:inline">Export Calendar (ICS)</span><span className="sm:hidden">Calendar</span>
             </button>
             <button
               onClick={handlePrint}
               disabled={isGeneratingPdf}
-              className="flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium text-graphite dark:text-stone bg-white dark:bg-gray-800/30 hover:bg-gray-100 dark:hover:bg-gray-800/50 rounded-md transition-colors border border-graphite/20 dark:border-white/20 focus-visible:ring-2 focus-visible:ring-signal disabled:opacity-50 disabled:cursor-not-allowed"
+              className="flex items-center gap-2 px-4 py-2 text-sm font-semibold rounded-panel transition-colors bg-graphite hover:bg-ink dark:bg-stone dark:hover:bg-gray-300 text-stone dark:text-ink focus-visible:ring-2 focus-visible:ring-signal focus-visible:ring-offset-2 ring-offset-stone dark:ring-offset-graphite disabled:opacity-50 disabled:cursor-not-allowed"
             >
               {isGeneratingPdf ? <Loader2 size={16} className="animate-spin" /> : <Printer size={16} />}
-              <span className="hidden sm:inline">{isGeneratingPdf ? 'Generating…' : 'PDF / Print'}</span>
-              <span className="sm:hidden">{isGeneratingPdf ? '...' : 'Print'}</span>
+              <span className="hidden sm:inline">{isGeneratingPdf ? 'Generating…' : 'Generate Report (PDF)'}</span>
+              <span className="sm:hidden">{isGeneratingPdf ? '...' : 'PDF'}</span>
             </button>
           </div>
         </div>
