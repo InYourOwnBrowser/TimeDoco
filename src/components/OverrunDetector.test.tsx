@@ -16,12 +16,14 @@ let mockTimecodes: Timecode[] = [
     updatedAt: new Date().toISOString(),
   },
 ];
+let mockSettings: { targetAlertMinutes: number | null } = { targetAlertMinutes: null };
 
 vi.mock('../context/TimeTrackerContext', () => ({
   useTimeTracker: () => ({
     activeEntries: mockActiveEntries,
     timecodes: mockTimecodes,
     stopTimer: mockStopTimer,
+    settings: mockSettings,
   }),
 }));
 
@@ -37,6 +39,7 @@ describe('OverrunDetector', () => {
   afterEach(() => {
     cleanup();
     vi.useRealTimers();
+    vi.unstubAllGlobals();
   });
 
   it('renders nothing when no active entries have an estimate', () => {
@@ -163,5 +166,163 @@ describe('OverrunDetector', () => {
       vi.advanceTimersByTime(10000);
     });
     expect(screen.queryByText('Past your estimate')).toBeNull();
+  });
+
+  it('requests notification permission if active entry has estimate', () => {
+    const requestPermissionMock = vi.fn();
+    const mockNotification = vi.fn();
+    (mockNotification as any).permission = 'default';
+    (mockNotification as any).requestPermission = requestPermissionMock;
+    vi.stubGlobal('Notification', mockNotification);
+
+    mockActiveEntries = [
+      {
+        id: 'entry-est',
+        timecodeId: 'tc-1',
+        startTime: new Date().toISOString(),
+        endTime: null,
+        duration: 0,
+        note: '',
+        isRunning: true,
+        isPaused: false,
+        pausedSegments: [],
+        editHistory: [],
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
+        expectedDurationMinutes: 15,
+      },
+    ];
+
+    render(<OverrunDetector />);
+    expect(requestPermissionMock).toHaveBeenCalledTimes(1);
+  });
+
+  it('fires Notification when tab is hidden and entry overruns', () => {
+    const mockNotificationClass = vi.fn();
+    (mockNotificationClass as any).permission = 'granted';
+    vi.stubGlobal('Notification', mockNotificationClass);
+
+    Object.defineProperty(document, 'hidden', {
+      configurable: true,
+      get: () => true,
+    });
+
+    const startTime = new Date(Date.now() - 31 * 60 * 1000).toISOString();
+    mockActiveEntries = [
+      {
+        id: 'entry-bg-overrun',
+        timecodeId: 'tc-1',
+        startTime,
+        endTime: null,
+        duration: 0,
+        note: '',
+        isRunning: true,
+        isPaused: false,
+        pausedSegments: [],
+        editHistory: [],
+        createdAt: startTime,
+        updatedAt: startTime,
+        expectedDurationMinutes: 30,
+      },
+    ];
+
+    render(<OverrunDetector />);
+    act(() => {
+      vi.advanceTimersByTime(5000);
+    });
+
+    expect(mockNotificationClass).toHaveBeenCalledWith('Past your estimate', {
+      body: 'Development Task has passed its 30 min estimate.',
+      tag: 'overrun-entry-bg-overrun',
+    });
+  });
+
+  it('does NOT fire Notification when tab is visible', () => {
+    const mockNotificationClass = vi.fn();
+    (mockNotificationClass as any).permission = 'granted';
+    vi.stubGlobal('Notification', mockNotificationClass);
+
+    Object.defineProperty(document, 'hidden', {
+      configurable: true,
+      get: () => false,
+    });
+
+    const startTime = new Date(Date.now() - 31 * 60 * 1000).toISOString();
+    mockActiveEntries = [
+      {
+        id: 'entry-visible-overrun',
+        timecodeId: 'tc-1',
+        startTime,
+        endTime: null,
+        duration: 0,
+        note: '',
+        isRunning: true,
+        isPaused: false,
+        pausedSegments: [],
+        editHistory: [],
+        createdAt: startTime,
+        updatedAt: startTime,
+        expectedDurationMinutes: 30,
+      },
+    ];
+
+    render(<OverrunDetector />);
+    act(() => {
+      vi.advanceTimersByTime(5000);
+    });
+
+    expect(mockNotificationClass).not.toHaveBeenCalled();
+    expect(screen.getByText('Past your estimate')).not.toBeNull();
+  });
+
+  it('flashes document title when tab is hidden and overrun prompt exists', () => {
+    document.title = 'Initial Title';
+
+    let isHidden = true;
+    Object.defineProperty(document, 'hidden', {
+      configurable: true,
+      get: () => isHidden,
+    });
+
+    const startTime = new Date(Date.now() - 35 * 60 * 1000).toISOString();
+    mockActiveEntries = [
+      {
+        id: 'entry-flash-title',
+        timecodeId: 'tc-1',
+        startTime,
+        endTime: null,
+        duration: 0,
+        note: '',
+        isRunning: true,
+        isPaused: false,
+        pausedSegments: [],
+        editHistory: [],
+        createdAt: startTime,
+        updatedAt: startTime,
+        expectedDurationMinutes: 30,
+      },
+    ];
+
+    const { unmount } = render(<OverrunDetector />);
+
+    // Trigger overrun prompt interval
+    act(() => {
+      vi.advanceTimersByTime(5000);
+    });
+
+    // Advance 1s for title flash
+    act(() => {
+      vi.advanceTimersByTime(1000);
+    });
+    expect(document.title).toBe('⏰ Past estimate! · TimeDoco');
+
+    act(() => {
+      vi.advanceTimersByTime(1000);
+    });
+    expect(document.title).toBe('Initial Title');
+
+    // Unmount restores original title
+    unmount();
+    expect(document.title).toBe('Initial Title');
   });
 });
