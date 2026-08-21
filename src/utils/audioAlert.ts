@@ -24,7 +24,7 @@ export function playOverrunChime() {
   if (!ctx) return; // Web Audio unsupported — modal/notification/title-flash still apply
   const now = ctx.currentTime;
 
-  [0, 0.18].forEach((offset) => {
+  [0, 0.18, 0.36, 0.54, 0.72, 0.90].forEach((offset) => {
     const osc = ctx.createOscillator();
     const gain = ctx.createGain();
     osc.type = 'sine';

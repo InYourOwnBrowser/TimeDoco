@@ -50,10 +50,10 @@ describe('audioAlert utility', () => {
 
   it('playOverrunChime creates oscillator and gain nodes for chime beeps', () => {
     playOverrunChime();
-    expect(mockCreateOscillator).toHaveBeenCalledTimes(2);
-    expect(mockCreateGain).toHaveBeenCalledTimes(2);
-    expect(mockOscillator.start).toHaveBeenCalledTimes(2);
-    expect(mockOscillator.stop).toHaveBeenCalledTimes(2);
+    expect(mockCreateOscillator).toHaveBeenCalledTimes(6);
+    expect(mockCreateGain).toHaveBeenCalledTimes(6);
+    expect(mockOscillator.start).toHaveBeenCalledTimes(6);
+    expect(mockOscillator.stop).toHaveBeenCalledTimes(6);
     expect(mockOscillator.frequency.value).toBe(880);
   });
 });
