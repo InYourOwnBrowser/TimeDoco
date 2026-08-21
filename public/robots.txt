@@ -13,4 +13,4 @@ Allow: /
 User-agent: Google-Extended
 Allow: /
 
-Sitemap: https://lukeafullard.github.io/TimeTag/sitemap.xml
+Sitemap: https://inyourownbrowser.github.io/TimeDoco/sitemap.xml

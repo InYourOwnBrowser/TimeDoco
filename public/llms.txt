@@ -4,14 +4,14 @@
 
 ## Core Pages & App
 
-- [Landing Page](https://lukeafullard.github.io/TimeTag/): Feature breakdown, Toggl/Harvest privacy comparison, and overview of client-side tracking.
-- [TimeDoco Web App](https://lukeafullard.github.io/TimeTag/app/): The full time tracking application interface (timer, timesheet matrix, analysis/PDF reports, grouping management).
-- [Frequently Asked Questions](https://lukeafullard.github.io/TimeTag/faq/): Questions and answers regarding IndexedDB local storage, PDF/CSV/ICS exports, multi-currency options, and offline PWA capability.
-- [Blog Index](https://lukeafullard.github.io/TimeTag/blog/): Articles and guides for contractors, freelancers, and privacy advocates.
-- [Privacy Policy](https://lukeafullard.github.io/TimeTag/privacy/): Details on 100% client-side storage, zero server tracking, zero analytics, and hosting disclaimers.
-- [Terms of Use](https://lukeafullard.github.io/TimeTag/terms/): Terms governing application usage, user backup responsibilities, tax disclaimers, and warranty limitations.
+- [Landing Page](https://inyourownbrowser.github.io/TimeDoco/): Feature breakdown, Toggl/Harvest privacy comparison, and overview of client-side tracking.
+- [TimeDoco Web App](https://inyourownbrowser.github.io/TimeDoco/app/): The full time tracking application interface (timer, timesheet matrix, analysis/PDF reports, grouping management).
+- [Frequently Asked Questions](https://inyourownbrowser.github.io/TimeDoco/faq/): Questions and answers regarding IndexedDB local storage, PDF/CSV/ICS exports, multi-currency options, and offline PWA capability.
+- [Blog Index](https://inyourownbrowser.github.io/TimeDoco/blog/): Articles and guides for contractors, freelancers, and privacy advocates.
+- [Privacy Policy](https://inyourownbrowser.github.io/TimeDoco/privacy/): Details on 100% client-side storage, zero server tracking, zero analytics, and hosting disclaimers.
+- [Terms of Use](https://inyourownbrowser.github.io/TimeDoco/terms/): Terms governing application usage, user backup responsibilities, tax disclaimers, and warranty limitations.
 
 ## Articles
 
-- [Introducing TimeDoco: The Time Tracker I Couldn't Find, So I Built It](https://lukeafullard.github.io/TimeTag/blog/introducing-timedoco/): Welcome post detailing why TimeDoco was built, what it does, and its core privacy-first features.
-- [Why Client-Side Privacy Matters for Contractors](https://lukeafullard.github.io/TimeTag/blog/why-client-side-privacy-matters/): Deep dive into client data confidentiality and zero cloud vulnerability.
+- [Introducing TimeDoco: The Time Tracker I Couldn't Find, So I Built It](https://inyourownbrowser.github.io/TimeDoco/blog/introducing-timedoco/): Welcome post detailing why TimeDoco was built, what it does, and its core privacy-first features.
+- [Why Client-Side Privacy Matters for Contractors](https://inyourownbrowser.github.io/TimeDoco/blog/why-client-side-privacy-matters/): Deep dive into client data confidentiality and zero cloud vulnerability.

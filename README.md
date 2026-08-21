@@ -1,13 +1,13 @@
 # TimeDoco
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-amber.svg)](LICENSE)
-[![PWA Ready](https://img.shields.io/badge/PWA-Ready-10161C.svg)](https://lukeafullard.github.io/TimeTag/)
-[![100% Client--Side](https://img.shields.io/badge/Storage-100%25%20Client--Side%20IndexedDB-green.svg)](https://lukeafullard.github.io/TimeTag/)
+[![PWA Ready](https://img.shields.io/badge/PWA-Ready-10161C.svg)](https://inyourownbrowser.github.io/TimeDoco/)
+[![100% Client--Side](https://img.shields.io/badge/Storage-100%25%20Client--Side%20IndexedDB-green.svg)](https://inyourownbrowser.github.io/TimeDoco/)
 
 **TimeDoco** is a completely client-side, privacy-first time tracking web application built for freelancers, contractors, and privacy advocates. Your timesheets, billable rates, and client details never leave your device.
 
-🔗 **Live Application:** [https://lukeafullard.github.io/TimeTag/app/](https://lukeafullard.github.io/TimeTag/app/)
-🌐 **Landing & FAQ:** [https://lukeafullard.github.io/TimeTag/](https://lukeafullard.github.io/TimeTag/)
+🔗 **Live Application:** [https://inyourownbrowser.github.io/TimeDoco/app/](https://inyourownbrowser.github.io/TimeDoco/app/)
+🌐 **Landing & FAQ:** [https://inyourownbrowser.github.io/TimeDoco/](https://inyourownbrowser.github.io/TimeDoco/)
 
 ---
 
@@ -43,8 +43,8 @@
 
 ```bash
 # Clone the repository
-git clone https://github.com/LukeAFullard/TimeTag.git
-cd TimeTag
+git clone https://github.com/InYourOwnBrowser/TimeDoco.git
+cd TimeDoco
 
 # Install dependencies
 npm install
