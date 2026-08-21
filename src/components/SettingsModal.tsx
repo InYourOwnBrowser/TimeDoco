@@ -385,6 +385,18 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ onClose }) => {
                   When disabled, starting a new timer automatically stops any existing active timer.
                 </p>
               </div>
+              <div className="flex flex-col mb-4">
+                <label className="flex items-center gap-2 cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={settings?.overrunAudioAlertEnabled !== false}
+                    onChange={(e) => handleUpdateSettings({ overrunAudioAlertEnabled: e.target.checked })}
+                    className="w-4 h-4 text-signal rounded border-graphite/20 dark:border-white/20 focus:ring-signal"
+                  />
+                  <span className="text-sm font-medium text-graphite dark:text-stone">Play Sound When Estimate Is Passed</span>
+                  <HelpTooltip text="Plays a short chime the moment a running timer passes its estimated duration." />
+                </label>
+              </div>
             </Panel>
 
             <Panel className="p-5">

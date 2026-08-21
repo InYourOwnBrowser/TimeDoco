@@ -50,6 +50,7 @@ const mockSettings: Settings = {
   roundingRule: 'none',
   idleThresholdMinutes: null,
   targetAlertMinutes: null,
+  overrunAudioAlertEnabled: true,
   lastBackupDate: null,
   reminderIntervalDays: 0,
   weeklyTargetHours: null,

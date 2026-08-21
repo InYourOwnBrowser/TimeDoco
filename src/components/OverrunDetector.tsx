@@ -2,6 +2,7 @@ import React, { useEffect, useState, useRef } from 'react';
 import { useTimeTracker } from '../context/TimeTrackerContext';
 import { Modal } from './ui/Modal';
 import { getElapsedTimeMs, formatElapsedSeconds } from '../utils/timeUtils';
+import { playOverrunChime } from '../utils/audioAlert';
 import type { Entry } from '../types';
 
 export const OverrunDetector: React.FC = () => {
@@ -61,12 +62,16 @@ export const OverrunDetector: React.FC = () => {
           return elapsedMs >= entry.expectedDurationMinutes * 60 * 1000;
         });
 
+        if (overrun && settings?.overrunAudioAlertEnabled !== false) {
+          playOverrunChime();
+        }
+
         return overrun || null;
       });
     }, 5000);
 
     return () => window.clearInterval(interval);
-  }, [activeEntries, timecodes]);
+  }, [activeEntries, timecodes, settings?.overrunAudioAlertEnabled]);
 
   // Flash title as zero-permission backup when prompt is pending and tab is hidden
   useEffect(() => {

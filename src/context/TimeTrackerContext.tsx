@@ -113,6 +113,7 @@ export const TimeTrackerProvider: React.FC<{ children: ReactNode }> = ({ childre
         idleThresholdMinutes: null,
         weeklyTargetHours: null,
         allowConcurrentTimers: false,
+        overrunAudioAlertEnabled: true,
       };
       await db.putSettings(loadedSettings);
     }

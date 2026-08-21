@@ -5,6 +5,7 @@ import { TimecodeSelector } from './TimecodeSelector';
 import { type Entry } from '../types';
 import { getElapsedTimeMs, formatElapsedSeconds, formatDurationShort } from '../utils/timeUtils';
 import { useToast } from '../context/ToastContext';
+import { unlockAudioAlert } from '../utils/audioAlert';
 
 export const ActiveTimer: React.FC<{ activeEntry: Entry | null }> = ({ activeEntry }) => {
   const { startTimer, stopTimer, pauseTimer, resumeTimer, timecodes, updateActiveNote } = useTimeTracker();
@@ -143,6 +144,7 @@ export const ActiveTimer: React.FC<{ activeEntry: Entry | null }> = ({ activeEnt
             disabled={!selectedTimecodeId}
             onClick={() => {
               if (!selectedTimecodeId) return;
+              unlockAudioAlert();
               const tagsArray = preStartTags.split(',').map(t => t.trim()).filter(Boolean).slice(0, 20);
               const expected = preStartExpectedMinutes ? Math.max(1, Number(preStartExpectedMinutes)) : null;
               startTimer(selectedTimecodeId, preStartNote, tagsArray, expected);
