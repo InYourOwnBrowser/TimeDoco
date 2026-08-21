@@ -1,4 +1,3 @@
-import React from 'react';
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { render, screen, cleanup } from '@testing-library/react';
 import { ActiveTimer } from './ActiveTimer';
@@ -34,15 +33,27 @@ vi.mock('react-virtuoso', () => ({
 let mockActiveEntries: Entry[] = [];
 let mockEntries: Entry[] = [];
 const mockTimecodes: Timecode[] = [
-  { id: 'tc1', name: 'Design', color: '#3b82f6', archived: false },
+  {
+    id: 'tc1',
+    name: 'Design',
+    color: '#3b82f6',
+    archived: false,
+    groupId: null,
+    hourlyRate: 50,
+    updatedAt: new Date().toISOString(),
+  },
 ];
 const mockGroups: Group[] = [];
 const mockSettings: Settings = {
+  id: 'settings-1',
   currencySymbol: '$',
   roundingRule: 'none',
   idleThresholdMinutes: null,
   targetAlertMinutes: null,
-  darkTheme: false,
+  lastBackupDate: null,
+  reminderIntervalDays: 0,
+  weeklyTargetHours: null,
+  allowConcurrentTimers: false,
 };
 
 vi.mock('../context/TimeTrackerContext', () => ({
@@ -89,12 +100,16 @@ describe('Estimated Time Display', () => {
       id: 'e1',
       timecodeId: 'tc1',
       startTime,
+      endTime: null,
       duration: 300,
       note: 'Working on UI',
       tags: [],
       isRunning: true,
       isPaused: false,
       pausedSegments: [],
+      editHistory: [],
+      createdAt: startTime,
+      updatedAt: startTime,
       expectedDurationMinutes: 20,
     };
 
@@ -110,12 +125,16 @@ describe('Estimated Time Display', () => {
       id: 'e1',
       timecodeId: 'tc1',
       startTime,
+      endTime: null,
       duration: 1500,
       note: 'Working on UI',
       tags: [],
       isRunning: true,
       isPaused: false,
       pausedSegments: [],
+      editHistory: [],
+      createdAt: startTime,
+      updatedAt: startTime,
       expectedDurationMinutes: 20,
     };
 
@@ -131,12 +150,16 @@ describe('Estimated Time Display', () => {
       id: 'e1',
       timecodeId: 'tc1',
       startTime,
+      endTime: null,
       duration: 600,
       note: '',
       tags: [],
       isRunning: true,
       isPaused: false,
       pausedSegments: [],
+      editHistory: [],
+      createdAt: startTime,
+      updatedAt: startTime,
       expectedDurationMinutes: 20,
     };
     mockActiveEntries = [activeEntry];
@@ -158,6 +181,9 @@ describe('Estimated Time Display', () => {
       isRunning: false,
       isPaused: false,
       pausedSegments: [],
+      editHistory: [],
+      createdAt: '2025-01-01T10:00:00Z',
+      updatedAt: '2025-01-01T10:10:00Z',
       expectedDurationMinutes: 20,
     };
     mockEntries = [completedEntry];
@@ -179,6 +205,9 @@ describe('Estimated Time Display', () => {
       isRunning: false,
       isPaused: false,
       pausedSegments: [],
+      editHistory: [],
+      createdAt: '2025-01-01T10:00:00Z',
+      updatedAt: '2025-01-01T10:25:00Z',
       expectedDurationMinutes: 20,
     };
     mockEntries = [completedEntry];
@@ -200,6 +229,9 @@ describe('Estimated Time Display', () => {
       isRunning: false,
       isPaused: false,
       pausedSegments: [],
+      editHistory: [],
+      createdAt: '2025-01-01T10:00:00Z',
+      updatedAt: '2025-01-01T10:20:00Z',
       expectedDurationMinutes: 20,
     };
     mockEntries = [completedEntry];
