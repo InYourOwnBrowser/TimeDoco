@@ -7,6 +7,7 @@ import { ManualEntryModal } from './ManualEntryModal';
 
 const mockUpdateSettings = vi.fn().mockResolvedValue(undefined);
 const mockAddManualEntry = vi.fn().mockResolvedValue(undefined);
+const mockStartTimer = vi.fn().mockResolvedValue(undefined);
 const mockAddToast = vi.fn();
 
 const todayNoon = format(new Date(), "yyyy-MM-dd'T'12:00:00");
@@ -67,7 +68,7 @@ vi.mock('../context/TimeTrackerContext', () => ({
     settings: mockSettings,
     updateSettings: mockUpdateSettings,
     addManualEntry: mockAddManualEntry,
-    startTimer: vi.fn(),
+    startTimer: mockStartTimer,
   }),
 }));
 
@@ -92,6 +93,58 @@ describe('Fixed Cost & Template Deletion', () => {
       expect(screen.getByText('TOTAL EARNINGS')).not.toBeNull();
       expect(screen.getAllByText('$150.00').length).toBeGreaterThan(0);
       expect(screen.getAllByText('Materials & Expenses').length).toBeGreaterThan(0);
+    });
+  });
+
+  describe('TemplateList Functionality', () => {
+    it('opens new template modal with Fixed duration unchecked by default and supports tags', async () => {
+      render(<TemplateList />);
+
+      const newBtn = screen.getByText(/New Template/i);
+      fireEvent.click(newBtn);
+
+      const fixedCheckbox = screen.getByLabelText('Fixed duration') as HTMLInputElement;
+      expect(fixedCheckbox.checked).toBe(false);
+
+      const titleInput = screen.getByPlaceholderText('e.g. Daily Standup');
+      fireEvent.change(titleInput, { target: { value: 'Feature Work' } });
+
+      const tagsInput = screen.getByPlaceholderText('e.g. design, meeting, high-priority');
+      fireEvent.change(tagsInput, { target: { value: 'dev, priority-1' } });
+
+      const saveBtn = screen.getByText('Save Template');
+      fireEvent.click(saveBtn);
+
+      await waitFor(() => {
+        expect(mockUpdateSettings).toHaveBeenCalledWith(expect.objectContaining({
+          templates: expect.arrayContaining([
+            expect.objectContaining({
+              title: 'Feature Work',
+              durationMinutes: null,
+              tags: ['dev', 'priority-1'],
+            })
+          ])
+        }));
+      });
+    });
+
+    it('passes template tags when logging a timer template or fixed duration template', async () => {
+      const confirmSpy = vi.spyOn(window, 'confirm').mockReturnValue(true);
+      render(<TemplateList />);
+
+      // Test fixed duration template (Daily Standup in mockSettings)
+      const templateChip = screen.getByRole('button', { name: 'Log Daily Standup' });
+      fireEvent.click(templateChip);
+
+      await waitFor(() => {
+        expect(mockAddManualEntry).toHaveBeenCalledWith(expect.objectContaining({
+          timecodeId: 'tc-1',
+          note: 'Team sync',
+          tags: undefined,
+        }));
+      });
+
+      confirmSpy.mockRestore();
     });
   });
 

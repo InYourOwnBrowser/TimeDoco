@@ -1787,7 +1787,7 @@ export const AnalysisView: React.FC = () => {
                     value={preparedForOverride}
                     onChange={(e) => setPreparedForOverride(e.target.value)}
                     placeholder={scopeLabel}
-                    className="flex-1 px-3 py-1.5 text-sm border border-graphite/20 dark:border-white/20 rounded-md bg-white dark:bg-graphite text-graphite dark:text-stone focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-signal"
+                    className="flex-1 min-w-0 px-3 py-1.5 text-sm border border-graphite/20 dark:border-white/20 rounded-md bg-white dark:bg-graphite text-graphite dark:text-stone focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-signal"
                   />
                 </div>
 
@@ -1798,7 +1798,7 @@ export const AnalysisView: React.FC = () => {
                     value={preparedByOverride}
                     onChange={(e) => setPreparedByOverride(e.target.value)}
                     placeholder={[settings?.preparerName, settings?.preparerCompany].filter(Boolean).join(' — ') || 'not set in Settings'}
-                    className="flex-1 px-3 py-1.5 text-sm border border-graphite/20 dark:border-white/20 rounded-md bg-white dark:bg-graphite text-graphite dark:text-stone focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-signal"
+                    className="flex-1 min-w-0 px-3 py-1.5 text-sm border border-graphite/20 dark:border-white/20 rounded-md bg-white dark:bg-graphite text-graphite dark:text-stone focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-signal"
                   />
                 </div>
 
@@ -1809,14 +1809,14 @@ export const AnalysisView: React.FC = () => {
                       value={f.label}
                       onChange={(e) => updateReportField(i, { label: e.target.value })}
                       placeholder="Label"
-                      className="w-24 shrink-0 px-2.5 py-1.5 text-xs border border-graphite/20 dark:border-white/20 rounded bg-white dark:bg-graphite text-graphite dark:text-stone"
+                      className="flex-1 min-w-0 px-2.5 py-1.5 text-xs border border-graphite/20 dark:border-white/20 rounded bg-white dark:bg-graphite text-graphite dark:text-stone"
                     />
                     <input
                       type="text"
                       value={f.value}
                       onChange={(e) => updateReportField(i, { value: e.target.value })}
                       placeholder="Value"
-                      className="flex-1 px-2.5 py-1.5 text-xs border border-graphite/20 dark:border-white/20 rounded bg-white dark:bg-graphite text-graphite dark:text-stone"
+                      className="flex-1 min-w-0 px-2.5 py-1.5 text-xs border border-graphite/20 dark:border-white/20 rounded bg-white dark:bg-graphite text-graphite dark:text-stone"
                     />
                     <button
                       onClick={() => setReportFields(prev => prev.filter((_, j) => j !== i))}

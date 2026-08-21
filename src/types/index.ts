@@ -55,6 +55,7 @@ export interface EntryTemplate {
   timecodeId: string;
   durationMinutes: number | null;
   note: string;
+  tags?: string[];
   expectedDurationMinutes?: number | null;
 }
 
