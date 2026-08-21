@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useTimeTracker } from '../context/TimeTrackerContext';
 import { Square, Play, Pause, FileEdit } from 'lucide-react';
-import { getElapsedTimeMs, formatElapsedSeconds } from '../utils/timeUtils';
+import { getElapsedTimeMs, formatElapsedSeconds, formatDurationShort } from '../utils/timeUtils';
 
 export const GlobalActiveTimerBar: React.FC = () => {
   const { activeEntries, timecodes, stopTimer, pauseTimer, resumeTimer } = useTimeTracker();
@@ -84,6 +84,18 @@ export const GlobalActiveTimerBar: React.FC = () => {
             <span className="text-lg font-mono font-medium tracking-wide tabular leading-none text-graphite dark:text-stone">
               {formatElapsedSeconds(elapsedSeconds)}
             </span>
+            {primaryEntry.expectedDurationMinutes ? (
+              <span
+                className={`text-xs font-mono tabular leading-none ${
+                  elapsedSeconds > primaryEntry.expectedDurationMinutes * 60
+                    ? 'text-rust font-medium'
+                    : 'text-gray-500 dark:text-gray-400'
+                }`}
+                title={`Estimated ${formatDurationShort(primaryEntry.expectedDurationMinutes * 60)}`}
+              >
+                / {formatDurationShort(primaryEntry.expectedDurationMinutes * 60)}
+              </span>
+            ) : null}
           </div>
         </div>
 

@@ -8,7 +8,7 @@ import { EntrySplitModal } from './EntrySplitModal';
 import { ManualEntryModal } from './ManualEntryModal';
 import { Modal } from './ui/Modal';
 import type { Entry } from '../types';
-import { applyRounding, getElapsedTimeMs } from '../utils/timeUtils';
+import { applyRounding, getElapsedTimeMs, formatDurationShort } from '../utils/timeUtils';
 
 const LiveEntryDuration: React.FC<{ entry: Entry, settings: any, formatDuration: (s: number) => string }> = ({ entry, settings, formatDuration }) => {
   const [elapsed, setElapsed] = useState(0);
@@ -23,6 +23,41 @@ const LiveEntryDuration: React.FC<{ entry: Entry, settings: any, formatDuration:
   }, [entry.startTime, entry.pausedSegments]);
 
   return <>{formatDuration(applyRounding(elapsed, settings?.roundingRule || 'none'))}</>;
+};
+
+// Live-updating "vs estimate" label for a currently-running entry.
+const LiveEstimateComparison: React.FC<{ entry: Entry, expectedSeconds: number }> = ({ entry, expectedSeconds }) => {
+  const [elapsed, setElapsed] = useState(0);
+
+  useEffect(() => {
+    const updateElapsed = () => {
+      setElapsed(Math.floor(getElapsedTimeMs(entry.startTime, entry.pausedSegments) / 1000));
+    };
+    updateElapsed();
+    const interval = setInterval(updateElapsed, 1000);
+    return () => clearInterval(interval);
+  }, [entry.startTime, entry.pausedSegments]);
+
+  const over = elapsed > expectedSeconds;
+  return (
+    <span className={over ? 'text-rust font-medium' : 'text-gray-500 dark:text-gray-400'}>
+      Est. {formatDurationShort(expectedSeconds)}
+      {over ? ` · ${formatDurationShort(elapsed - expectedSeconds)} over` : ''}
+    </span>
+  );
+};
+
+// Static "estimate vs actual" label for a completed entry.
+const EstimateComparison: React.FC<{ entry: Entry, expectedSeconds: number, actualSeconds: number }> = ({ expectedSeconds, actualSeconds }) => {
+  const diff = actualSeconds - expectedSeconds;
+  const over = diff > 0;
+  const under = diff < 0;
+  return (
+    <span className={over ? 'text-rust' : under ? 'text-verdigris dark:text-emerald-400' : 'text-gray-500 dark:text-gray-400'}>
+      Est. {formatDurationShort(expectedSeconds)}
+      {diff !== 0 ? ` · ${formatDurationShort(Math.abs(diff))} ${over ? 'over' : 'under'}` : ' · on target'}
+    </span>
+  );
 };
 
 export const EntryList: React.FC = () => {
@@ -292,11 +327,20 @@ export const EntryList: React.FC = () => {
                     </div>
                     <div className="mt-4 flex-shrink-0 sm:mt-0 sm:ml-5">
                       <div className="flex items-center space-x-4">
-                        <span className="text-lg font-mono tabular font-medium text-graphite dark:text-stone">
-                          {entry.isRunning
-                            ? <LiveEntryDuration entry={entry} settings={settings} formatDuration={formatDuration} />
-                            : formatDuration(applyRounding(entry.duration, settings?.roundingRule || 'none'))}
-                        </span>
+                        <div className="flex flex-col items-end">
+                          <span className="text-lg font-mono tabular font-medium text-graphite dark:text-stone">
+                            {entry.isRunning
+                              ? <LiveEntryDuration entry={entry} settings={settings} formatDuration={formatDuration} />
+                              : formatDuration(applyRounding(entry.duration, settings?.roundingRule || 'none'))}
+                          </span>
+                          {entry.expectedDurationMinutes ? (
+                            <span className="text-xs font-mono tabular whitespace-nowrap">
+                              {entry.isRunning
+                                ? <LiveEstimateComparison entry={entry} expectedSeconds={entry.expectedDurationMinutes * 60} />
+                                : <EstimateComparison entry={entry} expectedSeconds={entry.expectedDurationMinutes * 60} actualSeconds={applyRounding(entry.duration, settings?.roundingRule || 'none')} />}
+                            </span>
+                          ) : null}
+                        </div>
 
                         {entry.duration > 60 && (
                           <button
