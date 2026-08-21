@@ -2,6 +2,7 @@ import { render, screen, act, fireEvent, cleanup } from '@testing-library/react'
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { OverrunDetector } from './OverrunDetector';
 import type { Entry, Timecode } from '../types';
+import { playOverrunChime } from '../utils/audioAlert';
 
 const mockStopTimer = vi.fn().mockResolvedValue(undefined);
 
@@ -16,7 +17,10 @@ let mockTimecodes: Timecode[] = [
     updatedAt: new Date().toISOString(),
   },
 ];
-let mockSettings: { targetAlertMinutes: number | null } = { targetAlertMinutes: null };
+let mockSettings: { targetAlertMinutes: number | null; overrunAudioAlertEnabled?: boolean } = {
+  targetAlertMinutes: null,
+  overrunAudioAlertEnabled: true,
+};
 
 vi.mock('../context/TimeTrackerContext', () => ({
   useTimeTracker: () => ({
@@ -25,6 +29,11 @@ vi.mock('../context/TimeTrackerContext', () => ({
     stopTimer: mockStopTimer,
     settings: mockSettings,
   }),
+}));
+
+vi.mock('../utils/audioAlert', () => ({
+  playOverrunChime: vi.fn(),
+  unlockAudioAlert: vi.fn(),
 }));
 
 describe('OverrunDetector', () => {
@@ -69,7 +78,7 @@ describe('OverrunDetector', () => {
     expect(screen.queryByText('Past your estimate')).toBeNull();
   });
 
-  it('shows modal when running entry exceeds expected duration', () => {
+  it('shows modal and plays chime when running entry exceeds expected duration', () => {
     const startTime = new Date(Date.now() - 31 * 60 * 1000).toISOString(); // 31 minutes ago
     mockActiveEntries = [
       {
@@ -97,6 +106,38 @@ describe('OverrunDetector', () => {
     expect(screen.getByText('Past your estimate')).not.toBeNull();
     expect(screen.getByText(/Development Task/)).not.toBeNull();
     expect(screen.getByText(/You estimated 30 min for/)).not.toBeNull();
+    expect(playOverrunChime).toHaveBeenCalledTimes(1);
+  });
+
+  it('does NOT play chime when overrunAudioAlertEnabled is explicitly false', () => {
+    mockSettings.overrunAudioAlertEnabled = false;
+    const startTime = new Date(Date.now() - 31 * 60 * 1000).toISOString();
+    mockActiveEntries = [
+      {
+        id: 'entry-overrun-disabled',
+        timecodeId: 'tc-1',
+        startTime,
+        endTime: null,
+        duration: 0,
+        note: '',
+        isRunning: true,
+        isPaused: false,
+        pausedSegments: [],
+        editHistory: [],
+        createdAt: startTime,
+        updatedAt: startTime,
+        expectedDurationMinutes: 30,
+      },
+    ];
+
+    render(<OverrunDetector />);
+    act(() => {
+      vi.advanceTimersByTime(5000);
+    });
+
+    expect(screen.getByText('Past your estimate')).not.toBeNull();
+    expect(playOverrunChime).not.toHaveBeenCalled();
+    mockSettings.overrunAudioAlertEnabled = true;
   });
 
   it('calls stopTimer when user clicks "No, stop timer"', async () => {

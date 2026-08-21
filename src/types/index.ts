@@ -66,6 +66,7 @@ export interface Settings {
   idleThresholdMinutes: number | null;
   weeklyTargetHours: number | null;
   targetAlertMinutes?: number | null;
+  overrunAudioAlertEnabled?: boolean;
   theme?: 'light' | 'dark' | 'system';
   allowConcurrentTimers: boolean;
   templates?: EntryTemplate[];
