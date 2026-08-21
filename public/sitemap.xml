@@ -1,49 +1,49 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
   <url>
-    <loc>https://lukeafullard.github.io/TimeTag/</loc>
+    <loc>https://inyourownbrowser.github.io/TimeDoco/</loc>
     <lastmod>2026-08-18</lastmod>
     <changefreq>weekly</changefreq>
     <priority>1.0</priority>
   </url>
   <url>
-    <loc>https://lukeafullard.github.io/TimeTag/app/</loc>
+    <loc>https://inyourownbrowser.github.io/TimeDoco/app/</loc>
     <lastmod>2026-08-18</lastmod>
     <changefreq>daily</changefreq>
     <priority>0.9</priority>
   </url>
   <url>
-    <loc>https://lukeafullard.github.io/TimeTag/faq/</loc>
+    <loc>https://inyourownbrowser.github.io/TimeDoco/faq/</loc>
     <lastmod>2026-08-18</lastmod>
     <changefreq>monthly</changefreq>
     <priority>0.8</priority>
   </url>
   <url>
-    <loc>https://lukeafullard.github.io/TimeTag/blog/</loc>
+    <loc>https://inyourownbrowser.github.io/TimeDoco/blog/</loc>
     <lastmod>2026-08-20</lastmod>
     <changefreq>weekly</changefreq>
     <priority>0.8</priority>
   </url>
   <url>
-    <loc>https://lukeafullard.github.io/TimeTag/blog/introducing-timedoco/</loc>
+    <loc>https://inyourownbrowser.github.io/TimeDoco/blog/introducing-timedoco/</loc>
     <lastmod>2026-08-20</lastmod>
     <changefreq>monthly</changefreq>
     <priority>0.7</priority>
   </url>
   <url>
-    <loc>https://lukeafullard.github.io/TimeTag/blog/why-client-side-privacy-matters/</loc>
+    <loc>https://inyourownbrowser.github.io/TimeDoco/blog/why-client-side-privacy-matters/</loc>
     <lastmod>2026-08-18</lastmod>
     <changefreq>monthly</changefreq>
     <priority>0.7</priority>
   </url>
   <url>
-    <loc>https://lukeafullard.github.io/TimeTag/privacy/</loc>
+    <loc>https://inyourownbrowser.github.io/TimeDoco/privacy/</loc>
     <lastmod>2026-08-19</lastmod>
     <changefreq>monthly</changefreq>
     <priority>0.5</priority>
   </url>
   <url>
-    <loc>https://lukeafullard.github.io/TimeTag/terms/</loc>
+    <loc>https://inyourownbrowser.github.io/TimeDoco/terms/</loc>
     <lastmod>2026-08-19</lastmod>
     <changefreq>monthly</changefreq>
     <priority>0.5</priority>

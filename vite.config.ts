@@ -6,7 +6,7 @@ import { VitePWA } from 'vite-plugin-pwa'
 
 // https://vite.dev/config/
 export default defineConfig({
-  base: '/TimeTag/',
+  base: '/TimeDoco/',
   build: {
     rollupOptions: {
       input: {
@@ -31,8 +31,8 @@ export default defineConfig({
         name: 'TimeDoco',
         short_name: 'TimeDoco',
         description: 'Privacy-first, 100% client-side Time Tracker App',
-        scope: '/TimeTag/',
-        start_url: '/TimeTag/app/',
+        scope: '/TimeDoco/',
+        start_url: '/TimeDoco/app/',
         background_color: '#EEF0EC',
         theme_color: '#10161C',
         icons: [
