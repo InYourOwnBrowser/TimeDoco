@@ -3,7 +3,7 @@ import { useTimeTracker } from '../context/TimeTrackerContext';
 import { Play, Square, Pause } from 'lucide-react';
 import { TimecodeSelector } from './TimecodeSelector';
 import { type Entry } from '../types';
-import { getElapsedTimeMs, formatElapsedSeconds } from '../utils/timeUtils';
+import { getElapsedTimeMs, formatElapsedSeconds, formatDurationShort } from '../utils/timeUtils';
 import { useToast } from '../context/ToastContext';
 
 export const ActiveTimer: React.FC<{ activeEntry: Entry | null }> = ({ activeEntry }) => {
@@ -179,6 +179,24 @@ export const ActiveTimer: React.FC<{ activeEntry: Entry | null }> = ({ activeEnt
               {formatElapsedSeconds(elapsedSeconds)}
             </div>
           </div>
+
+          {activeEntry.expectedDurationMinutes ? (
+            <div className="flex items-center gap-2 text-xs font-mono tabular -mt-2">
+              <span className="text-gray-500 dark:text-gray-400">
+                Est. {formatDurationShort(activeEntry.expectedDurationMinutes * 60)}
+              </span>
+              <span className="text-gray-300 dark:text-gray-600">•</span>
+              {elapsedSeconds > activeEntry.expectedDurationMinutes * 60 ? (
+                <span className="text-rust font-medium">
+                  {formatDurationShort(elapsedSeconds - activeEntry.expectedDurationMinutes * 60)} over
+                </span>
+              ) : (
+                <span className="text-verdigris dark:text-emerald-400 font-medium">
+                  {formatDurationShort(activeEntry.expectedDurationMinutes * 60 - elapsedSeconds)} left
+                </span>
+              )}
+            </div>
+          ) : null}
 
           <div className="w-full mt-2 mb-2 space-y-2">
             <input
