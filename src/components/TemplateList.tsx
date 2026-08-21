@@ -18,14 +18,15 @@ export const TemplateList: React.FC = () => {
   // Form state
   const [title, setTitle] = useState('');
   const [timecodeId, setTimecodeId] = useState('');
-  const [isFixedDuration, setIsFixedDuration] = useState(true);
+  const [isFixedDuration, setIsFixedDuration] = useState(false);
   const [durationMinutes, setDurationMinutes] = useState(15);
   const [expectedDurationMinutes, setExpectedDurationMinutes] = useState('');
   const [note, setNote] = useState('');
+  const [tagsStr, setTagsStr] = useState('');
 
   const templates = settings?.templates || [];
 
-  const isDirty = title !== '' || note !== '' || durationMinutes !== 15 || !isFixedDuration || expectedDurationMinutes !== '';
+  const isDirty = title !== '' || note !== '' || tagsStr !== '' || isFixedDuration || expectedDurationMinutes !== '';
 
   const handleOpenModal = (template?: EntryTemplate) => {
     if (template) {
@@ -36,14 +37,16 @@ export const TemplateList: React.FC = () => {
       setDurationMinutes(template.durationMinutes || 15);
       setExpectedDurationMinutes(template.expectedDurationMinutes ? String(template.expectedDurationMinutes) : '');
       setNote(template.note);
+      setTagsStr((template.tags || []).join(', '));
     } else {
       setEditingTemplate(null);
       setTitle('');
       setTimecodeId(timecodes.length > 0 ? timecodes[0].id : '');
-      setIsFixedDuration(true);
+      setIsFixedDuration(false);
       setDurationMinutes(15);
       setExpectedDurationMinutes('');
       setNote('');
+      setTagsStr('');
     }
     setIsModalOpen(true);
   };
@@ -60,12 +63,13 @@ export const TemplateList: React.FC = () => {
     const finalExpected = !isFixedDuration && expectedDurationMinutes
       ? Math.max(1, Number(expectedDurationMinutes))
       : null;
+    const tagsArray = tagsStr.split(',').map(t => t.trim()).filter(t => t !== '').slice(0, 20);
 
     let newTemplates = [...templates];
     if (editingTemplate) {
       newTemplates = newTemplates.map(t =>
         t.id === editingTemplate.id
-          ? { ...t, title: title.trim(), timecodeId, durationMinutes: finalDuration, expectedDurationMinutes: finalExpected, note: note.trim() }
+          ? { ...t, title: title.trim(), timecodeId, durationMinutes: finalDuration, expectedDurationMinutes: finalExpected, note: note.trim(), tags: tagsArray }
           : t
       );
     } else {
@@ -75,7 +79,8 @@ export const TemplateList: React.FC = () => {
         timecodeId,
         durationMinutes: finalDuration,
         expectedDurationMinutes: finalExpected,
-        note: note.trim()
+        note: note.trim(),
+        tags: tagsArray
       });
     }
 
@@ -109,7 +114,7 @@ export const TemplateList: React.FC = () => {
 
   const handleLogTemplate = async (template: EntryTemplate) => {
     if (template.durationMinutes == null) {
-      await startTimer(template.timecodeId, template.note, undefined, template.expectedDurationMinutes ?? null);
+      await startTimer(template.timecodeId, template.note, template.tags, template.expectedDurationMinutes ?? null);
       addToast(`Started timer for ${template.title}`, 'success');
       return;
     }
@@ -128,7 +133,8 @@ export const TemplateList: React.FC = () => {
       timecodeId: template.timecodeId,
       startTime: start.toISOString(),
       endTime: end.toISOString(),
-      note: template.note
+      note: template.note,
+      tags: template.tags
     });
 
     addToast(`Logged ${template.durationMinutes}m for ${template.title}`, 'success');
@@ -287,6 +293,17 @@ export const TemplateList: React.FC = () => {
               maxLength={2000}
               onChange={(e) => setNote(e.target.value)}
               placeholder="Default note for this entry"
+              className="w-full px-3 py-2 border border-graphite/20 dark:border-white/20 rounded-md bg-white dark:bg-graphite text-graphite dark:text-stone focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-signal"
+            />
+          </div>
+          <div>
+            <label className="block text-sm font-medium text-graphite dark:text-stone mb-1">Tags (comma separated)</label>
+            <input
+              type="text"
+              value={tagsStr}
+              maxLength={500}
+              onChange={(e) => setTagsStr(e.target.value)}
+              placeholder="e.g. design, meeting, high-priority"
               className="w-full px-3 py-2 border border-graphite/20 dark:border-white/20 rounded-md bg-white dark:bg-graphite text-graphite dark:text-stone focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-signal"
             />
           </div>
