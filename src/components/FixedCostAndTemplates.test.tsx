@@ -86,6 +86,9 @@ describe('Fixed Cost & Template Deletion', () => {
     it('includes zero-duration entries with manualAmount in breakdown and total earnings', () => {
       render(<AnalysisView />);
 
+      const overviewTab = screen.getByRole('tab', { name: /overview/i });
+      fireEvent.click(overviewTab);
+
       expect(screen.getByText('TOTAL EARNINGS')).not.toBeNull();
       expect(screen.getAllByText('$150.00').length).toBeGreaterThan(0);
       expect(screen.getAllByText('Materials & Expenses').length).toBeGreaterThan(0);

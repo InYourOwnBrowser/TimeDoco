@@ -1,4 +1,4 @@
-import { render, screen } from '@testing-library/react';
+import { render, screen, fireEvent } from '@testing-library/react';
 import { describe, it, expect, vi } from 'vitest';
 import { format } from 'date-fns';
 import { AnalysisView } from './AnalysisView';
@@ -13,7 +13,7 @@ const mockEntries = [
     endTime: `${today}T10:30:00`, // 30 mins actual
     duration: 1800,
     note: 'Task 1',
-    expectedDurationMinutes: 30, // on time
+    expectedDurationMinutes: 30, // on time (0%)
     pausedSegments: [],
     tags: [],
   },
@@ -72,14 +72,51 @@ vi.mock('../context/ToastContext', () => ({
   }),
 }));
 
-describe('AnalysisView Estimate Accuracy', () => {
-  it('renders estimate accuracy card when entries with estimates exist', () => {
+describe('AnalysisView Redesign Tabs & Metrics', () => {
+  it('defaults to Export tab and allows switching to Overview, Estimates, and Timeline tabs', () => {
     render(<AnalysisView />);
 
-    expect(screen.getByText('Estimate Accuracy')).not.toBeNull();
+    // Verify Tab headers exist
+    expect(screen.getByRole('tab', { name: /export/i })).not.toBeNull();
+    expect(screen.getByRole('tab', { name: /overview/i })).not.toBeNull();
+    expect(screen.getByRole('tab', { name: /estimates/i })).not.toBeNull();
+    expect(screen.getByRole('tab', { name: /timeline/i })).not.toBeNull();
+
+    // Default tab is Export
+    expect(screen.getByText('Export Scope')).not.toBeNull();
+    expect(screen.getByText('Summary CSV')).not.toBeNull();
+    expect(screen.getByText('Detailed Raw CSV')).not.toBeNull();
+    expect(screen.getByText('Export Calendar (ICS)')).not.toBeNull();
+    expect(screen.getByText('Generate Report (PDF)')).not.toBeNull();
+  });
+
+  it('renders headline cards when navigating to Overview tab', () => {
+    render(<AnalysisView />);
+
+    const overviewTab = screen.getByRole('tab', { name: /overview/i });
+    fireEvent.click(overviewTab);
+
+    expect(screen.getByText('TOTAL TRACKED TIME')).not.toBeNull();
+    expect(screen.getByText('TOTAL EARNINGS')).not.toBeNull();
+  });
+
+  it('renders deep estimate metrics when navigating to Estimates tab', () => {
+    render(<AnalysisView />);
+
+    const estimatesTab = screen.getByRole('tab', { name: /estimates/i });
+    fireEvent.click(estimatesTab);
+
+    // Verify 4 headline metrics on Estimates tab
     expect(screen.getByText('tasks estimated')).not.toBeNull();
-    expect(screen.getByText('2')).not.toBeNull(); // 2 tasks estimated
-    expect(screen.getByText('50%')).not.toBeNull(); // 1 of 2 finished on/under estimate
-    expect(screen.getByText('+25%')).not.toBeNull(); // Total expected 60m, total actual 75m => +25%
+    expect(screen.getAllByText('2').length).toBeGreaterThan(0); // 2 tasks estimated
+    expect(screen.getByText('hit rate (on/under)')).not.toBeNull();
+    expect(screen.getAllByText('50%').length).toBeGreaterThan(0); // 1 of 2 on time
+    expect(screen.getByText('bias (net direction)')).not.toBeNull();
+    expect(screen.getAllByText('+25%').length).toBeGreaterThan(0); // (0% + 50%) / 2 = +25%
+    expect(screen.getByText('typical miss (magnitude)')).not.toBeNull();
+
+    // Verify per-timecode table header and entries
+    expect(screen.getByText('Per-Timecode Estimate Performance')).not.toBeNull();
+    expect(screen.getAllByText('Dev Task').length).toBeGreaterThan(0);
   });
 });
