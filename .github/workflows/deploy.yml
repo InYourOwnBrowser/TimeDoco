@@ -2,8 +2,17 @@ name: Deploy
 
 on:
   push:
-    branches: [main]
-  workflow_dispatch: {}
+    branches: [main, staging]
+  workflow_dispatch:
+    inputs:
+      target:
+        description: 'Where to deploy'
+        required: true
+        default: 'preview'
+        type: choice
+        options:
+          - preview
+          - production
 
 jobs:
   verify:
@@ -43,5 +52,5 @@ jobs:
         with:
           apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
-          command: pages deploy dist --project-name=timedoco
+          command: pages deploy dist --project-name=timedoco --branch=${{ inputs.target == 'production' && 'main' || 'staging' }}
           gitHubToken: ${{ secrets.GITHUB_TOKEN }}
