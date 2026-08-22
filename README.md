@@ -1,13 +1,13 @@
 # TimeDoco
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-amber.svg)](LICENSE)
-[![PWA Ready](https://img.shields.io/badge/PWA-Ready-10161C.svg)](https://inyourownbrowser.github.io/TimeDoco/)
-[![100% Client--Side](https://img.shields.io/badge/Storage-100%25%20Client--Side%20IndexedDB-green.svg)](https://inyourownbrowser.github.io/TimeDoco/)
+[![PWA Ready](https://img.shields.io/badge/PWA-Ready-10161C.svg)](https://timedoco.com/)
+[![100% Client--Side](https://img.shields.io/badge/Storage-100%25%20Client--Side%20IndexedDB-green.svg)](https://timedoco.com/)
 
 **TimeDoco** is a completely client-side, privacy-first time tracking web application built for freelancers, contractors, and privacy advocates. Your timesheets, billable rates, and client details never leave your device.
 
-🔗 **Live Application:** [https://inyourownbrowser.github.io/TimeDoco/app/](https://inyourownbrowser.github.io/TimeDoco/app/)
-🌐 **Landing & FAQ:** [https://inyourownbrowser.github.io/TimeDoco/](https://inyourownbrowser.github.io/TimeDoco/)
+🔗 **Live Application:** [https://timedoco.com/app/](https://timedoco.com/app/)
+🌐 **Landing & FAQ:** [https://timedoco.com/](https://timedoco.com/)
 
 ---
 

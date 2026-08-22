@@ -1,49 +1,49 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
   <url>
-    <loc>https://inyourownbrowser.github.io/TimeDoco/</loc>
+    <loc>https://timedoco.com/</loc>
     <lastmod>2026-08-18</lastmod>
     <changefreq>weekly</changefreq>
     <priority>1.0</priority>
   </url>
   <url>
-    <loc>https://inyourownbrowser.github.io/TimeDoco/app/</loc>
+    <loc>https://timedoco.com/app/</loc>
     <lastmod>2026-08-18</lastmod>
     <changefreq>daily</changefreq>
     <priority>0.9</priority>
   </url>
   <url>
-    <loc>https://inyourownbrowser.github.io/TimeDoco/faq/</loc>
+    <loc>https://timedoco.com/faq/</loc>
     <lastmod>2026-08-18</lastmod>
     <changefreq>monthly</changefreq>
     <priority>0.8</priority>
   </url>
   <url>
-    <loc>https://inyourownbrowser.github.io/TimeDoco/blog/</loc>
+    <loc>https://timedoco.com/blog/</loc>
     <lastmod>2026-08-20</lastmod>
     <changefreq>weekly</changefreq>
     <priority>0.8</priority>
   </url>
   <url>
-    <loc>https://inyourownbrowser.github.io/TimeDoco/blog/introducing-timedoco/</loc>
+    <loc>https://timedoco.com/blog/introducing-timedoco/</loc>
     <lastmod>2026-08-20</lastmod>
     <changefreq>monthly</changefreq>
     <priority>0.7</priority>
   </url>
   <url>
-    <loc>https://inyourownbrowser.github.io/TimeDoco/blog/why-client-side-privacy-matters/</loc>
+    <loc>https://timedoco.com/blog/why-client-side-privacy-matters/</loc>
     <lastmod>2026-08-18</lastmod>
     <changefreq>monthly</changefreq>
     <priority>0.7</priority>
   </url>
   <url>
-    <loc>https://inyourownbrowser.github.io/TimeDoco/privacy/</loc>
+    <loc>https://timedoco.com/privacy/</loc>
     <lastmod>2026-08-19</lastmod>
     <changefreq>monthly</changefreq>
     <priority>0.5</priority>
   </url>
   <url>
-    <loc>https://inyourownbrowser.github.io/TimeDoco/terms/</loc>
+    <loc>https://timedoco.com/terms/</loc>
     <lastmod>2026-08-19</lastmod>
     <changefreq>monthly</changefreq>
     <priority>0.5</priority>
