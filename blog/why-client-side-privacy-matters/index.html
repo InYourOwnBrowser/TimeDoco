@@ -5,7 +5,7 @@
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <meta name="theme-color" content="#10161C" />
-    <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self' data: https://images.unsplash.com; font-src 'self'; connect-src 'none'; object-src 'none'; base-uri 'self';" />
+    <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline' https://static.cloudflareinsights.com; style-src 'self' 'unsafe-inline'; img-src 'self' data: https://images.unsplash.com; font-src 'self'; connect-src 'self' https://cloudflareinsights.com; object-src 'none'; base-uri 'self';" />
     <title>Why Client-Side Privacy Matters for Contractors — TimeDoco</title>
     <meta name="description" content="Discover why 100% client-side local storage protects client confidentiality, eliminates cloud vendor risk, and guarantees uninterrupted productivity." />
     <link rel="canonical" href="https://timedoco.com/blog/why-client-side-privacy-matters/" />
@@ -80,5 +80,6 @@
   <body class="min-h-screen bg-stone dark:bg-ink text-gray-900 dark:text-gray-100 font-sans antialiased">
     <div id="root"></div>
     <script type="module" src="/src/main.tsx"></script>
+    <!-- Cloudflare Web Analytics --><script type='module' src='https://static.cloudflareinsights.com/beacon.min.js' data-cf-beacon='{"token": "7bd9b99d7f584b48b64de0f747af5e7e"}'></script><!-- End Cloudflare Web Analytics -->
   </body>
 </html>

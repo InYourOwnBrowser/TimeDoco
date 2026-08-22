@@ -10,7 +10,7 @@
     <meta name="mobile-web-app-capable" content="yes" />
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
     <meta name="apple-mobile-web-app-title" content="TimeDoco" />
-    <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data:; font-src 'self'; connect-src 'none'; object-src 'none'; base-uri 'self';" />
+    <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' https://static.cloudflareinsights.com; style-src 'self'; img-src 'self' data:; font-src 'self'; connect-src 'self' https://cloudflareinsights.com; object-src 'none'; base-uri 'self';" />
     <title>TimeDoco — Time Tracking & Client Billing, 100% Private</title>
     <meta name="description" content="Track time, bill clients, and export professional reports — entirely client-side. No account, no cloud, your data never leaves your device." />
     <link rel="canonical" href="https://timedoco.com/" />
@@ -245,5 +245,6 @@
         </div>
       </div>
     </footer>
+    <!-- Cloudflare Web Analytics --><script type='module' src='https://static.cloudflareinsights.com/beacon.min.js' data-cf-beacon='{"token": "7bd9b99d7f584b48b64de0f747af5e7e"}'></script><!-- End Cloudflare Web Analytics -->
   </body>
 </html>
