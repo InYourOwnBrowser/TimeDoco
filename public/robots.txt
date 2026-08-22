@@ -13,4 +13,4 @@ Allow: /
 User-agent: Google-Extended
 Allow: /
 
-Sitemap: https://inyourownbrowser.github.io/TimeDoco/sitemap.xml
+Sitemap: https://timedoco.com/sitemap.xml

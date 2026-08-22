@@ -119,7 +119,7 @@ const calculateBilling = (hours: number, rate: number) => {
 
 ## 🌐 Static Site Shell Generation (SEO & Direct Page Loads)
 
-To ensure search engines crawl full article metadata and GitHub Pages serves direct URL requests (e.g. `https://inyourownbrowser.github.io/TimeDoco/blog/your-post-slug/`) without 404 errors:
+To ensure search engines crawl full article metadata and GitHub Pages serves direct URL requests (e.g. `https://timedoco.com/blog/your-post-slug/`) without 404 errors:
 
 1. Create a static shell directory: `blog/your-post-slug/index.html`.
 2. Include Open Graph / Twitter meta tags and the React SPA mount script:
@@ -133,7 +133,7 @@ To ensure search engines crawl full article metadata and GitHub Pages serves dir
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Your Post Title — TimeDoco</title>
     <meta name="description" content="Your short article description." />
-    <link rel="canonical" href="https://inyourownbrowser.github.io/TimeDoco/blog/your-post-slug/" />
+    <link rel="canonical" href="https://timedoco.com/blog/your-post-slug/" />
     <link rel="stylesheet" href="/src/index.css" />
   </head>
   <body class="min-h-screen bg-stone dark:bg-ink text-gray-900 dark:text-gray-100 font-sans antialiased">

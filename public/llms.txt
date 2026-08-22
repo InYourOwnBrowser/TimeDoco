@@ -4,14 +4,14 @@
 
 ## Core Pages & App
 
-- [Landing Page](https://inyourownbrowser.github.io/TimeDoco/): Feature breakdown, Toggl/Harvest privacy comparison, and overview of client-side tracking.
-- [TimeDoco Web App](https://inyourownbrowser.github.io/TimeDoco/app/): The full time tracking application interface (timer, timesheet matrix, analysis/PDF reports, grouping management).
-- [Frequently Asked Questions](https://inyourownbrowser.github.io/TimeDoco/faq/): Questions and answers regarding IndexedDB local storage, PDF/CSV/ICS exports, multi-currency options, and offline PWA capability.
-- [Blog Index](https://inyourownbrowser.github.io/TimeDoco/blog/): Articles and guides for contractors, freelancers, and privacy advocates.
-- [Privacy Policy](https://inyourownbrowser.github.io/TimeDoco/privacy/): Details on 100% client-side storage, zero server tracking, zero analytics, and hosting disclaimers.
-- [Terms of Use](https://inyourownbrowser.github.io/TimeDoco/terms/): Terms governing application usage, user backup responsibilities, tax disclaimers, and warranty limitations.
+- [Landing Page](https://timedoco.com/): Feature breakdown, Toggl/Harvest privacy comparison, and overview of client-side tracking.
+- [TimeDoco Web App](https://timedoco.com/app/): The full time tracking application interface (timer, timesheet matrix, analysis/PDF reports, grouping management).
+- [Frequently Asked Questions](https://timedoco.com/faq/): Questions and answers regarding IndexedDB local storage, PDF/CSV/ICS exports, multi-currency options, and offline PWA capability.
+- [Blog Index](https://timedoco.com/blog/): Articles and guides for contractors, freelancers, and privacy advocates.
+- [Privacy Policy](https://timedoco.com/privacy/): Details on 100% client-side storage, zero server tracking, zero analytics, and hosting disclaimers.
+- [Terms of Use](https://timedoco.com/terms/): Terms governing application usage, user backup responsibilities, tax disclaimers, and warranty limitations.
 
 ## Articles
 
-- [Introducing TimeDoco: The Time Tracker I Couldn't Find, So I Built It](https://inyourownbrowser.github.io/TimeDoco/blog/introducing-timedoco/): Welcome post detailing why TimeDoco was built, what it does, and its core privacy-first features.
-- [Why Client-Side Privacy Matters for Contractors](https://inyourownbrowser.github.io/TimeDoco/blog/why-client-side-privacy-matters/): Deep dive into client data confidentiality and zero cloud vulnerability.
+- [Introducing TimeDoco: The Time Tracker I Couldn't Find, So I Built It](https://timedoco.com/blog/introducing-timedoco/): Welcome post detailing why TimeDoco was built, what it does, and its core privacy-first features.
+- [Why Client-Side Privacy Matters for Contractors](https://timedoco.com/blog/why-client-side-privacy-matters/): Deep dive into client data confidentiality and zero cloud vulnerability.
