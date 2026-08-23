@@ -1,0 +1,187 @@
+export const meta = {
+  title: "How I Built a Time Tracker with Zero Backend: IndexedDB, PWA, and Web Audio",
+  date: "2026-08-28",
+  tags: ["engineering", "architecture", "pwa", "indexeddb", "react", "typescript"],
+  description: "A technical deep dive into building TimeDoco: a 100% client-side web application using React 19, IndexedDB, Service Worker PWA, Web Audio API, and jsPDF."
+};
+
+# How I Built a Time Tracker with Zero Backend: IndexedDB, PWA, and Web Audio
+
+In an era where even the simplest utility apps rely on microservices, cloud databases, user authentication services, and monthly SaaS subscriptions, I wanted to take a radically different engineering approach with **TimeDoco**: build a feature-packed, production-grade time tracking application that operates **100% client-side with zero backend server**.
+
+In this article, I will walk through the technical architecture, design patterns, and browser APIs that make a serverless, zero-backend web app both fast and resilient.
+
+<figure className="my-6 text-center">
+  <img
+    src="https://images.unsplash.com/photo-1555066931-4365d14bab8c?q=80&w=2070&auto=format&fit=crop&ixlib=rb-4.1.0&ixid=M3wxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8fA%3D%3D"
+    alt="Lines of source code displayed on a computer screen"
+    className="rounded-panel border border-graphite/20 dark:border-white/20 shadow-md mx-auto w-full max-h-[450px] object-cover"
+  />
+  <figcaption className="text-xs text-gray-500 dark:text-gray-400 mt-2">
+    Photo via <a href="https://unsplash.com/photos/code-project-on-computer-screen-ff4awE20NCs" target="_blank" rel="noopener noreferrer" className="underline hover:text-signal">Unsplash</a>. Free to use under the Unsplash License.
+  </figcaption>
+</figure>
+
+---
+
+## High-Level Architecture Overview
+
+The fundamental architectural principle behind TimeDoco is simple: **the web browser is a fully capable application operating platform**.
+
+```
+┌─────────────────────────────────────────────────────────────────────────┐
+│                           TimeDoco Frontend                             │
+│                                                                         │
+│  ┌──────────────────┐    ┌───────────────────┐    ┌──────────────────┐  │
+│  │   React 19 UI    │    │ TimeTrackerContext│    │ Web Audio Engine │  │
+│  │ (Tailwind CSS)   │ ◄─►│   (State Mgmt)    │ ◄─►│  (Overrun Chime) │  │
+│  └──────────────────┘    └─────────┬─────────┘    └──────────────────┘  │
+│                                    │                                    │
+│                                    ▼                                    │
+│                         ┌────────────────────┐                          │
+│                         │ Browser IndexedDB  │                          │
+│                         │ (Persistent DB)    │                          │
+│                         └────────────────────┘                          │
+└─────────────────────────────────────────────────────────────────────────┘
+```
+
+The stack consists of:
+* **UI & Rendering:** React 19, TypeScript, Tailwind CSS, Lucide icons.
+* **Build System:** Vite + `@mdx-js/rollup` for static blog integration.
+* **Persistence Layer:** Browser IndexedDB (`time-tracker-db`) via light promise wrappers with in-memory fallback.
+* **Offline Engine:** Service Worker offline cache managed via `vite-plugin-pwa`.
+* **Audio Synthesis:** Web Audio API (`AudioContext`) for zero-asset chime alerts.
+* **Document Export:** `jspdf` and `jspdf-autotable` for dynamic PDF generation.
+
+---
+
+## 1. Local Database Storage via IndexedDB
+
+A common mistake developers make when building local-first web apps is relying exclusively on `localStorage`. While `localStorage` is simple, it is synchronous, limited to ~5MB, and blocks the main UI thread during heavy read/write cycles.
+
+For TimeDoco, I selected **IndexedDB**, the browser's native asynchronous NoSQL database.
+
+### Key Schema Design & Object Stores
+TimeDoco initializes an IndexedDB database named `time-tracker-db` with four core object stores (`groups`, `timecodes`, `entries`, and `settings`):
+
+```typescript
+// src/db/index.ts
+import { openDB, type DBSchema, type IDBPDatabase } from 'idb';
+import type { Group, Timecode, Entry, Settings } from '../types';
+
+interface TimeTrackerDB extends DBSchema {
+  groups: { key: string; value: Group };
+  timecodes: { key: string; value: Timecode; indexes: { 'by-group': string } };
+  entries: { key: string; value: Entry; indexes: { 'by-timecode': string } };
+  settings: { key: string; value: Settings };
+}
+
+const DB_NAME = 'time-tracker-db';
+const DB_VERSION = 2;
+```
+
+> Note: Task templates and custom preferences live directly inside the `settings` object store record (`user-settings`), keeping schema migrations simple.
+
+### Optimizing UI Responsiveness & State Syncing
+To prevent input lag and race conditions when typing notes or editing settings, React component state updates synchronously (`setSettings`) before persisting changes to IndexedDB asynchronously.
+
+```typescript
+// Optimistic UI state update pattern
+const handleUpdateSetting = async (key: string, value: any) => {
+  setLocalSettings((prev) => ({ ...prev, [key]: value })); // Immediate UI update
+  await db.settings.put({ id: 'user-settings', [key]: value }); // Async IDB persist
+};
+```
+
+---
+
+## 2. Timestamp-Based Timers & Resilient State Math
+
+Many beginner time tracking apps measure elapsed time by running a JavaScript `setInterval` every second and incrementing a state variable (`seconds++`).
+
+This approach fails in real-world conditions:
+* Browsers throttle background intervals when tabs are minimized to save battery.
+* Laptop sleep mode pauses JavaScript timers entirely.
+* Closing the tab resets counter variables to zero.
+
+### The Absolute Timestamp Solution
+TimeDoco uses **absolute Unix timestamps**. When an active timer starts, the app records `startTime` as an ISO timestamp string (`new Date().toISOString()`).
+
+When the timer runs, elapsed time is computed on the fly:
+
+`Elapsed Time = Current Timestamp - Start Timestamp - Total Paused Duration`
+
+Because elapsed duration is derived dynamically from system time, pausing, minimizing, closing, or restarting your computer has zero effect on timer precision.
+
+---
+
+## 3. Web Audio API for Zero-Asset Chime Alerts
+
+To notify users when a task exceeds its estimated duration (`expectedDurationMinutes`), TimeDoco plays an audio chime alert.
+
+Instead of bundling external MP3 or WAV audio files (which add network overhead and loading latency), TimeDoco synthesizes audio programmatically using the browser's native **Web Audio API**:
+
+```typescript
+// src/utils/audioAlert.ts
+export function playOverrunChime() {
+  const ctx = getAudioContext();
+  if (!ctx) return;
+  const now = ctx.currentTime;
+
+  [0, 0.18, 0.36, 0.54, 0.72, 0.90].forEach((offset) => {
+    const osc = ctx.createOscillator();
+    const gain = ctx.createGain();
+    osc.type = 'sine';
+    osc.frequency.value = 880; // A5 note
+    gain.gain.setValueAtTime(0, now + offset);
+    gain.gain.linearRampToValueAtTime(0.25, now + offset + 0.01);
+    gain.gain.linearRampToValueAtTime(0, now + offset + 0.15);
+    osc.connect(gain);
+    gain.connect(ctx.destination);
+    osc.start(now + offset);
+    osc.stop(now + offset + 0.16);
+  });
+}
+```
+
+This approach generates a crisp audio chime with zero network requests and zero bundle bloat.
+
+---
+
+## 4. Client-Side PDF Generation with jsPDF
+
+Generating formatted client invoice PDFs directly inside the browser presents unique challenges—especially when scaling custom user logos, preserving aspect ratios, and calculating inclusive/exclusive tax tables.
+
+TimeDoco handles PDF generation synchronously using `jspdf`:
+
+```typescript
+// Dynamic image aspect ratio calculation for user-uploaded logos
+if (settings.userLogoBase64) {
+  try {
+    const imgProps = doc.getImageProperties(settings.userLogoBase64);
+    const logoWidth = 40;
+    const logoHeight = (imgProps.height * logoWidth) / imgProps.width;
+    doc.addImage(settings.userLogoBase64, 'PNG', 14, 15, logoWidth, logoHeight, undefined, 'MEDIUM');
+  } catch (err) {
+    console.warn('Failed to render custom logo on PDF export:', err);
+  }
+}
+```
+
+By keeping PDF generation entirely client-side, confidential financial figures never pass through a PDF generation API server.
+
+---
+
+## 5. Offline PWA and Performance Optimizations
+
+To deliver native app performance, TimeDoco leverages Vite's PWA plugin (`vite-plugin-pwa`):
+* **Service Worker Caching:** Static HTML, CSS, JS, and font assets are cached on install, allowing instant offline loads.
+* **Efficient Data Lookups:** In heavy matrix renders (like the Timesheet Matrix view), entries are pre-grouped into a JavaScript `Map` by timecode and date using `useMemo`, converting array filtering operations into fast O(1) Map lookups.
+
+---
+
+## Conclusion
+
+Building TimeDoco proved that you don't need expensive server infrastructure or complex cloud backends to deliver a fast, feature-rich web app. By embracing modern browser capabilities—IndexedDB, Service Workers, Web Audio, and Web API standards—we can build software that respects user privacy, works offline reliably, and belongs entirely to the user.
+
+Want to see the app in action? [Launch TimeDoco Now](/app/) or inspect the source code on [GitHub](https://github.com/InYourOwnBrowser/TimeDoco).
