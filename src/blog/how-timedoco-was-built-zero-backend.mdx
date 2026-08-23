@@ -2,7 +2,7 @@ export const meta = {
   title: "How I Built a Time Tracker with Zero Backend: IndexedDB, PWA, and Web Audio",
   date: "2026-08-28",
   tags: ["engineering", "architecture", "pwa", "indexeddb", "react", "typescript"],
-  description: "A technical deep dive into building TimeDoco: a 100% client-side web application using React, IndexedDB, Service Worker PWA, Web Audio API, and jsPDF."
+  description: "A technical deep dive into building TimeDoco: a 100% client-side web application using React 19, IndexedDB, Service Worker PWA, Web Audio API, and jsPDF."
 };
 
 # How I Built a Time Tracker with Zero Backend: IndexedDB, PWA, and Web Audio
@@ -33,7 +33,7 @@ The fundamental architectural principle behind TimeDoco is simple: **the web bro
 │                           TimeDoco Frontend                             │
 │                                                                         │
 │  ┌──────────────────┐    ┌───────────────────┐    ┌──────────────────┐  │
-│  │   React 18 UI    │    │ TimeTrackerContext│    │ Web Audio Engine │  │
+│  │   React 19 UI    │    │ TimeTrackerContext│    │ Web Audio Engine │  │
 │  │ (Tailwind CSS)   │ ◄─►│   (State Mgmt)    │ ◄─►│  (Overrun Chime) │  │
 │  └──────────────────┘    └─────────┬─────────┘    └──────────────────┘  │
 │                                    │                                    │
@@ -46,9 +46,9 @@ The fundamental architectural principle behind TimeDoco is simple: **the web bro
 ```
 
 The stack consists of:
-* **UI & Rendering:** React 18, TypeScript, Tailwind CSS, Lucide icons.
+* **UI & Rendering:** React 19, TypeScript, Tailwind CSS, Lucide icons.
 * **Build System:** Vite + `@mdx-js/rollup` for static blog integration.
-* **Persistence Layer:** Browser IndexedDB via light promise wrappers.
+* **Persistence Layer:** Browser IndexedDB (`time-tracker-db`) via light promise wrappers with in-memory fallback.
 * **Offline Engine:** Service Worker offline cache managed via `vite-plugin-pwa`.
 * **Audio Synthesis:** Web Audio API (`AudioContext`) for zero-asset chime alerts.
 * **Document Export:** `jspdf` and `jspdf-autotable` for dynamic PDF generation.
@@ -61,19 +61,26 @@ A common mistake developers make when building local-first web apps is relying e
 
 For TimeDoco, I selected **IndexedDB**, the browser's native asynchronous NoSQL database.
 
-### Key Schema Design & Stores
-TimeDoco initializes an IndexedDB database named `timedoco-db` with five key object stores:
+### Key Schema Design & Object Stores
+TimeDoco initializes an IndexedDB database named `time-tracker-db` with four core object stores (`groups`, `timecodes`, `entries`, and `settings`):
 
 ```typescript
-// src/db/schema.ts
-export interface TimeDocoDBSchema {
-  entries: Entry;              // Individual time logs and fixed cost items
-  groups: Group;               // High-level client or project groupings
-  timecodes: Timecode;         // Categorized activities with hourly rates
-  entryTemplates: EntryTemplate; // Saved task quick-start templates
-  settings: Settings;          // User preferences, currency, tax rates
+// src/db/index.ts
+import { openDB, type DBSchema, type IDBPDatabase } from 'idb';
+import type { Group, Timecode, Entry, Settings } from '../types';
+
+interface TimeTrackerDB extends DBSchema {
+  groups: { key: string; value: Group };
+  timecodes: { key: string; value: Timecode; indexes: { 'by-group': string } };
+  entries: { key: string; value: Entry; indexes: { 'by-timecode': string } };
+  settings: { key: string; value: Settings };
 }
+
+const DB_NAME = 'time-tracker-db';
+const DB_VERSION = 2;
 ```
+
+> Note: Task templates and custom preferences live directly inside the `settings` object store record (`user-settings`), keeping schema migrations simple.
 
 ### Optimizing UI Responsiveness & State Syncing
 To prevent input lag and race conditions when typing notes or editing settings, React component state updates synchronously (`setSettings`) before persisting changes to IndexedDB asynchronously.
@@ -117,29 +124,23 @@ Instead of bundling external MP3 or WAV audio files (which add network overhead 
 ```typescript
 // src/utils/audioAlert.ts
 export function playOverrunChime() {
-  const AudioContextClass = window.AudioContext || (window as any).webkitAudioContext;
-  if (!AudioContextClass) return;
-
-  const ctx = new AudioContextClass();
+  const ctx = getAudioContext();
+  if (!ctx) return;
   const now = ctx.currentTime;
 
-  // Synthesize a six-beep alert pattern using an 880Hz sine wave
-  for (let i = 0; i < 6; i++) {
+  [0, 0.18, 0.36, 0.54, 0.72, 0.90].forEach((offset) => {
     const osc = ctx.createOscillator();
     const gain = ctx.createGain();
-
     osc.type = 'sine';
-    osc.frequency.setValueAtTime(880, now + i * 0.15); // 880Hz (A5 note)
-
-    gain.gain.setValueAtTime(0.15, now + i * 0.15);
-    gain.gain.exponentialRampToValueAtTime(0.001, now + i * 0.15 + 0.1);
-
+    osc.frequency.value = 880; // A5 note
+    gain.gain.setValueAtTime(0, now + offset);
+    gain.gain.linearRampToValueAtTime(0.25, now + offset + 0.01);
+    gain.gain.linearRampToValueAtTime(0, now + offset + 0.15);
     osc.connect(gain);
     gain.connect(ctx.destination);
-
-    osc.start(now + i * 0.15);
-    osc.stop(now + i * 0.15 + 0.1);
-  }
+    osc.start(now + offset);
+    osc.stop(now + offset + 0.16);
+  });
 }
 ```
 
