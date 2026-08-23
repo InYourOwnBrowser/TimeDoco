@@ -27,6 +27,10 @@ export default defineConfig({
     VitePWA({
       registerType: 'autoUpdate',
       includeAssets: ['favicon.svg', 'apple-touch-icon.png'],
+      workbox: {
+        navigateFallback: '/app/index.html',
+        navigateFallbackAllowlist: [/^\/app\//],
+      },
       manifest: {
         name: 'TimeDoco',
         short_name: 'TimeDoco',
