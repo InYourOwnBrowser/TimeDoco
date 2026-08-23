@@ -14,7 +14,7 @@ interface EntryEditModalProps {
 }
 
 export const EntryEditModal: React.FC<EntryEditModalProps> = ({ entry, onClose }) => {
-  const { updateEntry, entries, settings, timecodes } = useTimeTracker();
+  const { updateEntry, entries, settings } = useTimeTracker();
   const { addToast } = useToast();
   const [startTime, setStartTime] = useState('');
   const [endTime, setEndTime] = useState('');
