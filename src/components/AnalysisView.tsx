@@ -18,6 +18,7 @@ import { applyRounding, calculateDuration, calculateTaxBreakdown, calculateTotal
 import { createEvents, type EventAttributes } from 'ics';
 import { LOGO_PRINT_BASE64 } from '../assets/logoPrint';
 import { EntryEditModal } from './EntryEditModal';
+import { useNamedDownload } from '../hooks/useNamedDownload';
 import type { Entry } from '../types';
 
 type DatePreset = 'today' | 'week' | 'month' | 'lastMonth' | 'lastQuarter' | 'custom';
@@ -30,6 +31,7 @@ export const AnalysisView: React.FC = () => {
   const { entries, timecodes, groups, settings, updateSettings } = useTimeTracker();
   const currencySymbol = settings?.currencySymbol || '$';
   const { addToast } = useToast();
+  const { triggerDownload, SaveAsDialog } = useNamedDownload();
 
   // Active Tab
   const [activeTab, setActiveTab] = useState<TabType>('export');
@@ -596,38 +598,37 @@ export const AnalysisView: React.FC = () => {
     });
   }, [dateRange, filteredEntries, settings?.roundingRule]);
 
-  // Export CSV
-  const handleExportCSV = () => {
-    const headers = ['Timecode', 'Group', 'Duration (Hours)', 'Earnings'];
-    const rows = timecodeData.map(tc => {
-      const timecode = timecodeMap.get(tc.id);
-      const groupName = timecode?.groupId ? groupMap.get(timecode.groupId)?.name || 'Unknown' : 'Ungrouped';
-      return [
-        escapeCSV(tc.name),
-        escapeCSV(groupName),
-        tc.durationHours.toString(),
-        tc.earnings.toFixed(2)
-      ].join(',');
-    });
-
-    const csvContent = [headers.join(','), ...rows].join('\n');
-    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
-    const url = URL.createObjectURL(blob);
-    const link = document.createElement('a');
-    link.href = url;
-    link.setAttribute('download', `time-report-${scopeSlug}-${format(dateRange.start, 'yyyy-MM-dd')}.csv`);
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
-    URL.revokeObjectURL(url);
-  };
-
   const escapeCSV = (str: string) => {
     let escaped = str.replace(/"/g, '""');
     if (/^[=+\-@]/.test(escaped)) {
       escaped = "'" + escaped;
     }
     return `"${escaped}"`;
+  };
+
+  // Export CSV
+  const handleExportCSV = () => {
+    const defaultFilename = `time-report-${scopeSlug}-${format(dateRange.start, 'yyyy-MM-dd')}`;
+    triggerDownload(
+      () => {
+        const headers = ['Timecode', 'Group', 'Duration (Hours)', 'Earnings'];
+        const rows = timecodeData.map(tc => {
+          const timecode = timecodeMap.get(tc.id);
+          const groupName = timecode?.groupId ? groupMap.get(timecode.groupId)?.name || 'Unknown' : 'Ungrouped';
+          return [
+            escapeCSV(tc.name),
+            escapeCSV(groupName),
+            tc.durationHours.toString(),
+            tc.earnings.toFixed(2)
+          ].join(',');
+        });
+
+        const csvContent = [headers.join(','), ...rows].join('\n');
+        return new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+      },
+      defaultFilename,
+      'csv'
+    );
   };
 
   // Export ICS
@@ -663,59 +664,58 @@ export const AnalysisView: React.FC = () => {
 
     if (events.length === 0) return;
 
-    createEvents(events, (error, value) => {
-      if (error) {
-        console.error('Error generating ICS file', error);
-        return;
-      }
-      const blob = new Blob([value], { type: 'text/calendar;charset=utf-8;' });
-      const url = URL.createObjectURL(blob);
-      const link = document.createElement('a');
-      link.href = url;
-      link.setAttribute('download', `time-entries-${scopeSlug}-${format(dateRange.start, 'yyyy-MM-dd')}.ics`);
-      document.body.appendChild(link);
-      link.click();
-      document.body.removeChild(link);
-      URL.revokeObjectURL(url);
-    });
+    const defaultFilename = `time-entries-${scopeSlug}-${format(dateRange.start, 'yyyy-MM-dd')}`;
+    triggerDownload(
+      () => new Promise<Blob>((resolve, reject) => {
+        createEvents(events, (error, value) => {
+          if (error) {
+            console.error('Error generating ICS file', error);
+            reject(error);
+            return;
+          }
+          resolve(new Blob([value], { type: 'text/calendar;charset=utf-8;' }));
+        });
+      }),
+      defaultFilename,
+      'ics'
+    );
   };
 
   // Export Detailed Raw CSV
   const downloadDetailedRawCSV = () => {
-    const headers = ['Date', 'Timecode', 'Group', 'Start', 'End', 'Duration (h)', 'Amount', 'Note'];
-    const rows = filteredEntries.map(e => {
-      const tc = timecodeMap.get(e.timecodeId);
-      const grp = tc?.groupId ? groupMap.get(tc.groupId) : undefined;
-      const hrs = applyRounding(e.duration, settings?.roundingRule ?? 'none') / 3600;
-      const amount = e.manualAmount != null
-        ? e.manualAmount
-        : (tc?.hourlyRate ? hrs * tc.hourlyRate : 0);
-      return [
-        escapeCSV(format(parseISO(e.startTime), 'yyyy-MM-dd')),
-        escapeCSV(tc?.name ?? 'Unknown'),
-        escapeCSV(grp?.name ?? 'Ungrouped'),
-        escapeCSV(format(parseISO(e.startTime), 'HH:mm:ss')),
-        escapeCSV(e.endTime ? format(parseISO(e.endTime), 'HH:mm:ss') : ''),
-        hrs.toFixed(2),
-        amount > 0 ? amount.toFixed(2) : '',
-        escapeCSV(e.note),
-      ].join(',');
-    });
+    const defaultFilename = `time-entries-${scopeSlug}-${format(dateRange.start, 'yyyy-MM-dd')}`;
+    triggerDownload(
+      () => {
+        const headers = ['Date', 'Timecode', 'Group', 'Start', 'End', 'Duration (h)', 'Amount', 'Note'];
+        const rows = filteredEntries.map(e => {
+          const tc = timecodeMap.get(e.timecodeId);
+          const grp = tc?.groupId ? groupMap.get(tc.groupId) : undefined;
+          const hrs = applyRounding(e.duration, settings?.roundingRule ?? 'none') / 3600;
+          const amount = e.manualAmount != null
+            ? e.manualAmount
+            : (tc?.hourlyRate ? hrs * tc.hourlyRate : 0);
+          return [
+            escapeCSV(format(parseISO(e.startTime), 'yyyy-MM-dd')),
+            escapeCSV(tc?.name ?? 'Unknown'),
+            escapeCSV(grp?.name ?? 'Ungrouped'),
+            escapeCSV(format(parseISO(e.startTime), 'HH:mm:ss')),
+            escapeCSV(e.endTime ? format(parseISO(e.endTime), 'HH:mm:ss') : ''),
+            hrs.toFixed(2),
+            amount > 0 ? amount.toFixed(2) : '',
+            escapeCSV(e.note),
+          ].join(',');
+        });
 
-    const csvContent = [headers.join(','), ...rows].join('\n');
-    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
-    const url = URL.createObjectURL(blob);
-    const link = document.createElement('a');
-    link.href = url;
-    link.setAttribute('download', `time-entries-${scopeSlug}-${format(dateRange.start, 'yyyy-MM-dd')}.csv`);
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
-    URL.revokeObjectURL(url);
+        const csvContent = [headers.join(','), ...rows].join('\n');
+        return new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+      },
+      defaultFilename,
+      'csv'
+    );
   };
 
   // Generate PDF Report
-  const handlePrint = async () => {
+  const generatePdfBlob = async (): Promise<Blob> => {
     setIsGeneratingPdf(true);
     await new Promise(resolve => setTimeout(resolve, 0));
 
@@ -853,13 +853,23 @@ export const AnalysisView: React.FC = () => {
         doc.text('Generated with TimeDoco', 14, doc.internal.pageSize.getHeight() - 8);
       }
 
-      doc.save(`time-report-${scopeSlug}-${format(dateRange.start, 'yyyy-MM-dd')}.pdf`);
+      return doc.output('blob');
     } catch (err) {
       console.error('PDF generation failed:', err);
       addToast('Failed to generate PDF. Please try again.', 'error');
+      throw err;
     } finally {
       setIsGeneratingPdf(false);
     }
+  };
+
+  const handlePrint = () => {
+    const defaultFilename = `time-report-${scopeSlug}-${format(dateRange.start, 'yyyy-MM-dd')}`;
+    triggerDownload(
+      generatePdfBlob,
+      defaultFilename,
+      'pdf'
+    );
   };
 
   const formatDuration = (seconds: number) => {
@@ -1898,6 +1908,9 @@ export const AnalysisView: React.FC = () => {
           onClose={() => setEditingEntry(null)}
         />
       )}
+
+      {/* Save As Dialog */}
+      <SaveAsDialog />
     </div>
   );
 };

@@ -34,6 +34,14 @@ const mockTimecodes = [
     color: '#10b981',
     hourlyRate: 0,
     archived: false,
+  },
+  {
+    id: 'tc-billable',
+    name: 'Billable Consulting',
+    groupId: 'grp-1',
+    color: '#3b82f6',
+    hourlyRate: 85,
+    archived: false,
   }
 ];
 
@@ -184,7 +192,7 @@ describe('Fixed Cost & Template Deletion', () => {
   });
 
   describe('ManualEntryModal Fixed Cost Mode', () => {
-    it('switches to fixed cost mode when checkbox is checked and calls addManualEntry with noon local time ISO string', async () => {
+    it('switches to fixed cost mode when Flat Fee button is clicked and calls addManualEntry with noon local time ISO string', async () => {
       const onClose = vi.fn();
       const { container } = render(<ManualEntryModal onClose={onClose} />);
 
@@ -194,9 +202,9 @@ describe('Fixed Cost & Template Deletion', () => {
       const options = screen.getAllByText('Materials & Expenses');
       fireEvent.click(options[options.length - 1]);
 
-      const checkbox = screen.getByLabelText('This is a fixed cost (no time tracking)') as HTMLInputElement;
-      expect(checkbox).not.toBeNull();
-      fireEvent.click(checkbox);
+      const flatFeeBtn = screen.getByRole('button', { name: 'Flat Fee' });
+      expect(flatFeeBtn).not.toBeNull();
+      fireEvent.click(flatFeeBtn);
 
       const dateInput = container.querySelector('input[type="date"]') as HTMLInputElement;
       expect(dateInput).not.toBeNull();
@@ -219,6 +227,35 @@ describe('Fixed Cost & Template Deletion', () => {
           pausedSegments: [],
           manualAmount: 250,
         });
+        expect(onClose).toHaveBeenCalled();
+      });
+    });
+
+    it('allows flat fee entries for timecodes WITH an hourly rate', async () => {
+      const onClose = vi.fn();
+      render(<ManualEntryModal onClose={onClose} />);
+
+      const timecodeCombo = screen.getByPlaceholderText('Select or type to create...');
+      fireEvent.click(timecodeCombo);
+
+      const options = screen.getAllByText('Billable Consulting');
+      fireEvent.click(options[options.length - 1]);
+
+      const flatFeeBtn = screen.getByRole('button', { name: 'Flat Fee' });
+      expect(flatFeeBtn).not.toBeNull();
+      fireEvent.click(flatFeeBtn);
+
+      const amountInput = screen.getByPlaceholderText('e.g. 150.00') as HTMLInputElement;
+      fireEvent.change(amountInput, { target: { value: '500.00' } });
+
+      const saveBtn = screen.getByText('Add Entry');
+      fireEvent.click(saveBtn);
+
+      await waitFor(() => {
+        expect(mockAddManualEntry).toHaveBeenCalledWith(expect.objectContaining({
+          timecodeId: 'tc-billable',
+          manualAmount: 500,
+        }));
         expect(onClose).toHaveBeenCalled();
       });
     });
