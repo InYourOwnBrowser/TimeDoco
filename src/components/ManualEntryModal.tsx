@@ -12,7 +12,7 @@ interface ManualEntryModalProps {
 }
 
 export const ManualEntryModal: React.FC<ManualEntryModalProps> = ({ onClose }) => {
-  const { addManualEntry, entries, settings, timecodes } = useTimeTracker();
+  const { addManualEntry, entries, settings } = useTimeTracker();
   const { addToast } = useToast();
   const [startTime, setStartTime] = useState('');
   const [endTime, setEndTime] = useState('');
