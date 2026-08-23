@@ -150,18 +150,23 @@ export const ManualEntryModal: React.FC<ManualEntryModalProps> = ({ onClose }) =
             </div>
           </div>
 
-          {timecodeId && !timecodes.find(t => t.id === timecodeId)?.hourlyRate && (
-            <label className="flex items-center gap-2 cursor-pointer">
-              <input
-                type="checkbox"
-                checked={isFixedCost}
-                onChange={(e) => { setIsFixedCost(e.target.checked); setError(null); }}
-                className="rounded border-graphite/20 dark:border-white/20 text-signal focus:ring-signal"
-              />
-              <span className="text-sm font-medium text-graphite dark:text-stone">
-                This is a fixed cost (no time tracking)
-              </span>
-            </label>
+          {timecodeId && (
+            <div className="flex rounded-md border border-graphite/20 dark:border-white/20 overflow-hidden w-fit">
+              <button
+                type="button"
+                onClick={() => { setIsFixedCost(false); setError(null); }}
+                className={`px-3 py-1.5 text-sm font-medium transition-colors ${!isFixedCost ? 'bg-signal text-ink font-semibold' : 'bg-white dark:bg-graphite text-graphite dark:text-stone hover:bg-gray-100 dark:hover:bg-gray-800'}`}
+              >
+                Time Entry
+              </button>
+              <button
+                type="button"
+                onClick={() => { setIsFixedCost(true); setError(null); }}
+                className={`px-3 py-1.5 text-sm font-medium transition-colors ${isFixedCost ? 'bg-signal text-ink font-semibold' : 'bg-white dark:bg-graphite text-graphite dark:text-stone hover:bg-gray-100 dark:hover:bg-gray-800'}`}
+              >
+                Flat Fee
+              </button>
+            </div>
           )}
 
           {isFixedCost ? (
@@ -213,7 +218,7 @@ export const ManualEntryModal: React.FC<ManualEntryModalProps> = ({ onClose }) =
             </div>
           )}
 
-          {timecodeId && !timecodes.find(t => t.id === timecodeId)?.hourlyRate && (
+          {timecodeId && (
             <div>
               <label className="block text-sm font-medium text-graphite dark:text-stone mb-1">
                 Fixed Amount ({settings?.currencySymbol || '$'}){isFixedCost ? ' *' : ' — optional'}

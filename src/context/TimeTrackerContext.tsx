@@ -34,7 +34,8 @@ interface TimeTrackerContextType {
   dismissForgotToStop: () => void;
   settings: Settings | null;
   updateSettings: (updates: Partial<Settings>) => Promise<void>;
-  exportData: () => Promise<void>;
+  exportData: (customFilename?: string) => Promise<void>;
+  getBackupBlob: () => Promise<Blob>;
   importData: (file: File, mode: 'merge' | 'replace') => Promise<void>;
   wipeAllData: () => Promise<void>;
   lastStoppedEntry: Entry | null;
@@ -872,7 +873,7 @@ export const TimeTrackerProvider: React.FC<{ children: ReactNode }> = ({ childre
     }
   };
 
-  const exportData = async () => {
+  const getBackupBlob = async (): Promise<Blob> => {
     const allGroups = await db.getGroups();
     const allTimecodes = await db.getTimecodes();
     const allEntries = await db.getEntries();
@@ -916,18 +917,28 @@ export const TimeTrackerProvider: React.FC<{ children: ReactNode }> = ({ childre
       checksum,
     };
 
-    const blob = new Blob([JSON.stringify(finalExport, null, 2)], { type: 'application/json' });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    const dateStr = new Date().toISOString().split('T')[0];
-    a.download = `timedoco-backup-${dateStr}.json`;
-    a.click();
-    URL.revokeObjectURL(url);
-
     if (currentSettings) {
       await updateSettings({ lastBackupDate: new Date().toISOString() });
     }
+
+    return new Blob([JSON.stringify(finalExport, null, 2)], { type: 'application/json' });
+  };
+
+  const exportData = async (customFilename?: string) => {
+    const blob = await getBackupBlob();
+    const dateStr = new Date().toISOString().split('T')[0];
+    const defaultName = `timedoco-backup-${dateStr}`;
+    const cleanName = customFilename ? customFilename.replace(/[/\\:*?"<>|]/g, '').trim() : defaultName;
+    const filename = cleanName.endsWith('.json') ? cleanName : `${cleanName}.json`;
+
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = filename;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
   };
 
   const migrateImportData = (data: any, fromVersion: number) => {
@@ -1043,6 +1054,7 @@ export const TimeTrackerProvider: React.FC<{ children: ReactNode }> = ({ childre
       settings,
       updateSettings,
       exportData,
+      getBackupBlob,
       importData,
       wipeAllData,
       lastStoppedEntry,
