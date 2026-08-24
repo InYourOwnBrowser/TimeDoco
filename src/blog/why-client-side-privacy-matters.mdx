@@ -11,7 +11,7 @@ When you work as an independent contractor, consultant, or freelance developer, 
 
 <figure className="my-6">
   <img
-    src="https://images.unsplash.com/photo-1595666944516-bbb485958fb5?q=80&w=1944&auto=format&fit=crop&ixlib=rb-4.1.0&ixid=M3wxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8fA%3D%3D"
+    src="/images/blog/privacy-matters-hero.jpg"
     alt="A black and white photo of a sign that says privacy please"
     className="w-full h-auto rounded-lg shadow-md max-h-[450px] object-cover"
   />
@@ -76,7 +76,7 @@ When Client A discovers you are billing Client B a lower rate for similar work, 
 
 Under strict data privacy regimes like the European Union's General Data Protection Regulation (GDPR) or California's Consumer Privacy Act (CCPA), processing personal data requires a legal basis, clear disclosure, and strict data processing agreements (DPAs).
 
-If your time log notes contain personal data—such as customer names, user email addresses, patient case IDs, or employee records—storing those logs on an unvetted cloud server converts the SaaS provider into a "Sub-processor" under GDPR.
+If your time log notes contain personal data—such as customer names, user email addresses, patient case IDs, or employee records—storing those logs on an unvetted cloud server converts the SaaS provider into a Data Processor (or Sub-processor when subcontracting under a client's DPA) under GDPR.
 
 ```
        ┌────────────────────────────────────────────────────────┐
@@ -92,7 +92,7 @@ If your time log notes contain personal data—such as customer names, user emai
 
 If the cloud vendor does not maintain compliant SOC 2 Type II certifications or signed DPAs, **you as the independent controller may face regulatory scrutiny or potential compliance concerns** regarding unauthorized cross-border data transfers.
 
-By switching to a time tracker for freelancers that operates 100% client-side, time log data remains on your device, helping avoid third-party cloud sub-processor risks.
+By switching to a time tracker for freelancers that operates 100% client-side, time log data remains on your device, helping avoid third-party cloud data processor risks.
 
 ---
 
@@ -116,10 +116,14 @@ TimeDoco was engineered specifically to solve these fundamental vulnerabilities 
 | :--- | :--- | :--- |
 | **Data Storage Location** | Remote Cloud Database | Local Browser IndexedDB |
 | **User Account Required** | Mandatory Sign-Up / Email Verification | **No Account Required** |
-| **Third-Party Telemetry** | Active Analytics & Event Tracking | **Zero Telemetry or Analytics** |
+| **Third-Party Telemetry** | Active Analytics & Event Tracking | **Zero Telemetry in the App*** |
 | **Offline Performance** | Limited / Requires Cloud Sync | **Full Functionality Offline (PWA)** |
 | **Data Ownership** | Vendor-Controlled Cloud Records | **100% Local Control & One-Click JSON Backup** |
 | **Pricing Model** | Recurring $9–$20+/mo per user | **100% Free Web App** |
+
+<p className="text-xs text-gray-500 dark:text-gray-400 mt-2">
+  *Note: The TimeDoco app itself runs zero telemetry — no analytics, tracking pixels, or background scripts touch your timer data or task notes. (Our marketing site uses cookieless, aggregate Cloudflare Analytics to see which pages people read; it never sees anything you track.) Competitor pricing and feature descriptions reflect public information as of 2026; verify with vendors directly before relying on pricing details.
+</p>
 
 ---
 

@@ -1,17 +1,17 @@
 export const meta = {
-  title: "GDPR Compliance for Freelancers: Why Client-Side Time Tracking Simplifies Data Protection",
+  title: "GDPR and Freelancers: How Client-Side Time Tracking Can Reduce Data Protection Risk",
   date: "2026-09-01",
   tags: ["gdpr", "compliance", "privacy", "freelancing", "guides"],
   description: "Learn how the European Union GDPR impacts freelancers and contractors. Discover why client-side time tracking helps reduce third-party cloud data risks."
 };
 
-# GDPR Compliance for Freelancers: Why Client-Side Time Tracking Simplifies Data Protection
+# GDPR and Freelancers: How Client-Side Time Tracking Can Reduce Data Protection Risk
 
 If you work as an independent freelancer, contractor, or agency consultant handling European client data, compliance with the General Data Protection Regulation (GDPR) is not optional. While large corporations hire dedicated legal teams to handle data protection impact assessments and vendor compliance audits, individual freelancers must navigate these regulations alone.
 
 One often-overlooked source of GDPR risk is **time tracking software**.
 
-In this article, we will explain how the GDPR applies to independent contractors, explore why traditional cloud time trackers create hidden compliance liabilities, and demonstrate how adopting a **GDPR-friendly client-side time tracker** simplifies timesheet data protection.
+In this article, we will explain how the GDPR applies to independent contractors, explore why traditional cloud time trackers create hidden compliance liabilities, and explore how adopting a **client-side time tracker** can help reduce timesheet-related data protection risk.
 
 <div className="p-4 my-6 rounded-panel bg-signal/10 border border-signal/30 text-graphite dark:text-stone">
   <strong className="text-signal-dim dark:text-signal">⚖️ Legal Disclaimer:</strong> This article provides general educational information regarding data protection principles and software architecture. It does not constitute formal legal advice. For specific compliance assessments regarding your business, consult a qualified privacy attorney or data protection officer.
@@ -19,7 +19,7 @@ In this article, we will explain how the GDPR applies to independent contractors
 
 <figure className="my-6 text-center">
   <img
-    src="https://images.unsplash.com/photo-1589829545856-d10d557cf95f?q=80&w=2070&auto=format&fit=crop&ixlib=rb-4.1.0&ixid=M3wxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8fA%3D%3D"
+    src="/images/blog/gdpr-compliance-hero.jpg"
     alt="Gavel and legal book representing compliance and privacy law"
     className="rounded-panel border border-graphite/20 dark:border-white/20 shadow-md mx-auto w-full max-h-[450px] object-cover"
   />
@@ -32,7 +32,7 @@ In this article, we will explain how the GDPR applies to independent contractors
 
 ## The Basics: Are Freelancers Subject to GDPR?
 
-Yes. Under Article 2 of the GDPR, any self-employed individual or small business that processes personal data relating to identifiable living individuals in the European Economic Area (EEA) must comply with GDPR principles—regardless of whether your business is physically located inside or outside the EU.
+Yes. Under Article 3 of the GDPR, any self-employed individual or small business that processes personal data relating to identifiable living individuals in the European Economic Area (EEA) must comply with GDPR principles—regardless of whether your business is physically located inside or outside the EU.
 
 ### Data Controller vs. Data Processor
 * **Data Controller:** The entity that determines the purposes and means of processing personal data (e.g., your client, or you when managing your own client records).
@@ -51,8 +51,8 @@ When you enter task notes into a standard cloud time tracking app (such as Toggl
 
 Under GDPR rules, this transaction triggers several legal obligations:
 
-### 1. The Sub-processor Requirement (Article 28)
-When you send client data to a third-party cloud tracker, that cloud platform becomes a **Data Sub-processor**. Under GDPR Article 28, you must execute a legally binding **Data Processing Agreement (DPA)** with that provider. If you use a free cloud tool without a formal DPA, you may face compliance risks under EU data protection rules.
+### 1. The Processor and Sub-processor Requirement (Article 28)
+When you send client data to a third-party cloud tracker, that cloud platform becomes a **Data Processor** (or **Data Sub-processor** if you are acting as a processor on behalf of an agency or client). Under GDPR Article 28, you must execute a legally binding **Data Processing Agreement (DPA)** with that provider. If you use a free cloud tool without a formal DPA, you may face compliance risks under EU data protection rules.
 
 ### 2. Cross-Border Data Transfer Restrictions
 Many cloud time tracking services host primary databases on servers located outside the EU (such as in the United States). Transferring EU personal data across borders requires approved transfer mechanisms (such as Standard Contractual Clauses or EU-US Data Privacy Framework certification). If your SaaS vendor lacks compliant transfer certifications, you as the data controller may face potential regulatory compliance concerns regarding international data transfers.
@@ -80,13 +80,13 @@ This is where **TimeDoco's client-side architecture** provides a massive advanta
        ├────────────────────────────────────────────────────────┤
        │                 TimeDoco 100% Client-Side              │
        │  Freelancer ──► Local Browser (IndexedDB)               │
-       │  (No Cloud Transfers = Minimizes Sub-processor Risk)   │
+       │  (No Cloud Transfers = Minimizes Processor Risk)       │
        └────────────────────────────────────────────────────────┘
 ```
 
 ### Why TimeDoco Simplifies Data Protection:
 1. **Zero Third-Party Cloud Transfers:** Because TimeDoco runs 100% locally in your web browser, no task notes, client names, or rate details ever leave your device.
-2. **No Third-Party Cloud Data Processing:** Because TimeDoco does not store or process your time entries on cloud servers, TimeDoco does not act as a remote data processor for your logs, eliminating the need to manage cloud sub-processor DPAs for TimeDoco.
+2. **No Third-Party Cloud Data Processing:** Because TimeDoco does not store or process your time entries on cloud servers, TimeDoco does not act as a remote data processor for your logs, eliminating the need to manage cloud processor or sub-processor DPAs for TimeDoco.
 3. **Data Localization & Control:** Your data lives strictly in local IndexedDB storage under your physical control.
 4. **Instant Local Eradication:** Need to fulfill a GDPR "Right to Erasure" request from a client? You can delete specific timecodes or perform a full local database reset in Settings with one click.
 

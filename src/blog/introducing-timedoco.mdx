@@ -11,7 +11,7 @@ Welcome to the TimeDoco Blog & Guides! If you are a freelancer, independent cont
 
 <figure className="my-6 text-center">
   <img
-    src="https://images.unsplash.com/photo-1588253594035-c48f6103b982?q=80&w=1970&auto=format&fit=crop&ixlib=rb-4.1.0&ixid=M3wxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8fA%3D%3D"
+    src="/images/blog/introducing-timedoco-hero.jpg"
     alt="Black and white analog wall clock at 10:00"
     className="rounded-panel border border-graphite/20 dark:border-white/20 shadow-md mx-auto w-full max-h-[450px] object-cover"
   />
@@ -44,7 +44,7 @@ I did not want another bloated SaaS subscription, nor did I want my confidential
 TimeDoco is designed from the ground up as a **100% client-side web application and Progressive Web App (PWA)**. Here is what makes this architectural choice fundamentally different from traditional cloud-based time trackers:
 
 ### 1. Client-Side Data Storage via IndexedDB
-Instead of making network API calls to a centralized database every time you start or pause a timer, TimeDoco reads and writes directly to your browser's structured IndexedDB storage. Your data never leaves your device. There are no background analytics, no telemetry scripts, and no third-party tracking pixels monitoring your billable tasks.
+Instead of making network API calls to a centralized database every time you start or pause a timer, TimeDoco reads and writes directly to your browser's structured IndexedDB storage. Your data never leaves your device. The TimeDoco app itself runs zero telemetry — no analytics, no tracking pixels, and no background scripts touch your timer data or task notes. (Our marketing site uses cookieless, aggregate Cloudflare Analytics to see which pages people read; it never sees anything you track.)
 
 ### 2. Full Offline Capability & Resilient Timers
 Whether you are working on a flight, in a coffee shop with spotty Wi-Fi, or during an ISP outage, TimeDoco operates with full functionality offline. Timers use absolute Unix timestamps rather than volatile background JavaScript intervals. Even if you accidentally close your browser tab or restart your computer, your active running timer will recalculate exact elapsed duration the moment you reopen the app.
