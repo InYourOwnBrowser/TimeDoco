@@ -1,0 +1,128 @@
+export const meta = {
+  title: "TimeDoco vs Toggl: What Changes When Your Timesheet Never Leaves Your Browser",
+  date: "2026-08-25",
+  tags: ["comparison", "toggl", "privacy", "freelancing", "guides"],
+  description: "A detailed comparison of TimeDoco vs Toggl Track for freelancers and contractors. Compare privacy, cloud security, offline access, data lock-in, and pricing."
+};
+
+# TimeDoco vs Toggl: What Changes When Your Timesheet Never Leaves Your Browser
+
+When freelancers, contractors, or developers search for a time tracker, Toggl Track is often the default recommendation. For years, Toggl has been a popular tool for tracking billable hours. However, as cloud security breaches become more frequent and SaaS monthly subscription prices continue to rise, many independent professionals are rethinking whether sending every detail of their workday to a centralized cloud server makes sense.
+
+Enter **TimeDoco**—a **client-side time tracking app without an account**, designed specifically for freelancers who prioritize data privacy, speed, and 100% local control.
+
+In this article, we will perform an honest, head-to-head comparison of **TimeDoco vs Toggl Track**, exploring what changes when your time tracking data never leaves your web browser.
+
+<figure className="my-6 text-center">
+  <img
+    src="/images/blog/vs-toggl-hero.jpg"
+    alt="Sticky notes on a glass board representing task organization"
+    className="rounded-panel border border-graphite/20 dark:border-white/20 shadow-md mx-auto w-full max-h-[450px] object-cover"
+  />
+  <figcaption className="text-xs text-gray-500 dark:text-gray-400 mt-2">
+    Photo via <a href="https://unsplash.com/photos/rectangular-multicolored-sticky-note-lot-p8Dr2859i_k" target="_blank" rel="noopener noreferrer" className="underline hover:text-signal">Unsplash</a>. Free to use under the Unsplash License.
+  </figcaption>
+</figure>
+
+---
+
+## Comparison Summary Table
+
+| Feature | Toggl Track | TimeDoco |
+| :--- | :--- | :--- |
+| **Data Storage Location** | Centralized Cloud Database | **100% Local Browser (IndexedDB)** |
+| **User Account Required** | Mandatory Sign-Up / Email Verification | **No Account Required** |
+| **Pricing** | Free Tier (Limited) / $9–$18+/mo per user | **100% Free Web App** |
+| **Offline Performance** | Requires Syncing / Limited Features | **Full Functionality Offline (PWA)** |
+| **Data Ownership & Restore** | Export CSV/PDF (No Full Database Restore) | **One-Click JSON Export & Full Restore** |
+| **Third-Party Telemetry** | Active Event Tracking & Cloud Logging | **Zero Telemetry in the App*** |
+| **Client Invoice PDFs** | Premium Paid Feature ($9+/mo) | **Built-in Client PDF Reports Included** |
+| **Unrounded CSV Exports** | Aggregated / Tier-Dependent | **Raw Unrounded CSV Exports Included** |
+
+<p className="text-xs text-gray-500 dark:text-gray-400 mt-2">
+  *Note: The TimeDoco app itself runs zero telemetry — no analytics, tracking pixels, or background scripts touch your timer data or task notes. (Our marketing site uses cookieless, aggregate Cloudflare Analytics to see which pages people read; it never sees anything you track.) Competitor pricing and feature descriptions reflect public information as of August 2026; verify with vendors directly before relying on pricing details.
+</p>
+
+---
+
+## 1. Privacy & Data Architecture: Cloud Database vs. Local IndexedDB
+
+The single biggest difference between Toggl and TimeDoco is where your data lives.
+
+### How Toggl Handles Your Data
+When you log a task on Toggl, your entry is transmitted over the internet to Toggl's cloud infrastructure. That means:
+* Your client names, task notes, hourly rates, and working hours are stored on remote cloud servers.
+* Your data is governed by Toggl's privacy policy and subject to third-party sub-processor agreements.
+* If a cloud database misconfiguration or cyberattack occurs, your confidential client data could be exposed.
+
+### How TimeDoco Handles Your Data
+TimeDoco uses a **100% client-side architecture**. All data reads and writes occur directly inside your web browser's local **IndexedDB** database.
+* No data is ever sent across the network.
+* No user account or email registration is required—you open the web app and start tracking immediately.
+* The TimeDoco app itself runs zero telemetry — no analytics, no tracking pixels, or background scripts touch your timer data or task notes. (Our marketing site uses cookieless, aggregate Cloudflare Analytics to see which pages people read; it never sees anything you track.)
+
+<div className="p-4 my-6 rounded-panel bg-signal/10 border border-signal/30 text-graphite dark:text-stone">
+  <strong className="text-signal-dim dark:text-signal">💡 Why This Matters for Freelancers:</strong> If you work under strict Non-Disclosure Agreements (NDAs) or manage sensitive financial/legal deliverables, keeping your timesheets 100% local ensures complete client confidentiality.
+</div>
+
+---
+
+## 2. Speed and Onboarding: Zero Sign-Up vs. Registration Barriers
+
+### Toggl Onboarding
+To use Toggl, you must create an account, verify your email, configure a workspace, and navigate through team-oriented setup prompts. If you just want to track an hour of work quickly, this onboarding flow adds unnecessary friction.
+
+### TimeDoco Onboarding
+With TimeDoco, there is **no sign-up wall**. You go to `https://timedoco.com/app/` and click "Start Timer". It takes less than two seconds. Because it requires no account, it is the ideal **time tracker without an account** for freelancers who want to start working without giving away personal email addresses or creating yet another password.
+
+---
+
+## 3. Offline Reliability: True PWA vs. Cloud Syncing
+
+### Toggl Offline Mode
+Toggl offers desktop and mobile apps with offline caching, but synchronization conflicts can occur when reconnecting to the internet—especially if you edit timers across multiple devices or lose connectivity during a session.
+
+### TimeDoco Offline Engine
+TimeDoco is built as an **offline time tracker PWA (Progressive Web App)**. It caches application assets locally using a Service Worker and handles all state management in client memory and IndexedDB.
+* Timers rely on absolute Unix timestamps, making them immune to tab closures, browser crashes, or device restarts.
+* You can track hours, edit entries, manage client groups, and generate PDF invoices on a cross-country flight with zero internet access.
+
+---
+
+## 4. Pricing and Paywalls: Subscription Costs vs. 100% Free
+
+### Toggl Pricing Tiers
+While Toggl offers a basic free tier, key business features are gated behind monthly subscriptions:
+* **Starter Tier ($9/user/month):** Adds project templates and expanded reporting.
+* **Premium Tier ($18/user/month):** Unlocks billable rate locks, required fields, and single sign-on (SSO).
+
+For an independent contractor or small team, paying $108 to $216 per year per user for basic time logging represents an unnecessary recurring overhead cost.
+
+### TimeDoco Pricing Model
+Because TimeDoco runs 100% locally on your own machine without expensive cloud database maintenance, **the standard web app is 100% free**. You get full access to custom client rates, multi-currency reporting, tax handling, PDF invoice generation, and unrounded CSV exports without entering a credit card.
+
+---
+
+## 5. Data Ownership: True Portability vs. Cloud Lock-in
+
+When using cloud services, backing up your data usually means downloading a CSV spreadsheet. However, if you ever want to migrate away or restore a past backup state, cloud platforms rarely provide a mechanism to restore raw backup payloads into an active account.
+
+TimeDoco provides **full data sovereignty**:
+* **One-Click JSON Export:** Export your entire database (entries, groups, timecodes, settings, templates) to a single JSON backup file anytime.
+* **Instant JSON Restore:** Restore your backup into any browser or device in seconds to recover full historical state.
+
+---
+
+## Which Tool Should You Choose?
+
+### Choose Toggl Track if:
+* You manage a large team that requires real-time cloud collaboration, employee monitoring, and centralized administrative control.
+* You need native integrations with enterprise project management suites like Jira, Asana, or Salesforce.
+
+### Choose TimeDoco if:
+* You are an independent freelancer, developer, contractor, or privacy advocate.
+* You want a **privacy-first time tracker** that keeps your data 100% local on your own device.
+* You want to start tracking instantly without registering an account.
+* You want professional PDF reporting, custom tax rates, and unrounded CSV exports without paying monthly SaaS subscriptions.
+
+Ready to take control of your time tracking? [Start tracking with TimeDoco today &mdash; Free, 100% Client-Side](/app/).

@@ -1,5 +1,6 @@
 import React, { useState, useRef } from 'react';
 import { useTimeTracker } from '../context/TimeTrackerContext';
+import { useNamedDownload } from '../hooks/useNamedDownload';
 import { X, Upload, Download, AlertTriangle, CheckCircle2, Trash2 } from 'lucide-react';
 import Papa from 'papaparse';
 import { Modal } from './ui/Modal';
@@ -15,7 +16,8 @@ interface SettingsModalProps {
 }
 
 export const SettingsModal: React.FC<SettingsModalProps> = ({ onClose }) => {
-  const { exportData, importData, wipeAllData, settings, updateSettings, bulkAddManualEntries, addTimecode, timecodes, deletedEntries, restoreEntry, hardDeleteEntry, deletedTimecodes, restoreTimecode, hardDeleteTimecode, deletedGroups, restoreGroup, hardDeleteGroup, emptyTrash } = useTimeTracker();
+  const { getBackupBlob, importData, wipeAllData, settings, updateSettings, bulkAddManualEntries, addTimecode, timecodes, deletedEntries, restoreEntry, hardDeleteEntry, deletedTimecodes, restoreTimecode, hardDeleteTimecode, deletedGroups, restoreGroup, hardDeleteGroup, emptyTrash } = useTimeTracker();
+  const { triggerDownload, SaveAsDialog } = useNamedDownload();
   const { addToast } = useToast();
   const fileInputRef = useRef<HTMLInputElement>(null);
   const csvInputRef = useRef<HTMLInputElement>(null);
@@ -123,15 +125,17 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ onClose }) => {
     saveTimeoutRef.current = window.setTimeout(() => setJustSaved(false), 1500);
   };
 
-  const handleExport = async () => {
+  const handleExport = () => {
     try {
-      setIsProcessing(true);
-      await exportData();
-      setStatusMsg({ type: 'success', text: 'Data exported successfully!' });
+      const dateStr = new Date().toISOString().split('T')[0];
+      triggerDownload(
+        getBackupBlob,
+        `timedoco-backup-${dateStr}`,
+        'json',
+        () => setStatusMsg({ type: 'success', text: 'Data exported successfully!' })
+      );
     } catch {
       setStatusMsg({ type: 'error', text: 'Failed to export data.' });
-    } finally {
-      setIsProcessing(false);
     }
   };
 
@@ -943,6 +947,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ onClose }) => {
           </div>
         </div>
       </div>
+      <SaveAsDialog />
     </Modal>
   );
 };

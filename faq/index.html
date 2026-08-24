@@ -11,8 +11,8 @@
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
     <meta name="apple-mobile-web-app-title" content="TimeDoco" />
     <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' https://static.cloudflareinsights.com; style-src 'self'; img-src 'self' data:; font-src 'self'; connect-src 'self' https://cloudflareinsights.com; object-src 'none'; base-uri 'self';" />
-    <title>Frequently Asked Questions — TimeDoco</title>
-    <meta name="description" content="Find answers to common questions about TimeDoco: privacy model, IndexedDB local storage, backup & restore, tax & currency options, and offline PWA capability." />
+    <title>Frequently Asked Questions — TimeDoco Privacy & Time Tracker FAQ</title>
+    <meta name="description" content="Find answers to common questions about TimeDoco: privacy-first time tracking without an account, client-side IndexedDB storage, GDPR compliance, offline PWA access, and Toggl alternatives." />
     <link rel="canonical" href="https://timedoco.com/faq/" />
 
     <!-- Open Graph -->
@@ -60,10 +60,42 @@
       "mainEntity": [
         {
           "@type": "Question",
+          "name": "Do I need an account or sign up to use TimeDoco?",
+          "acceptedAnswer": {
+            "@type": "Answer",
+            "text": "No. TimeDoco is a privacy-first time tracker without an account. You do not need to register, verify an email address, or create a password. You simply open the app and start tracking time immediately."
+          }
+        },
+        {
+          "@type": "Question",
           "name": "Where is my time tracking data stored?",
           "acceptedAnswer": {
             "@type": "Answer",
-            "text": "Your data is stored 100% locally in your browser using IndexedDB. TimeDoco does not operate a database server, and no entries, timecodes, client names, or financial rates are ever sent across the network."
+            "text": "TimeDoco is a client-side time tracking app that does not store data in the cloud. All entries, timecodes, client names, and financial rates are stored 100% locally in your browser using IndexedDB. No data ever leaves your device."
+          }
+        },
+        {
+          "@type": "Question",
+          "name": "Does TimeDoco help with GDPR compliance for freelancers and contractors?",
+          "acceptedAnswer": {
+            "@type": "Answer",
+            "text": "TimeDoco is built with GDPR principles in mind — because it runs 100% client-side, your time entries are never transmitted to a third-party server, which removes one common source of GDPR sub-processor risk (see Article 28). That said, using TimeDoco doesn't make your business GDPR-compliant on its own — compliance depends on how you handle client data everywhere else too (email, invoicing, backups). We're not a law firm; for a formal compliance assessment, talk to a privacy professional."
+          }
+        },
+        {
+          "@type": "Question",
+          "name": "How does TimeDoco work as an offline time tracker PWA?",
+          "acceptedAnswer": {
+            "@type": "Answer",
+            "text": "TimeDoco is engineered as an offline time tracker Progressive Web App (PWA). You can install it on your desktop or mobile home screen, and track hours, manage groups, and export reports with full offline capability without needing an internet connection."
+          }
+        },
+        {
+          "@type": "Question",
+          "name": "Is TimeDoco a Toggl, Harvest, or Clockify privacy alternative?",
+          "acceptedAnswer": {
+            "@type": "Answer",
+            "text": "Yes. TimeDoco serves as a privacy-first Toggl and Harvest alternative for freelancers who want total data ownership without mandatory monthly subscriptions, cloud server leaks, or user account sign-ups."
           }
         },
         {
@@ -92,18 +124,10 @@
         },
         {
           "@type": "Question",
-          "name": "Can I install TimeDoco as a native desktop or mobile app?",
-          "acceptedAnswer": {
-            "@type": "Answer",
-            "text": "Yes! TimeDoco is a Progressive Web App (PWA). Click the 'Install App' button in the application interface or use your browser's install option to add TimeDoco directly to your desktop or home screen for standalone offline access."
-          }
-        },
-        {
-          "@type": "Question",
           "name": "How is this app free?",
           "acceptedAnswer": {
             "@type": "Answer",
-            "text": "TimeDoco is designed as a privacy-first, client-side application, which means all the timesheet tracking and data processing happens directly within your own web browser. Because there is no need to maintain expensive cloud servers or external databases to manage user data, our operational costs are incredibly low—limited primarily to the domain name and development time. To help support and sustain the project, we may occasionally share links to relevant affiliate products or introduce unobtrusive advertisements in the future. Additionally, while the Progressive Web App (PWA) version is currently available for free, we may transition it to a paid feature later on. However, our core commitment remains unchanged: the standard web app version of TimeDoco will always be 100% free."
+            "text": "TimeDoco is designed as a privacy-first, client-side application, which means all the timesheet tracking and data processing happens directly within your own web browser. Because there is no need to maintain expensive cloud servers or external databases to manage user data, our operational costs are incredibly low—limited primarily to the domain name and development time. The standard web app version of TimeDoco will always be 100% free with no subscription."
           }
         },
         {
@@ -145,11 +169,43 @@
       <main class="max-w-3xl mx-auto px-4 py-12">
         <h1 class="text-3xl font-extrabold mb-8 text-graphite dark:text-stone">Frequently Asked Questions</h1>
 
+        <div class="p-4 mb-8 rounded-panel bg-signal/10 border border-signal/30 text-graphite dark:text-stone text-sm leading-relaxed">
+          <strong class="text-signal-dim dark:text-signal">⚖️ Legal &amp; Compliance Disclaimer:</strong> The information provided on this page and throughout TimeDoco is for general educational and informational purposes only and does not constitute formal legal, accounting, tax, or regulatory compliance advice. Data protection compliance depends on your specific business circumstances; consult a qualified professional for guidance specific to your situation.
+        </div>
+
         <div class="space-y-8">
+          <article class="p-6 rounded-panel bg-stone/50 dark:bg-graphite/40 border border-graphite/10 dark:border-white/10">
+            <h2 class="text-xl font-bold mb-3 text-graphite dark:text-stone">Do I need an account or sign up to use TimeDoco?</h2>
+            <p class="text-gray-600 dark:text-gray-300 leading-relaxed">
+              No. TimeDoco is a <strong>privacy-first time tracker without an account</strong>. You do not need to register, verify an email address, or create a password. You simply launch the web app and start tracking time immediately with no sign up wall.
+            </p>
+          </article>
+
           <article class="p-6 rounded-panel bg-stone/50 dark:bg-graphite/40 border border-graphite/10 dark:border-white/10">
             <h2 class="text-xl font-bold mb-3 text-graphite dark:text-stone">Where is my time tracking data stored?</h2>
             <p class="text-gray-600 dark:text-gray-300 leading-relaxed">
-              Your data is stored 100% locally in your browser using IndexedDB. TimeDoco does not operate a database server, and no entries, timecodes, client names, or financial rates are ever sent across the network.
+              TimeDoco is a <strong>client-side time tracking app that doesn't store data in the cloud</strong>. All entries, timecodes, client names, and financial rates are stored 100% locally in your browser using IndexedDB. No data is ever sent across the network or stored on remote cloud servers.
+            </p>
+          </article>
+
+          <article class="p-6 rounded-panel bg-stone/50 dark:bg-graphite/40 border border-graphite/10 dark:border-white/10">
+            <h2 class="text-xl font-bold mb-3 text-graphite dark:text-stone">Does TimeDoco help with GDPR compliance for freelancers and contractors?</h2>
+            <p class="text-gray-600 dark:text-gray-300 leading-relaxed">
+              TimeDoco is built with GDPR principles in mind &mdash; because it runs 100% client-side, your time entries are never transmitted to a third-party server, which removes one common source of GDPR sub-processor risk (see <a href="https://gdpr-info.eu/art-28-gdpr/" target="_blank" rel="noopener noreferrer" class="underline hover:text-signal">Article 28</a>). That said, using TimeDoco doesn't make your business GDPR-compliant on its own &mdash; compliance depends on how you handle client data everywhere else too (email, invoicing, backups). We're not a law firm; for a formal compliance assessment, talk to a privacy professional.
+            </p>
+          </article>
+
+          <article class="p-6 rounded-panel bg-stone/50 dark:bg-graphite/40 border border-graphite/10 dark:border-white/10">
+            <h2 class="text-xl font-bold mb-3 text-graphite dark:text-stone">How does TimeDoco work as an offline time tracker PWA?</h2>
+            <p class="text-gray-600 dark:text-gray-300 leading-relaxed">
+              TimeDoco is engineered as an <strong>offline time tracker PWA (Progressive Web App)</strong>. You can click "Install App" or use your browser's installation prompt to add TimeDoco directly to your desktop or mobile home screen. It operates with full offline capability without requiring an active internet connection.
+            </p>
+          </article>
+
+          <article class="p-6 rounded-panel bg-stone/50 dark:bg-graphite/40 border border-graphite/10 dark:border-white/10">
+            <h2 class="text-xl font-bold mb-3 text-graphite dark:text-stone">Is TimeDoco a Toggl, Harvest, or Clockify privacy alternative?</h2>
+            <p class="text-gray-600 dark:text-gray-300 leading-relaxed">
+              Yes. TimeDoco is built as a <strong>privacy-first Toggl, Harvest, and Clockify alternative</strong> for independent contractors and freelancers. Unlike traditional cloud trackers that require monthly subscriptions and centralize confidential client timesheets on remote servers, TimeDoco keeps your data 100% on your device with zero subscriptions.
             </p>
           </article>
 
@@ -180,13 +236,6 @@
           </article>
 
           <article class="p-6 rounded-panel bg-stone/50 dark:bg-graphite/40 border border-graphite/10 dark:border-white/10">
-            <h2 class="text-xl font-bold mb-3 text-graphite dark:text-stone">Can I install TimeDoco as a native desktop or mobile app?</h2>
-            <p class="text-gray-600 dark:text-gray-300 leading-relaxed">
-              Yes! TimeDoco is a Progressive Web App (PWA). Click the "Install App" button in the application interface or use your browser's install option to add TimeDoco directly to your desktop or home screen for standalone offline access.
-            </p>
-          </article>
-
-          <article class="p-6 rounded-panel bg-stone/50 dark:bg-graphite/40 border border-graphite/10 dark:border-white/10">
             <h2 class="text-xl font-bold mb-3 text-graphite dark:text-stone">How is this app free?</h2>
             <p class="text-gray-600 dark:text-gray-300 leading-relaxed space-y-3">
               <span>
@@ -198,7 +247,7 @@
               </span>
               <br /><br />
               <span>
-                However, our core commitment remains unchanged: <strong>the standard web app version of TimeDoco will always be 100% free.</strong>
+                However, our core commitment remains unchanged: <strong>the standard web app version of TimeDoco will always be 100% free with no subscription required.</strong>
               </span>
             </p>
           </article>

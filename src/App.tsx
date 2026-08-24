@@ -23,6 +23,7 @@ import { ToastProvider, useToast } from './context/ToastContext';
 import { getElapsedTimeMs, formatElapsedSeconds } from './utils/timeUtils';
 import { GlobalActiveTimerBar } from './components/GlobalActiveTimerBar';
 import { useInstallPrompt } from './hooks/useInstallPrompt';
+import { useNamedDownload } from './hooks/useNamedDownload';
 import { IOSInstallModal } from './components/IOSInstallModal';
 import { Logo } from './components/ui/Logo';
 import { Download, Save } from 'lucide-react';
@@ -38,7 +39,8 @@ const AppContent = () => {
     window.addEventListener('unhandledrejection', onRejection);
     return () => { window.removeEventListener('error', onError); window.removeEventListener('unhandledrejection', onRejection); };
   }, []);
-  const { activeEntries, stopTimer, startTimer, timecodes, entries, settings, forgotToStopEntry, exportData } = useTimeTracker();
+  const { activeEntries, stopTimer, startTimer, timecodes, entries, settings, forgotToStopEntry, getBackupBlob } = useTimeTracker();
+  const { triggerDownload, SaveAsDialog } = useNamedDownload();
   const { addToast } = useToast();
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
   const handleCloseSettings = useCallback(() => setIsSettingsOpen(false), []);
@@ -193,7 +195,10 @@ const AppContent = () => {
             </button>
           )}
           <button
-            onClick={() => exportData()}
+            onClick={() => {
+              const dateStr = new Date().toISOString().split('T')[0];
+              triggerDownload(getBackupBlob, `timedoco-backup-${dateStr}`, 'json');
+            }}
             className="p-2 text-gray-600 dark:text-gray-400 hover:text-gray-800 dark:hover:text-gray-200 hover:bg-gray-200/60 dark:hover:bg-gray-800/60 rounded-panel transition-colors focus-visible:ring-2 focus-visible:ring-signal focus-visible:ring-offset-2"
             aria-label="Backup data"
             title="Backup data"
@@ -336,6 +341,8 @@ const AppContent = () => {
 
         {/* Render persistent global active timer bar when not on tracker tab */ }
         {activeTab !== 'tracker' && <GlobalActiveTimerBar />}
+
+        <SaveAsDialog />
         </div>
   );
 };

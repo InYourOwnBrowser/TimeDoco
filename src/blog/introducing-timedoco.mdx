@@ -1,17 +1,17 @@
 export const meta = {
   title: "Introducing TimeDoco: The Time Tracker I Couldn't Find, So I Built It",
   date: "2026-08-20",
-  tags: ["welcome", "announcement", "privacy"],
-  description: "Welcome to TimeDoco! Discover why TimeDoco was built, what it does, who it is for, and key privacy-first time tracking features."
+  tags: ["welcome", "announcement", "privacy", "freelancing", "productivity"],
+  description: "Discover why TimeDoco was built as a privacy-first, client-side time tracker without an account. Learn about its features, offline PWA capabilities, and client billing tools."
 };
 
 # Introducing TimeDoco: The Time Tracker I Couldn't Find, So I Built It
 
-Welcome to TimeDoco Articles & Guides. I am thrilled you stopped by.
+Welcome to the TimeDoco Blog & Guides! If you are a freelancer, independent contractor, software engineer, or agency consultant who relies on accurate time tracking to bill clients and manage your workday, I am thrilled you stopped by.
 
 <figure className="my-6 text-center">
   <img
-    src="https://images.unsplash.com/photo-1588253594035-c48f6103b982?q=80&w=1970&auto=format&fit=crop&ixlib=rb-4.1.0&ixid=M3wxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8fA%3D%3D"
+    src="/images/blog/introducing-timedoco-hero.jpg"
     alt="Black and white analog wall clock at 10:00"
     className="rounded-panel border border-graphite/20 dark:border-white/20 shadow-md mx-auto w-full max-h-[450px] object-cover"
   />
@@ -22,38 +22,91 @@ Welcome to TimeDoco Articles & Guides. I am thrilled you stopped by.
 
 ## The Problem I Was Trying to Solve
 
-I built TimeDoco because I was completely fed up with the time trackers currently on the market. Between my work as a data scientist and managing various software development projects on the side, keeping an accurate record of my time was a constant struggle.
+I built TimeDoco because I was completely fed up with the mainstream time tracking tools on the market. Between my primary work as a data scientist and managing software engineering projects on the side, keeping an accurate, reliable log of my billable hours was a constant source of friction.
 
-Most tools out there are either incredibly bloated, uncomfortably intrusive with how they handle personal data, or they simply lack the flexibility needed to make time logging seamless. I wanted a tracker that got out of my way rather than adding another layer of admin to my day. When I could not find a straightforward solution that respected my privacy and fit my workflow, I decided to build it myself.
+When you look at popular tools like Toggl Track, Harvest, or Clockify, they all follow the same standard SaaS blueprint:
 
-## What TimeDoco Does
+1. **Mandatory Account Registration & Data Lock-in:** Before you can track a single minute, you must sign up for an account, verify an email address, and send every detail of your workday—client names, project descriptions, internal rates, and work schedules—to an external cloud server.
+2. **Subscription Creep & Gated Features:** Basic capabilities like unrounded timesheet exports, custom billing rates, historical reporting, or team tags are routinely locked behind recurring monthly subscriptions ($9 to $20+ per user per month).
+3. **Cloud Outages & Internet Dependency:** If your internet connection drops, or if the SaaS provider experiences a server outage, your timer stops working or fails to save your latest entries.
+4. **Data Aggregation & Surveillance:** Cloud services frequently aggregate user metrics, monetize platform data, or subject your sensitive client billing logs to third-party data breaches.
 
-TimeDoco is a straightforward and reliable time tracking application. It is designed to let you focus on your actual work while capturing exactly what you need to invoice clients, track your productivity, or review your week.
+I did not want another bloated SaaS subscription, nor did I want my confidential client data living on a remote server. I wanted a **privacy-first time tracker without an account**—a clean, responsive tool that got out of my way, ran entirely on my own device, and allowed me to export professional reports in seconds. When I could not find a solution that fit these requirements, I built TimeDoco.
 
-Here is what you can expect:
+<div className="p-4 my-6 rounded-panel bg-signal/10 border border-signal/30 text-graphite dark:text-stone">
+  <strong className="text-signal-dim dark:text-signal">💡 Core Principle:</strong> TimeDoco requires zero sign-up, zero server accounts, and zero cloud databases. Every entry, note, rate, and report is processed 100% locally in your browser via IndexedDB.
+</div>
 
-* **Privacy First:** All your data stays right where it belongs. I built this with a strict focus on client-side privacy.
-* **Powerful Reporting:** You can generate clean timesheet matrixes and calendar views to visualize exactly where your week went.
-* **Tax and Currency Tools:** Built-in guides and reporting for taxes and multiple currencies take the headache out of invoicing.
-* **Flexible Grouping:** Use timecodes, grouping management, and project templates to organize your entries exactly how your brain works.
+---
 
-## Who This Is For
+## How TimeDoco Works Under the Hood
 
-I created this package for freelancers, developers, consultants, and anyone else who needs to measure their hours accurately. If you value your privacy, prefer keeping your data local, and just want a clean interface that does the heavy lifting for you, TimeDoco is built for you.
+TimeDoco is designed from the ground up as a **100% client-side web application and Progressive Web App (PWA)**. Here is what makes this architectural choice fundamentally different from traditional cloud-based time trackers:
 
-## My Favorite Features
+### 1. Client-Side Data Storage via IndexedDB
+Instead of making network API calls to a centralized database every time you start or pause a timer, TimeDoco reads and writes directly to your browser's structured IndexedDB storage. Your data never leaves your device. The TimeDoco app itself runs zero telemetry — no analytics, no tracking pixels, and no background scripts touch your timer data or task notes. (Our marketing site uses cookieless, aggregate Cloudflare Analytics to see which pages people read; it never sees anything you track.)
 
-I designed a few specific tools in here that I genuinely love using every day:
+### 2. Full Offline Capability & Resilient Timers
+Whether you are working on a flight, in a coffee shop with spotty Wi-Fi, or during an ISP outage, TimeDoco operates with full functionality offline. Timers use absolute Unix timestamps rather than volatile background JavaScript intervals. Even if you accidentally close your browser tab or restart your computer, your active running timer will recalculate exact elapsed duration the moment you reopen the app.
 
-* **Manual Entry and Fixed Costs:** Let us be real, sometimes you just forget to hit start, or you are billing a flat rate for a project. Adding manual entries for your hours or dropping in a fixed cost is incredibly fast and easy.
-* **Split and Edit Entries:** Sometimes a single block of work covers two completely different tasks. The entry split and edit modals let you cleanly divide your logged time after the fact.
-* **Global Active Timer Bar:** You can always see exactly what is running without having to dig through menus.
-* **Backup Reminders:** Since your data lives entirely on your device, the app displays friendly backup reminder banners so you never lose your history.
+### 3. Total Data Ownership & Portability
+Because your time logs are stored locally, you own them completely. TimeDoco provides a single-click JSON Backup and Restore engine in Settings. You can create complete local JSON backups, migrate your full dataset across browsers or devices, and restore your history at any time without hitting a paywall or requesting data export permissions from a support team.
 
-## Give It a Try
+---
 
-The web app is completely free to use. I wanted to build a tool that was as accessible as possible for anyone who just needs a better way to manage their hours.
+## Built for Freelancers, Contractors, and Developers
 
-I would love for you to give TimeDoco a spin and see how it fits into your workflow. Welcome to the community, and please do not be a stranger! If you have any feedback, feature ideas, or just want to chat about the app, reach out to us on our social channels.
+TimeDoco is specifically engineered to streamline the daily workflow of independent professionals who need to manage multiple projects, bill clients accurately, and stay organized without administrative overhead.
 
-Happy tracking!
+```
+       ┌────────────────────────────────────────────────────────┐
+       │                   TimeDoco Tracker                     │
+       ├────────────────────────────────────────────────────────┤
+       │ ⏱️  Active Timer: [01:42:15] — Client Website Redesign  │
+       │ 📊  Timesheet Matrix: Weekly / Monthly Groupings        │
+       │ 📄  Export Engine: Client PDFs, Raw CSVs, ICS Sync     │
+       └────────────────────────────────────────────────────────┘
+```
+
+### Key Workflow Features
+
+* **Instant Timer & Fast Manual Entry:** Start a live timer with one click or log manual hours retroactively. Need to log flat-fee project deliverables or non-time expenses (like domain purchases or software licenses)? TimeDoco natively supports fixed-cost overrides alongside hourly entries.
+* **Flexible Grouping & Timecodes:** Organize your work with customizable groups (e.g., Client A, Internal R&D, Side Projects) and granular timecodes. Set default hourly rates per timecode to automatically compute gross earnings.
+* **Overrun Audio Alerts & Task Estimates:** Assign expected duration minutes to specific tasks. TimeDoco continuously compares running elapsed time against your targets and plays an optional audio alert chime when an estimate is exceeded.
+* **Entry Splitting & Precision Editing:** Easily split a continuous block of logged time into separate task segments when your focus shifts mid-afternoon.
+* **Timesheet Matrix & Calendar Views:** View your time through adaptive timeline visualizations, weekly timesheet matrixes, and interactive calendar grids to analyze productivity patterns over time.
+* **Multi-Currency & Custom Tax Handling:** Set global or per-report currencies and configure inclusive or exclusive tax percentages (e.g., VAT, GST, Sales Tax) to render accurate invoice totals on generated PDF reports.
+
+---
+
+## Client-Ready Reporting: PDF, CSV, and ICS Export
+
+Generating client reports in TimeDoco is fast, flexible, and completely private. In the **Analysis & Reports** view, you can filter entries by date range, client group, or timecode, and immediately generate export files:
+
+1. **Professional PDF Reports:** Produce formatted PDF summaries complete with your business logo, client contact headers, tax breakdowns, custom reference fields (such as PO Numbers or Tax Registration IDs), and detailed line-item tables.
+2. **Unrounded CSV Exports:** Download raw timesheet records with exact decimal durations (e.g., 1.425 hours) for seamless import into accounting software like QuickBooks, Xero, or custom spreadsheet templates.
+3. **ICS Calendar Feeds:** Export standard iCalendar (.ics) files to visualize your completed work blocks directly inside Apple Calendar, Google Calendar, or Microsoft Outlook.
+
+---
+
+## Why TimeDoco Is Free
+
+A common question people ask about client-side software is: *If there is no monthly subscription, how is this project sustained?*
+
+The answer comes back to architecture. Traditional SaaS time trackers incur massive monthly infrastructure costs maintaining cloud servers, managed relational databases, authentication systems, and security monitoring teams. Because TimeDoco runs 100% locally inside your web browser, my server costs are practically zero—limited to static hosting and domain management.
+
+This means TimeDoco can remain **100% free for standard web app usage**. There are no artificial limits on the number of entries, projects, clients, or PDF exports you can generate.
+
+---
+
+## Getting Started in Seconds
+
+Because TimeDoco is a **time tracker without an account**, getting started takes literally two seconds:
+
+1. Click **Launch App** or navigate to `https://timedoco.com/app/`.
+2. Type your current task name or select a timecode.
+3. Click **Start Timer**.
+
+That is all it takes. No registration forms, no email verifications, and no credit cards.
+
+If you find TimeDoco helpful in your daily workflow, consider sharing it with fellow freelancers, joining our community discussions on [Discord](https://discord.gg/p6XhpaDm4R), or following our updates on [X (Twitter)](https://x.com/_InYOB_). Welcome aboard, and happy tracking!

@@ -1,10 +1,12 @@
 import React, { useState, useEffect } from 'react';
 import { useTimeTracker } from '../context/TimeTrackerContext';
+import { useNamedDownload } from '../hooks/useNamedDownload';
 import { differenceInDays } from 'date-fns';
 import { X, AlertCircle } from 'lucide-react';
 
 export const BackupReminderBanner: React.FC = () => {
-  const { settings, exportData, entries, timecodes, groups } = useTimeTracker();
+  const { settings, getBackupBlob, entries, timecodes, groups } = useTimeTracker();
+  const { triggerDownload, SaveAsDialog } = useNamedDownload();
   const [isVisible, setIsVisible] = useState(false);
 
   useEffect(() => {
@@ -70,8 +72,13 @@ export const BackupReminderBanner: React.FC = () => {
         <div className="order-2 flex-shrink-0 sm:order-3 sm:ml-3 flex items-center gap-2">
           <button
             onClick={() => {
-              exportData();
-              handleDismiss();
+              const dateStr = new Date().toISOString().split('T')[0];
+              triggerDownload(
+                getBackupBlob,
+                `timedoco-backup-${dateStr}`,
+                'json',
+                handleDismiss
+              );
             }}
             className="px-3 py-1.5 text-sm font-medium text-stone dark:text-ink bg-graphite hover:bg-ink dark:bg-stone dark:hover:bg-gray-300 rounded-md transition-colors"
           >
@@ -87,6 +94,7 @@ export const BackupReminderBanner: React.FC = () => {
           </button>
         </div>
       </div>
+      <SaveAsDialog />
     </div>
   );
 };

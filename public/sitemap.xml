@@ -31,6 +31,24 @@
     <priority>0.7</priority>
   </url>
   <url>
+    <loc>https://timedoco.com/blog/timedoco-vs-toggl/</loc>
+    <lastmod>2026-08-25</lastmod>
+    <changefreq>monthly</changefreq>
+    <priority>0.7</priority>
+  </url>
+  <url>
+    <loc>https://timedoco.com/blog/how-timedoco-was-built-zero-backend/</loc>
+    <lastmod>2026-08-28</lastmod>
+    <changefreq>monthly</changefreq>
+    <priority>0.7</priority>
+  </url>
+  <url>
+    <loc>https://timedoco.com/blog/gdpr-compliance-for-freelancers/</loc>
+    <lastmod>2026-09-01</lastmod>
+    <changefreq>monthly</changefreq>
+    <priority>0.7</priority>
+  </url>
+  <url>
     <loc>https://timedoco.com/blog/why-client-side-privacy-matters/</loc>
     <lastmod>2026-08-18</lastmod>
     <changefreq>monthly</changefreq>
