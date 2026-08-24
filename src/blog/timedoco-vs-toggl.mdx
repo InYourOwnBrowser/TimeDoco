@@ -15,7 +15,7 @@ In this article, we will perform an honest, head-to-head comparison of **TimeDoc
 
 <figure className="my-6 text-center">
   <img
-    src="https://images.unsplash.com/photo-1507925921958-8a62f3d1a50d?q=80&w=1974&auto=format&fit=crop&ixlib=rb-4.1.0&ixid=M3wxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8fA%3D%3D"
+    src="/images/blog/vs-toggl-hero.jpg"
     alt="Sticky notes on a glass board representing task organization"
     className="rounded-panel border border-graphite/20 dark:border-white/20 shadow-md mx-auto w-full max-h-[450px] object-cover"
   />
@@ -35,9 +35,13 @@ In this article, we will perform an honest, head-to-head comparison of **TimeDoc
 | **Pricing** | Free Tier (Limited) / $9–$18+/mo per user | **100% Free Web App** |
 | **Offline Performance** | Requires Syncing / Limited Features | **Full Functionality Offline (PWA)** |
 | **Data Ownership & Restore** | Export CSV/PDF (No Full Database Restore) | **One-Click JSON Export & Full Restore** |
-| **Third-Party Telemetry** | Active Event Tracking & Cloud Logging | **Zero Third-Party Telemetry or Analytics** |
+| **Third-Party Telemetry** | Active Event Tracking & Cloud Logging | **Zero Telemetry in the App*** |
 | **Client Invoice PDFs** | Premium Paid Feature ($9+/mo) | **Built-in Client PDF Reports Included** |
 | **Unrounded CSV Exports** | Aggregated / Tier-Dependent | **Raw Unrounded CSV Exports Included** |
+
+<p className="text-xs text-gray-500 dark:text-gray-400 mt-2">
+  *Note: The TimeDoco app itself runs zero telemetry — no analytics, tracking pixels, or background scripts touch your timer data or task notes. (Our marketing site uses cookieless, aggregate Cloudflare Analytics to see which pages people read; it never sees anything you track.) Competitor pricing and feature descriptions reflect public information as of August 2026; verify with vendors directly before relying on pricing details.
+</p>
 
 ---
 
@@ -55,7 +59,7 @@ When you log a task on Toggl, your entry is transmitted over the internet to Tog
 TimeDoco uses a **100% client-side architecture**. All data reads and writes occur directly inside your web browser's local **IndexedDB** database.
 * No data is ever sent across the network.
 * No user account or email registration is required—you open the web app and start tracking immediately.
-* There are zero background telemetry scripts, tracking pixels, or user behavior analytics.
+* The TimeDoco app itself runs zero telemetry — no analytics, no tracking pixels, or background scripts touch your timer data or task notes. (Our marketing site uses cookieless, aggregate Cloudflare Analytics to see which pages people read; it never sees anything you track.)
 
 <div className="p-4 my-6 rounded-panel bg-signal/10 border border-signal/30 text-graphite dark:text-stone">
   <strong className="text-signal-dim dark:text-signal">💡 Why This Matters for Freelancers:</strong> If you work under strict Non-Disclosure Agreements (NDAs) or manage sensitive financial/legal deliverables, keeping your timesheets 100% local ensures complete client confidentiality.

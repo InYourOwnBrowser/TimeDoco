@@ -2,6 +2,7 @@ import { resolve } from 'path'
 import { defineConfig } from 'vitest/config'
 import react from '@vitejs/plugin-react'
 import mdx from '@mdx-js/rollup'
+import remarkGfm from 'remark-gfm'
 import { VitePWA } from 'vite-plugin-pwa'
 
 // https://vite.dev/config/
@@ -25,7 +26,7 @@ export default defineConfig({
     },
   },
   plugins: [
-    { enforce: 'pre', ...mdx() },
+    { enforce: 'pre', ...mdx({ remarkPlugins: [remarkGfm] }) },
     react(),
     VitePWA({
       registerType: 'autoUpdate',
