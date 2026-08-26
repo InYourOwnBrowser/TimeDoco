@@ -123,4 +123,17 @@ describe('SettingsModal Logo Upload Validation', () => {
     readAsDataURLSpy.mockRestore();
     global.Image = originalImage;
   });
+
+  it('updates reportFooterText in settings when textarea changes', () => {
+    const { getByPlaceholderText } = renderComponent();
+
+    const textarea = getByPlaceholderText('Default report footer — payment details, terms, etc.') as HTMLTextAreaElement;
+    expect(textarea).not.toBeNull();
+
+    fireEvent.change(textarea, { target: { value: 'Payment due in 30 days.' } });
+
+    expect(mockUpdateSettings).toHaveBeenCalledWith({
+      reportFooterText: 'Payment due in 30 days.',
+    });
+  });
 });

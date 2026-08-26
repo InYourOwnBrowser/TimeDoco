@@ -361,7 +361,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ onClose }) => {
               <div className="flex items-center justify-between mb-2">
                 <label className="text-sm font-medium text-graphite dark:text-stone">Theme</label>
                 <select
-                  value={settings?.theme || 'system'}
+                  value={settings?.theme || 'dark'}
                   onChange={(e) => handleUpdateSettings({ theme: e.target.value as 'light' | 'dark' | 'system' })}
                   className="px-3 py-1.5 border border-graphite/20 dark:border-white/20 rounded outline-none focus-visible:ring-2 focus-visible:ring-signal text-sm bg-white dark:bg-graphite text-graphite dark:text-stone"
                 >
@@ -497,6 +497,19 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ onClose }) => {
                 >
                   + Add Field
                 </button>
+              </div>
+              <div className="mb-2">
+                <label className="text-sm font-medium text-graphite dark:text-stone flex items-center mb-1">
+                  Default Report Footer
+                  <HelpTooltip text="Appears at the bottom of generated PDF reports — payment details, terms, bank info, etc." />
+                </label>
+                <textarea
+                  value={settings?.reportFooterText ?? ''}
+                  onChange={(e) => handleUpdateSettings({ reportFooterText: e.target.value })}
+                  placeholder="Default report footer — payment details, terms, etc."
+                  rows={3}
+                  className="w-full px-3 py-1.5 border border-graphite/20 dark:border-white/20 rounded outline-none focus-visible:ring-2 focus-visible:ring-signal text-sm bg-white dark:bg-graphite text-graphite dark:text-stone resize-y"
+                />
               </div>
             </Panel>
 

@@ -67,10 +67,9 @@ export const EntryList: React.FC = () => {
   const [isManualModalOpen, setIsManualModalOpen] = useState(false);
   const [showBulkDeleteConfirm, setShowBulkDeleteConfirm] = useState(false);
   const [searchTerm, setSearchTerm] = useState('');
-  const [selectedTimecodeId, setSelectedTimecodeId] = useState<string>('all');
+  const [selectedFilter, setSelectedFilter] = useState<string>('all');
   const [dateFrom, setDateFrom] = useState<string>('');
   const [dateTo, setDateTo] = useState<string>('');
-  const [selectedGroupId, setSelectedGroupId] = useState<string>('all');
 
   const formatDuration = (seconds: number) => {
     const h = Math.floor(seconds / 3600);
@@ -96,27 +95,31 @@ export const EntryList: React.FC = () => {
       (entry.note?.toLowerCase().includes(searchTerm.toLowerCase())) ||
       (getTimecodeName(entry.timecodeId).toLowerCase().includes(searchTerm.toLowerCase()));
 
-    const matchesTimecode = selectedTimecodeId === 'all' || entry.timecodeId === selectedTimecodeId;
-
-    const tc = timecodes.find(t => t.id === entry.timecodeId);
-    const matchesGroup = selectedGroupId === 'all' || tc?.groupId === selectedGroupId;
+    let matchesFilter = true;
+    if (selectedFilter.startsWith('group:')) {
+      const groupId = selectedFilter.slice(6);
+      const tc = timecodes.find(t => t.id === entry.timecodeId);
+      matchesFilter = tc?.groupId === groupId;
+    } else if (selectedFilter.startsWith('timecode:')) {
+      const timecodeId = selectedFilter.slice(9);
+      matchesFilter = entry.timecodeId === timecodeId;
+    }
 
     const entryDate = format(parseISO(entry.startTime), 'yyyy-MM-dd');
     const matchesFrom = !dateFrom || entryDate >= dateFrom;
     const matchesTo = !dateTo || entryDate <= dateTo;
 
-    return matchesSearch && matchesTimecode && matchesGroup && matchesFrom && matchesTo;
+    return matchesSearch && matchesFilter && matchesFrom && matchesTo;
   });
 
   const handleClearFilters = () => {
     setSearchTerm('');
-    setSelectedTimecodeId('all');
-    setSelectedGroupId('all');
+    setSelectedFilter('all');
     setDateFrom('');
     setDateTo('');
   };
 
-  const hasActiveFilters = searchTerm !== '' || selectedTimecodeId !== 'all' || selectedGroupId !== 'all' || dateFrom !== '' || dateTo !== '';
+  const hasActiveFilters = searchTerm !== '' || selectedFilter !== 'all' || dateFrom !== '' || dateTo !== '';
 
   const totalFilteredSeconds = filteredEntries.reduce((acc, e) => acc + applyRounding(e.duration, settings?.roundingRule || 'none'), 0);
 
@@ -178,50 +181,54 @@ export const EntryList: React.FC = () => {
             className="flex-1 shadow-inner focus:ring-signal focus:border-signal block w-full sm:text-sm border-graphite/20 dark:border-white/20 rounded-panel bg-white dark:bg-graphite text-graphite dark:text-stone placeholder-gray-500 dark:placeholder-gray-400 focus-visible:ring-2 focus-visible:ring-offset-2 ring-offset-stone dark:ring-offset-graphite focus-visible:ring-signal"
           />
           <select
-            value={selectedTimecodeId}
-            onChange={(e) => setSelectedTimecodeId(e.target.value)}
-            className="block w-full sm:w-48 pl-3 pr-10 py-2 text-base border-graphite/20 dark:border-white/20 shadow-inner focus:outline-none focus:ring-signal focus:border-signal sm:text-sm rounded-panel bg-white dark:bg-graphite text-graphite dark:text-stone focus-visible:ring-2 focus-visible:ring-offset-2 ring-offset-stone dark:ring-offset-graphite focus-visible:ring-signal"
+            value={selectedFilter}
+            onChange={(e) => setSelectedFilter(e.target.value)}
+            className="block w-full sm:w-64 pl-3 pr-10 py-2 text-base border-graphite/20 dark:border-white/20 shadow-inner focus:outline-none focus:ring-signal focus:border-signal sm:text-sm rounded-panel bg-white dark:bg-graphite text-graphite dark:text-stone focus-visible:ring-2 focus-visible:ring-offset-2 ring-offset-stone dark:ring-offset-graphite focus-visible:ring-signal"
           >
-            <option value="all">All Timecodes</option>
-            {timecodes.filter(t => !t.archived).map((tc) => (
-              <option key={tc.id} value={tc.id}>{tc.name}</option>
+            <option value="all">All Groups & Timecodes</option>
+            {groups.filter(g => !g.archived).map((g) => (
+              <optgroup key={g.id} label={g.name}>
+                <option value={`group:${g.id}`}>All {g.name}</option>
+                {timecodes.filter(t => !t.archived && t.groupId === g.id).map((t) => (
+                  <option key={t.id} value={`timecode:${t.id}`}>{t.name}</option>
+                ))}
+              </optgroup>
             ))}
+            {timecodes.filter(t => !t.archived && !t.groupId).length > 0 && (
+              <optgroup label="Ungrouped">
+                {timecodes.filter(t => !t.archived && !t.groupId).map((t) => (
+                  <option key={t.id} value={`timecode:${t.id}`}>{t.name}</option>
+                ))}
+              </optgroup>
+            )}
           </select>
         </div>
         <div className="flex flex-col sm:flex-row gap-4 items-start sm:items-center">
-          <div className="flex flex-col gap-1 w-full sm:w-auto">
-            <label htmlFor="entry-date-from" className="text-xs text-gray-500 dark:text-gray-400 sm:hidden">From</label>
-            <input
-              id="entry-date-from"
-              type="date"
-              value={dateFrom}
-              onChange={(e) => setDateFrom(e.target.value)}
-              className="block w-full sm:w-auto pl-3 pr-10 py-2 text-base border-graphite/20 dark:border-white/20 shadow-inner focus:outline-none focus:ring-signal focus:border-signal sm:text-sm rounded-panel bg-white dark:bg-graphite text-graphite dark:text-stone focus-visible:ring-2 focus-visible:ring-offset-2 ring-offset-stone dark:ring-offset-graphite focus-visible:ring-signal"
-              aria-label="From Date"
-            />
+          <div className="flex flex-row gap-2 w-full sm:w-auto">
+            <div className="flex-1 sm:flex-none min-w-0">
+              <label htmlFor="entry-date-from" className="text-xs text-gray-500 dark:text-gray-400 sm:hidden">From</label>
+              <input
+                id="entry-date-from"
+                type="date"
+                value={dateFrom}
+                onChange={(e) => setDateFrom(e.target.value)}
+                className="block w-full min-w-0 sm:w-auto px-2 sm:pl-3 sm:pr-10 py-2 text-base border-graphite/20 dark:border-white/20 shadow-inner focus:outline-none focus:ring-signal focus:border-signal sm:text-sm rounded-panel bg-white dark:bg-graphite text-graphite dark:text-stone focus-visible:ring-2 focus-visible:ring-offset-2 ring-offset-stone dark:ring-offset-graphite focus-visible:ring-signal"
+                aria-label="From Date"
+              />
+            </div>
+            <span className="text-gray-500 dark:text-gray-400 hidden sm:inline self-center">to</span>
+            <div className="flex-1 sm:flex-none min-w-0">
+              <label htmlFor="entry-date-to" className="text-xs text-gray-500 dark:text-gray-400 sm:hidden">To</label>
+              <input
+                id="entry-date-to"
+                type="date"
+                value={dateTo}
+                onChange={(e) => setDateTo(e.target.value)}
+                className="block w-full min-w-0 sm:w-auto px-2 sm:pl-3 sm:pr-10 py-2 text-base border-graphite/20 dark:border-white/20 shadow-inner focus:outline-none focus:ring-signal focus:border-signal sm:text-sm rounded-panel bg-white dark:bg-graphite text-graphite dark:text-stone focus-visible:ring-2 focus-visible:ring-offset-2 ring-offset-stone dark:ring-offset-graphite focus-visible:ring-signal"
+                aria-label="To Date"
+              />
+            </div>
           </div>
-          <span className="text-gray-500 dark:text-gray-400 hidden sm:inline">to</span>
-          <div className="flex flex-col gap-1 w-full sm:w-auto">
-            <label htmlFor="entry-date-to" className="text-xs text-gray-500 dark:text-gray-400 sm:hidden">To</label>
-            <input
-              id="entry-date-to"
-              type="date"
-              value={dateTo}
-              onChange={(e) => setDateTo(e.target.value)}
-              className="block w-full sm:w-auto pl-3 pr-10 py-2 text-base border-graphite/20 dark:border-white/20 shadow-inner focus:outline-none focus:ring-signal focus:border-signal sm:text-sm rounded-panel bg-white dark:bg-graphite text-graphite dark:text-stone focus-visible:ring-2 focus-visible:ring-offset-2 ring-offset-stone dark:ring-offset-graphite focus-visible:ring-signal"
-              aria-label="To Date"
-            />
-          </div>
-          <select
-            value={selectedGroupId}
-            onChange={(e) => setSelectedGroupId(e.target.value)}
-            className="block w-full sm:w-48 pl-3 pr-10 py-2 text-base border-graphite/20 dark:border-white/20 shadow-inner focus:outline-none focus:ring-signal focus:border-signal sm:text-sm rounded-panel bg-white dark:bg-graphite text-graphite dark:text-stone focus-visible:ring-2 focus-visible:ring-offset-2 ring-offset-stone dark:ring-offset-graphite focus-visible:ring-signal"
-          >
-            <option value="all">All Groups</option>
-            {groups.filter(g => !g.archived).map((g) => (
-              <option key={g.id} value={g.id}>{g.name}</option>
-            ))}
-          </select>
           {hasActiveFilters && (
             <div className="flex items-center gap-3">
               <button
@@ -261,7 +268,7 @@ export const EntryList: React.FC = () => {
               const dateStr = sortedDates[index];
               return (
                 <div className="px-4 py-2 bg-stone dark:bg-graphite/80 border-t border-b border-graphite/20 dark:border-white/20 first:border-t-0">
-                  <span className="text-xs font-semibold font-sans text-gray-600 dark:text-gray-400 uppercase tracking-wider">
+                  <span className="text-xs font-semibold font-sans text-signal-dim dark:text-signal uppercase tracking-wider">
                     {formatDateHeader(dateStr)}
                   </span>
                 </div>
@@ -274,8 +281,12 @@ export const EntryList: React.FC = () => {
 
               if (!entry) return null;
 
+              const rowBg = index % 2 === 0
+                ? 'bg-white dark:bg-graphite'
+                : 'bg-stone/40 dark:bg-white/[0.03]';
+
               return (
-                <div className="px-4 py-4 flex items-center sm:px-6 bg-white dark:bg-graphite hover:bg-signal/5 transition-colors">
+                <div className={`px-4 py-4 flex items-center sm:px-6 ${rowBg} hover:bg-signal/5 transition-colors`}>
                   <div className="min-w-0 flex-1 sm:flex sm:items-center sm:justify-between">
                     <div>
                       <div className="flex text-sm items-center">
@@ -411,8 +422,12 @@ export const EntryList: React.FC = () => {
             </p>
             <div className="bg-stone dark:bg-gray-800/40 p-3 rounded-panel text-xs text-gray-600 dark:text-gray-300 space-y-1 mb-4">
               <div className="font-semibold text-graphite dark:text-stone">Applied Filters:</div>
-              {selectedTimecodeId !== 'all' && <div>• Timecode: {getTimecodeName(selectedTimecodeId)}</div>}
-              {selectedGroupId !== 'all' && <div>• Group: {groups.find(g => g.id === selectedGroupId)?.name || 'Unknown'}</div>}
+              {selectedFilter.startsWith('group:') && (
+                <div>• Group: {groups.find(g => g.id === selectedFilter.slice(6))?.name || 'Unknown'}</div>
+              )}
+              {selectedFilter.startsWith('timecode:') && (
+                <div>• Timecode: {getTimecodeName(selectedFilter.slice(9))}</div>
+              )}
               {(dateFrom || dateTo) && <div>• Dates: {dateFrom || 'Start'} to {dateTo || 'End'}</div>}
               {searchTerm && <div>• Search: "{searchTerm}"</div>}
             </div>

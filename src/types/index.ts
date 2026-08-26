@@ -81,4 +81,5 @@ export interface Settings {
   taxPromptDismissed?: boolean;
   customFields?: { id: string; label: string; value: string }[];
   userLogoBase64?: string | null;
+  reportFooterText?: string;
 }
