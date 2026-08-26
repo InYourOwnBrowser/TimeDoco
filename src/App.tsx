@@ -120,7 +120,7 @@ const AppContent = () => {
 
   useEffect(() => {
     const root = window.document.documentElement;
-    const theme = settings?.theme || 'system';
+    const theme = settings?.theme || 'dark';
 
     root.classList.remove('light', 'dark');
 

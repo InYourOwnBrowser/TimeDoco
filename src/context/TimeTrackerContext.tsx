@@ -115,6 +115,7 @@ export const TimeTrackerProvider: React.FC<{ children: ReactNode }> = ({ childre
         weeklyTargetHours: null,
         allowConcurrentTimers: false,
         overrunAudioAlertEnabled: true,
+        theme: 'dark',
       };
       await db.putSettings(loadedSettings);
     }
