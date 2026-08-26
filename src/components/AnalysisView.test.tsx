@@ -88,6 +88,18 @@ describe('AnalysisView Redesign Tabs & Metrics', () => {
     expect(screen.getByText('Detailed Raw CSV')).not.toBeNull();
     expect(screen.getByText('Export Calendar (ICS)')).not.toBeNull();
     expect(screen.getByText('Generate Report (PDF)')).not.toBeNull();
+    expect(screen.getByText('PDF Report Footer')).not.toBeNull();
+  });
+
+  it('renders report footer textarea in Export tab bound to state', () => {
+    render(<AnalysisView />);
+
+    const textarea = screen.getByPlaceholderText('e.g. payment/bank details, terms') as HTMLTextAreaElement;
+    expect(textarea).not.toBeNull();
+    expect(textarea.value).toBe('');
+
+    fireEvent.change(textarea, { target: { value: 'Bank: ACME Corp, IBAN: US123456789' } });
+    expect(textarea.value).toBe('Bank: ACME Corp, IBAN: US123456789');
   });
 
   it('renders headline cards when navigating to Overview tab', () => {
