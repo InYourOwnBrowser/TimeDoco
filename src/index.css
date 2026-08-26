@@ -1,5 +1,4 @@
-@import '@fontsource/ibm-plex-sans';
-@import '@fontsource/ibm-plex-mono';
+@import './fonts.css';
 
 @tailwind base;
 @tailwind components;
