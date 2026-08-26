@@ -754,23 +754,50 @@ export const AnalysisView: React.FC = () => {
 
       ensureHeader(1);
 
-      doc.setFontSize(10);
-      doc.setTextColor(60);
       let y = 28;
-      const metaLine = (label: string, value: string) => {
-        if (!value) return;
-        doc.setFont('helvetica', 'bold'); doc.text(label, 14, y);
-        doc.setFont('helvetica', 'normal'); doc.text(value, 40, y);
-        y += 5;
+      const lines: { label: string; value: string }[] = [];
+      const addMeta = (label: string, value: string) => {
+        if (value) {
+          lines.push({ label, value });
+        }
       };
-      metaLine('Prepared for:', preparedFor);
-      metaLine('Prepared by:', preparedBy);
-      metaLine('Period:', `${format(dateRange.start, 'MMM d, yyyy')} – ${format(dateRange.end, 'MMM d, yyyy')}`);
-      metaLine('Generated:', format(new Date(), "MMM d, yyyy 'at' HH:mm"));
+
+      addMeta('Prepared for:', preparedFor);
+      addMeta('Prepared by:', preparedBy);
+      addMeta('Period:', `${format(dateRange.start, 'MMM d, yyyy')} – ${format(dateRange.end, 'MMM d, yyyy')}`);
+      addMeta('Generated:', format(new Date(), "MMM d, yyyy 'at' HH:mm"));
 
       reportFields
         .filter(f => f.label.trim() && f.value.trim())
-        .forEach(f => metaLine(`${f.label}:`, f.value));
+        .forEach(f => addMeta(`${f.label}:`, f.value));
+
+      let labelColWidth = 0;
+      let valueX = 40;
+
+      if (lines.length > 0) {
+        doc.setFont('helvetica', 'bold');
+        doc.setFontSize(10);
+        const LABEL_COL_CAP = 65;
+        const labelWidths = lines.map(l => doc.getTextWidth(l.label));
+        labelColWidth = Math.min(Math.max(...labelWidths), LABEL_COL_CAP);
+        valueX = 14 + labelColWidth + 3;
+      }
+
+      doc.setFontSize(10);
+      doc.setTextColor(60);
+
+      const metaLine = (label: string, value: string) => {
+        if (!value) return;
+        const labelLines = doc.splitTextToSize(label, labelColWidth);
+        const valueLines = doc.splitTextToSize(value, pageWidth - 14 - valueX);
+        doc.setFont('helvetica', 'bold');
+        labelLines.forEach((l: string, i: number) => doc.text(l, 14, y + i * 5));
+        doc.setFont('helvetica', 'normal');
+        valueLines.forEach((l: string, i: number) => doc.text(l, valueX, y + i * 5));
+        y += Math.max(labelLines.length, valueLines.length) * 5;
+      };
+
+      lines.forEach(l => metaLine(l.label, l.value));
 
       y += 3;
       doc.setFontSize(12);

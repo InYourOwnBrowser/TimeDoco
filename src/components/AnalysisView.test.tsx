@@ -156,4 +156,22 @@ describe('AnalysisView Redesign Tabs & Metrics', () => {
     fireEvent.click(customBtn);
     expect(screen.getByText('to')).not.toBeNull();
   });
+
+  it('triggers PDF generation without error even with long custom metadata labels', async () => {
+    render(<AnalysisView />);
+
+    // Add a long custom metadata label field
+    const addCustomBtn = screen.getByText('Add custom metadata field');
+    fireEvent.click(addCustomBtn);
+
+    const labelInputs = screen.getAllByPlaceholderText('Label');
+    const valueInputs = screen.getAllByPlaceholderText('Value');
+
+    fireEvent.change(labelInputs[0], { target: { value: 'Purchase Order Reference Number:' } });
+    fireEvent.change(valueInputs[0], { target: { value: 'PO-9876543210-XYZ' } });
+
+    const generatePdfBtn = screen.getByText('Generate Report (PDF)');
+    expect(generatePdfBtn).not.toBeNull();
+    fireEvent.click(generatePdfBtn);
+  });
 });
