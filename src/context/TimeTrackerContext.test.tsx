@@ -36,6 +36,19 @@ describe('TimeTrackerContext Reducer Logic', () => {
     await clearDB();
   });
 
+  it('initializes default settings with theme set to dark', async () => {
+    let ctx: ReturnType<typeof useTimeTracker> | undefined;
+
+    render(
+      <ToastProvider><TimeTrackerProvider>
+        <TestConsumer onReady={(c) => (ctx = c)} />
+      </TimeTrackerProvider></ToastProvider>
+    );
+
+    await waitFor(() => expect(ctx?.settings).not.toBeNull());
+    expect(ctx!.settings?.theme).toBe('dark');
+  });
+
   it('cascading deletes: deleting a timecode removes associated entries', async () => {
     let ctx: ReturnType<typeof useTimeTracker> | undefined;
 

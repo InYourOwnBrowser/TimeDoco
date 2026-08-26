@@ -1,8 +1,7 @@
 import React, { useState, useMemo, useEffect } from 'react';
 import { useTimeTracker } from '../context/TimeTrackerContext';
 import {
-  startOfDay, endOfDay, startOfWeek, endOfWeek, startOfMonth, endOfMonth,
-  startOfQuarter, endOfQuarter, subMonths, subQuarters, parseISO, format,
+  startOfDay, endOfDay, startOfWeek, endOfWeek, subWeeks, parseISO, format,
   eachDayOfInterval, addDays
 } from 'date-fns';
 import {
@@ -21,7 +20,7 @@ import { EntryEditModal } from './EntryEditModal';
 import { useNamedDownload } from '../hooks/useNamedDownload';
 import type { Entry } from '../types';
 
-type DatePreset = 'today' | 'week' | 'month' | 'lastMonth' | 'lastQuarter' | 'custom';
+type DatePreset = 'week' | 'last4Weeks' | 'custom';
 type TabType = 'overview' | 'estimates' | 'timeline' | 'export';
 type BreakdownType = 'timecode' | 'group';
 type ChartType = 'bar' | 'pie';
@@ -37,7 +36,7 @@ export const AnalysisView: React.FC = () => {
   const [activeTab, setActiveTab] = useState<TabType>('export');
 
   // Filters State
-  const [preset, setPreset] = useState<DatePreset>('today');
+  const [preset, setPreset] = useState<DatePreset>('week');
   const [customStart, setCustomStart] = useState<string>(format(startOfWeek(new Date(), { weekStartsOn: 1 }), 'yyyy-MM-dd'));
   const [customEnd, setCustomEnd] = useState<string>(format(endOfWeek(new Date(), { weekStartsOn: 1 }), 'yyyy-MM-dd'));
   const [selectedGroupId, setSelectedGroupId] = useState<string>('all');
@@ -48,6 +47,7 @@ export const AnalysisView: React.FC = () => {
   // Export Metadata State
   const [preparedForOverride, setPreparedForOverride] = useState('');
   const [preparedByOverride, setPreparedByOverride] = useState('');
+  const [footerTextOverride, setFooterTextOverride] = useState('');
   const [reportFields, setReportFields] = useState<{ id: string; label: string; value: string }[]>([]);
   const [isGeneratingPdf, setIsGeneratingPdf] = useState(false);
 
@@ -101,19 +101,11 @@ export const AnalysisView: React.FC = () => {
   const dateRange = useMemo(() => {
     const now = new Date();
     switch (preset) {
-      case 'today':
-        return { start: startOfDay(now), end: endOfDay(now) };
       case 'week':
         return { start: startOfWeek(now, { weekStartsOn: 1 }), end: endOfWeek(now, { weekStartsOn: 1 }) };
-      case 'month':
-        return { start: startOfMonth(now), end: endOfMonth(now) };
-      case 'lastMonth': {
-        const lastMo = subMonths(now, 1);
-        return { start: startOfMonth(lastMo), end: endOfMonth(lastMo) };
-      }
-      case 'lastQuarter': {
-        const lastQ = subQuarters(now, 1);
-        return { start: startOfQuarter(lastQ), end: endOfQuarter(lastQ) };
+      case 'last4Weeks': {
+        const start = startOfWeek(subWeeks(now, 3), { weekStartsOn: 1 });
+        return { start, end: endOfWeek(now, { weekStartsOn: 1 }) };
       }
       case 'custom':
       default:
@@ -495,7 +487,7 @@ export const AnalysisView: React.FC = () => {
     const now = new Date();
 
     for (let i = 7; i >= 0; i--) {
-      const wStart = startOfWeek(subMonths(now, 0), { weekStartsOn: 1 });
+      const wStart = startOfWeek(now, { weekStartsOn: 1 });
       const currentStart = addDays(wStart, -i * 7);
       const currentEnd = endOfWeek(currentStart, { weekStartsOn: 1 });
       weeks.push({
@@ -762,23 +754,50 @@ export const AnalysisView: React.FC = () => {
 
       ensureHeader(1);
 
-      doc.setFontSize(10);
-      doc.setTextColor(60);
       let y = 28;
-      const metaLine = (label: string, value: string) => {
-        if (!value) return;
-        doc.setFont('helvetica', 'bold'); doc.text(label, 14, y);
-        doc.setFont('helvetica', 'normal'); doc.text(value, 40, y);
-        y += 5;
+      const lines: { label: string; value: string }[] = [];
+      const addMeta = (label: string, value: string) => {
+        if (value) {
+          lines.push({ label, value });
+        }
       };
-      metaLine('Prepared for:', preparedFor);
-      metaLine('Prepared by:', preparedBy);
-      metaLine('Period:', `${format(dateRange.start, 'MMM d, yyyy')} – ${format(dateRange.end, 'MMM d, yyyy')}`);
-      metaLine('Generated:', format(new Date(), "MMM d, yyyy 'at' HH:mm"));
+
+      addMeta('Prepared for:', preparedFor);
+      addMeta('Prepared by:', preparedBy);
+      addMeta('Period:', `${format(dateRange.start, 'MMM d, yyyy')} – ${format(dateRange.end, 'MMM d, yyyy')}`);
+      addMeta('Generated:', format(new Date(), "MMM d, yyyy 'at' HH:mm"));
 
       reportFields
         .filter(f => f.label.trim() && f.value.trim())
-        .forEach(f => metaLine(`${f.label}:`, f.value));
+        .forEach(f => addMeta(`${f.label}:`, f.value));
+
+      let labelColWidth = 0;
+      let valueX = 40;
+
+      if (lines.length > 0) {
+        doc.setFont('helvetica', 'bold');
+        doc.setFontSize(10);
+        const LABEL_COL_CAP = 65;
+        const labelWidths = lines.map(l => doc.getTextWidth(l.label));
+        labelColWidth = Math.min(Math.max(...labelWidths), LABEL_COL_CAP);
+        valueX = 14 + labelColWidth + 3;
+      }
+
+      doc.setFontSize(10);
+      doc.setTextColor(60);
+
+      const metaLine = (label: string, value: string) => {
+        if (!value) return;
+        const labelLines = doc.splitTextToSize(label, labelColWidth);
+        const valueLines = doc.splitTextToSize(value, pageWidth - 14 - valueX);
+        doc.setFont('helvetica', 'bold');
+        labelLines.forEach((l: string, i: number) => doc.text(l, 14, y + i * 5));
+        doc.setFont('helvetica', 'normal');
+        valueLines.forEach((l: string, i: number) => doc.text(l, valueX, y + i * 5));
+        y += Math.max(labelLines.length, valueLines.length) * 5;
+      };
+
+      lines.forEach(l => metaLine(l.label, l.value));
 
       y += 3;
       doc.setFontSize(12);
@@ -844,6 +863,29 @@ export const AnalysisView: React.FC = () => {
         didDrawPage: (data) => ensureHeader(data.pageNumber),
       });
 
+      const footerText = footerTextOverride || settings?.reportFooterText;
+      if (footerText && footerText.trim()) {
+        doc.setFontSize(8.5);
+        doc.setFont('helvetica', 'normal');
+        const lines = doc.splitTextToSize(footerText.trim(), pageWidth - 36);
+        const lineHeight = 4;
+        const boxPadding = 4;
+        const blockHeight = lines.length * lineHeight + boxPadding * 2;
+        const pageHeight = doc.internal.pageSize.getHeight();
+
+        let currentY = (doc as any).lastAutoTable.finalY + 10;
+        if (currentY + blockHeight > pageHeight - 20) {
+          doc.addPage();
+          currentY = 28;
+          ensureHeader((doc.internal as any).getNumberOfPages());
+        }
+
+        doc.setFillColor(249, 245, 235);
+        doc.rect(14, currentY, pageWidth - 28, blockHeight, 'F');
+        doc.setTextColor(60);
+        doc.text(lines, 18, currentY + boxPadding + 3);
+      }
+
       const pageCount = (doc.internal as any).getNumberOfPages();
       for (let i = 1; i <= pageCount; i++) {
         doc.setPage(i);
@@ -902,7 +944,7 @@ export const AnalysisView: React.FC = () => {
 
         {/* Date Presets */}
         <div className="flex flex-wrap gap-2 mb-4">
-          {(['today', 'week', 'month', 'lastMonth', 'lastQuarter', 'custom'] as DatePreset[]).map(p => (
+          {(['week', 'last4Weeks', 'custom'] as DatePreset[]).map(p => (
             <button
               key={p}
               onClick={() => setPreset(p)}
@@ -910,7 +952,7 @@ export const AnalysisView: React.FC = () => {
                 preset === p ? 'bg-graphite text-stone dark:bg-stone dark:text-ink' : 'bg-stone text-graphite hover:bg-gray-200 dark:bg-gray-800 dark:text-gray-200 dark:hover:bg-gray-700'
               }`}
             >
-              {p === 'today' ? 'Today' : p === 'week' ? 'This Week' : p === 'month' ? 'This Month' : p === 'lastMonth' ? 'Last Month' : p === 'lastQuarter' ? 'Last Quarter' : 'Custom'}
+              {p === 'week' ? 'This Week' : p === 'last4Weeks' ? 'Last 4 Weeks' : 'Custom'}
             </button>
           ))}
         </div>
@@ -1784,67 +1826,82 @@ export const AnalysisView: React.FC = () => {
             </div>
 
             {/* Report Metadata Configuration */}
-            <div className="p-6 bg-stone/30 dark:bg-graphite/50 rounded-panel border border-graphite/20 dark:border-white/20 space-y-4 max-w-xl">
-              <h3 className="text-sm font-semibold text-graphite dark:text-stone">
-                PDF Report Header Details
-              </h3>
+            <div className="space-y-4 max-w-xl">
+              <div className="p-6 bg-stone/30 dark:bg-graphite/50 rounded-panel border border-graphite/20 dark:border-white/20 space-y-4">
+                <h3 className="text-sm font-semibold text-graphite dark:text-stone">
+                  PDF Report Header Details
+                </h3>
 
-              <div className="space-y-3">
-                <div className="flex items-center gap-3">
-                  <label className="text-xs font-medium text-gray-600 dark:text-gray-400 w-24 shrink-0">Prepared for</label>
-                  <input
-                    type="text"
-                    value={preparedForOverride}
-                    onChange={(e) => setPreparedForOverride(e.target.value)}
-                    placeholder={scopeLabel}
-                    className="flex-1 min-w-0 px-3 py-1.5 text-sm border border-graphite/20 dark:border-white/20 rounded-md bg-white dark:bg-graphite text-graphite dark:text-stone focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-signal"
-                  />
-                </div>
-
-                <div className="flex items-center gap-3">
-                  <label className="text-xs font-medium text-gray-600 dark:text-gray-400 w-24 shrink-0">Prepared by</label>
-                  <input
-                    type="text"
-                    value={preparedByOverride}
-                    onChange={(e) => setPreparedByOverride(e.target.value)}
-                    placeholder={[settings?.preparerName, settings?.preparerCompany].filter(Boolean).join(' — ') || 'not set in Settings'}
-                    className="flex-1 min-w-0 px-3 py-1.5 text-sm border border-graphite/20 dark:border-white/20 rounded-md bg-white dark:bg-graphite text-graphite dark:text-stone focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-signal"
-                  />
-                </div>
-
-                {reportFields.map((f, i) => (
-                  <div key={f.id} className="flex items-center gap-2">
+                <div className="space-y-3">
+                  <div className="flex items-center gap-3">
+                    <label className="text-xs font-medium text-gray-600 dark:text-gray-400 w-24 shrink-0">Prepared for</label>
                     <input
                       type="text"
-                      value={f.label}
-                      onChange={(e) => updateReportField(i, { label: e.target.value })}
-                      placeholder="Label"
-                      className="flex-1 min-w-0 px-2.5 py-1.5 text-xs border border-graphite/20 dark:border-white/20 rounded bg-white dark:bg-graphite text-graphite dark:text-stone"
+                      value={preparedForOverride}
+                      onChange={(e) => setPreparedForOverride(e.target.value)}
+                      placeholder={scopeLabel}
+                      className="flex-1 min-w-0 px-3 py-1.5 text-sm border border-graphite/20 dark:border-white/20 rounded-md bg-white dark:bg-graphite text-graphite dark:text-stone focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-signal"
                     />
-                    <input
-                      type="text"
-                      value={f.value}
-                      onChange={(e) => updateReportField(i, { value: e.target.value })}
-                      placeholder="Value"
-                      className="flex-1 min-w-0 px-2.5 py-1.5 text-xs border border-graphite/20 dark:border-white/20 rounded bg-white dark:bg-graphite text-graphite dark:text-stone"
-                    />
-                    <button
-                      onClick={() => setReportFields(prev => prev.filter((_, j) => j !== i))}
-                      aria-label="Remove field"
-                      className="text-gray-500 hover:text-rust p-1 shrink-0"
-                    >
-                      <X size={14} />
-                    </button>
                   </div>
-                ))}
 
-                <button
-                  onClick={() => setReportFields(prev => [...prev, { id: crypto.randomUUID(), label: '', value: '' }])}
-                  className="flex items-center gap-1 text-xs text-signal-dim dark:text-signal hover:underline font-medium"
-                >
-                  <Plus size={14} />
-                  <span>Add custom metadata field</span>
-                </button>
+                  <div className="flex items-center gap-3">
+                    <label className="text-xs font-medium text-gray-600 dark:text-gray-400 w-24 shrink-0">Prepared by</label>
+                    <input
+                      type="text"
+                      value={preparedByOverride}
+                      onChange={(e) => setPreparedByOverride(e.target.value)}
+                      placeholder={[settings?.preparerName, settings?.preparerCompany].filter(Boolean).join(' — ') || 'not set in Settings'}
+                      className="flex-1 min-w-0 px-3 py-1.5 text-sm border border-graphite/20 dark:border-white/20 rounded-md bg-white dark:bg-graphite text-graphite dark:text-stone focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-signal"
+                    />
+                  </div>
+
+                  {reportFields.map((f, i) => (
+                    <div key={f.id} className="flex items-center gap-2">
+                      <input
+                        type="text"
+                        value={f.label}
+                        onChange={(e) => updateReportField(i, { label: e.target.value })}
+                        placeholder="Label"
+                        className="flex-1 min-w-0 px-2.5 py-1.5 text-xs border border-graphite/20 dark:border-white/20 rounded bg-white dark:bg-graphite text-graphite dark:text-stone"
+                      />
+                      <input
+                        type="text"
+                        value={f.value}
+                        onChange={(e) => updateReportField(i, { value: e.target.value })}
+                        placeholder="Value"
+                        className="flex-1 min-w-0 px-2.5 py-1.5 text-xs border border-graphite/20 dark:border-white/20 rounded bg-white dark:bg-graphite text-graphite dark:text-stone"
+                      />
+                      <button
+                        onClick={() => setReportFields(prev => prev.filter((_, j) => j !== i))}
+                        aria-label="Remove field"
+                        className="text-gray-500 hover:text-rust p-1 shrink-0"
+                      >
+                        <X size={14} />
+                      </button>
+                    </div>
+                  ))}
+
+                  <button
+                    onClick={() => setReportFields(prev => [...prev, { id: crypto.randomUUID(), label: '', value: '' }])}
+                    className="flex items-center gap-1 text-xs text-signal-dim dark:text-signal hover:underline font-medium"
+                  >
+                    <Plus size={14} />
+                    <span>Add custom metadata field</span>
+                  </button>
+                </div>
+              </div>
+
+              <div className="p-6 bg-signal/5 dark:bg-signal/10 border border-signal/20 rounded-panel space-y-3">
+                <h3 className="text-sm font-semibold text-graphite dark:text-stone">
+                  PDF Report Footer
+                </h3>
+                <textarea
+                  value={footerTextOverride}
+                  onChange={(e) => setFooterTextOverride(e.target.value)}
+                  placeholder={settings?.reportFooterText || 'e.g. payment/bank details, terms'}
+                  rows={3}
+                  className="w-full px-3 py-1.5 text-sm border border-graphite/20 dark:border-white/20 rounded-md bg-white dark:bg-graphite text-graphite dark:text-stone focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-signal resize-y"
+                />
               </div>
             </div>
 

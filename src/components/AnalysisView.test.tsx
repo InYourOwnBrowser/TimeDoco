@@ -88,6 +88,18 @@ describe('AnalysisView Redesign Tabs & Metrics', () => {
     expect(screen.getByText('Detailed Raw CSV')).not.toBeNull();
     expect(screen.getByText('Export Calendar (ICS)')).not.toBeNull();
     expect(screen.getByText('Generate Report (PDF)')).not.toBeNull();
+    expect(screen.getByText('PDF Report Footer')).not.toBeNull();
+  });
+
+  it('renders report footer textarea in Export tab bound to state', () => {
+    render(<AnalysisView />);
+
+    const textarea = screen.getByPlaceholderText('e.g. payment/bank details, terms') as HTMLTextAreaElement;
+    expect(textarea).not.toBeNull();
+    expect(textarea.value).toBe('');
+
+    fireEvent.change(textarea, { target: { value: 'Bank: ACME Corp, IBAN: US123456789' } });
+    expect(textarea.value).toBe('Bank: ACME Corp, IBAN: US123456789');
   });
 
   it('renders headline cards when navigating to Overview tab', () => {
@@ -118,5 +130,48 @@ describe('AnalysisView Redesign Tabs & Metrics', () => {
     // Verify per-timecode table header and entries
     expect(screen.getByText('Per-Timecode Estimate Performance')).not.toBeNull();
     expect(screen.getAllByText('Dev Task').length).toBeGreaterThan(0);
+  });
+
+  it('renders only three preset buttons (This Week, Last 4 Weeks, Custom) and handles state switching', () => {
+    render(<AnalysisView />);
+
+    // Check three expected preset buttons exist
+    expect(screen.getByRole('button', { name: 'This Week' })).not.toBeNull();
+    expect(screen.getByRole('button', { name: 'Last 4 Weeks' })).not.toBeNull();
+    expect(screen.getByRole('button', { name: 'Custom' })).not.toBeNull();
+
+    // Check removed preset buttons are absent
+    expect(screen.queryByRole('button', { name: 'Today' })).toBeNull();
+    expect(screen.queryByRole('button', { name: 'This Month' })).toBeNull();
+    expect(screen.queryByRole('button', { name: 'Last Month' })).toBeNull();
+    expect(screen.queryByRole('button', { name: 'Last Quarter' })).toBeNull();
+
+    // Clicking "Last 4 Weeks" selects the preset
+    const last4WeeksBtn = screen.getByRole('button', { name: 'Last 4 Weeks' });
+    fireEvent.click(last4WeeksBtn);
+    expect(last4WeeksBtn.className).toContain('bg-graphite');
+
+    // Clicking "Custom" shows start and end date inputs
+    const customBtn = screen.getByRole('button', { name: 'Custom' });
+    fireEvent.click(customBtn);
+    expect(screen.getByText('to')).not.toBeNull();
+  });
+
+  it('triggers PDF generation without error even with long custom metadata labels', async () => {
+    render(<AnalysisView />);
+
+    // Add a long custom metadata label field
+    const addCustomBtn = screen.getByText('Add custom metadata field');
+    fireEvent.click(addCustomBtn);
+
+    const labelInputs = screen.getAllByPlaceholderText('Label');
+    const valueInputs = screen.getAllByPlaceholderText('Value');
+
+    fireEvent.change(labelInputs[0], { target: { value: 'Purchase Order Reference Number:' } });
+    fireEvent.change(valueInputs[0], { target: { value: 'PO-9876543210-XYZ' } });
+
+    const generatePdfBtn = screen.getByText('Generate Report (PDF)');
+    expect(generatePdfBtn).not.toBeNull();
+    fireEvent.click(generatePdfBtn);
   });
 });
