@@ -261,7 +261,7 @@ export const EntryList: React.FC = () => {
               const dateStr = sortedDates[index];
               return (
                 <div className="px-4 py-2 bg-stone dark:bg-graphite/80 border-t border-b border-graphite/20 dark:border-white/20 first:border-t-0">
-                  <span className="text-xs font-semibold font-sans text-gray-600 dark:text-gray-400 uppercase tracking-wider">
+                  <span className="text-xs font-semibold font-sans text-signal-dim dark:text-signal uppercase tracking-wider">
                     {formatDateHeader(dateStr)}
                   </span>
                 </div>
@@ -274,8 +274,12 @@ export const EntryList: React.FC = () => {
 
               if (!entry) return null;
 
+              const rowBg = index % 2 === 0
+                ? 'bg-white dark:bg-graphite'
+                : 'bg-stone/40 dark:bg-white/[0.03]';
+
               return (
-                <div className="px-4 py-4 flex items-center sm:px-6 bg-white dark:bg-graphite hover:bg-signal/5 transition-colors">
+                <div className={`px-4 py-4 flex items-center sm:px-6 ${rowBg} hover:bg-signal/5 transition-colors`}>
                   <div className="min-w-0 flex-1 sm:flex sm:items-center sm:justify-between">
                     <div>
                       <div className="flex text-sm items-center">
