@@ -30,16 +30,20 @@ export default defineConfig({
     react(),
     VitePWA({
       registerType: 'autoUpdate',
+      injectRegister: false,
       includeAssets: ['favicon.svg', 'apple-touch-icon.png'],
       workbox: {
         navigateFallback: '/app/index.html',
         navigateFallbackAllowlist: [/^\/app\//],
+        globIgnores: [
+          'index.html', 'faq/**', 'blog/**', 'privacy/**', 'terms/**',
+        ],
       },
       manifest: {
         name: 'TimeDoco',
         short_name: 'TimeDoco',
         description: 'Privacy-first, 100% client-side Time Tracker App',
-        scope: '/',
+        scope: '/app/',
         start_url: '/app/',
         background_color: '#EEF0EC',
         theme_color: '#10161C',
