@@ -48,6 +48,7 @@ export const AnalysisView: React.FC = () => {
   // Export Metadata State
   const [preparedForOverride, setPreparedForOverride] = useState('');
   const [preparedByOverride, setPreparedByOverride] = useState('');
+  const [footerTextOverride, setFooterTextOverride] = useState('');
   const [reportFields, setReportFields] = useState<{ id: string; label: string; value: string }[]>([]);
   const [isGeneratingPdf, setIsGeneratingPdf] = useState(false);
 
@@ -843,6 +844,29 @@ export const AnalysisView: React.FC = () => {
         margin: { top: 25 },
         didDrawPage: (data) => ensureHeader(data.pageNumber),
       });
+
+      const footerText = footerTextOverride || settings?.reportFooterText;
+      if (footerText && footerText.trim()) {
+        doc.setFontSize(8.5);
+        doc.setFont('helvetica', 'normal');
+        const lines = doc.splitTextToSize(footerText.trim(), pageWidth - 36);
+        const lineHeight = 4;
+        const boxPadding = 4;
+        const blockHeight = lines.length * lineHeight + boxPadding * 2;
+        const pageHeight = doc.internal.pageSize.getHeight();
+
+        let currentY = (doc as any).lastAutoTable.finalY + 10;
+        if (currentY + blockHeight > pageHeight - 20) {
+          doc.addPage();
+          currentY = 28;
+          ensureHeader((doc.internal as any).getNumberOfPages());
+        }
+
+        doc.setFillColor(249, 245, 235);
+        doc.rect(14, currentY, pageWidth - 28, blockHeight, 'F');
+        doc.setTextColor(60);
+        doc.text(lines, 18, currentY + boxPadding + 3);
+      }
 
       const pageCount = (doc.internal as any).getNumberOfPages();
       for (let i = 1; i <= pageCount; i++) {
@@ -1784,67 +1808,82 @@ export const AnalysisView: React.FC = () => {
             </div>
 
             {/* Report Metadata Configuration */}
-            <div className="p-6 bg-stone/30 dark:bg-graphite/50 rounded-panel border border-graphite/20 dark:border-white/20 space-y-4 max-w-xl">
-              <h3 className="text-sm font-semibold text-graphite dark:text-stone">
-                PDF Report Header Details
-              </h3>
+            <div className="space-y-4 max-w-xl">
+              <div className="p-6 bg-stone/30 dark:bg-graphite/50 rounded-panel border border-graphite/20 dark:border-white/20 space-y-4">
+                <h3 className="text-sm font-semibold text-graphite dark:text-stone">
+                  PDF Report Header Details
+                </h3>
 
-              <div className="space-y-3">
-                <div className="flex items-center gap-3">
-                  <label className="text-xs font-medium text-gray-600 dark:text-gray-400 w-24 shrink-0">Prepared for</label>
-                  <input
-                    type="text"
-                    value={preparedForOverride}
-                    onChange={(e) => setPreparedForOverride(e.target.value)}
-                    placeholder={scopeLabel}
-                    className="flex-1 min-w-0 px-3 py-1.5 text-sm border border-graphite/20 dark:border-white/20 rounded-md bg-white dark:bg-graphite text-graphite dark:text-stone focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-signal"
-                  />
-                </div>
-
-                <div className="flex items-center gap-3">
-                  <label className="text-xs font-medium text-gray-600 dark:text-gray-400 w-24 shrink-0">Prepared by</label>
-                  <input
-                    type="text"
-                    value={preparedByOverride}
-                    onChange={(e) => setPreparedByOverride(e.target.value)}
-                    placeholder={[settings?.preparerName, settings?.preparerCompany].filter(Boolean).join(' — ') || 'not set in Settings'}
-                    className="flex-1 min-w-0 px-3 py-1.5 text-sm border border-graphite/20 dark:border-white/20 rounded-md bg-white dark:bg-graphite text-graphite dark:text-stone focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-signal"
-                  />
-                </div>
-
-                {reportFields.map((f, i) => (
-                  <div key={f.id} className="flex items-center gap-2">
+                <div className="space-y-3">
+                  <div className="flex items-center gap-3">
+                    <label className="text-xs font-medium text-gray-600 dark:text-gray-400 w-24 shrink-0">Prepared for</label>
                     <input
                       type="text"
-                      value={f.label}
-                      onChange={(e) => updateReportField(i, { label: e.target.value })}
-                      placeholder="Label"
-                      className="flex-1 min-w-0 px-2.5 py-1.5 text-xs border border-graphite/20 dark:border-white/20 rounded bg-white dark:bg-graphite text-graphite dark:text-stone"
+                      value={preparedForOverride}
+                      onChange={(e) => setPreparedForOverride(e.target.value)}
+                      placeholder={scopeLabel}
+                      className="flex-1 min-w-0 px-3 py-1.5 text-sm border border-graphite/20 dark:border-white/20 rounded-md bg-white dark:bg-graphite text-graphite dark:text-stone focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-signal"
                     />
-                    <input
-                      type="text"
-                      value={f.value}
-                      onChange={(e) => updateReportField(i, { value: e.target.value })}
-                      placeholder="Value"
-                      className="flex-1 min-w-0 px-2.5 py-1.5 text-xs border border-graphite/20 dark:border-white/20 rounded bg-white dark:bg-graphite text-graphite dark:text-stone"
-                    />
-                    <button
-                      onClick={() => setReportFields(prev => prev.filter((_, j) => j !== i))}
-                      aria-label="Remove field"
-                      className="text-gray-500 hover:text-rust p-1 shrink-0"
-                    >
-                      <X size={14} />
-                    </button>
                   </div>
-                ))}
 
-                <button
-                  onClick={() => setReportFields(prev => [...prev, { id: crypto.randomUUID(), label: '', value: '' }])}
-                  className="flex items-center gap-1 text-xs text-signal-dim dark:text-signal hover:underline font-medium"
-                >
-                  <Plus size={14} />
-                  <span>Add custom metadata field</span>
-                </button>
+                  <div className="flex items-center gap-3">
+                    <label className="text-xs font-medium text-gray-600 dark:text-gray-400 w-24 shrink-0">Prepared by</label>
+                    <input
+                      type="text"
+                      value={preparedByOverride}
+                      onChange={(e) => setPreparedByOverride(e.target.value)}
+                      placeholder={[settings?.preparerName, settings?.preparerCompany].filter(Boolean).join(' — ') || 'not set in Settings'}
+                      className="flex-1 min-w-0 px-3 py-1.5 text-sm border border-graphite/20 dark:border-white/20 rounded-md bg-white dark:bg-graphite text-graphite dark:text-stone focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-signal"
+                    />
+                  </div>
+
+                  {reportFields.map((f, i) => (
+                    <div key={f.id} className="flex items-center gap-2">
+                      <input
+                        type="text"
+                        value={f.label}
+                        onChange={(e) => updateReportField(i, { label: e.target.value })}
+                        placeholder="Label"
+                        className="flex-1 min-w-0 px-2.5 py-1.5 text-xs border border-graphite/20 dark:border-white/20 rounded bg-white dark:bg-graphite text-graphite dark:text-stone"
+                      />
+                      <input
+                        type="text"
+                        value={f.value}
+                        onChange={(e) => updateReportField(i, { value: e.target.value })}
+                        placeholder="Value"
+                        className="flex-1 min-w-0 px-2.5 py-1.5 text-xs border border-graphite/20 dark:border-white/20 rounded bg-white dark:bg-graphite text-graphite dark:text-stone"
+                      />
+                      <button
+                        onClick={() => setReportFields(prev => prev.filter((_, j) => j !== i))}
+                        aria-label="Remove field"
+                        className="text-gray-500 hover:text-rust p-1 shrink-0"
+                      >
+                        <X size={14} />
+                      </button>
+                    </div>
+                  ))}
+
+                  <button
+                    onClick={() => setReportFields(prev => [...prev, { id: crypto.randomUUID(), label: '', value: '' }])}
+                    className="flex items-center gap-1 text-xs text-signal-dim dark:text-signal hover:underline font-medium"
+                  >
+                    <Plus size={14} />
+                    <span>Add custom metadata field</span>
+                  </button>
+                </div>
+              </div>
+
+              <div className="p-6 bg-signal/5 dark:bg-signal/10 border border-signal/20 rounded-panel space-y-3">
+                <h3 className="text-sm font-semibold text-graphite dark:text-stone">
+                  PDF Report Footer
+                </h3>
+                <textarea
+                  value={footerTextOverride}
+                  onChange={(e) => setFooterTextOverride(e.target.value)}
+                  placeholder={settings?.reportFooterText || 'e.g. payment/bank details, terms'}
+                  rows={3}
+                  className="w-full px-3 py-1.5 text-sm border border-graphite/20 dark:border-white/20 rounded-md bg-white dark:bg-graphite text-graphite dark:text-stone focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-signal resize-y"
+                />
               </div>
             </div>
 
