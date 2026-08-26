@@ -1,8 +1,7 @@
 import React, { useState, useMemo, useEffect } from 'react';
 import { useTimeTracker } from '../context/TimeTrackerContext';
 import {
-  startOfDay, endOfDay, startOfWeek, endOfWeek, startOfMonth, endOfMonth,
-  startOfQuarter, endOfQuarter, subMonths, subQuarters, parseISO, format,
+  startOfDay, endOfDay, startOfWeek, endOfWeek, subWeeks, parseISO, format,
   eachDayOfInterval, addDays
 } from 'date-fns';
 import {
@@ -21,7 +20,7 @@ import { EntryEditModal } from './EntryEditModal';
 import { useNamedDownload } from '../hooks/useNamedDownload';
 import type { Entry } from '../types';
 
-type DatePreset = 'today' | 'week' | 'month' | 'lastMonth' | 'lastQuarter' | 'custom';
+type DatePreset = 'week' | 'last4Weeks' | 'custom';
 type TabType = 'overview' | 'estimates' | 'timeline' | 'export';
 type BreakdownType = 'timecode' | 'group';
 type ChartType = 'bar' | 'pie';
@@ -37,7 +36,7 @@ export const AnalysisView: React.FC = () => {
   const [activeTab, setActiveTab] = useState<TabType>('export');
 
   // Filters State
-  const [preset, setPreset] = useState<DatePreset>('today');
+  const [preset, setPreset] = useState<DatePreset>('week');
   const [customStart, setCustomStart] = useState<string>(format(startOfWeek(new Date(), { weekStartsOn: 1 }), 'yyyy-MM-dd'));
   const [customEnd, setCustomEnd] = useState<string>(format(endOfWeek(new Date(), { weekStartsOn: 1 }), 'yyyy-MM-dd'));
   const [selectedGroupId, setSelectedGroupId] = useState<string>('all');
@@ -101,19 +100,11 @@ export const AnalysisView: React.FC = () => {
   const dateRange = useMemo(() => {
     const now = new Date();
     switch (preset) {
-      case 'today':
-        return { start: startOfDay(now), end: endOfDay(now) };
       case 'week':
         return { start: startOfWeek(now, { weekStartsOn: 1 }), end: endOfWeek(now, { weekStartsOn: 1 }) };
-      case 'month':
-        return { start: startOfMonth(now), end: endOfMonth(now) };
-      case 'lastMonth': {
-        const lastMo = subMonths(now, 1);
-        return { start: startOfMonth(lastMo), end: endOfMonth(lastMo) };
-      }
-      case 'lastQuarter': {
-        const lastQ = subQuarters(now, 1);
-        return { start: startOfQuarter(lastQ), end: endOfQuarter(lastQ) };
+      case 'last4Weeks': {
+        const start = startOfWeek(subWeeks(now, 3), { weekStartsOn: 1 });
+        return { start, end: endOfWeek(now, { weekStartsOn: 1 }) };
       }
       case 'custom':
       default:
@@ -495,7 +486,7 @@ export const AnalysisView: React.FC = () => {
     const now = new Date();
 
     for (let i = 7; i >= 0; i--) {
-      const wStart = startOfWeek(subMonths(now, 0), { weekStartsOn: 1 });
+      const wStart = startOfWeek(now, { weekStartsOn: 1 });
       const currentStart = addDays(wStart, -i * 7);
       const currentEnd = endOfWeek(currentStart, { weekStartsOn: 1 });
       weeks.push({
@@ -902,7 +893,7 @@ export const AnalysisView: React.FC = () => {
 
         {/* Date Presets */}
         <div className="flex flex-wrap gap-2 mb-4">
-          {(['today', 'week', 'month', 'lastMonth', 'lastQuarter', 'custom'] as DatePreset[]).map(p => (
+          {(['week', 'last4Weeks', 'custom'] as DatePreset[]).map(p => (
             <button
               key={p}
               onClick={() => setPreset(p)}
@@ -910,7 +901,7 @@ export const AnalysisView: React.FC = () => {
                 preset === p ? 'bg-graphite text-stone dark:bg-stone dark:text-ink' : 'bg-stone text-graphite hover:bg-gray-200 dark:bg-gray-800 dark:text-gray-200 dark:hover:bg-gray-700'
               }`}
             >
-              {p === 'today' ? 'Today' : p === 'week' ? 'This Week' : p === 'month' ? 'This Month' : p === 'lastMonth' ? 'Last Month' : p === 'lastQuarter' ? 'Last Quarter' : 'Custom'}
+              {p === 'week' ? 'This Week' : p === 'last4Weeks' ? 'Last 4 Weeks' : 'Custom'}
             </button>
           ))}
         </div>
