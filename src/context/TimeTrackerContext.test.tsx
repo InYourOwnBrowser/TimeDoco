@@ -858,4 +858,85 @@ describe('TimeTrackerContext Reducer Logic', () => {
     await waitFor(() => expect(ctx!.entries.length).toBe(2));
     expect(ctx!.entries.map((e) => e.note).sort()).toEqual(['ok', 'seed']);
   });
+
+  it('cascading delete finds entries written outside this tab\'s snapshot', async () => {
+    let ctx: ReturnType<typeof useTimeTracker> | undefined;
+
+    render(
+      <ToastProvider><TimeTrackerProvider>
+        <TestConsumer onReady={(c) => (ctx = c)} />
+      </TimeTrackerProvider></ToastProvider>
+    );
+
+    await waitFor(() => expect(ctx?.settings).not.toBeNull());
+
+    let tcId = '';
+    await act(async () => {
+      tcId = (await ctx!.addTimecode('Cascade TC')).id;
+    });
+
+    // Written straight to the database, as another tab would, so it is absent
+    // from this provider's React state.
+    const unseen = {
+      id: 'written-elsewhere',
+      timecodeId: tcId,
+      startTime: '2024-05-01T09:00:00.000Z',
+      endTime: '2024-05-01T10:00:00.000Z',
+      duration: 3600,
+      note: 'from another tab',
+      tags: [],
+      isRunning: false,
+      isPaused: false,
+      pausedSegments: [],
+      editHistory: [],
+      createdAt: '2024-05-01T09:00:00.000Z',
+      updatedAt: '2024-05-01T09:00:00.000Z',
+    };
+    await act(async () => {
+      await db.putEntry(unseen as any);
+      expect(ctx!.entries.find((e) => e.id === unseen.id)).toBeUndefined();
+      await ctx!.deleteTimecode(tcId);
+    });
+
+    // The cascade reads the database, so the unseen entry is trashed too rather
+    // than left pointing at a deleted timecode.
+    await waitFor(() => {
+      const stored = ctx!.deletedEntries.find((e) => e.id === unseen.id);
+      expect(stored?.deletedAt).toBeTruthy();
+    });
+  });
+
+  it('note autosave updates state without re-reading every entry', async () => {
+    let ctx: ReturnType<typeof useTimeTracker> | undefined;
+
+    render(
+      <ToastProvider><TimeTrackerProvider>
+        <TestConsumer onReady={(c) => (ctx = c)} />
+      </TimeTrackerProvider></ToastProvider>
+    );
+
+    await waitFor(() => expect(ctx?.settings).not.toBeNull());
+
+    let tcId = '';
+    await act(async () => {
+      tcId = (await ctx!.addTimecode('Note TC')).id;
+      await ctx!.startTimer(tcId, 'first');
+    });
+    await waitFor(() => expect(ctx!.activeEntries.length).toBe(1));
+    const runningId = ctx!.activeEntries[0].id;
+
+    const getEntriesSpy = vi.spyOn(db, 'getEntries');
+    await act(async () => {
+      await ctx!.updateActiveNote(runningId, 'typed while running', ['a']);
+    });
+
+    // The visible state is current...
+    await waitFor(() => {
+      expect(ctx!.activeEntries[0].note).toBe('typed while running');
+      expect(ctx!.entries.find((e) => e.id === runningId)?.note).toBe('typed while running');
+    });
+    // ...without a full reload, which this path ran on every keystroke pause.
+    expect(getEntriesSpy).not.toHaveBeenCalled();
+    getEntriesSpy.mockRestore();
+  });
 });

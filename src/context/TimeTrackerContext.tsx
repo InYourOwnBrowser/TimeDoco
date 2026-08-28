@@ -137,6 +137,39 @@ export const TimeTrackerProvider: React.FC<{ children: ReactNode }> = ({ childre
 
   const broadcastRef = useRef<BroadcastChannel | null>(null);
 
+  /** Tell other open tabs that stored data changed and they should re-read. */
+  const notifyOtherTabs = useCallback(() => {
+    try {
+      broadcastRef.current?.postMessage({ type: 'data-changed' });
+    } catch {
+      // A closed channel must never break a mutation.
+    }
+  }, []);
+
+  /**
+   * Replace one entry in the loaded state, for a mutation that changed only
+   * that entry's own fields — not its start time, whether it is trashed, or
+   * whether it is running. Nothing can move between lists or change position,
+   * so this cannot drift from what a full reload would produce, and it saves
+   * re-reading every entry from IndexedDB. The note autosave runs on a one
+   * second debounce, so that read was happening every second while typing.
+   *
+   * Only safe for an entry already on screen as a running timer; anything
+   * broader must go through refreshData.
+   */
+  const replaceEntryInState = useCallback((updated: Entry) => {
+    const swap = (list: Entry[]) => {
+      const index = list.findIndex((e) => e.id === updated.id);
+      if (index === -1) return list;
+      const next = [...list];
+      next[index] = updated;
+      return next;
+    };
+    setEntries(swap);
+    setActiveEntries(swap);
+    notifyOtherTabs();
+  }, [notifyOtherTabs]);
+
   const refreshData = useCallback(async (options?: { broadcast?: boolean }) => {
     // Callers that pass through `.then(refreshData)` hand us a resolved value
     // rather than options, so only an explicit false suppresses the broadcast.
@@ -223,13 +256,7 @@ export const TimeTrackerProvider: React.FC<{ children: ReactNode }> = ({ childre
       // Tell other open tabs to re-read. IndexedDB is shared between them but
       // each tab holds its own React snapshot and writes whole records back, so
       // without this they drift apart and overwrite each other's work.
-      if (shouldBroadcast) {
-        try {
-          broadcastRef.current?.postMessage({ type: 'data-changed' });
-        } catch {
-          // A closed channel must never break a refresh.
-        }
-      }
+      if (shouldBroadcast) notifyOtherTabs();
 
       // Drop dismissals for timers that are no longer running, so the list does
       // not grow without bound in localStorage.
@@ -247,11 +274,24 @@ export const TimeTrackerProvider: React.FC<{ children: ReactNode }> = ({ childre
       logError(error as Error, 'refreshData');
       addToast('Could not re-read your data — showing the last loaded state.', 'error');
     }
-  }, [addToast]);
+  }, [addToast, notifyOtherTabs]);
 
   useEffect(() => {
     refreshData();
   }, [refreshData]);
+
+  // A running timer keeps accruing after the tab closes, and the elapsed time
+  // then includes however long the browser was shut. Warn before that happens.
+  useEffect(() => {
+    if (activeEntries.length === 0) return;
+    const onBeforeUnload = (e: BeforeUnloadEvent) => {
+      e.preventDefault();
+      // Browsers ignore custom text but still require returnValue to be set.
+      e.returnValue = '';
+    };
+    window.addEventListener('beforeunload', onBeforeUnload);
+    return () => window.removeEventListener('beforeunload', onBeforeUnload);
+  }, [activeEntries.length]);
 
   // Cross-tab sync: re-read on another tab's mutation, and whenever this tab
   // becomes visible again (covers browsers without BroadcastChannel).
@@ -449,7 +489,7 @@ export const TimeTrackerProvider: React.FC<{ children: ReactNode }> = ({ childre
         updatedAt: now,
       };
       await db.putEntry(updatedEntry);
-      await refreshData();
+      replaceEntryInState(updatedEntry);
       addToast('Timer paused', 'info');
     } finally {
       isPausingTimerRef.current = false;
@@ -477,7 +517,7 @@ export const TimeTrackerProvider: React.FC<{ children: ReactNode }> = ({ childre
         updatedAt: now,
       };
       await db.putEntry(updatedEntry);
-      await refreshData();
+      replaceEntryInState(updatedEntry);
       addToast('Timer resumed', 'success');
     } finally {
       isResumingTimerRef.current = false;
@@ -495,7 +535,7 @@ export const TimeTrackerProvider: React.FC<{ children: ReactNode }> = ({ childre
       updatedAt: now,
     };
     await db.putEntry(updatedEntry);
-    await refreshData();
+    replaceEntryInState(updatedEntry);
   };
 
   const addGroup = async (name: string, color: string): Promise<Group> => {
@@ -523,13 +563,16 @@ export const TimeTrackerProvider: React.FC<{ children: ReactNode }> = ({ childre
     const group = await db.getGroup(id);
     const now = new Date().toISOString();
 
-    // Cascade soft-delete to timecodes
-    const timecodesToDelete = [...timecodes, ...deletedTimecodes].filter(tc => tc.groupId === id && !tc.deletedAt);
+    // Cascade soft-delete to timecodes. Read from the database rather than the
+    // React snapshot, which can be stale relative to another tab and would then
+    // silently skip records this cascade is meant to cover.
+    const [allTimecodes, allEntries] = await Promise.all([db.getTimecodes(), db.getEntries()]);
+    const timecodesToDelete = allTimecodes.filter(tc => tc.groupId === id && !tc.deletedAt);
     for (const tc of timecodesToDelete) {
       await db.putTimecode({ ...tc, deletedAt: now });
 
       // Cascade soft-delete to entries for each timecode
-      const entriesToDelete = [...entries, ...deletedEntries].filter((e) => e.timecodeId === tc.id && !e.deletedAt);
+      const entriesToDelete = allEntries.filter((e) => e.timecodeId === tc.id && !e.deletedAt);
       for (const entry of entriesToDelete) {
         if (entry.isRunning) {
           await stopTimerById(entry.id);
@@ -848,8 +891,9 @@ export const TimeTrackerProvider: React.FC<{ children: ReactNode }> = ({ childre
   };
 
   const deleteTimecode = async (id: string) => {
-    // Cascading: soft-delete all entries associated with this timecode
-    const entriesToDelete = [...entries, ...deletedEntries].filter((e) => e.timecodeId === id && !e.deletedAt);
+    // Cascading: soft-delete all entries associated with this timecode.
+    // Read from the database so a record created in another tab is not missed.
+    const entriesToDelete = (await db.getEntries()).filter((e) => e.timecodeId === id && !e.deletedAt);
     const now = new Date().toISOString();
     for (const entry of entriesToDelete) {
       if (entry.isRunning) {
@@ -914,7 +958,9 @@ export const TimeTrackerProvider: React.FC<{ children: ReactNode }> = ({ childre
   };
 
   const hardDeleteTimecode = async (id: string) => {
-    const entriesToDelete = [...entries, ...deletedEntries].filter((e) => e.timecodeId === id);
+    // From the database: a permanent delete must not leave orphans behind
+    // because the React snapshot was missing a record.
+    const entriesToDelete = (await db.getEntries()).filter((e) => e.timecodeId === id);
     if (entriesToDelete.length > 0) {
       await Promise.all(entriesToDelete.map((entry) => db.deleteEntry(entry.id)));
     }
@@ -1165,90 +1211,88 @@ export const TimeTrackerProvider: React.FC<{ children: ReactNode }> = ({ childre
   };
 
   const importData = async (file: File, mode: 'merge' | 'replace') => {
-    return new Promise<void>((resolve, reject) => {
-      if (file.size > MAX_IMPORT_FILE_BYTES) {
-        reject(new Error('Import failed: File size exceeds the 20MB limit.'));
-        return;
+    if (file.size > MAX_IMPORT_FILE_BYTES) {
+      throw new Error('Import failed: File size exceeds the 20MB limit.');
+    }
+
+    // file.text() rather than FileReader: a reader holds its own reference to
+    // the decoded string for as long as it is alive, so the file text could not
+    // be released after parsing. Here the local can be dropped, which matters
+    // when the text, the parsed object and the re-serialised payload would
+    // otherwise all be resident at once for a file up to 20MB.
+    let content: string = await file.text();
+    const parsed = JSON.parse(content);
+    content = '';
+
+    if (!parsed.checksum) {
+      throw new Error('No checksum found in backup file');
+    }
+
+    const { checksum, ...dataToVerify } = parsed;
+    let payloadString: string = JSON.stringify(dataToVerify);
+
+    // Prefer SHA-256 always, and only fall back to the weak 32-bit hash
+    // when the file actually declares it — a backup exported from a
+    // context without crypto.subtle (plain-http dev, some embedded
+    // browsers) legitimately carries one. Note the checksum is an
+    // integrity check, not a security boundary: anyone crafting a
+    // backup can compute a valid digest under either algorithm.
+    let verified = false;
+    let subtleAvailable = true;
+
+    try {
+      const msgUint8 = new TextEncoder().encode(payloadString);
+      const hashBuffer = await crypto.subtle.digest('SHA-256', msgUint8);
+      const hashArray = Array.from(new Uint8Array(hashBuffer));
+      verified = checksum === hashArray.map((b) => b.toString(16).padStart(2, '0')).join('');
+    } catch {
+      subtleAvailable = false;
+    }
+
+    if (!verified && dataToVerify.checksumAlgorithm === 'fallback') {
+      let hash = 0;
+      for (let i = 0; i < payloadString.length; i++) {
+        const char = payloadString.charCodeAt(i);
+        hash = (hash << 5) - hash + char;
+        hash = hash & hash;
       }
-      const reader = new FileReader();
-      reader.onload = async (e) => {
-        try {
-          const content = e.target?.result as string;
-          const parsed = JSON.parse(content);
+      verified = checksum === hash.toString(16);
+    }
 
-          if (!parsed.checksum) {
-            throw new Error('No checksum found in backup file');
-          }
+    if (!verified) {
+      if (!subtleAvailable && dataToVerify.checksumAlgorithm !== 'fallback') {
+        throw new Error('Cannot verify SHA-256 backup checksum in this environment. Ensure you are on HTTPS.');
+      }
+      throw new Error(
+        'Data corruption detected: Checksum mismatch. If you edited this backup by hand, re-export it from TimeDoco instead.'
+      );
+    }
 
-          const { checksum, ...dataToVerify } = parsed;
-          const payloadString = JSON.stringify(dataToVerify);
+    // The re-serialised payload is only needed for the checksum; drop it before
+    // the write so it is not resident alongside the records being imported.
+    payloadString = '';
 
-          // Prefer SHA-256 always, and only fall back to the weak 32-bit hash
-          // when the file actually declares it — a backup exported from a
-          // context without crypto.subtle (plain-http dev, some embedded
-          // browsers) legitimately carries one. Note the checksum is an
-          // integrity check, not a security boundary: anyone crafting a
-          // backup can compute a valid digest under either algorithm.
-          let verified = false;
-          let subtleAvailable = true;
+    const migratedData = normalizeImportData(migrateImportData(parsed, parsed.schemaVersion));
 
-          try {
-            const msgUint8 = new TextEncoder().encode(payloadString);
-            const hashBuffer = await crypto.subtle.digest('SHA-256', msgUint8);
-            const hashArray = Array.from(new Uint8Array(hashBuffer));
-            verified = checksum === hashArray.map((b) => b.toString(16).padStart(2, '0')).join('');
-          } catch {
-            subtleAvailable = false;
-          }
+    // In merge mode an entry may legitimately point at a timecode that is
+    // already stored locally rather than carried in the file.
+    const knownTimecodeIds = mode === 'merge'
+      ? new Set((await db.getTimecodes()).map((tc) => tc.id))
+      : undefined;
 
-          if (!verified && dataToVerify.checksumAlgorithm === 'fallback') {
-            let hash = 0;
-            for (let i = 0; i < payloadString.length; i++) {
-              const char = payloadString.charCodeAt(i);
-              hash = (hash << 5) - hash + char;
-              hash = hash & hash;
-            }
-            verified = checksum === hash.toString(16);
-          }
+    // Validate what will actually be written, not the pre-migration input.
+    validateBackupPayload(migratedData, knownTimecodeIds);
 
-          if (!verified) {
-            if (!subtleAvailable && dataToVerify.checksumAlgorithm !== 'fallback') {
-              throw new Error('Cannot verify SHA-256 backup checksum in this environment. Ensure you are on HTTPS.');
-            }
-            throw new Error(
-              'Data corruption detected: Checksum mismatch. If you edited this backup by hand, re-export it from TimeDoco instead.'
-            );
-          }
-
-          const migratedData = normalizeImportData(migrateImportData(parsed, parsed.schemaVersion));
-
-          // In merge mode an entry may legitimately point at a timecode that is
-          // already stored locally rather than carried in the file.
-          const knownTimecodeIds = mode === 'merge'
-            ? new Set((await db.getTimecodes()).map((tc) => tc.id))
-            : undefined;
-
-          // Validate what will actually be written, not the pre-migration input.
-          validateBackupPayload(migratedData, knownTimecodeIds);
-
-          await db.importBackup(
-            {
-              groups: migratedData.groups || [],
-              timecodes: migratedData.timecodes || [],
-              entries: migratedData.entries || [],
-              settings: migratedData.settings,
-            },
-            mode
-          );
-          await refreshData();
-          resolve();
-        } catch (error) {
-          reject(error);
-        }
-      };
-      reader.onerror = () => reject(new Error('Failed to read file'));
-      reader.readAsText(file);
-    });
+    await db.importBackup(
+      {
+        groups: migratedData.groups || [],
+        timecodes: migratedData.timecodes || [],
+        entries: migratedData.entries || [],
+        settings: migratedData.settings,
+      },
+      mode
+    );
+    await refreshData();
   };
 
   return (
