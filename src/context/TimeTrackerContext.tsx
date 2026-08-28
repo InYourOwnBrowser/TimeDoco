@@ -1,8 +1,9 @@
 import React, { createContext, useContext, useState, useEffect, useCallback, useRef, type ReactNode } from 'react';
 import type { Group, Timecode, Entry, Settings, PauseSegment } from '../types';
 import * as db from '../db';
-import { differenceInSeconds } from 'date-fns';
+import { differenceInSeconds, isSameDay } from 'date-fns';
 import { calculateDuration } from '../utils/timeUtils';
+import { clearErrorLog, logError } from '../utils/errorLog';
 import { useToast } from './ToastContext';
 import { validateBackupPayload, MAX_IMPORT_FILE_BYTES } from '../utils/importValidation';
 
@@ -22,14 +23,14 @@ interface TimeTrackerContextType {
   deleteTimecode: (id: string) => Promise<void>;
   mergeTimecodes: (sourceId: string, destId: string) => Promise<void>;
   updateActiveNote: (entryId: string, note: string, tags?: string[]) => Promise<void>;
-  refreshData: () => Promise<void>;
+  refreshData: (options?: { broadcast?: boolean }) => Promise<void>;
   entries: Entry[];
   updateEntry: (id: string, updates: Partial<Entry>) => Promise<void>;
   deleteEntry: (id: string) => Promise<void>;
   bulkDeleteEntries: (ids: string[]) => Promise<void>;
   splitEntry: (entryId: string, splitTime: string, newTimecodeId?: string) => Promise<void>;
   addManualEntry: (entryData: { startTime: string; endTime: string; timecodeId: string; note: string; tags?: string[]; pausedSegments?: PauseSegment[]; manualAmount?: number | null }) => Promise<void>;
-  bulkAddManualEntries: (entriesData: { startTime: string, endTime: string, timecodeId: string, note: string, tags?: string[] }[]) => Promise<void>;
+  bulkAddManualEntries: (entriesData: { startTime: string, endTime: string, timecodeId: string, note: string, tags?: string[] }[]) => Promise<{ added: number; skipped: number }>;
   forgotToStopEntry: Entry | null;
   dismissForgotToStop: () => void;
   settings: Settings | null;
@@ -53,6 +54,10 @@ clearLastStoppedEntry: () => void;
   emptyTrash: () => Promise<void>;
 }
 
+// A timer must have run at least this long overnight before we suspect it was
+// left running, so working past midnight does not prompt every night.
+const MIN_OVERNIGHT_FORGOT_HOURS = 5;
+
 const TimeTrackerContext = createContext<TimeTrackerContextType | undefined>(undefined);
 
 export const TimeTrackerProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
@@ -69,6 +74,13 @@ export const TimeTrackerProvider: React.FC<{ children: ReactNode }> = ({ childre
     const data = localStorage.getItem('dismissedForgotToStopIds');
     try { return data ? JSON.parse(data) : []; } catch { return []; }
   });
+  // Mirrored in a ref so refreshData keeps a stable identity — depending on the
+  // state made dismissing a prompt re-read the entire database.
+  const dismissedForgotToStopIdsRef = useRef<string[]>(dismissedForgotToStopIds);
+  useEffect(() => {
+    dismissedForgotToStopIdsRef.current = dismissedForgotToStopIds;
+  }, [dismissedForgotToStopIds]);
+
   const [settings, setSettings] = useState<Settings | null>(null);
   const [lastStoppedEntry, setLastStoppedEntry] = useState<Entry | null>(null);
 
@@ -79,9 +91,34 @@ export const TimeTrackerProvider: React.FC<{ children: ReactNode }> = ({ childre
   const undoStopTimer = async (entryToUndo: Entry) => {
     if (!entryToUndo) return;
 
+    // Re-read the stored record rather than trusting the pre-stop snapshot the
+    // toast closed over: the entry may have been edited during the undo window.
+    const current = await db.getEntry(entryToUndo.id);
+    if (!current) {
+      setLastStoppedEntry(null);
+      return;
+    }
+
+    // Nothing to undo if it never stopped, and resurrecting it would wipe the
+    // duration of an entry that is already finished.
+    if (current.isRunning) {
+      setLastStoppedEntry(null);
+      return;
+    }
+
+    // Another timer may have been started inside the 5 second undo window.
+    if (!(settings?.allowConcurrentTimers ?? false)) {
+      const stillActive = await db.getActiveEntries();
+      if (stillActive.length > 0) {
+        addToast('Cannot undo — another timer is already running', 'error');
+        setLastStoppedEntry(null);
+        return;
+      }
+    }
+
     // Remove endTime and duration, set isRunning back to true
     const updatedEntry: Entry = {
-      ...entryToUndo,
+      ...current,
       endTime: null,
       duration: 0,
       isRunning: true,
@@ -98,61 +135,151 @@ export const TimeTrackerProvider: React.FC<{ children: ReactNode }> = ({ childre
   const isPausingTimerRef = useRef(false);
   const isResumingTimerRef = useRef(false);
 
-  const refreshData = useCallback(async () => {
-    const loadedGroups = await db.getGroups();
-    const loadedTimecodes = await db.getTimecodes();
-    const loadedEntries = await db.getEntries();
-    const loadedActiveEntries = await db.getActiveEntries();
-    let loadedSettings = await db.getSettings();
+  const broadcastRef = useRef<BroadcastChannel | null>(null);
 
-    if (!loadedSettings) {
-      loadedSettings = {
-        id: 'user-settings',
-        lastBackupDate: null,
-        reminderIntervalDays: 7,
-        roundingRule: 'none',
-        idleThresholdMinutes: null,
-        weeklyTargetHours: null,
-        allowConcurrentTimers: false,
-        overrunAudioAlertEnabled: true,
-        theme: 'dark',
-      };
-      await db.putSettings(loadedSettings);
-    }
+  const refreshData = useCallback(async (options?: { broadcast?: boolean }) => {
+    // Callers that pass through `.then(refreshData)` hand us a resolved value
+    // rather than options, so only an explicit false suppresses the broadcast.
+    const shouldBroadcast = !(options && typeof options === 'object' && options.broadcast === false);
+    try {
 
-    setGroups(loadedGroups.filter(g => !g.deletedAt));
-    setDeletedGroups(loadedGroups.filter(g => g.deletedAt));
-    setTimecodes(loadedTimecodes.filter(t => !t.deletedAt));
-    setDeletedTimecodes(loadedTimecodes.filter(t => t.deletedAt));
-    // Sort entries descending by startTime for the list
-    setEntries(loadedEntries.filter(e => !e.deletedAt).sort((a, b) => new Date(b.startTime).getTime() - new Date(a.startTime).getTime()));
-    setDeletedEntries(loadedEntries.filter(e => e.deletedAt));
-    setActiveEntries(loadedActiveEntries);
-    setSettings(loadedSettings);
+      // Read the four stores concurrently rather than serially, and derive the
+      // active entries from the list already in hand instead of re-reading every
+      // entry a second time.
+      const [loadedGroups, loadedTimecodes, loadedEntries, storedSettings] = await Promise.all([
+        db.getGroups(),
+        db.getTimecodes(),
+        db.getEntries(),
+        db.getSettings(),
+      ]);
+      const loadedActiveEntries = db.selectActiveEntries(loadedEntries);
+      let loadedSettings = storedSettings;
 
-    // "Forgot-to-stop" Detection
-    if (loadedActiveEntries.length > 0) {
-      let foundForgot = false;
-      for (const entry of loadedActiveEntries) {
-        if (dismissedForgotToStopIds.includes(entry.id)) continue;
-        const start = new Date(entry.startTime);
-        const now = new Date();
-        const hoursElapsed = differenceInSeconds(now, start) / 3600;
+      if (!loadedSettings) {
+        loadedSettings = {
+          id: 'user-settings',
+          lastBackupDate: null,
+          reminderIntervalDays: 7,
+          roundingRule: 'none',
+          roundingScope: 'day',
+          idleThresholdMinutes: null,
+          weeklyTargetHours: null,
+          allowConcurrentTimers: false,
+          overrunAudioAlertEnabled: true,
+          theme: 'dark',
+        };
+        await db.putSettings(loadedSettings);
+      }
 
-        if (hoursElapsed > 10 || (hoursElapsed > 0 && start.getDate() !== now.getDate())) {
-          setForgotToStopEntry(entry);
-          foundForgot = true;
-          break;
+      const liveGroups: Group[] = [];
+      const trashedGroups: Group[] = [];
+      for (const g of loadedGroups) (g.deletedAt ? trashedGroups : liveGroups).push(g);
+
+      const liveTimecodes: Timecode[] = [];
+      const trashedTimecodes: Timecode[] = [];
+      for (const t of loadedTimecodes) (t.deletedAt ? trashedTimecodes : liveTimecodes).push(t);
+
+      // getEntries returns ascending by start time from the index, so the list's
+      // descending order is a reverse rather than a full re-sort.
+      const liveEntries: Entry[] = [];
+      const trashedEntries: Entry[] = [];
+      for (let i = loadedEntries.length - 1; i >= 0; i--) {
+        const e = loadedEntries[i];
+        (e.deletedAt ? trashedEntries : liveEntries).push(e);
+      }
+
+      setGroups(liveGroups);
+      setDeletedGroups(trashedGroups);
+      setTimecodes(liveTimecodes);
+      setDeletedTimecodes(trashedTimecodes);
+      setEntries(liveEntries);
+      setDeletedEntries(trashedEntries);
+      setActiveEntries(loadedActiveEntries);
+      setSettings(loadedSettings);
+
+      // "Forgot-to-stop" Detection
+      if (loadedActiveEntries.length > 0) {
+        let foundForgot = false;
+        for (const entry of loadedActiveEntries) {
+          if (dismissedForgotToStopIdsRef.current.includes(entry.id)) continue;
+          const start = new Date(entry.startTime);
+          const now = new Date();
+          const hoursElapsed = differenceInSeconds(now, start) / 3600;
+
+          // getDate() is day-of-month, so a timer started at 23:50 tripped this
+          // after 20 minutes. Require a real overnight run before prompting.
+          const ranOvernight = !isSameDay(start, now) && hoursElapsed >= MIN_OVERNIGHT_FORGOT_HOURS;
+          if (hoursElapsed > 10 || ranOvernight) {
+            setForgotToStopEntry(entry);
+            foundForgot = true;
+            break;
+          }
+        }
+        if (!foundForgot) setForgotToStopEntry(null);
+      } else {
+        setForgotToStopEntry(null);
+      }
+
+      // Tell other open tabs to re-read. IndexedDB is shared between them but
+      // each tab holds its own React snapshot and writes whole records back, so
+      // without this they drift apart and overwrite each other's work.
+      if (shouldBroadcast) {
+        try {
+          broadcastRef.current?.postMessage({ type: 'data-changed' });
+        } catch {
+          // A closed channel must never break a refresh.
         }
       }
-      if (!foundForgot) setForgotToStopEntry(null);
-    } else {
-      setForgotToStopEntry(null);
+
+      // Drop dismissals for timers that are no longer running, so the list does
+      // not grow without bound in localStorage.
+      const runningIds = new Set(loadedActiveEntries.map((e) => e.id));
+      const stillRelevant = dismissedForgotToStopIdsRef.current.filter((id: string) => runningIds.has(id));
+      if (stillRelevant.length !== dismissedForgotToStopIdsRef.current.length) {
+        dismissedForgotToStopIdsRef.current = stillRelevant;
+        setDismissedForgotToStopIds(stillRelevant);
+        localStorage.setItem('dismissedForgotToStopIds', JSON.stringify(stillRelevant));
+      }
+    } catch (error) {
+      // A failed read must never blank the UI. The database layer only enters
+      // fallback mode when the connection itself is unusable, so an error here
+      // is one bad operation: keep the last known good state on screen.
+      logError(error as Error, 'refreshData');
+      addToast('Could not re-read your data — showing the last loaded state.', 'error');
     }
-  }, [dismissedForgotToStopIds]);
+  }, [addToast]);
 
   useEffect(() => {
     refreshData();
+  }, [refreshData]);
+
+  // Cross-tab sync: re-read on another tab's mutation, and whenever this tab
+  // becomes visible again (covers browsers without BroadcastChannel).
+  useEffect(() => {
+    const reload = () => { refreshData({ broadcast: false }); };
+
+    let channel: BroadcastChannel | null = null;
+    if (typeof BroadcastChannel !== 'undefined') {
+      channel = new BroadcastChannel('timedoco');
+      broadcastRef.current = channel;
+      channel.onmessage = (event) => {
+        if (event.data?.type === 'data-changed') reload();
+      };
+    }
+
+    const onVisibilityChange = () => {
+      if (document.visibilityState === 'visible') reload();
+    };
+    document.addEventListener('visibilitychange', onVisibilityChange);
+
+    return () => {
+      document.removeEventListener('visibilitychange', onVisibilityChange);
+      if (channel) {
+        channel.onmessage = null;
+        channel.close();
+        if (broadcastRef.current === channel) broadcastRef.current = null;
+      }
+    };
   }, [refreshData]);
 
   useEffect(() => {
@@ -256,12 +383,14 @@ export const TimeTrackerProvider: React.FC<{ children: ReactNode }> = ({ childre
     }
   };
 
-  const stopTimerById = async (entryId: string) => {
-    if (isStoppingTimerRef.current) return;
+  const stopTimerById = async (entryId: string): Promise<boolean> => {
+    // Returns whether this call actually stopped the timer, so callers do not
+    // report success for a re-entrant or already-stopped no-op.
+    if (isStoppingTimerRef.current) return false;
     isStoppingTimerRef.current = true;
     try {
       const entry = await db.getEntry(entryId);
-      if (!entry || !entry.isRunning) return;
+      if (!entry || !entry.isRunning) return false;
       const now = new Date();
       const endTimeIso = now.toISOString();
 
@@ -287,6 +416,7 @@ export const TimeTrackerProvider: React.FC<{ children: ReactNode }> = ({ childre
         updatedAt: endTimeIso,
       };
       await db.putEntry(updatedEntry);
+      return true;
     } finally {
       isStoppingTimerRef.current = false;
     }
@@ -294,8 +424,10 @@ export const TimeTrackerProvider: React.FC<{ children: ReactNode }> = ({ childre
 
   const stopTimer = async (entryId: string) => {
     const entry = await db.getEntry(entryId);
-    await stopTimerById(entryId);
-    if (entry) {
+    const didStop = await stopTimerById(entryId);
+    // Only claim the timer stopped when it did — a concurrent stop makes
+    // stopTimerById a no-op and the timer keeps running.
+    if (didStop && entry) {
       setLastStoppedEntry(entry);
       addToast('Timer stopped', 'success', { label: 'Undo', onClick: () => undoStopTimer(entry) }, 5000);
     }
@@ -614,8 +746,11 @@ export const TimeTrackerProvider: React.FC<{ children: ReactNode }> = ({ childre
 
   const wipeAllData = async () => {
     await db.wipeAllData();
+    // Everything the app has written to localStorage, in one place — the error
+    // log holds messages, stack traces and context, so it must go too.
     localStorage.removeItem('backupReminderDismissed');
     localStorage.removeItem('dismissedForgotToStopIds');
+    clearErrorLog();
     setDismissedForgotToStopIds([]);
     setForgotToStopEntry(null);
     setLastStoppedEntry(null);
@@ -624,15 +759,27 @@ export const TimeTrackerProvider: React.FC<{ children: ReactNode }> = ({ childre
 
   const bulkAddManualEntries = async (entriesData: { startTime: string, endTime: string, timecodeId: string, note: string, tags?: string[] }[]) => {
     const now = new Date().toISOString();
-    const promises = entriesData.map(entryData => {
-      const durationMs = new Date(entryData.endTime).getTime() - new Date(entryData.startTime).getTime();
-      const duration = Math.max(0, Math.floor(durationMs / 1000));
-      const newEntry: Entry = {
+    const toInsert: Entry[] = [];
+    let skipped = 0;
+
+    for (const entryData of entriesData) {
+      const start = new Date(entryData.startTime);
+      const end = new Date(entryData.endTime);
+
+      // Reversed or unparseable times previously produced a silent zero-length
+      // entry that the single-entry path would have rejected outright.
+      if (Number.isNaN(start.getTime()) || Number.isNaN(end.getTime()) || end <= start) {
+        skipped++;
+        continue;
+      }
+
+      toInsert.push({
         id: crypto.randomUUID(),
         timecodeId: entryData.timecodeId,
         startTime: entryData.startTime,
         endTime: entryData.endTime,
-        duration: duration > 0 ? duration : 0,
+        // Same duration routine as every other write path.
+        duration: calculateDuration(start, end, []),
         note: entryData.note,
         tags: entryData.tags || [],
         isRunning: false,
@@ -641,19 +788,23 @@ export const TimeTrackerProvider: React.FC<{ children: ReactNode }> = ({ childre
         editHistory: [],
         createdAt: now,
         updatedAt: now,
-      };
-      return db.putEntry(newEntry);
-    });
+      });
+    }
 
-    await Promise.all(promises);
+    await Promise.all(toInsert.map((entry) => db.putEntry(entry)));
     await refreshData();
+    return { added: toInsert.length, skipped };
   };
 
 
   const mergeTimecodes = async (sourceId: string, destId: string) => {
     const now = new Date().toISOString();
-    // 1. Update all entries referencing sourceId to point to destId
-    const entriesToUpdate = entries.filter((e) => e.timecodeId === sourceId);
+    // 1. Update all entries referencing sourceId to point to destId.
+    // Read from the database, not component state: state excludes soft-deleted
+    // entries, which would then be left pointing at a timecode this merge is
+    // about to delete, and can be stale relative to another tab.
+    const allEntries = await db.getEntries();
+    const entriesToUpdate = allEntries.filter((e) => e.timecodeId === sourceId);
     if (entriesToUpdate.length > 0) {
       await Promise.all(entriesToUpdate.map((entry) => db.putEntry({ ...entry, timecodeId: destId, updatedAt: now })));
     }
@@ -716,17 +867,33 @@ export const TimeTrackerProvider: React.FC<{ children: ReactNode }> = ({ childre
       addToast('Timecode deleted', 'success', {
         label: 'Undo',
         onClick: async () => {
-           await restoreTimecode(id);
-           for (const entry of entriesToDelete) {
-             await restoreEntry(entry.id);
+           // Restore records directly rather than through restoreTimecode /
+           // restoreEntry, each of which triggers its own full reload.
+           const tcToRestore = await db.getTimecode(id);
+           if (tcToRestore) {
+             const { deletedAt: _tcDeleted, ...restoredTc } = tcToRestore;
+             await db.putTimecode(restoredTc as Timecode);
            }
+           await Promise.all(entriesToDelete.map(async (entry) => {
+             const latest = await db.getEntry(entry.id);
+             if (!latest) return;
+             const { deletedAt: _entryDeleted, ...restored } = latest;
+             await db.putEntry(restored as Entry);
+           }));
+
            if (originalTemplates.length > 0) {
-             db.getSettings().then(s => {
-               if (s) {
-                 db.putSettings({ ...s, templates: originalTemplates }).then(refreshData);
+             const current = await db.getSettings();
+             if (current) {
+               // Merge rather than overwrite: a template added during the undo
+               // window would otherwise be discarded by the restore.
+               const merged = [...(current.templates || [])];
+               for (const template of originalTemplates) {
+                 if (!merged.some((t) => t.id === template.id)) merged.push(template);
                }
-             });
+               await db.putSettings({ ...current, templates: merged });
+             }
            }
+           await refreshData();
         }
       }, 5000);
     }
@@ -854,7 +1021,7 @@ export const TimeTrackerProvider: React.FC<{ children: ReactNode }> = ({ childre
     addToast(
       `${ids.length} ${ids.length === 1 ? 'entry' : 'entries'} deleted`,
       'success',
-      { label: 'Undo', onClick: () => Promise.all(ids.map((id) => restoreEntry(id))).then(refreshData) },
+      { label: 'Undo', onClick: () => Promise.all(ids.map((id) => restoreEntry(id))).then(() => refreshData()) },
       5000
     );
     await refreshData();
@@ -939,7 +1106,9 @@ export const TimeTrackerProvider: React.FC<{ children: ReactNode }> = ({ childre
     document.body.appendChild(a);
     a.click();
     document.body.removeChild(a);
-    URL.revokeObjectURL(url);
+    // Revoking synchronously can cancel a large download in Firefox before
+    // the browser has finished reading the blob.
+    setTimeout(() => URL.revokeObjectURL(url), 10000);
   };
 
   const migrateImportData = (data: any, fromVersion: number) => {
@@ -956,6 +1125,31 @@ export const TimeTrackerProvider: React.FC<{ children: ReactNode }> = ({ childre
     }
 
     return migratedData;
+  };
+
+  /**
+   * Merge mode decides whether to write each record by comparing updatedAt.
+   * A missing or unparseable value compares false against everything, so the
+   * record used to be skipped silently and an import of an older-format backup
+   * could report success while importing nothing. Stamping a deterministic
+   * epoch value keeps such records importable while ensuring they never
+   * clobber newer local data.
+   */
+  const normalizeImportData = (data: any) => {
+    const EPOCH = new Date(0).toISOString();
+    const withTimestamp = (record: any) => {
+      if (!record || typeof record !== 'object') return record;
+      const value = record.updatedAt;
+      const valid = typeof value === 'string' && value.trim() && !Number.isNaN(Date.parse(value));
+      return valid ? record : { ...record, updatedAt: EPOCH };
+    };
+
+    return {
+      ...data,
+      groups: Array.isArray(data.groups) ? data.groups.map(withTimestamp) : data.groups,
+      timecodes: Array.isArray(data.timecodes) ? data.timecodes.map(withTimestamp) : data.timecodes,
+      entries: Array.isArray(data.entries) ? data.entries.map(withTimestamp) : data.entries,
+    };
   };
 
   const importData = async (file: File, mode: 'merge' | 'replace') => {
@@ -977,33 +1171,47 @@ export const TimeTrackerProvider: React.FC<{ children: ReactNode }> = ({ childre
           const { checksum, ...dataToVerify } = parsed;
           const payloadString = JSON.stringify(dataToVerify);
 
-          let expectedChecksum = '';
-          if (dataToVerify.checksumAlgorithm === 'fallback') {
+          // Prefer SHA-256 always, and only fall back to the weak 32-bit hash
+          // when the file actually declares it — a backup exported from a
+          // context without crypto.subtle (plain-http dev, some embedded
+          // browsers) legitimately carries one. Note the checksum is an
+          // integrity check, not a security boundary: anyone crafting a
+          // backup can compute a valid digest under either algorithm.
+          let verified = false;
+          let subtleAvailable = true;
+
+          try {
+            const msgUint8 = new TextEncoder().encode(payloadString);
+            const hashBuffer = await crypto.subtle.digest('SHA-256', msgUint8);
+            const hashArray = Array.from(new Uint8Array(hashBuffer));
+            verified = checksum === hashArray.map((b) => b.toString(16).padStart(2, '0')).join('');
+          } catch {
+            subtleAvailable = false;
+          }
+
+          if (!verified && dataToVerify.checksumAlgorithm === 'fallback') {
             let hash = 0;
             for (let i = 0; i < payloadString.length; i++) {
               const char = payloadString.charCodeAt(i);
               hash = (hash << 5) - hash + char;
               hash = hash & hash;
             }
-            expectedChecksum = hash.toString(16);
-          } else {
-            try {
-              const msgUint8 = new TextEncoder().encode(payloadString);
-              const hashBuffer = await crypto.subtle.digest('SHA-256', msgUint8);
-              const hashArray = Array.from(new Uint8Array(hashBuffer));
-              expectedChecksum = hashArray.map((b) => b.toString(16).padStart(2, '0')).join('');
-            } catch {
+            verified = checksum === hash.toString(16);
+          }
+
+          if (!verified) {
+            if (!subtleAvailable && dataToVerify.checksumAlgorithm !== 'fallback') {
               throw new Error('Cannot verify SHA-256 backup checksum in this environment. Ensure you are on HTTPS.');
             }
+            throw new Error(
+              'Data corruption detected: Checksum mismatch. If you edited this backup by hand, re-export it from TimeDoco instead.'
+            );
           }
 
-          if (checksum !== expectedChecksum) {
-            throw new Error('Data corruption detected: Checksum mismatch');
-          }
+          const migratedData = normalizeImportData(migrateImportData(parsed, parsed.schemaVersion));
 
-          validateBackupPayload(parsed);
-
-          const migratedData = migrateImportData(parsed, parsed.schemaVersion);
+          // Validate what will actually be written, not the pre-migration input.
+          validateBackupPayload(migratedData);
 
           await db.importBackup(
             {

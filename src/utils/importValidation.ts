@@ -1,4 +1,10 @@
 export const MAX_IMPORT_FILE_BYTES = 20 * 1024 * 1024; // 20MB
+/** ~4MB of base64, comfortably above the 1MB upload cap after encoding. */
+export const MAX_LOGO_DATA_URL_LENGTH = 4 * 1024 * 1024;
+
+/** Data URLs only — never a remote reference that would make the app phone home. */
+const isSafeImageDataUrl = (value: string): boolean =>
+  /^data:image\/(png|jpeg|jpg|webp|gif);base64,/i.test(value);
 
 export function validateBackupPayload(parsed: any): void {
   if (!parsed || typeof parsed !== 'object') {
@@ -69,6 +75,27 @@ export function validateBackupPayload(parsed: any): void {
       if (!Array.isArray(e.pausedSegments)) {
         throw new Error(`Import failed: entry at index ${i} has invalid paused segments.`);
       }
+      // Array.isArray alone let `[1, 2, 3]` through, which then became NaN
+      // inside the duration maths.
+      for (const segment of e.pausedSegments) {
+        if (!segment || typeof segment !== 'object' || Array.isArray(segment)) {
+          throw new Error(`Import failed: entry at index ${i} has a malformed paused segment.`);
+        }
+        if (typeof segment.pauseStart !== 'string' || Number.isNaN(Date.parse(segment.pauseStart))) {
+          throw new Error(`Import failed: entry at index ${i} has a paused segment with an invalid start.`);
+        }
+        if (segment.pauseEnd !== undefined && segment.pauseEnd !== null) {
+          if (typeof segment.pauseEnd !== 'string' || Number.isNaN(Date.parse(segment.pauseEnd))) {
+            throw new Error(`Import failed: entry at index ${i} has a paused segment with an invalid end.`);
+          }
+        }
+      }
+    }
+
+    if (typeof e.endTime === 'string' && e.endTime.trim()) {
+      if (Date.parse(e.endTime) < Date.parse(e.startTime)) {
+        throw new Error(`Import failed: entry at index ${i} ends before it starts.`);
+      }
     }
 
     if (e.note !== undefined && e.note !== null) {
@@ -91,6 +118,52 @@ export function validateBackupPayload(parsed: any): void {
       if (tagsString.length > 500) {
         throw new Error(`Import failed: entry at index ${i} tags exceed maximum length of 500 characters.`);
       }
+    }
+  }
+
+  validateSettings(parsed.settings);
+}
+
+function validateSettings(settings: any): void {
+  if (settings === undefined || settings === null) return;
+
+  if (typeof settings !== 'object' || Array.isArray(settings)) {
+    throw new Error('Import failed: "settings" must be an object.');
+  }
+
+  if (settings.roundingRule !== undefined && settings.roundingRule !== null) {
+    if (!['none', '5min', '10min', '15min'].includes(settings.roundingRule)) {
+      throw new Error('Import failed: settings contain an invalid rounding rule.');
+    }
+  }
+
+  if (settings.roundingScope !== undefined && settings.roundingScope !== null) {
+    if (!['entry', 'day', 'timecode', 'invoice'].includes(settings.roundingScope)) {
+      throw new Error('Import failed: settings contain an invalid rounding scope.');
+    }
+  }
+
+  if (settings.taxRate !== undefined && settings.taxRate !== null) {
+    if (typeof settings.taxRate !== 'number' || !Number.isFinite(settings.taxRate)) {
+      throw new Error('Import failed: settings contain an invalid tax rate.');
+    }
+  }
+
+  if (settings.templates !== undefined && settings.templates !== null) {
+    if (!Array.isArray(settings.templates)) {
+      throw new Error('Import failed: settings templates must be an array.');
+    }
+  }
+
+  // A logo is rendered directly into an <img>. Anything other than an inline
+  // data URL would make a privacy-first, offline app issue a network request,
+  // and turns a shared backup file into a tracking pixel.
+  if (settings.userLogoBase64 !== undefined && settings.userLogoBase64 !== null) {
+    if (typeof settings.userLogoBase64 !== 'string' || !isSafeImageDataUrl(settings.userLogoBase64)) {
+      throw new Error('Import failed: settings contain an invalid logo image.');
+    }
+    if (settings.userLogoBase64.length > MAX_LOGO_DATA_URL_LENGTH) {
+      throw new Error('Import failed: settings contain an oversized logo image.');
     }
   }
 }

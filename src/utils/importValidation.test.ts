@@ -98,4 +98,73 @@ describe('validateBackupPayload', () => {
     };
     expect(() => validateBackupPayload(longTagsString)).toThrow('tags exceed maximum length of 500 characters');
   });
+
+  describe('regression: gaps that previously failed silently', () => {
+    it('rejects paused segments that are not segment objects', () => {
+      // `[1, 2, 3]` passed Array.isArray, then became NaN in the duration maths.
+      const bad = { ...validPayload, entries: [{ ...validPayload.entries[0], pausedSegments: [1, 2, 3] }] };
+      expect(() => validateBackupPayload(bad)).toThrow('malformed paused segment');
+    });
+
+    it('rejects a paused segment with an unparseable start', () => {
+      const bad = {
+        ...validPayload,
+        entries: [{ ...validPayload.entries[0], pausedSegments: [{ pauseStart: 'nonsense', pauseEnd: null }] }],
+      };
+      expect(() => validateBackupPayload(bad)).toThrow('invalid start');
+    });
+
+    it('accepts a well-formed paused segment', () => {
+      const ok = {
+        ...validPayload,
+        entries: [{
+          ...validPayload.entries[0],
+          pausedSegments: [{ pauseStart: '2025-01-01T10:10:00.000Z', pauseEnd: '2025-01-01T10:20:00.000Z' }],
+        }],
+      };
+      expect(() => validateBackupPayload(ok)).not.toThrow();
+    });
+
+    it('rejects an entry that ends before it starts', () => {
+      const bad = {
+        ...validPayload,
+        entries: [{ ...validPayload.entries[0], endTime: '2025-01-01T09:00:00.000Z' }],
+      };
+      expect(() => validateBackupPayload(bad)).toThrow('ends before it starts');
+    });
+
+    it('rejects a settings object that is not an object', () => {
+      expect(() => validateBackupPayload({ ...validPayload, settings: [] })).toThrow('"settings" must be an object');
+    });
+
+    it('rejects an invalid rounding rule in settings', () => {
+      expect(() => validateBackupPayload({ ...validPayload, settings: { roundingRule: '7min' } }))
+        .toThrow('invalid rounding rule');
+    });
+
+    it('rejects a non-finite tax rate in settings', () => {
+      expect(() => validateBackupPayload({ ...validPayload, settings: { taxRate: 'lots' } }))
+        .toThrow('invalid tax rate');
+    });
+
+    it('rejects a logo that points at a remote URL', () => {
+      // A privacy-first app must not be talked into an outbound request by an
+      // imported backup, and a shared backup must not carry a tracking pixel.
+      expect(() => validateBackupPayload({
+        ...validPayload,
+        settings: { userLogoBase64: 'https://tracker.example.com/pixel.png' },
+      })).toThrow('invalid logo image');
+    });
+
+    it('accepts an inline image data URL as a logo', () => {
+      expect(() => validateBackupPayload({
+        ...validPayload,
+        settings: { userLogoBase64: 'data:image/png;base64,ZmFrZQ==' },
+      })).not.toThrow();
+    });
+
+    it('still accepts a payload with no settings at all', () => {
+      expect(() => validateBackupPayload({ ...validPayload, settings: undefined })).not.toThrow();
+    });
+  });
 });

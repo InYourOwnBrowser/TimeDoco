@@ -752,4 +752,71 @@ describe('TimeTrackerContext Reducer Logic', () => {
       expect(ctx!.deletedEntries.length).toBe(1);
     });
   });
+
+  it('bulkAddManualEntries rejects reversed and unparseable rows instead of storing zero-length entries', async () => {
+    let ctx: ReturnType<typeof useTimeTracker> | undefined;
+
+    render(
+      <ToastProvider><TimeTrackerProvider>
+        <TestConsumer onReady={(c) => (ctx = c)} />
+      </TimeTrackerProvider></ToastProvider>
+    );
+
+    await waitFor(() => expect(ctx?.settings).not.toBeNull());
+
+    let tcId = '';
+    await act(async () => {
+      tcId = (await ctx!.addTimecode('Bulk TC')).id;
+    });
+
+    let result: { added: number; skipped: number } | undefined;
+    await act(async () => {
+      result = await ctx!.bulkAddManualEntries([
+        { startTime: '2024-01-01T10:00:00Z', endTime: '2024-01-01T11:00:00Z', timecodeId: tcId, note: 'good' },
+        { startTime: '2024-01-01T13:00:00Z', endTime: '2024-01-01T12:00:00Z', timecodeId: tcId, note: 'reversed' },
+        { startTime: 'not-a-date', endTime: '2024-01-01T12:00:00Z', timecodeId: tcId, note: 'unparseable' },
+      ]);
+    });
+
+    expect(result).toEqual({ added: 1, skipped: 2 });
+    await waitFor(() => expect(ctx!.entries.length).toBe(1));
+    expect(ctx!.entries[0].duration).toBe(3600);
+  });
+
+  it('mergeTimecodes also repoints soft-deleted entries at the destination', async () => {
+    let ctx: ReturnType<typeof useTimeTracker> | undefined;
+
+    render(
+      <ToastProvider><TimeTrackerProvider>
+        <TestConsumer onReady={(c) => (ctx = c)} />
+      </TimeTrackerProvider></ToastProvider>
+    );
+
+    await waitFor(() => expect(ctx?.settings).not.toBeNull());
+
+    let sourceId = '';
+    let destId = '';
+    await act(async () => {
+      sourceId = (await ctx!.addTimecode('Source')).id;
+      destId = (await ctx!.addTimecode('Dest')).id;
+      await ctx!.bulkAddManualEntries([
+        { startTime: '2024-01-01T10:00:00Z', endTime: '2024-01-01T11:00:00Z', timecodeId: sourceId, note: 'trashed' },
+      ]);
+    });
+
+    await waitFor(() => expect(ctx!.entries.length).toBe(1));
+    const entryId = ctx!.entries[0].id;
+
+    // Send it to the trash, then merge. The trashed entry must come along, or
+    // restoring it later leaves it pointing at a deleted timecode.
+    await act(async () => { await ctx!.deleteEntry(entryId); });
+    await waitFor(() => expect(ctx!.deletedEntries.length).toBe(1));
+
+    await act(async () => { await ctx!.mergeTimecodes(sourceId, destId); });
+
+    await waitFor(() => {
+      const trashed = ctx!.deletedEntries.find((e) => e.id === entryId);
+      expect(trashed?.timecodeId).toBe(destId);
+    });
+  });
 });

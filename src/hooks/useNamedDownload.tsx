@@ -1,4 +1,4 @@
-import React, { useState, useCallback } from 'react';
+import React, { useState, useCallback, useRef } from 'react';
 import { SaveAsModal, sanitizeFilename } from '../components/ui/SaveAsModal';
 
 export type DownloadSource = Blob | (() => Blob | Promise<Blob>);
@@ -49,7 +49,9 @@ export function useNamedDownload(): UseNamedDownloadReturn {
       document.body.appendChild(a);
       a.click();
       document.body.removeChild(a);
-      URL.revokeObjectURL(url);
+      // Revoking synchronously can cancel a large download in Firefox before
+      // the browser has finished reading the blob.
+      setTimeout(() => URL.revokeObjectURL(url), 10000);
 
       if (onSuccessCallback) {
         onSuccessCallback();
@@ -67,17 +69,26 @@ export function useNamedDownload(): UseNamedDownloadReturn {
     setSource(null);
   }, []);
 
+  // The dialog's live props are read through a ref so that SaveAsDialog keeps a
+  // stable function identity. A component whose identity changes is a different
+  // component type to React, which unmounts and remounts SaveAsModal and throws
+  // away whatever filename the user had typed. The owning component re-renders
+  // whenever this hook's state changes, so the ref is always read fresh.
+  const dialogPropsRef = useRef({ isOpen, defaultFilename, extension, handleConfirm, handleCancel });
+  dialogPropsRef.current = { isOpen, defaultFilename, extension, handleConfirm, handleCancel };
+
   const SaveAsDialog: React.FC = useCallback(() => {
+    const props = dialogPropsRef.current;
     return (
       <SaveAsModal
-        isOpen={isOpen}
-        defaultFilename={defaultFilename}
-        extension={extension}
-        onConfirm={handleConfirm}
-        onCancel={handleCancel}
+        isOpen={props.isOpen}
+        defaultFilename={props.defaultFilename}
+        extension={props.extension}
+        onConfirm={props.handleConfirm}
+        onCancel={props.handleCancel}
       />
     );
-  }, [isOpen, defaultFilename, extension, handleConfirm, handleCancel]);
+  }, []);
 
   return {
     triggerDownload,
