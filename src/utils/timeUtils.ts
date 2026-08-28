@@ -84,23 +84,127 @@ export const formatDurationShort = (totalSeconds: number): string => {
   return `${mins}m`;
 };
 
+interface Interval {
+  start: number;
+  end: number;
+  timecodeId: string;
+}
+
+/**
+ * An entry as a comparable time interval, or null when it cannot block
+ * anything. Every overlap check goes through this so the single-candidate and
+ * batch paths cannot drift apart on what counts as an overlap.
+ */
+const toInterval = (e: Entry, now: number): Interval | null => {
+  // Trashed entries must never block the creation of a live one.
+  if (e.deletedAt) return null;
+  const start = new Date(e.startTime).getTime();
+  // A running timer effectively ends now.
+  const end = e.endTime ? new Date(e.endTime).getTime() : now;
+  if (!Number.isFinite(start) || !Number.isFinite(end)) return null;
+  return { start, end, timecodeId: e.timecodeId };
+};
+
+const overlaps = (a: { start: number; end: number }, b: { start: number; end: number }): boolean =>
+  a.start < b.end && a.end > b.start;
+
 export const checkOverlap = (start: Date, end: Date, entries: Entry[], excludeId?: string, timecodeId?: string, allowConcurrentTimers?: boolean): boolean => {
+  const now = Date.now();
+  const candidate = { start: start.getTime(), end: end.getTime() };
+
   return entries.some(e => {
     if (excludeId && e.id === excludeId) return false;
-    // Trashed entries must never block the creation of a live one, regardless
-    // of what the caller passed in.
-    if (e.deletedAt) return false;
     // Only skip other timecodes when a timecode was actually supplied. Without
     // the explicit check, an omitted `timecodeId` compares `e.timecodeId` against
     // `undefined`, matches nothing, and silently disables overlap detection.
     if (allowConcurrentTimers && timecodeId !== undefined && e.timecodeId !== timecodeId) return false;
 
-    const eStart = new Date(e.startTime);
-    const eEnd = e.endTime ? new Date(e.endTime) : new Date(); // Use now as effective end time for running timers
-
-    // Check overlap: newStart < eEnd AND newEnd > eStart
-    return start < eEnd && end > eStart;
+    const interval = toInterval(e, now);
+    return interval ? overlaps(candidate, interval) : false;
   });
+};
+
+/**
+ * Which of `candidates` overlap an existing entry, or an earlier candidate in
+ * the same batch.
+ *
+ * Checking each candidate against every existing entry is O(n*m), which on a
+ * large CSV import against a long history is enough to lock up the tab. This
+ * sweeps a start-ordered list instead, keeping only the intervals still open at
+ * each point, so the cost is the sort plus a near-linear pass.
+ *
+ * Candidates are resolved in chronological order, so when two new rows collide
+ * the earlier-starting one is kept. That makes the outcome independent of how
+ * the source file happened to be ordered — re-sorting a CSV cannot change which
+ * of its rows survive. An existing entry always wins over a new row.
+ *
+ * Returns the indices, into `candidates`, that must be rejected.
+ */
+export const findOverlappingCandidates = (
+  candidates: Entry[],
+  existing: Entry[],
+  allowConcurrentTimers?: boolean,
+): Set<number> => {
+  const now = Date.now();
+  const rejected = new Set<number>();
+
+  // -1 marks an existing entry; anything else is an index into `candidates`.
+  type Marked = Interval & { candidateIndex: number };
+  const marked: Marked[] = [];
+
+  existing.forEach((e) => {
+    const interval = toInterval(e, now);
+    if (interval) marked.push({ ...interval, candidateIndex: -1 });
+  });
+  candidates.forEach((e, index) => {
+    const interval = toInterval(e, now);
+    if (interval) marked.push({ ...interval, candidateIndex: index });
+  });
+
+  // With concurrent timers allowed, only entries on the same timecode conflict.
+  const groups = new Map<string, Marked[]>();
+  for (const item of marked) {
+    const key = allowConcurrentTimers ? item.timecodeId : '';
+    const group = groups.get(key);
+    if (group) group.push(item);
+    else groups.set(key, [item]);
+  }
+
+  for (const group of groups.values()) {
+    group.sort((a, b) => a.start - b.start || a.end - b.end);
+
+    // Pass 1: an existing entry always wins, wherever it sits in the ordering.
+    // This has to settle before candidates are weighed against each other, or a
+    // candidate that is itself doomed could block a valid one first.
+    let active: Marked[] = [];
+    for (const item of group) {
+      active = active.filter((open) => open.end > item.start);
+
+      if (item.candidateIndex >= 0) {
+        if (active.some((open) => open.candidateIndex < 0)) rejected.add(item.candidateIndex);
+      } else {
+        for (const open of active) {
+          if (open.candidateIndex >= 0) rejected.add(open.candidateIndex);
+        }
+      }
+      active.push(item);
+    }
+
+    // Pass 2: resolve collisions between the candidates that survived, keeping
+    // the earlier-starting row exactly as adding them one at a time would.
+    active = [];
+    for (const item of group) {
+      if (item.candidateIndex < 0 || rejected.has(item.candidateIndex)) continue;
+      active = active.filter((open) => open.end > item.start);
+      if (active.length > 0) {
+        rejected.add(item.candidateIndex);
+        continue;
+      }
+      active.push(item);
+    }
+  }
+
+  return rejected;
 };
 
 export const applyRounding = (seconds: number, roundingRule: 'none' | '5min' | '10min' | '15min'): number => {

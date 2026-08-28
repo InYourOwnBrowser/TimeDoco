@@ -6,7 +6,13 @@ export const MAX_LOGO_DATA_URL_LENGTH = 4 * 1024 * 1024;
 const isSafeImageDataUrl = (value: string): boolean =>
   /^data:image\/(png|jpeg|jpg|webp|gif);base64,/i.test(value);
 
-export function validateBackupPayload(parsed: any): void {
+/**
+ * @param knownTimecodeIds Timecode ids that will exist after the import but are
+ *   not carried in the payload — in merge mode, the ones already stored
+ *   locally. Omitted for a replace, where nothing survives that is not in the
+ *   file.
+ */
+export function validateBackupPayload(parsed: any, knownTimecodeIds?: Set<string>): void {
   if (!parsed || typeof parsed !== 'object') {
     throw new Error('Import failed: Backup data is not a valid JSON object.');
   }
@@ -30,6 +36,7 @@ export function validateBackupPayload(parsed: any): void {
   }
 
   // Validate timecodes
+  const resolvableTimecodeIds = new Set<string>(knownTimecodeIds ?? []);
   for (let i = 0; i < parsed.timecodes.length; i++) {
     const tc = parsed.timecodes[i];
     if (!tc || typeof tc !== 'object' || typeof tc.id !== 'string' || typeof tc.name !== 'string') {
@@ -40,6 +47,7 @@ export function validateBackupPayload(parsed: any): void {
         throw new Error(`Import failed: timecode "${tc.name || i}" has an invalid hourly rate.`);
       }
     }
+    resolvableTimecodeIds.add(tc.id);
   }
 
   // Validate entries
@@ -90,6 +98,16 @@ export function validateBackupPayload(parsed: any): void {
           }
         }
       }
+    }
+
+    // An entry whose timecode does not resolve reports its hours under
+    // "Unknown" and, having no rate to bill against, silently contributes
+    // nothing to the invoice total.
+    if (!resolvableTimecodeIds.has(e.timecodeId)) {
+      throw new Error(
+        `Import failed: entry at index ${i} refers to timecode "${e.timecodeId}", which is not in this backup. ` +
+        `Re-export the backup so it includes every timecode its entries use.`
+      );
     }
 
     if (typeof e.endTime === 'string' && e.endTime.trim()) {

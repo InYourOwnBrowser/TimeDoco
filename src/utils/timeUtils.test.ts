@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { checkOverlap, calculateDuration, applyRounding, calculateTaxBreakdown, calculateTotalPausedSeconds, formatDurationShort, getElapsedTimeMs } from './timeUtils';
+import { checkOverlap, calculateDuration, applyRounding, calculateTaxBreakdown, calculateTotalPausedSeconds, formatDurationShort, getElapsedTimeMs, findOverlappingCandidates } from './timeUtils';
 import type { Entry, PauseSegment } from '../types';
 
 describe('timeUtils', () => {
@@ -326,6 +326,92 @@ describe('timeUtils', () => {
       expect(Number.isFinite(r.subtotal)).toBe(true);
       expect(Number.isFinite(r.tax)).toBe(true);
       expect(r.total).toBe(100);
+    });
+  });
+
+  describe('findOverlappingCandidates', () => {
+    const mk = (id: string, startMin: number, endMin: number, timecodeId = 'tc-1'): any => ({
+      id, timecodeId,
+      startTime: new Date(Date.UTC(2026, 0, 1, 0, startMin)).toISOString(),
+      endTime: new Date(Date.UTC(2026, 0, 1, 0, endMin)).toISOString(),
+      pausedSegments: [],
+    });
+
+    it('rejects a candidate overlapping an existing entry', () => {
+      const existing = [mk('x', 60, 120)];
+      const candidates = [mk('c', 90, 150)];
+      expect([...findOverlappingCandidates(candidates, existing)]).toEqual([0]);
+    });
+
+    it('rejects a candidate an existing entry sits inside', () => {
+      // The candidate starts first, so a naive forward sweep would miss it.
+      const existing = [mk('x', 90, 100)];
+      const candidates = [mk('c', 60, 180)];
+      expect([...findOverlappingCandidates(candidates, existing)]).toEqual([0]);
+    });
+
+    it('keeps the earlier of two colliding candidates, as adding them one by one would', () => {
+      const candidates = [mk('a', 0, 60), mk('b', 30, 90)];
+      expect([...findOverlappingCandidates(candidates, [])]).toEqual([1]);
+    });
+
+    it('accepts touching intervals', () => {
+      expect(findOverlappingCandidates([mk('c', 60, 120)], [mk('x', 0, 60)]).size).toBe(0);
+    });
+
+    it('ignores soft-deleted existing entries', () => {
+      const trashed = [{ ...mk('x', 60, 120), deletedAt: '2026-02-01T00:00:00.000Z' }];
+      expect(findOverlappingCandidates([mk('c', 90, 150)], trashed).size).toBe(0);
+    });
+
+    it('only conflicts within a timecode when concurrent timers are allowed', () => {
+      const existing = [mk('x', 60, 120, 'tc-A')];
+      expect(findOverlappingCandidates([mk('c', 90, 150, 'tc-B')], existing, true).size).toBe(0);
+      expect(findOverlappingCandidates([mk('c', 90, 150, 'tc-A')], existing, true).size).toBe(1);
+      expect(findOverlappingCandidates([mk('c', 90, 150, 'tc-B')], existing, false).size).toBe(1);
+    });
+
+    it('agrees with sequential checkOverlap on randomised input', () => {
+      // The sweep exists only for speed, so it must decide exactly what adding
+      // the rows one at a time through checkOverlap would decide.
+      let seed = 12345;
+      const rand = (n: number) => {
+        seed = (seed * 1103515245 + 12345) & 0x7fffffff;
+        return seed % n;
+      };
+
+      for (let trial = 0; trial < 200; trial++) {
+        const codes = ['tc-A', 'tc-B'];
+        const existing = Array.from({ length: rand(5) }, (_, i) => {
+          const start = rand(200);
+          return mk(`x${i}`, start, start + 1 + rand(60), codes[rand(2)]);
+        });
+        const candidates = Array.from({ length: 1 + rand(6) }, (_, i) => {
+          const start = rand(200);
+          return mk(`c${i}`, start, start + 1 + rand(60), codes[rand(2)]);
+        });
+        const concurrent = rand(2) === 1;
+
+        // Reference: add the rows one at a time through checkOverlap, in the
+        // chronological order the sweep resolves them in.
+        const pool = [...existing];
+        const expected = new Set<number>();
+        candidates
+          .map((c, index) => ({ c, index }))
+          .sort((a, b) =>
+            new Date(a.c.startTime).getTime() - new Date(b.c.startTime).getTime() ||
+            new Date(a.c.endTime).getTime() - new Date(b.c.endTime).getTime())
+          .forEach(({ c, index }) => {
+            const clash = checkOverlap(
+              new Date(c.startTime), new Date(c.endTime), pool, undefined, c.timecodeId, concurrent
+            );
+            if (clash) expected.add(index);
+            else pool.push(c);
+          });
+
+        const actual = findOverlappingCandidates(candidates, existing, concurrent);
+        expect([...actual].sort()).toEqual([...expected].sort());
+      }
     });
   });
 });
