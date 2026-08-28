@@ -652,6 +652,24 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ onClose }) => {
                   <option value="15min">Nearest 15 Minutes</option>
                 </select>
               </div>
+              {(settings?.roundingRule ?? 'none') !== 'none' && (
+                <div className="flex items-center justify-between mb-2">
+                  <label className="text-sm font-medium text-graphite dark:text-stone flex items-center">
+                    Apply Rounding
+                    <HelpTooltip text="Rounding each entry separately compounds: ten 7-minute entries at 15-minute rounding each round to zero and bill nothing. Rounding a wider bucket keeps the difference to at most one interval." />
+                  </label>
+                  <select
+                    value={settings?.roundingScope ?? 'day'}
+                    onChange={(e) => handleUpdateSettings({ roundingScope: e.target.value as 'entry' | 'day' | 'timecode' | 'invoice' })}
+                    className="px-3 py-1.5 border border-graphite/20 dark:border-white/20 rounded outline-none focus-visible:ring-2 focus-visible:ring-signal text-sm bg-white dark:bg-graphite text-graphite dark:text-stone"
+                  >
+                    <option value="entry">To each entry</option>
+                    <option value="day">To each day's total</option>
+                    <option value="timecode">To each timecode's total</option>
+                    <option value="invoice">To the report total</option>
+                  </select>
+                </div>
+              )}
             </Panel>
             </>
           )}

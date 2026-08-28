@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { computeBillableLine, sumBillableLines } from './billing';
+import { buildBillableLines, computeBillableLine, sumBillableLines } from './billing';
 import type { Entry, Timecode } from '../types';
 
 const tc = (over: Partial<Timecode> = {}): Timecode => ({
@@ -107,21 +107,132 @@ describe('computeBillableLine', () => {
 describe('sumBillableLines', () => {
   it('sums lines so the printed parts add up to the printed total', () => {
     const rate = tc({ hourlyRate: 150 });
-    // Three 1h40m entries: each line is 1.67h / $250.50.
-    const lines = [1, 2, 3].map(i =>
-      computeBillableLine(
-        entry({ id: `e-${i}`, startTime: `2026-01-1${i}T09:00:00.000Z`, endTime: `2026-01-1${i}T10:40:00.000Z` }),
-        january, 'none', rate
-      )
-    );
+    // Three 1h40m entries on one timecode, built together as a report does.
+    const lines = [...buildBillableLines(
+      [1, 2, 3].map(i =>
+        entry({ id: `e-${i}`, startTime: `2026-01-1${i}T09:00:00.000Z`, endTime: `2026-01-1${i}T10:40:00.000Z` })
+      ),
+      { dateRange: january, roundingRule: 'none', timecodeMap: new Map([['tc-1', rate]]) }
+    ).values()];
     const totals = sumBillableLines(lines);
-    expect(totals.hours).toBe(roundTo2(1.67 * 3));
-    expect(totals.amount).toBe(roundTo2(250.5 * 3));
-    // No float dust: the total is exactly the sum of the printed line amounts.
-    expect(totals.amount).toBe(751.5);
+    // Three entries of exactly 1h40m are exactly 5 hours. Summing the rounded
+    // per-line hours instead would drift to 5.01h and bill 751.50.
+    expect(totals.hours).toBe(5);
+    expect(totals.amount).toBe(750);
+    // The row a client checks multiplies out exactly.
+    expect(roundTo2(totals.hours * 150)).toBe(totals.amount);
+    // And the line amounts still sum to the row with no float dust.
+    expect(roundTo2(lines.reduce((sum, l) => sum + l.amount, 0))).toBe(totals.amount);
   });
 });
 
 function roundTo2(n: number) {
   return Math.round((n + Number.EPSILON) * 100) / 100;
 }
+
+describe('rounding scope', () => {
+  const rate = tc({ hourlyRate: 60 });
+  const map = new Map([['tc-1', rate]]);
+
+  // Ten 7-minute entries on one day: 70 minutes of real work.
+  const tenSevenMinuteEntries = Array.from({ length: 10 }, (_, i) =>
+    entry({
+      id: `e-${i}`,
+      startTime: `2026-01-05T09:${String(i * 3).padStart(2, '0')}:00.000Z`,
+      endTime: `2026-01-05T09:${String(i * 3 + 7).padStart(2, '0')}:00.000Z`,
+      duration: 420,
+    })
+  );
+
+  const build = (entries: Entry[], scope: any, rule: any = '15min') =>
+    buildBillableLines(entries, { dateRange: january, roundingRule: rule, roundingScope: scope, timecodeMap: map });
+
+  it('entry scope bills nothing for 70 minutes of real work', () => {
+    // The compounding the audit flagged, kept available but no longer default.
+    const lines = [...build(tenSevenMinuteEntries, 'entry').values()];
+    expect(sumBillableLines(lines).seconds).toBe(0);
+    expect(sumBillableLines(lines).workedSeconds).toBe(70 * 60);
+  });
+
+  it('day scope rounds the daily total once instead of compounding', () => {
+    const lines = [...build(tenSevenMinuteEntries, 'day').values()];
+    const totals = sumBillableLines(lines);
+    // 70 minutes rounds to 75, not to zero.
+    expect(totals.seconds).toBe(75 * 60);
+    expect(totals.workedSeconds).toBe(70 * 60);
+  });
+
+  it('keeps the distortion within one rounding interval', () => {
+    for (const scope of ['day', 'timecode', 'invoice'] as const) {
+      const totals = sumBillableLines([...build(tenSevenMinuteEntries, scope).values()]);
+      expect(Math.abs(totals.seconds - totals.workedSeconds)).toBeLessThanOrEqual(15 * 60);
+    }
+  });
+
+  it('does not inflate eight 8-minute entries to two hours', () => {
+    // 64 minutes of work; per-entry rounding bills 8 x 15min = 2h.
+    const eight = Array.from({ length: 8 }, (_, i) =>
+      entry({
+        id: `f-${i}`,
+        startTime: `2026-01-06T${String(9 + i).padStart(2, '0')}:00:00.000Z`,
+        endTime: `2026-01-06T${String(9 + i).padStart(2, '0')}:08:00.000Z`,
+        duration: 480,
+      })
+    );
+    expect(sumBillableLines([...build(eight, 'entry').values()]).seconds).toBe(2 * 3600);
+    expect(sumBillableLines([...build(eight, 'day').values()]).seconds).toBe(60 * 60);
+  });
+
+  it('allocates a rounded bucket back to its lines so the parts sum to the total', () => {
+    const lines = [...build(tenSevenMinuteEntries, 'day').values()];
+    const summed = lines.reduce((total, line) => total + line.seconds, 0);
+    // No drift: allocation is exact, not approximate.
+    expect(summed).toBe(75 * 60);
+    expect(sumBillableLines(lines).amount).toBe(75);
+  });
+
+  it('rounds each day separately under day scope', () => {
+    const twoDays = [
+      entry({ id: 'd1', startTime: '2026-01-05T09:00:00.000Z', endTime: '2026-01-05T09:07:00.000Z' }),
+      entry({ id: 'd2', startTime: '2026-01-06T09:00:00.000Z', endTime: '2026-01-06T09:07:00.000Z' }),
+    ];
+    // 7 minutes on each of two days rounds to zero per day...
+    expect(sumBillableLines([...build(twoDays, 'day').values()]).seconds).toBe(0);
+    // ...but 14 minutes across the report rounds to 15 at invoice scope.
+    expect(sumBillableLines([...build(twoDays, 'invoice').values()]).seconds).toBe(15 * 60);
+  });
+
+  it('keeps separate timecodes in separate buckets under day scope', () => {
+    const other = tc({ id: 'tc-2', name: 'Other', hourlyRate: 60 });
+    const twoCodes = [
+      entry({ id: 'a', startTime: '2026-01-05T09:00:00.000Z', endTime: '2026-01-05T09:08:00.000Z' }),
+      entry({ id: 'b', timecodeId: 'tc-2', startTime: '2026-01-05T10:00:00.000Z', endTime: '2026-01-05T10:08:00.000Z' }),
+    ];
+    const lines = buildBillableLines(twoCodes, {
+      dateRange: january, roundingRule: '15min', roundingScope: 'day',
+      timecodeMap: new Map([['tc-1', rate], ['tc-2', other]]),
+    });
+    // Each rounds up on its own; they are not pooled into 16 -> 15 minutes.
+    expect(lines.get('a')!.seconds).toBe(15 * 60);
+    expect(lines.get('b')!.seconds).toBe(15 * 60);
+  });
+
+  it('leaves a fixed cost out of the time buckets', () => {
+    const mixed = [
+      entry({ id: 'fee', startTime: '2026-01-05T09:00:00.000Z', endTime: '2026-01-05T09:07:00.000Z', manualAmount: 300 }),
+      entry({ id: 'time', startTime: '2026-01-05T10:00:00.000Z', endTime: '2026-01-05T10:08:00.000Z' }),
+    ];
+    const lines = build(mixed, 'day');
+    // The fee is billed in full and its minutes do not shift the hourly line.
+    expect(lines.get('fee')!.amount).toBe(300);
+    expect(lines.get('time')!.seconds).toBe(15 * 60);
+  });
+
+  it('is a no-op when the rounding rule is none', () => {
+    for (const scope of ['entry', 'day', 'timecode', 'invoice'] as const) {
+      const totals = sumBillableLines([...build(tenSevenMinuteEntries, scope, 'none').values()]);
+      expect(totals.seconds).toBe(70 * 60);
+      expect(totals.seconds).toBe(totals.workedSeconds);
+    }
+  });
+});

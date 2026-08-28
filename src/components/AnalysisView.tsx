@@ -14,7 +14,8 @@ import {
 } from 'lucide-react';
 import { useToast } from '../context/ToastContext';
 import { applyRounding, calculateDuration, calculateTaxBreakdown, calculateTotalPausedSeconds, formatDurationShort, roundCurrency, roundHours } from '../utils/timeUtils';
-import { computeBillableLine, sumBillableLines } from '../utils/billing';
+import { buildBillableLines, sumBillableLines } from '../utils/billing';
+import type { RoundingScope } from '../utils/billing';
 import type { BillableLine } from '../utils/billing';
 import { createEvents, type EventAttributes } from 'ics';
 import { LOGO_PRINT_BASE64 } from '../assets/logoPrint';
@@ -27,6 +28,20 @@ type TabType = 'overview' | 'estimates' | 'timeline' | 'export';
 type BreakdownType = 'timecode' | 'group';
 type ChartType = 'bar' | 'pie';
 type SortField = 'bias' | 'typicalMiss' | 'hitRate' | 'count' | 'name';
+
+const ROUNDING_RULE_LABELS: Record<string, string> = {
+  none: 'None',
+  '5min': 'Nearest 5 minutes',
+  '10min': 'Nearest 10 minutes',
+  '15min': 'Nearest 15 minutes',
+};
+
+const ROUNDING_SCOPE_LABELS: Record<RoundingScope, string> = {
+  entry: 'applied to each entry',
+  day: 'applied per timecode per day',
+  timecode: 'applied per timecode for the period',
+  invoice: 'applied once to the report total',
+};
 
 export const AnalysisView: React.FC = () => {
   const { entries, timecodes, groups, settings, updateSettings } = useTimeTracker();
@@ -164,19 +179,17 @@ export const AnalysisView: React.FC = () => {
   // and detail tables, and the CSV export. Computing it once is what stops the
   // same entry being billed differently on different surfaces of one invoice.
   const billableLines = useMemo(() => {
-    const now = new Date();
-    const map = new Map<string, BillableLine>();
-    filteredEntries.forEach(entry => {
-      map.set(
-        entry.id,
-        computeBillableLine(entry, dateRange, settings?.roundingRule || 'none', timecodeMap.get(entry.timecodeId), now)
-      );
+    return buildBillableLines(filteredEntries, {
+      dateRange,
+      roundingRule: settings?.roundingRule || 'none',
+      roundingScope: settings?.roundingScope || 'day',
+      timecodeMap,
+      now: new Date(),
     });
-    return map;
-  }, [filteredEntries, dateRange, timecodeMap, settings?.roundingRule]);
+  }, [filteredEntries, dateRange, timecodeMap, settings?.roundingRule, settings?.roundingScope]);
 
   // Calculations for Current Period
-  const { timecodeData, groupData, totalSeconds, totalHours, totalEarnings, taxBreakdown } = useMemo(() => {
+  const { timecodeData, groupData, totalSeconds, totalHours, totalWorkedSeconds, totalEarnings, taxBreakdown } = useMemo(() => {
     const tcMap = new Map<string, BillableLine[]>();
     const grpMap = new Map<string, number>();
     const includedLines: BillableLine[] = [];
@@ -233,6 +246,7 @@ export const AnalysisView: React.FC = () => {
       groupData: formattedGrpData,
       totalSeconds: totals.seconds,
       totalHours: totals.hours,
+      totalWorkedSeconds: totals.workedSeconds,
       totalEarnings: totals.amount,
       taxBreakdown: calculatedTax
     };
@@ -244,17 +258,15 @@ export const AnalysisView: React.FC = () => {
     let pSec = 0;
     let pEarn = 0;
 
-    const now = new Date();
-    prevFilteredEntries.forEach(entry => {
-      const line = computeBillableLine(
-        entry,
-        prevDateRange,
-        settings?.roundingRule || 'none',
-        timecodeMap.get(entry.timecodeId),
-        now
-      );
+    const prevLines = buildBillableLines(prevFilteredEntries, {
+      dateRange: prevDateRange,
+      roundingRule: settings?.roundingRule || 'none',
+      roundingScope: settings?.roundingScope || 'day',
+      timecodeMap,
+      now: new Date(),
+    });
+    prevLines.forEach(line => {
       if (line.seconds <= 0 && line.amount === 0) return;
-
       pSec += line.seconds;
       pEarn += line.amount;
     });
@@ -271,7 +283,16 @@ export const AnalysisView: React.FC = () => {
       diffEarnings,
       pctEarnings
     };
-  }, [prevFilteredEntries, prevDateRange, comparePrevious, totalSeconds, totalEarnings, timecodeMap, settings?.roundingRule]);
+  }, [prevFilteredEntries, prevDateRange, comparePrevious, totalSeconds, totalEarnings, timecodeMap, settings?.roundingRule, settings?.roundingScope]);
+
+  // Billed-vs-worked, so the effect of rounding is visible rather than silent.
+  const roundingDelta = useMemo(() => {
+    if ((settings?.roundingRule ?? 'none') === 'none') return null;
+    if (totalWorkedSeconds === totalSeconds) return null;
+    const diff = totalSeconds - totalWorkedSeconds;
+    const sign = diff > 0 ? '+' : '-';
+    return `worked ${formatDurationShort(totalWorkedSeconds)} · rounding ${sign}${formatDurationShort(Math.abs(diff))}`;
+  }, [settings?.roundingRule, totalSeconds, totalWorkedSeconds]);
 
   // Detect overlaps
   const overlaps = useMemo(() => {
@@ -769,6 +790,18 @@ export const AnalysisView: React.FC = () => {
       addMeta('Period:', `${format(dateRange.start, 'MMM d, yyyy')} – ${format(dateRange.end, 'MMM d, yyyy')}`);
       addMeta('Generated:', format(new Date(), "MMM d, yyyy 'at' HH:mm"));
 
+      // Disclose rounding on the document itself. Without this the client sees
+      // a billed figure that does not match the itemised times and has no way
+      // to tell why.
+      if ((settings?.roundingRule ?? 'none') !== 'none') {
+        const workedHours = roundHours(totalWorkedSeconds / 3600);
+        addMeta(
+          'Rounding:',
+          `${ROUNDING_RULE_LABELS[settings!.roundingRule]}, ${ROUNDING_SCOPE_LABELS[settings?.roundingScope || 'day']} — ` +
+          `worked ${workedHours.toFixed(2)} h, billed ${totalHours.toFixed(2)} h`
+        );
+      }
+
       reportFields
         .filter(f => f.label.trim() && f.value.trim())
         .forEach(f => addMeta(`${f.label}:`, f.value));
@@ -1102,6 +1135,11 @@ export const AnalysisView: React.FC = () => {
                 <div className="text-4xl font-mono tabular font-medium text-graphite dark:text-stone">
                   {formatDuration(totalSeconds)}
                 </div>
+                {roundingDelta && (
+                  <div className="mt-2 text-xs font-mono tabular text-signal-dim dark:text-signal">
+                    {roundingDelta}
+                  </div>
+                )}
               </div>
 
               {/* Earnings */}

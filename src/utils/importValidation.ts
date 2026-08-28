@@ -137,6 +137,12 @@ function validateSettings(settings: any): void {
     }
   }
 
+  if (settings.roundingScope !== undefined && settings.roundingScope !== null) {
+    if (!['entry', 'day', 'timecode', 'invoice'].includes(settings.roundingScope)) {
+      throw new Error('Import failed: settings contain an invalid rounding scope.');
+    }
+  }
+
   if (settings.taxRate !== undefined && settings.taxRate !== null) {
     if (typeof settings.taxRate !== 'number' || !Number.isFinite(settings.taxRate)) {
       throw new Error('Import failed: settings contain an invalid tax rate.');

@@ -146,6 +146,7 @@ export const TimeTrackerProvider: React.FC<{ children: ReactNode }> = ({ childre
         lastBackupDate: null,
         reminderIntervalDays: 7,
         roundingRule: 'none',
+        roundingScope: 'day',
         idleThresholdMinutes: null,
         weeklyTargetHours: null,
         allowConcurrentTimers: false,
