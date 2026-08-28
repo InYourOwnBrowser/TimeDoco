@@ -2,7 +2,7 @@ import React, { createContext, useContext, useState, useEffect, useCallback, use
 import type { Group, Timecode, Entry, Settings, PauseSegment } from '../types';
 import * as db from '../db';
 import { differenceInSeconds, isSameDay } from 'date-fns';
-import { calculateDuration } from '../utils/timeUtils';
+import { calculateDuration, findOverlappingCandidates } from '../utils/timeUtils';
 import { clearErrorLog, logError } from '../utils/errorLog';
 import { useToast } from './ToastContext';
 import { validateBackupPayload, MAX_IMPORT_FILE_BYTES } from '../utils/importValidation';
@@ -759,7 +759,7 @@ export const TimeTrackerProvider: React.FC<{ children: ReactNode }> = ({ childre
 
   const bulkAddManualEntries = async (entriesData: { startTime: string, endTime: string, timecodeId: string, note: string, tags?: string[] }[]) => {
     const now = new Date().toISOString();
-    const toInsert: Entry[] = [];
+    const wellFormed: Entry[] = [];
     let skipped = 0;
 
     for (const entryData of entriesData) {
@@ -773,7 +773,7 @@ export const TimeTrackerProvider: React.FC<{ children: ReactNode }> = ({ childre
         continue;
       }
 
-      toInsert.push({
+      wellFormed.push({
         id: crypto.randomUUID(),
         timecodeId: entryData.timecodeId,
         startTime: entryData.startTime,
@@ -790,6 +790,18 @@ export const TimeTrackerProvider: React.FC<{ children: ReactNode }> = ({ childre
         updatedAt: now,
       });
     }
+
+    // Bulk import previously skipped the overlap check every single-entry path
+    // performs, so a CSV could create overlapping entries the UI would refuse —
+    // and overlapping entries double-count time on a report.
+    const existing = await db.getEntries();
+    const clashing = findOverlappingCandidates(
+      wellFormed,
+      existing,
+      settings?.allowConcurrentTimers ?? false
+    );
+    const toInsert = wellFormed.filter((_, index) => !clashing.has(index));
+    skipped += clashing.size;
 
     await Promise.all(toInsert.map((entry) => db.putEntry(entry)));
     await refreshData();
@@ -1210,8 +1222,14 @@ export const TimeTrackerProvider: React.FC<{ children: ReactNode }> = ({ childre
 
           const migratedData = normalizeImportData(migrateImportData(parsed, parsed.schemaVersion));
 
+          // In merge mode an entry may legitimately point at a timecode that is
+          // already stored locally rather than carried in the file.
+          const knownTimecodeIds = mode === 'merge'
+            ? new Set((await db.getTimecodes()).map((tc) => tc.id))
+            : undefined;
+
           // Validate what will actually be written, not the pre-migration input.
-          validateBackupPayload(migratedData);
+          validateBackupPayload(migratedData, knownTimecodeIds);
 
           await db.importBackup(
             {

@@ -167,4 +167,30 @@ describe('validateBackupPayload', () => {
       expect(() => validateBackupPayload({ ...validPayload, settings: undefined })).not.toThrow();
     });
   });
+
+  describe('regression: timecode references must resolve', () => {
+    it('rejects an entry whose timecode is absent from the backup', () => {
+      // Such an entry reports hours under "Unknown" and, with no rate to bill
+      // against, silently contributes nothing to the invoice total.
+      const orphan = {
+        ...validPayload,
+        entries: [{ ...validPayload.entries[0], timecodeId: 'missing-tc' }],
+      };
+      expect(() => validateBackupPayload(orphan)).toThrow('not in this backup');
+    });
+
+    it('accepts an entry resolved by a timecode already stored locally', () => {
+      // Merge mode: a partial backup may reference timecodes the user still has.
+      const orphan = {
+        ...validPayload,
+        entries: [{ ...validPayload.entries[0], timecodeId: 'local-tc' }],
+      };
+      expect(() => validateBackupPayload(orphan, new Set(['local-tc']))).not.toThrow();
+      expect(() => validateBackupPayload(orphan, new Set(['other-tc']))).toThrow('not in this backup');
+    });
+
+    it('still accepts a payload whose entries all resolve', () => {
+      expect(() => validateBackupPayload(validPayload)).not.toThrow();
+    });
+  });
 });

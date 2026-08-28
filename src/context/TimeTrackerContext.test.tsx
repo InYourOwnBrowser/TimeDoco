@@ -523,9 +523,11 @@ describe('TimeTrackerContext Reducer Logic', () => {
     });
 
     const numEntries = 50;
+    // Staggered by an hour each: bulk import rejects overlapping rows, so
+    // identical times would leave only one entry to benchmark against.
     const entriesData = Array.from({ length: numEntries }, (_, i) => ({
-      startTime: '2024-01-01T10:00:00Z',
-      endTime: '2024-01-01T11:00:00Z',
+      startTime: new Date(Date.UTC(2024, 0, 1, 0, 0) + i * 3600_000).toISOString(),
+      endTime: new Date(Date.UTC(2024, 0, 1, 0, 30) + i * 3600_000).toISOString(),
       timecodeId: tcId,
       note: `Benchmark Entry ${i}`,
     }));
@@ -818,5 +820,42 @@ describe('TimeTrackerContext Reducer Logic', () => {
       const trashed = ctx!.deletedEntries.find((e) => e.id === entryId);
       expect(trashed?.timecodeId).toBe(destId);
     });
+  });
+
+  it('bulkAddManualEntries rejects rows that overlap existing entries and each other', async () => {
+    let ctx: ReturnType<typeof useTimeTracker> | undefined;
+
+    render(
+      <ToastProvider><TimeTrackerProvider>
+        <TestConsumer onReady={(c) => (ctx = c)} />
+      </TimeTrackerProvider></ToastProvider>
+    );
+
+    await waitFor(() => expect(ctx?.settings).not.toBeNull());
+
+    let tcId = '';
+    await act(async () => {
+      tcId = (await ctx!.addTimecode('Overlap TC')).id;
+      await ctx!.bulkAddManualEntries([
+        { startTime: '2024-03-01T09:00:00Z', endTime: '2024-03-01T10:00:00Z', timecodeId: tcId, note: 'seed' },
+      ]);
+    });
+    await waitFor(() => expect(ctx!.entries.length).toBe(1));
+
+    let result: { added: number; skipped: number } | undefined;
+    await act(async () => {
+      result = await ctx!.bulkAddManualEntries([
+        // Overlaps the seed entry already in the database.
+        { startTime: '2024-03-01T09:30:00Z', endTime: '2024-03-01T10:30:00Z', timecodeId: tcId, note: 'clash-existing' },
+        // Clear of everything.
+        { startTime: '2024-03-01T11:00:00Z', endTime: '2024-03-01T12:00:00Z', timecodeId: tcId, note: 'ok' },
+        // Overlaps the row above, within the same batch.
+        { startTime: '2024-03-01T11:30:00Z', endTime: '2024-03-01T12:30:00Z', timecodeId: tcId, note: 'clash-batch' },
+      ]);
+    });
+
+    expect(result).toEqual({ added: 1, skipped: 2 });
+    await waitFor(() => expect(ctx!.entries.length).toBe(2));
+    expect(ctx!.entries.map((e) => e.note).sort()).toEqual(['ok', 'seed']);
   });
 });

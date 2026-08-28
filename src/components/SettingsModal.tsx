@@ -308,9 +308,11 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ onClose }) => {
         if (importedCount > 0 && skippedCount === 0) {
           setStatusMsg({ type: 'success', text: `Successfully imported all ${importedCount} entries from CSV.` });
         } else if (importedCount > 0 && skippedCount > 0) {
-          setStatusMsg({ type: 'error', text: `Imported ${importedCount} entries, skipped ${skippedCount} malformed rows.` }); // Note: Using 'error' styled toast to indicate partial failure visually
+          // Skipped rows are either malformed or would overlap an entry that
+          // already exists, so the wording covers both.
+          setStatusMsg({ type: 'error', text: `Imported ${importedCount} entries, skipped ${skippedCount} rows that were malformed or overlapped existing entries.` }); // Note: Using 'error' styled toast to indicate partial failure visually
         } else {
-          setStatusMsg({ type: 'error', text: 'Failed to import any entries. Please check the CSV format.' });
+          setStatusMsg({ type: 'error', text: 'Failed to import any entries. Check the CSV format, and that its rows do not overlap entries you already have.' });
         }
 
         setIsProcessing(false);
