@@ -3,7 +3,10 @@ export default {
   content: [
     "./index.html",
     "./app/**/*.html",
+    "./blog/**/*.html",
     "./faq/**/*.html",
+    "./privacy/**/*.html",
+    "./terms/**/*.html",
     "./src/**/*.{js,ts,jsx,tsx,md,mdx}",
   ],
   darkMode: 'class',
