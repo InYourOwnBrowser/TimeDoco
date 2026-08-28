@@ -13,7 +13,9 @@ import {
   CheckCircle2, Info, Plus, BarChart2, PieChart as PieIcon, ExternalLink
 } from 'lucide-react';
 import { useToast } from '../context/ToastContext';
-import { applyRounding, calculateDuration, calculateTaxBreakdown, calculateTotalPausedSeconds, formatDurationShort } from '../utils/timeUtils';
+import { applyRounding, calculateDuration, calculateTaxBreakdown, calculateTotalPausedSeconds, formatDurationShort, roundCurrency, roundHours } from '../utils/timeUtils';
+import { computeBillableLine, sumBillableLines } from '../utils/billing';
+import type { BillableLine } from '../utils/billing';
 import { createEvents, type EventAttributes } from 'ics';
 import { LOGO_PRINT_BASE64 } from '../assets/logoPrint';
 import { EntryEditModal } from './EntryEditModal';
@@ -158,51 +160,56 @@ export const AnalysisView: React.FC = () => {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [entries, prevDateRange, comparePrevious, selectedGroupId, selectedTimecodeId, timecodeMap]);
 
+  // One billable line per entry, shared by the on-screen totals, the PDF summary
+  // and detail tables, and the CSV export. Computing it once is what stops the
+  // same entry being billed differently on different surfaces of one invoice.
+  const billableLines = useMemo(() => {
+    const now = new Date();
+    const map = new Map<string, BillableLine>();
+    filteredEntries.forEach(entry => {
+      map.set(
+        entry.id,
+        computeBillableLine(entry, dateRange, settings?.roundingRule || 'none', timecodeMap.get(entry.timecodeId), now)
+      );
+    });
+    return map;
+  }, [filteredEntries, dateRange, timecodeMap, settings?.roundingRule]);
+
   // Calculations for Current Period
-  const { timecodeData, groupData, totalSeconds, totalEarnings, taxBreakdown } = useMemo(() => {
-    let tSec = 0;
-    let tEarn = 0;
-    const tcMap = new Map<string, { duration: number, earnings: number }>();
+  const { timecodeData, groupData, totalSeconds, totalHours, totalEarnings, taxBreakdown } = useMemo(() => {
+    const tcMap = new Map<string, BillableLine[]>();
     const grpMap = new Map<string, number>();
+    const includedLines: BillableLine[] = [];
 
     filteredEntries.forEach(entry => {
-      const entryStart = parseISO(entry.startTime);
-      const entryEnd = entry.endTime ? parseISO(entry.endTime) : new Date();
+      const line = billableLines.get(entry.id);
+      if (!line) return;
+      if (line.seconds <= 0 && line.amount === 0) return;
 
-      const effectiveStart = entryStart < dateRange.start ? dateRange.start : entryStart;
-      const effectiveEnd = entryEnd > dateRange.end ? dateRange.end : entryEnd;
-
-      let actualDuration = calculateDuration(effectiveStart, effectiveEnd, entry.pausedSegments || []);
-      actualDuration = applyRounding(actualDuration, settings?.roundingRule || 'none');
-
-      if (actualDuration <= 0 && entry.manualAmount == null) return;
-
-      tSec += actualDuration;
+      includedLines.push(line);
 
       const tc = timecodeMap.get(entry.timecodeId);
-      const earnings = entry.manualAmount != null
-        ? entry.manualAmount
-        : (tc?.hourlyRate ? (actualDuration / 3600) * tc.hourlyRate : 0);
-      tEarn += earnings;
-
-      const currentTc = tcMap.get(entry.timecodeId) || { duration: 0, earnings: 0 };
-      tcMap.set(entry.timecodeId, {
-        duration: currentTc.duration + actualDuration,
-        earnings: currentTc.earnings + earnings
-      });
+      const existing = tcMap.get(entry.timecodeId);
+      if (existing) {
+        existing.push(line);
+      } else {
+        tcMap.set(entry.timecodeId, [line]);
+      }
 
       const groupId = tc?.groupId || 'ungrouped';
-      const currentGrp = grpMap.get(groupId) || 0;
-      grpMap.set(groupId, currentGrp + actualDuration);
+      grpMap.set(groupId, (grpMap.get(groupId) || 0) + line.seconds);
     });
 
-    const formattedTcData = Array.from(tcMap.entries()).map(([tcId, data]) => {
+    const totals = sumBillableLines(includedLines);
+
+    const formattedTcData = Array.from(tcMap.entries()).map(([tcId, lines]) => {
       const tc = timecodeMap.get(tcId);
+      const rowTotals = sumBillableLines(lines);
       return {
         id: tcId,
         name: tc?.name || 'Unknown',
-        durationHours: Number((data.duration / 3600).toFixed(2)),
-        earnings: data.earnings,
+        durationHours: rowTotals.hours,
+        earnings: rowTotals.amount,
         color: tc?.color || (tc?.groupId ? groupMap.get(tc.groupId)?.color : undefined) || '#cbd5e1'
       };
     }).sort((a, b) => b.durationHours - a.durationHours);
@@ -212,23 +219,24 @@ export const AnalysisView: React.FC = () => {
       return {
         id: grpId,
         name: grpId === 'ungrouped' ? 'Ungrouped' : grp?.name || 'Unknown',
-        durationHours: Number((duration / 3600).toFixed(2)),
+        durationHours: roundHours(duration / 3600),
         color: grp?.color || '#cbd5e1'
       };
     }).sort((a, b) => b.durationHours - a.durationHours);
 
     const calculatedTax = settings?.taxEnabled && settings?.taxRate
-      ? calculateTaxBreakdown(tEarn, settings.taxRate, !!settings.taxInclusive)
+      ? calculateTaxBreakdown(totals.amount, settings.taxRate, !!settings.taxInclusive)
       : null;
 
     return {
       timecodeData: formattedTcData,
       groupData: formattedGrpData,
-      totalSeconds: tSec,
-      totalEarnings: tEarn,
+      totalSeconds: totals.seconds,
+      totalHours: totals.hours,
+      totalEarnings: totals.amount,
       taxBreakdown: calculatedTax
     };
-  }, [filteredEntries, dateRange, timecodeMap, groupMap, settings?.roundingRule, settings?.taxEnabled, settings?.taxRate, settings?.taxInclusive]);
+  }, [filteredEntries, billableLines, timecodeMap, groupMap, settings?.taxEnabled, settings?.taxRate, settings?.taxInclusive]);
 
   // Calculations for Previous Period (for comparisons)
   const prevStats = useMemo(() => {
@@ -236,26 +244,21 @@ export const AnalysisView: React.FC = () => {
     let pSec = 0;
     let pEarn = 0;
 
+    const now = new Date();
     prevFilteredEntries.forEach(entry => {
-      const entryStart = parseISO(entry.startTime);
-      const entryEnd = entry.endTime ? parseISO(entry.endTime) : new Date();
+      const line = computeBillableLine(
+        entry,
+        prevDateRange,
+        settings?.roundingRule || 'none',
+        timecodeMap.get(entry.timecodeId),
+        now
+      );
+      if (line.seconds <= 0 && line.amount === 0) return;
 
-      const effectiveStart = entryStart < prevDateRange.start ? prevDateRange.start : entryStart;
-      const effectiveEnd = entryEnd > prevDateRange.end ? prevDateRange.end : entryEnd;
-
-      let actualDuration = calculateDuration(effectiveStart, effectiveEnd, entry.pausedSegments || []);
-      actualDuration = applyRounding(actualDuration, settings?.roundingRule || 'none');
-
-      if (actualDuration <= 0 && entry.manualAmount == null) return;
-
-      pSec += actualDuration;
-
-      const tc = timecodeMap.get(entry.timecodeId);
-      const earnings = entry.manualAmount != null
-        ? entry.manualAmount
-        : (tc?.hourlyRate ? (actualDuration / 3600) * tc.hourlyRate : 0);
-      pEarn += earnings;
+      pSec += line.seconds;
+      pEarn += line.amount;
     });
+    pEarn = roundCurrency(pEarn);
 
     const diffSec = totalSeconds - pSec;
     const diffEarnings = totalEarnings - pEarn;
@@ -682,10 +685,9 @@ export const AnalysisView: React.FC = () => {
         const rows = filteredEntries.map(e => {
           const tc = timecodeMap.get(e.timecodeId);
           const grp = tc?.groupId ? groupMap.get(tc.groupId) : undefined;
-          const hrs = applyRounding(e.duration, settings?.roundingRule ?? 'none') / 3600;
-          const amount = e.manualAmount != null
-            ? e.manualAmount
-            : (tc?.hourlyRate ? hrs * tc.hourlyRate : 0);
+          const line = billableLines.get(e.id);
+          const hrs = line?.hours ?? 0;
+          const amount = line?.amount ?? 0;
           return [
             escapeCSV(format(parseISO(e.startTime), 'yyyy-MM-dd')),
             escapeCSV(tc?.name ?? 'Unknown'),
@@ -816,9 +818,9 @@ export const AnalysisView: React.FC = () => {
         ? [
             ['', '', '', 'Subtotal', `${currencySymbol}${taxBreakdown.subtotal.toFixed(2)}`],
             ['', '', '', `${settings?.taxLabel || 'Tax'} (${settings?.taxRate}%)`, `${currencySymbol}${taxBreakdown.tax.toFixed(2)}`],
-            ['', 'Total', '', (totalSeconds / 3600).toFixed(2), `${currencySymbol}${taxBreakdown.total.toFixed(2)}`],
+            ['', 'Total', '', totalHours.toFixed(2), `${currencySymbol}${taxBreakdown.total.toFixed(2)}`],
           ]
-        : [['', 'Total', '', (totalSeconds / 3600).toFixed(2), totalEarnings > 0 ? `${currencySymbol}${totalEarnings.toFixed(2)}` : '-']];
+        : [['', 'Total', '', totalHours.toFixed(2), totalEarnings > 0 ? `${currencySymbol}${totalEarnings.toFixed(2)}` : '-']];
 
       autoTable(doc, {
         startY: y + 4,
@@ -834,10 +836,9 @@ export const AnalysisView: React.FC = () => {
         .sort((a, b) => new Date(a.startTime).getTime() - new Date(b.startTime).getTime())
         .map(e => {
           const tc = timecodeMap.get(e.timecodeId);
-          const hrs = (applyRounding(e.duration, settings?.roundingRule ?? 'none') / 3600).toFixed(2);
-          const amount = e.manualAmount != null
-            ? e.manualAmount
-            : (tc?.hourlyRate ? parseFloat(hrs) * tc.hourlyRate : 0);
+          const line = billableLines.get(e.id);
+          const hrs = (line?.hours ?? 0).toFixed(2);
+          const amount = line?.amount ?? 0;
           const paused = e.endTime
             ? formatDurationShort(calculateTotalPausedSeconds(parseISO(e.startTime), parseISO(e.endTime), e.pausedSegments))
             : '—';

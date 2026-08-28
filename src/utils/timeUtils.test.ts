@@ -251,4 +251,81 @@ describe('timeUtils', () => {
       expect(getElapsedTimeMs(startTime, [], endTimeOverride)).toBe(0);
     });
   });
+
+  describe('regression: pause segment merging', () => {
+    const start = new Date('2026-01-01T09:00:00.000Z');
+    const end = new Date('2026-01-01T10:00:00.000Z');
+
+    it('counts a duplicated pause segment once', () => {
+      const pause = { pauseStart: '2026-01-01T09:10:00.000Z', pauseEnd: '2026-01-01T09:50:00.000Z' };
+      const segments = [pause, { ...pause }];
+      expect(calculateDuration(start, end, segments)).toBe(1200);
+      expect(calculateTotalPausedSeconds(start, end, segments)).toBe(2400);
+    });
+
+    it('merges partially overlapping pause segments', () => {
+      const segments = [
+        { pauseStart: '2026-01-01T09:10:00.000Z', pauseEnd: '2026-01-01T09:40:00.000Z' },
+        { pauseStart: '2026-01-01T09:30:00.000Z', pauseEnd: '2026-01-01T09:50:00.000Z' },
+      ];
+      // 09:10-09:50 is 40 minutes of pause, not 30 + 20.
+      expect(calculateTotalPausedSeconds(start, end, segments)).toBe(2400);
+      expect(calculateDuration(start, end, segments)).toBe(1200);
+    });
+
+    it('keeps calculateDuration and getElapsedTimeMs in agreement', () => {
+      // A pause that starts before the entry, as happens after editing a start time later.
+      const segments = [{ pauseStart: '2026-01-01T08:00:00.000Z', pauseEnd: '2026-01-01T09:30:00.000Z' }];
+      const viaDuration = calculateDuration(start, end, segments);
+      const viaElapsed = getElapsedTimeMs(start.toISOString(), segments, end.toISOString()) / 1000;
+      expect(viaDuration).toBe(1800);
+      expect(viaElapsed).toBe(viaDuration);
+    });
+
+    it('skips unparseable pause segments rather than poisoning the maths', () => {
+      const segments = [{ pauseStart: 'not-a-date', pauseEnd: 'also-not-a-date' }] as any;
+      expect(calculateDuration(start, end, segments)).toBe(3600);
+    });
+  });
+
+  describe('regression: formatDurationShort never emits 60 minutes', () => {
+    it('rolls 3599 seconds up to a whole hour', () => expect(formatDurationShort(3599)).toBe('1h'));
+    it('rolls 7199 seconds up to two hours', () => expect(formatDurationShort(7199)).toBe('2h'));
+    it('rolls 86399 seconds up to 24 hours', () => expect(formatDurationShort(86399)).toBe('24h'));
+  });
+
+  describe('regression: checkOverlap safety', () => {
+    const start = new Date('2026-01-01T10:00:00.000Z');
+    const end = new Date('2026-01-01T10:30:00.000Z');
+    const existing = [{
+      id: 'e1', timecodeId: 'tc-A',
+      startTime: '2026-01-01T09:00:00.000Z',
+      endTime: '2026-01-01T11:00:00.000Z',
+    }] as any;
+
+    it('still detects an overlap when no timecode is supplied in concurrent mode', () => {
+      expect(checkOverlap(start, end, existing, undefined, undefined, true)).toBe(true);
+    });
+
+    it('does not let a soft-deleted entry block a new one', () => {
+      const trashed = [{ ...existing[0], deletedAt: '2026-01-01T12:00:00.000Z' }];
+      expect(checkOverlap(start, end, trashed, undefined, 'tc-A', false)).toBe(false);
+    });
+  });
+
+  describe('regression: tax breakdown', () => {
+    it('rounds to whole cents so lines sum to the total', () => {
+      const r = calculateTaxBreakdown(1234.56, 15, false);
+      expect(r.tax).toBe(185.18);
+      expect(r.total).toBe(1419.74);
+      expect(r.subtotal + r.tax).toBe(r.total);
+    });
+
+    it('does not divide by zero on an inclusive rate of -100%', () => {
+      const r = calculateTaxBreakdown(100, -100, true);
+      expect(Number.isFinite(r.subtotal)).toBe(true);
+      expect(Number.isFinite(r.tax)).toBe(true);
+      expect(r.total).toBe(100);
+    });
+  });
 });

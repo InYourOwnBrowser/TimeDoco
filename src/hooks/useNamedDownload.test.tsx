@@ -35,6 +35,9 @@ describe('useNamedDownload', () => {
   });
 
   it('triggers download with chosen filename on confirmation', async () => {
+    // Installed before the download runs so the deferred revoke lands on a
+    // timer this test controls; shouldAdvanceTime keeps waitFor working.
+    vi.useFakeTimers({ shouldAdvanceTime: true });
     const clickSpy = vi.spyOn(HTMLAnchorElement.prototype, 'click').mockImplementation(() => {});
     const onSuccess = vi.fn();
     const testBlob = new Blob(['hello world'], { type: 'text/plain' });
@@ -59,9 +62,15 @@ describe('useNamedDownload', () => {
     await waitFor(() => {
       expect(createObjectURLSpy).toHaveBeenCalledWith(testBlob);
       expect(clickSpy).toHaveBeenCalled();
-      expect(revokeObjectURLSpy).toHaveBeenCalledWith('blob:mock-url');
       expect(onSuccess).toHaveBeenCalled();
     });
+
+    // The object URL is revoked on a timer, not synchronously, so a large
+    // download is not cancelled mid-transfer in Firefox.
+    expect(revokeObjectURLSpy).not.toHaveBeenCalled();
+    vi.advanceTimersByTime(10000);
+    expect(revokeObjectURLSpy).toHaveBeenCalledWith('blob:mock-url');
+    vi.useRealTimers();
 
     clickSpy.mockRestore();
   });

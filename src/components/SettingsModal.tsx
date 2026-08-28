@@ -94,6 +94,9 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ onClose }) => {
         canvas.height = height;
         const ctx = canvas.getContext('2d');
         if (!ctx) {
+          // No canvas available to resize with. The file already passed the
+          // MIME allowlist and decoded successfully, so storing it unresized
+          // is safe — it is a real raster image jsPDF can embed.
           handleUpdateSettings({ userLogoBase64: dataUrl });
           return;
         }
@@ -108,9 +111,14 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ onClose }) => {
         handleUpdateSettings({ userLogoBase64: resizedDataUrl });
       };
       img.onerror = () => {
-        handleUpdateSettings({ userLogoBase64: dataUrl });
+        // Storing the un-rasterised source here would later make
+        // doc.addImage(logo, 'PNG', ...) throw and break PDF export entirely.
+        addToast('Could not read this image — please try a different logo file.', 'error');
       };
       img.src = dataUrl;
+    };
+    reader.onerror = () => {
+      addToast('Could not read that file — please try again.', 'error');
     };
     reader.readAsDataURL(file);
     e.target.value = '';
@@ -288,7 +296,13 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ onClose }) => {
         }
 
         if (entriesToBulkAdd.length > 0) {
-          await bulkAddManualEntries(entriesToBulkAdd);
+          // Rows with an end at or before their start are rejected on write;
+          // count them as skipped rather than reporting them as imported.
+          const result = await bulkAddManualEntries(entriesToBulkAdd);
+          if (result && result.skipped > 0) {
+            importedCount -= result.skipped;
+            skippedCount += result.skipped;
+          }
         }
 
         if (importedCount > 0 && skippedCount === 0) {

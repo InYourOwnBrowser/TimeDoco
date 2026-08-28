@@ -49,7 +49,9 @@ export function useNamedDownload(): UseNamedDownloadReturn {
       document.body.appendChild(a);
       a.click();
       document.body.removeChild(a);
-      URL.revokeObjectURL(url);
+      // Revoking synchronously can cancel a large download in Firefox before
+      // the browser has finished reading the blob.
+      setTimeout(() => URL.revokeObjectURL(url), 10000);
 
       if (onSuccessCallback) {
         onSuccessCallback();
