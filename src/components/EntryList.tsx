@@ -147,6 +147,9 @@ export const EntryList: React.FC = () => {
   const sortedDates = Object.keys(groupedEntries).sort((a, b) => b.localeCompare(a));
 
   const groupCounts = sortedDates.map(date => groupedEntries[date].length);
+  // Flat, group-ordered view of the rows, so each virtualised row can be keyed
+  // by its entry id rather than by position.
+  const flatEntries = sortedDates.flatMap(date => groupedEntries[date]);
 
   const formatDateHeader = (dateStr: string) => {
     const date = parseISO(dateStr + 'T00:00:00'); // Ensure local timezone
@@ -263,6 +266,7 @@ export const EntryList: React.FC = () => {
           <GroupedVirtuoso
             style={{ height: '70vh', minHeight: '400px' }}
             groupCounts={groupCounts}
+            computeItemKey={(index) => flatEntries[index]?.id ?? `row-${index}`}
             className="divide-y divide-graphite/20 dark:divide-white/20"
             groupContent={(index) => {
               const dateStr = sortedDates[index];

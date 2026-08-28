@@ -3,7 +3,7 @@ import type { Group, Timecode, Entry, Settings, PauseSegment } from '../types';
 import * as db from '../db';
 import { differenceInSeconds, isSameDay } from 'date-fns';
 import { calculateDuration } from '../utils/timeUtils';
-import { clearErrorLog } from '../utils/errorLog';
+import { clearErrorLog, logError } from '../utils/errorLog';
 import { useToast } from './ToastContext';
 import { validateBackupPayload, MAX_IMPORT_FILE_BYTES } from '../utils/importValidation';
 
@@ -74,6 +74,13 @@ export const TimeTrackerProvider: React.FC<{ children: ReactNode }> = ({ childre
     const data = localStorage.getItem('dismissedForgotToStopIds');
     try { return data ? JSON.parse(data) : []; } catch { return []; }
   });
+  // Mirrored in a ref so refreshData keeps a stable identity — depending on the
+  // state made dismissing a prompt re-read the entire database.
+  const dismissedForgotToStopIdsRef = useRef<string[]>(dismissedForgotToStopIds);
+  useEffect(() => {
+    dismissedForgotToStopIdsRef.current = dismissedForgotToStopIds;
+  }, [dismissedForgotToStopIds]);
+
   const [settings, setSettings] = useState<Settings | null>(null);
   const [lastStoppedEntry, setLastStoppedEntry] = useState<Entry | null>(null);
 
@@ -134,72 +141,113 @@ export const TimeTrackerProvider: React.FC<{ children: ReactNode }> = ({ childre
     // Callers that pass through `.then(refreshData)` hand us a resolved value
     // rather than options, so only an explicit false suppresses the broadcast.
     const shouldBroadcast = !(options && typeof options === 'object' && options.broadcast === false);
-    const loadedGroups = await db.getGroups();
-    const loadedTimecodes = await db.getTimecodes();
-    const loadedEntries = await db.getEntries();
-    const loadedActiveEntries = await db.getActiveEntries();
-    let loadedSettings = await db.getSettings();
+    try {
 
-    if (!loadedSettings) {
-      loadedSettings = {
-        id: 'user-settings',
-        lastBackupDate: null,
-        reminderIntervalDays: 7,
-        roundingRule: 'none',
-        roundingScope: 'day',
-        idleThresholdMinutes: null,
-        weeklyTargetHours: null,
-        allowConcurrentTimers: false,
-        overrunAudioAlertEnabled: true,
-        theme: 'dark',
-      };
-      await db.putSettings(loadedSettings);
-    }
+      // Read the four stores concurrently rather than serially, and derive the
+      // active entries from the list already in hand instead of re-reading every
+      // entry a second time.
+      const [loadedGroups, loadedTimecodes, loadedEntries, storedSettings] = await Promise.all([
+        db.getGroups(),
+        db.getTimecodes(),
+        db.getEntries(),
+        db.getSettings(),
+      ]);
+      const loadedActiveEntries = db.selectActiveEntries(loadedEntries);
+      let loadedSettings = storedSettings;
 
-    setGroups(loadedGroups.filter(g => !g.deletedAt));
-    setDeletedGroups(loadedGroups.filter(g => g.deletedAt));
-    setTimecodes(loadedTimecodes.filter(t => !t.deletedAt));
-    setDeletedTimecodes(loadedTimecodes.filter(t => t.deletedAt));
-    // Sort entries descending by startTime for the list
-    setEntries(loadedEntries.filter(e => !e.deletedAt).sort((a, b) => new Date(b.startTime).getTime() - new Date(a.startTime).getTime()));
-    setDeletedEntries(loadedEntries.filter(e => e.deletedAt));
-    setActiveEntries(loadedActiveEntries);
-    setSettings(loadedSettings);
+      if (!loadedSettings) {
+        loadedSettings = {
+          id: 'user-settings',
+          lastBackupDate: null,
+          reminderIntervalDays: 7,
+          roundingRule: 'none',
+          roundingScope: 'day',
+          idleThresholdMinutes: null,
+          weeklyTargetHours: null,
+          allowConcurrentTimers: false,
+          overrunAudioAlertEnabled: true,
+          theme: 'dark',
+        };
+        await db.putSettings(loadedSettings);
+      }
 
-    // "Forgot-to-stop" Detection
-    if (loadedActiveEntries.length > 0) {
-      let foundForgot = false;
-      for (const entry of loadedActiveEntries) {
-        if (dismissedForgotToStopIds.includes(entry.id)) continue;
-        const start = new Date(entry.startTime);
-        const now = new Date();
-        const hoursElapsed = differenceInSeconds(now, start) / 3600;
+      const liveGroups: Group[] = [];
+      const trashedGroups: Group[] = [];
+      for (const g of loadedGroups) (g.deletedAt ? trashedGroups : liveGroups).push(g);
 
-        // getDate() is day-of-month, so a timer started at 23:50 tripped this
-        // after 20 minutes. Require a real overnight run before prompting.
-        const ranOvernight = !isSameDay(start, now) && hoursElapsed >= MIN_OVERNIGHT_FORGOT_HOURS;
-        if (hoursElapsed > 10 || ranOvernight) {
-          setForgotToStopEntry(entry);
-          foundForgot = true;
-          break;
+      const liveTimecodes: Timecode[] = [];
+      const trashedTimecodes: Timecode[] = [];
+      for (const t of loadedTimecodes) (t.deletedAt ? trashedTimecodes : liveTimecodes).push(t);
+
+      // getEntries returns ascending by start time from the index, so the list's
+      // descending order is a reverse rather than a full re-sort.
+      const liveEntries: Entry[] = [];
+      const trashedEntries: Entry[] = [];
+      for (let i = loadedEntries.length - 1; i >= 0; i--) {
+        const e = loadedEntries[i];
+        (e.deletedAt ? trashedEntries : liveEntries).push(e);
+      }
+
+      setGroups(liveGroups);
+      setDeletedGroups(trashedGroups);
+      setTimecodes(liveTimecodes);
+      setDeletedTimecodes(trashedTimecodes);
+      setEntries(liveEntries);
+      setDeletedEntries(trashedEntries);
+      setActiveEntries(loadedActiveEntries);
+      setSettings(loadedSettings);
+
+      // "Forgot-to-stop" Detection
+      if (loadedActiveEntries.length > 0) {
+        let foundForgot = false;
+        for (const entry of loadedActiveEntries) {
+          if (dismissedForgotToStopIdsRef.current.includes(entry.id)) continue;
+          const start = new Date(entry.startTime);
+          const now = new Date();
+          const hoursElapsed = differenceInSeconds(now, start) / 3600;
+
+          // getDate() is day-of-month, so a timer started at 23:50 tripped this
+          // after 20 minutes. Require a real overnight run before prompting.
+          const ranOvernight = !isSameDay(start, now) && hoursElapsed >= MIN_OVERNIGHT_FORGOT_HOURS;
+          if (hoursElapsed > 10 || ranOvernight) {
+            setForgotToStopEntry(entry);
+            foundForgot = true;
+            break;
+          }
+        }
+        if (!foundForgot) setForgotToStopEntry(null);
+      } else {
+        setForgotToStopEntry(null);
+      }
+
+      // Tell other open tabs to re-read. IndexedDB is shared between them but
+      // each tab holds its own React snapshot and writes whole records back, so
+      // without this they drift apart and overwrite each other's work.
+      if (shouldBroadcast) {
+        try {
+          broadcastRef.current?.postMessage({ type: 'data-changed' });
+        } catch {
+          // A closed channel must never break a refresh.
         }
       }
-      if (!foundForgot) setForgotToStopEntry(null);
-    } else {
-      setForgotToStopEntry(null);
-    }
 
-    // Tell other open tabs to re-read. IndexedDB is shared between them but
-    // each tab holds its own React snapshot and writes whole records back, so
-    // without this they drift apart and overwrite each other's work.
-    if (shouldBroadcast) {
-      try {
-        broadcastRef.current?.postMessage({ type: 'data-changed' });
-      } catch {
-        // A closed channel must never break a refresh.
+      // Drop dismissals for timers that are no longer running, so the list does
+      // not grow without bound in localStorage.
+      const runningIds = new Set(loadedActiveEntries.map((e) => e.id));
+      const stillRelevant = dismissedForgotToStopIdsRef.current.filter((id: string) => runningIds.has(id));
+      if (stillRelevant.length !== dismissedForgotToStopIdsRef.current.length) {
+        dismissedForgotToStopIdsRef.current = stillRelevant;
+        setDismissedForgotToStopIds(stillRelevant);
+        localStorage.setItem('dismissedForgotToStopIds', JSON.stringify(stillRelevant));
       }
+    } catch (error) {
+      // A failed read must never blank the UI. The database layer only enters
+      // fallback mode when the connection itself is unusable, so an error here
+      // is one bad operation: keep the last known good state on screen.
+      logError(error as Error, 'refreshData');
+      addToast('Could not re-read your data — showing the last loaded state.', 'error');
     }
-  }, [dismissedForgotToStopIds]);
+  }, [addToast]);
 
   useEffect(() => {
     refreshData();
@@ -819,17 +867,33 @@ export const TimeTrackerProvider: React.FC<{ children: ReactNode }> = ({ childre
       addToast('Timecode deleted', 'success', {
         label: 'Undo',
         onClick: async () => {
-           await restoreTimecode(id);
-           for (const entry of entriesToDelete) {
-             await restoreEntry(entry.id);
+           // Restore records directly rather than through restoreTimecode /
+           // restoreEntry, each of which triggers its own full reload.
+           const tcToRestore = await db.getTimecode(id);
+           if (tcToRestore) {
+             const { deletedAt: _tcDeleted, ...restoredTc } = tcToRestore;
+             await db.putTimecode(restoredTc as Timecode);
            }
+           await Promise.all(entriesToDelete.map(async (entry) => {
+             const latest = await db.getEntry(entry.id);
+             if (!latest) return;
+             const { deletedAt: _entryDeleted, ...restored } = latest;
+             await db.putEntry(restored as Entry);
+           }));
+
            if (originalTemplates.length > 0) {
-             db.getSettings().then(s => {
-               if (s) {
-                 db.putSettings({ ...s, templates: originalTemplates }).then(() => refreshData());
+             const current = await db.getSettings();
+             if (current) {
+               // Merge rather than overwrite: a template added during the undo
+               // window would otherwise be discarded by the restore.
+               const merged = [...(current.templates || [])];
+               for (const template of originalTemplates) {
+                 if (!merged.some((t) => t.id === template.id)) merged.push(template);
                }
-             });
+               await db.putSettings({ ...current, templates: merged });
+             }
            }
+           await refreshData();
         }
       }, 5000);
     }
