@@ -6,7 +6,7 @@
     // IndexedDB, where the setting actually lives, cannot be read
     // synchronously before paint, so App.tsx mirrors it to localStorage.
     var stored = null;
-    try { stored = localStorage.getItem('theme'); } catch (e) {}
+    try { stored = localStorage.getItem('theme'); } catch {}
 
     // Match what App.tsx will apply, exactly: an explicit choice wins,
     // 'system' follows the OS, and nothing stored means the app's own
@@ -16,5 +16,5 @@
 
     document.documentElement.classList.remove('light', 'dark');
     document.documentElement.classList.add(isDark ? 'dark' : 'light');
-  } catch (e) {}
+  } catch {}
 })();

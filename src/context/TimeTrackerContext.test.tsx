@@ -1468,9 +1468,9 @@ describe('TimeTrackerContext Reducer Logic', () => {
 
       await ctx!.updateSettings({
         templates: [
-          { id: 'tmpl-1', name: 'Temp A', timecodeId: tcAId, note: '', tags: [], defaultDurationMinutes: null },
-          { id: 'tmpl-2', name: 'Temp B', timecodeId: tcBId, note: '', tags: [], defaultDurationMinutes: null },
-          { id: 'tmpl-3', name: 'Temp Keep', timecodeId: tcKeepId, note: '', tags: [], defaultDurationMinutes: null },
+          { id: 'tmpl-1', title: 'Temp A', timecodeId: tcAId, note: '', tags: [], durationMinutes: null },
+          { id: 'tmpl-2', title: 'Temp B', timecodeId: tcBId, note: '', tags: [], durationMinutes: null },
+          { id: 'tmpl-3', title: 'Temp Keep', timecodeId: tcKeepId, note: '', tags: [], durationMinutes: null },
         ],
       });
     });

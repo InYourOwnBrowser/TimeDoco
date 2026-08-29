@@ -1268,42 +1268,54 @@ export const TimeTrackerProvider: React.FC<{ children: ReactNode }> = ({ childre
   };
 
   const deleteEntry = async (id: string) => {
-    await runExclusive(async () => {
+    // Stopping happens inside the queue so a concurrent stop cannot land between
+    // the read and the write, and so the trashed record can never sit in storage
+    // with isRunning: true — restoring it would otherwise revive a timer that
+    // has been "running" for as long as it sat in the trash.
+    const deleted = await runExclusive(async () => {
       const entry = await db.getEntry(id);
-      if (entry) {
-        if (entry.isRunning) {
-          await performStop(entry.id);
-        }
-        const latestEntry = (await db.getEntry(id)) || entry;
-        const deletedAt = new Date().toISOString();
-        await db.putEntry(touch({ ...latestEntry, deletedAt }, deletedAt));
+      if (!entry) return false;
+      if (entry.isRunning) {
+        await performStop(entry.id);
       }
+      const latestEntry = (await db.getEntry(id)) || entry;
+      const deletedAt = new Date().toISOString();
+      await db.putEntry(touch({ ...latestEntry, deletedAt }, deletedAt));
+      return true;
     });
-    addToast('Entry deleted', 'success', { label: 'Undo', onClick: () => restoreEntry(id) }, 5000);
+    if (deleted) {
+      addToast('Entry deleted', 'success', { label: 'Undo', onClick: () => restoreEntry(id) }, 5000);
+    }
     await refreshData();
   };
 
   const bulkDeleteEntries = async (ids: string[]) => {
     if (ids.length === 0) return;
-    await runExclusive(async () => {
+    // Sequential inside one queue slot: each entry is stopped before it is
+    // trashed, and no concurrent timer mutation can interleave with the batch.
+    const deletedIds = await runExclusive(async () => {
       const now = new Date().toISOString();
+      const done: string[] = [];
       for (const id of ids) {
         const entry = await db.getEntry(id);
-        if (entry) {
-          if (entry.isRunning) {
-            await performStop(entry.id);
-          }
-          const latestEntry = (await db.getEntry(id)) || entry;
-          await db.putEntry(touch({ ...latestEntry, deletedAt: now }, now));
+        if (!entry) continue;
+        if (entry.isRunning) {
+          await performStop(entry.id);
         }
+        const latestEntry = (await db.getEntry(id)) || entry;
+        await db.putEntry(touch({ ...latestEntry, deletedAt: now }, now));
+        done.push(id);
       }
+      return done;
     });
-    addToast(
-      `${ids.length} ${ids.length === 1 ? 'entry' : 'entries'} deleted`,
-      'success',
-      { label: 'Undo', onClick: () => Promise.all(ids.map((id) => restoreEntryInternal(id))).then(() => refreshData()) },
-      5000
-    );
+    if (deletedIds.length > 0) {
+      addToast(
+        `${deletedIds.length} ${deletedIds.length === 1 ? 'entry' : 'entries'} deleted`,
+        'success',
+        { label: 'Undo', onClick: () => Promise.all(deletedIds.map((id) => restoreEntryInternal(id))).then(() => refreshData()) },
+        5000
+      );
+    }
     await refreshData();
   };
 
