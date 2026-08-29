@@ -7,8 +7,26 @@ interface ModalProps {
   isDirty?: boolean;
 }
 
+const modalStack: string[] = [];
+
 export const Modal: React.FC<ModalProps> = ({ onClose, children, className = '', isDirty = false }) => {
   const modalRef = useRef<HTMLDivElement>(null);
+  const idRef = useRef<string>('');
+
+  if (!idRef.current) {
+    idRef.current = Math.random().toString(36).substring(2, 9);
+  }
+
+  useEffect(() => {
+    modalStack.push(idRef.current);
+
+    return () => {
+      const index = modalStack.indexOf(idRef.current);
+      if (index !== -1) {
+        modalStack.splice(index, 1);
+      }
+    };
+  }, []);
 
   useEffect(() => {
     // Scroll lock
@@ -23,6 +41,9 @@ export const Modal: React.FC<ModalProps> = ({ onClose, children, className = '',
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
       if (e.key === 'Escape') {
+        // Only handle Escape if this modal is at the top of the modal stack
+        if (modalStack[modalStack.length - 1] !== idRef.current) return;
+
         if (isDirty) {
           if (window.confirm('You have unsaved changes. Are you sure you want to close?')) {
             onClose();
