@@ -235,4 +235,102 @@ describe('validateBackupPayload', () => {
       expect(() => validateBackupPayload(validPayload)).not.toThrow();
     });
   });
+
+  describe('M11 validation additions', () => {
+    it('rejects duplicate group IDs', () => {
+      const payload = {
+        ...validPayload,
+        groups: [
+          { id: 'g1', name: 'G1' },
+          { id: 'g1', name: 'G2' },
+        ],
+      };
+      expect(() => validateBackupPayload(payload)).toThrow('duplicate group ID "g1"');
+    });
+
+    it('rejects duplicate timecode IDs', () => {
+      const payload = {
+        ...validPayload,
+        timecodes: [
+          { id: 'tc1', name: 'TC1' },
+          { id: 'tc1', name: 'TC2' },
+        ],
+      };
+      expect(() => validateBackupPayload(payload)).toThrow('duplicate timecode ID "tc1"');
+    });
+
+    it('rejects duplicate entry IDs', () => {
+      const payload = {
+        ...validPayload,
+        entries: [
+          { ...validPayload.entries[0], id: 'e1' },
+          { ...validPayload.entries[0], id: 'e1' },
+        ],
+      };
+      expect(() => validateBackupPayload(payload)).toThrow('duplicate entry ID "e1"');
+    });
+
+    it('rejects multiple running entries when allowConcurrentTimers is false', () => {
+      const payload = {
+        ...validPayload,
+        settings: { allowConcurrentTimers: false },
+        entries: [
+          { id: 'e1', timecodeId: 'tc1', startTime: '2025-01-01T10:00:00.000Z', isRunning: true, endTime: null, duration: 0 },
+          { id: 'e2', timecodeId: 'tc1', startTime: '2025-01-01T11:00:00.000Z', isRunning: true, endTime: null, duration: 0 },
+        ],
+      };
+      expect(() => validateBackupPayload(payload)).toThrow(/contains 2 running entries/);
+    });
+
+    it('accepts multiple running entries when allowConcurrentTimers is true', () => {
+      const payload = {
+        ...validPayload,
+        settings: { allowConcurrentTimers: true },
+        entries: [
+          { id: 'e1', timecodeId: 'tc1', startTime: '2025-01-01T10:00:00.000Z', isRunning: true, endTime: null, duration: 0 },
+          { id: 'e2', timecodeId: 'tc1', startTime: '2025-01-01T11:00:00.000Z', isRunning: true, endTime: null, duration: 0 },
+        ],
+      };
+      expect(() => validateBackupPayload(payload)).not.toThrow();
+    });
+
+    it('rejects running entry with an end time', () => {
+      const payload = {
+        ...validPayload,
+        entries: [
+          { id: 'e1', timecodeId: 'tc1', startTime: '2025-01-01T10:00:00.000Z', isRunning: true, endTime: '2025-01-01T11:00:00.000Z', duration: 3600 },
+        ],
+      };
+      expect(() => validateBackupPayload(payload)).toThrow('is marked running but has an end time');
+    });
+
+    it('validates settings.templates shape and timecode existence', () => {
+      const payloadMissingTC = {
+        ...validPayload,
+        settings: {
+          templates: [
+            { id: 't1', title: 'T1', timecodeId: 'missing-tc' },
+          ],
+        },
+      };
+      expect(() => validateBackupPayload(payloadMissingTC)).toThrow('refers to timecode "missing-tc"');
+
+      const payloadMalformed = {
+        ...validPayload,
+        settings: {
+          templates: [
+            null,
+          ],
+        },
+      };
+      expect(() => validateBackupPayload(payloadMalformed)).toThrow('template at index 0 is malformed');
+    });
+
+    it('validates settings numerical ranges and string lengths', () => {
+      expect(() => validateBackupPayload({ ...validPayload, settings: { reminderIntervalDays: -5 } })).toThrow('invalid reminderIntervalDays');
+      expect(() => validateBackupPayload({ ...validPayload, settings: { weeklyTargetHours: NaN } })).toThrow('invalid weeklyTargetHours');
+      expect(() => validateBackupPayload({ ...validPayload, settings: { preparerName: 'a'.repeat(201) } })).toThrow('invalid preparerName');
+      expect(() => validateBackupPayload({ ...validPayload, settings: { reportFooterText: 'a'.repeat(1001) } })).toThrow('invalid reportFooterText');
+    });
+  });
 });

@@ -6,6 +6,7 @@ import { type Entry } from '../types';
 import { getElapsedTimeMs, formatElapsedSeconds, formatDurationShort } from '../utils/timeUtils';
 import { useToast } from '../context/ToastContext';
 import { unlockAudioAlert } from '../utils/audioAlert';
+import { sendNotification, requestNotificationPermission } from '../utils/notification';
 
 export const ActiveTimer: React.FC<{ activeEntry: Entry | null }> = ({ activeEntry }) => {
   const { startTimer, stopTimer, pauseTimer, resumeTimer, timecodes, updateActiveNote } = useTimeTracker();
@@ -68,11 +69,9 @@ export const ActiveTimer: React.FC<{ activeEntry: Entry | null }> = ({ activeEnt
       if (settings?.targetAlertMinutes && alertedForRef.current !== alertKey) {
         if (seconds >= settings.targetAlertMinutes * 60) {
           addToast(`Target reached! ${settings.targetAlertMinutes} minutes elapsed.`, 'info', undefined, 10000);
-          if ('Notification' in window && Notification.permission === 'granted') {
-            new Notification('TimeDoco Target Reached', {
-               body: `You have tracked ${settings.targetAlertMinutes} minutes.`,
-             });
-          }
+          sendNotification('TimeDoco Target Reached', {
+            body: `You have tracked ${settings.targetAlertMinutes} minutes.`,
+          });
           alertedForRef.current = alertKey;
         }
       }
@@ -85,12 +84,6 @@ export const ActiveTimer: React.FC<{ activeEntry: Entry | null }> = ({ activeEnt
       return () => clearInterval(interval);
     }
   }, [activeEntry, settings?.targetAlertMinutes, addToast]);
-
-  useEffect(() => {
-    if ('Notification' in window && Notification.permission === 'default' && settings?.targetAlertMinutes) {
-      Notification.requestPermission();
-    }
-  }, [settings?.targetAlertMinutes]);
 
   const activeTimecode = activeEntry ? timecodes.find(t => t.id === activeEntry.timecodeId) : null;
 
@@ -151,6 +144,7 @@ export const ActiveTimer: React.FC<{ activeEntry: Entry | null }> = ({ activeEnt
             onClick={() => {
               if (!selectedTimecodeId) return;
               unlockAudioAlert();
+              requestNotificationPermission();
               const tagsArray = preStartTags.split(',').map(t => t.trim()).filter(Boolean).slice(0, 20);
               const expected = preStartExpectedMinutes ? Math.max(1, Number(preStartExpectedMinutes)) : null;
               startTimer(selectedTimecodeId, preStartNote, tagsArray, expected);
