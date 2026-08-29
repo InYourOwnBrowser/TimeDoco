@@ -1657,4 +1657,75 @@ describe('TimeTrackerContext Reducer Logic', () => {
       expect(ctx!.deletedEntries.length).toBe(0);
     });
   });
+  // --- H2: autoPurgeTrash ---
+
+  const OLD = new Date(Date.now() - 40 * 24 * 60 * 60 * 1000).toISOString();
+
+  const seedTimecode = (id: string, over: Partial<import('../types').Timecode> = {}) => ({
+    id, name: id, groupId: null, hourlyRate: null, archived: false,
+    updatedAt: OLD, ...over,
+  });
+
+  const seedEntry = (id: string, timecodeId: string, over: Partial<import('../types').Entry> = {}) => ({
+    id, timecodeId, startTime: OLD, endTime: OLD, duration: 60, note: id,
+    isRunning: false, isPaused: false, pausedSegments: [], editHistory: [],
+    createdAt: OLD, updatedAt: OLD, ...over,
+  });
+
+  it('autoPurgeTrash strips templates for timecodes it hard-deletes', async () => {
+    await db.putTimecode(seedTimecode('tc-old', { deletedAt: OLD }));
+    await db.putEntry(seedEntry('e-old', 'tc-old', { deletedAt: OLD }));
+    await db.putTimecode(seedTimecode('tc-live'));
+    await db.putSettings({
+      id: 'user-settings',
+      lastBackupDate: null,
+      reminderIntervalDays: 7,
+      roundingRule: 'none',
+      roundingScope: 'day',
+      idleThresholdMinutes: null,
+      weeklyTargetHours: null,
+      allowConcurrentTimers: false,
+      overrunAudioAlertEnabled: true,
+      theme: 'dark',
+      templates: [
+        { id: 'tpl-old', title: 'Old', timecodeId: 'tc-old', note: '', tags: [], durationMinutes: null },
+        { id: 'tpl-live', title: 'Live', timecodeId: 'tc-live', note: '', tags: [], durationMinutes: null },
+      ],
+    });
+
+    render(
+      <ToastProvider><TimeTrackerProvider>
+        <TestConsumer onReady={() => {}} />
+      </TimeTrackerProvider></ToastProvider>
+    );
+
+    // The purged timecode is gone, and its template goes with it. Left behind,
+    // the template points at a hard-deleted id and validateBackupPayload would
+    // reject the user's own backup on re-import.
+    await waitFor(async () => {
+      expect(await db.getTimecode('tc-old')).toBeUndefined();
+      const settings = await db.getSettings();
+      expect(settings?.templates?.map((t) => t.id)).toEqual(['tpl-live']);
+    });
+  });
+
+  it('autoPurgeTrash keeps a trashed timecode that still has live entries', async () => {
+    await db.putTimecode(seedTimecode('tc-old', { deletedAt: OLD }));
+    // Restored from the trash without restoring its timecode — a reachable
+    // state, since restoreEntry and restoreTimecode are separate actions.
+    await db.putEntry(seedEntry('e-live', 'tc-old'));
+
+    let ctx: ReturnType<typeof useTimeTracker> | undefined;
+    render(
+      <ToastProvider><TimeTrackerProvider>
+        <TestConsumer onReady={(c) => (ctx = c)} />
+      </TimeTrackerProvider></ToastProvider>
+    );
+
+    await waitFor(() => expect(ctx?.settings).not.toBeNull());
+    await act(async () => { await new Promise((r) => setTimeout(r, 50)); });
+
+    expect(await db.getEntry('e-live')).toBeDefined();
+    expect(await db.getTimecode('tc-old')).toBeDefined();
+  });
 });

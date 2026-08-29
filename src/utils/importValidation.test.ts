@@ -1,4 +1,4 @@
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import { validateBackupPayload, parseCSVDate, MAX_IMPORT_ENTRIES } from './importValidation';
 
 describe('parseCSVDate', () => {
@@ -28,6 +28,51 @@ describe('parseCSVDate', () => {
     expect(parseCSVDate('invalid', 'dmy').getTime()).toBeNaN();
     expect(parseCSVDate('32/01/2024', 'dmy').getTime()).toBeNaN();
     expect(parseCSVDate('01/13/2024', 'dmy').getTime()).toBeNaN();
+  });
+
+  // A bare YYYY-MM-DD is UTC per the ES spec; the same date with a time is
+  // local. If the importer does not normalise that, a date-only row and a timed
+  // row in one file land on different calendar days. These assertions are on the
+  // *local* calendar date, so they hold in every zone — including a UTC CI box,
+  // where the bug they guard is invisible.
+  describe.each(['Pacific/Auckland', 'America/Los_Angeles', 'UTC'])('in %s', (tz) => {
+    const originalTz = process.env.TZ;
+    beforeAll(() => { process.env.TZ = tz; });
+    afterAll(() => { process.env.TZ = originalTz; });
+
+    it('reads a date-only row as that calendar day', () => {
+      for (const [input, fmt] of [
+        ['2024-03-05', 'iso'],
+        ['05/03/2024', 'dmy'],
+        ['03/05/2024', 'mdy'],
+      ] as const) {
+        const d = parseCSVDate(input, fmt);
+        expect(d.getTime()).not.toBeNaN();
+        expect(d.getFullYear()).toBe(2024);
+        expect(d.getMonth()).toBe(2); // March
+        expect(d.getDate()).toBe(5);
+        expect(d.getHours()).toBe(0);
+      }
+    });
+
+    it('puts a date-only row and a timed row on the same calendar day', () => {
+      for (const [dateOnly, timed, fmt] of [
+        ['2024-03-05', '2024-03-05T09:30:00', 'iso'],
+        ['05/03/2024', '05/03/2024 09:30:00', 'dmy'],
+        ['03/05/2024', '03/05/2024 09:30:00', 'mdy'],
+      ] as const) {
+        const a = parseCSVDate(dateOnly, fmt);
+        const b = parseCSVDate(timed, fmt);
+        expect(a.getFullYear()).toBe(b.getFullYear());
+        expect(a.getMonth()).toBe(b.getMonth());
+        expect(a.getDate()).toBe(b.getDate());
+      }
+    });
+
+    it('still honours an explicit UTC offset in an ISO row', () => {
+      const d = parseCSVDate('2024-03-05T10:00:00Z', 'iso');
+      expect(d.toISOString()).toBe('2024-03-05T10:00:00.000Z');
+    });
   });
 });
 

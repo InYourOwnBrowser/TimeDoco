@@ -376,8 +376,11 @@ export const TimeTrackerProvider: React.FC<{ children: ReactNode }> = ({ childre
       const loadedGroups = await db.getGroups();
       const loadedTimecodes = await db.getTimecodes();
       const loadedEntries = await db.getEntries();
+      const currentSettings = await db.getSettings();
 
       let purged = false;
+      const purgedTimecodeIds = new Set<string>();
+      let purgedEntryCount = 0;
 
       // Identify items deleted > 30 days ago
       const groupsToDelete = loadedGroups.filter(g => g.deletedAt && now - new Date(g.deletedAt).getTime() > THIRTY_DAYS_MS);
@@ -402,29 +405,60 @@ export const TimeTrackerProvider: React.FC<{ children: ReactNode }> = ({ childre
         const relatedDeletedEntries = [...loadedEntries].filter((e) => e.timecodeId === tc.id && e.deletedAt);
         if (relatedDeletedEntries.length > 0) {
           await Promise.all(relatedDeletedEntries.map((e) => db.deleteEntry(e.id)));
+          purgedEntryCount += relatedDeletedEntries.length;
         }
         await db.deleteTimecode(tc.id);
+        purgedTimecodeIds.add(tc.id);
         purged = true;
       }
 
+      // Templates must go with the timecodes they point at. Left behind, they
+      // reference a hard-deleted id, and validateBackupPayload rejects the
+      // user's own backup on re-import ("template ... refers to timecode ...
+      // which is not in this backup").
+      if (currentSettings?.templates && purgedTimecodeIds.size > 0) {
+        const updatedTemplates = currentSettings.templates.filter((t) => !purgedTimecodeIds.has(t.timecodeId));
+        if (updatedTemplates.length !== currentSettings.templates.length) {
+          await db.putSettings({ ...currentSettings, templates: updatedTemplates });
+        }
+      }
+
       if (entriesToDelete.length > 0) {
-        await Promise.all(
+        const removed = await Promise.all(
           entriesToDelete.map(async (entry) => {
             const exists = await db.getEntry(entry.id);
             if (exists) {
               await db.deleteEntry(entry.id);
+              return 1;
             }
+            return 0;
           })
         );
+        purgedEntryCount += removed.reduce((a: number, b: number) => a + b, 0);
         purged = true;
       }
 
       if (purged) {
         await refreshData();
+        // The purge is unprompted and irreversible, so say what it took. A
+        // silent 30-day cleanup is indistinguishable from data going missing.
+        const parts: string[] = [];
+        if (purgedEntryCount > 0) parts.push(`${purgedEntryCount} ${purgedEntryCount === 1 ? 'entry' : 'entries'}`);
+        if (purgedTimecodeIds.size > 0) parts.push(`${purgedTimecodeIds.size} ${purgedTimecodeIds.size === 1 ? 'timecode' : 'timecodes'}`);
+        if (groupsToDelete.length > 0) parts.push(`${groupsToDelete.length} ${groupsToDelete.length === 1 ? 'group' : 'groups'}`);
+        if (parts.length > 0) {
+          addToast(`Trash auto-cleanup removed ${parts.join(', ')} deleted over 30 days ago.`, 'info');
+        }
       }
     };
 
-    autoPurgeTrash().catch(console.error);
+    autoPurgeTrash().catch((error) => {
+      // A partial purge leaves the trash half-emptied; without this the user
+      // sees neither the cleanup nor the reason it stopped.
+      logError(error as Error, 'autoPurgeTrash');
+      addToast('Trash auto-cleanup did not finish. Some deleted items remain.', 'error');
+    });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [refreshData]);
 
   const startTimer = async (timecodeId: string, note: string = '', tags: string[] = [], expectedDurationMinutes: number | null = null) => {

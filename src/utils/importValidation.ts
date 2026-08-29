@@ -7,8 +7,13 @@ export const MAX_LOGO_DATA_URL_LENGTH = 4 * 1024 * 1024;
 const isSafeImageDataUrl = (value: string): boolean =>
   /^data:image\/(png|jpeg|jpg|webp|gif);base64,/i.test(value);
 
+/** A date with no time component, which the ES spec parses as UTC rather than local. */
+const DATE_ONLY_RE = /^\d{4}-\d{2}-\d{2}$/;
+
 /**
- * Parses a date string based on an explicit format selection.
+ * Parses a date string based on an explicit format selection. Every supported
+ * format resolves a date without a time to **local** midnight, so that two rows
+ * in one file never disagree about what a calendar day means.
  * Supported formats:
  * - 'iso': ISO 8601 string or standard YYYY-MM-DD / ISO format
  * - 'dmy': Day/Month/Year e.g., DD/MM/YYYY or DD-MM-YYYY (with optional time)
@@ -22,8 +27,14 @@ export function parseCSVDate(dateStr: string, format: 'iso' | 'dmy' | 'mdy' = 'i
   if (!str) return new Date(NaN);
 
   if (format === 'iso') {
-    const d = new Date(str);
-    return d;
+    // A bare YYYY-MM-DD is parsed as UTC midnight by the ES spec, while the
+    // same string with a time attached is parsed as local. Left alone, a
+    // date-only row and a dated-and-timed row in the same file disagree by the
+    // UTC offset — east of Greenwich that lands the date-only row on the
+    // previous calendar day. Anchoring to local midnight makes every row in a
+    // file mean the same thing, and matches how the report builds its custom
+    // range (`new Date(customStart + 'T00:00:00')`).
+    return new Date(DATE_ONLY_RE.test(str) ? `${str}T00:00:00` : str);
   }
 
   // Split date and time parts (e.g., "01/02/2024 14:30:00" or "01/02/2024")
@@ -61,10 +72,9 @@ export function parseCSVDate(dateStr: string, format: 'iso' | 'dmy' | 'mdy' = 'i
   const paddedDay = String(day).padStart(2, '0');
   const paddedYear = String(year).padStart(4, '0');
 
-  let isoStr = `${paddedYear}-${paddedMonth}-${paddedDay}`;
-  if (timePart) {
-    isoStr += `T${timePart}`;
-  }
+  // Always carry a time component: see the note in the 'iso' branch above. A
+  // date-only row must mean local midnight, not UTC midnight.
+  const isoStr = `${paddedYear}-${paddedMonth}-${paddedDay}T${timePart || '00:00:00'}`;
 
   return new Date(isoStr);
 }
