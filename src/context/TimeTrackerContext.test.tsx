@@ -1418,11 +1418,11 @@ describe('TimeTrackerContext Reducer Logic', () => {
     await waitFor(() => expect(ctx?.settings).not.toBeNull());
 
     const now = new Date().toISOString();
-    const grp = await db.putGroup({ id: 'g-stale', name: 'Stale Group', color: '#123456', archived: false, deletedAt: now, updatedAt: now });
-    const tc = await db.putTimecode({ id: 'tc-stale', name: 'Stale TC', groupId: grp.id, archived: false, deletedAt: now, updatedAt: now });
+    const grpId = await db.putGroup({ id: 'g-stale', name: 'Stale Group', color: '#123456', archived: false, deletedAt: now, updatedAt: now });
+    const tcId = await db.putTimecode({ id: 'tc-stale', name: 'Stale TC', groupId: grpId, hourlyRate: null, archived: false, deletedAt: now, updatedAt: now });
     await db.putEntry({
       id: 'e-stale',
-      timecodeId: tc.id,
+      timecodeId: tcId,
       startTime: now,
       endTime: now,
       duration: 0,

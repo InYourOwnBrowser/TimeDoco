@@ -9,7 +9,7 @@ import { ManualEntryModal } from './ManualEntryModal';
 import { Modal } from './ui/Modal';
 import type { Entry } from '../types';
 import { getElapsedTimeMs, formatDurationShort } from '../utils/timeUtils';
-import { buildLinesFromSettings, secondsFor, sumBillableLines } from '../utils/billing';
+import { buildLinesFromSettings, secondsFor } from '../utils/billing';
 import { useNowTick } from '../hooks/useNowTick';
 
 const LiveEntryDuration: React.FC<{ entry: Entry, formatDuration: (s: number) => string }> = ({ entry, formatDuration }) => {

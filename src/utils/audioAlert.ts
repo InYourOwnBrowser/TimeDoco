@@ -22,6 +22,9 @@ export function unlockAudioAlert() {
 export function playOverrunChime() {
   const ctx = getAudioContext();
   if (!ctx) return; // Web Audio unsupported — modal/notification/title-flash still apply
+  if (ctx.state === 'suspended') {
+    ctx.resume().catch(() => {});
+  }
   const now = ctx.currentTime;
 
   [0, 0.18, 0.36, 0.54, 0.72, 0.90].forEach((offset) => {

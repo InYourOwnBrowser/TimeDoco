@@ -3,28 +3,22 @@ import { useTimeTracker } from '../context/TimeTrackerContext';
 import { Modal } from './ui/Modal';
 import { getElapsedTimeMs, formatElapsedSeconds } from '../utils/timeUtils';
 import { playOverrunChime } from '../utils/audioAlert';
+import { sendNotification } from '../utils/notification';
 import type { Entry } from '../types';
 
-export const OverrunDetector: React.FC = () => {
+interface OverrunDetectorProps {
+  onPromptStateChange?: (active: boolean) => void;
+}
+
+export const OverrunDetector: React.FC<OverrunDetectorProps> = ({ onPromptStateChange }) => {
   const { activeEntries, timecodes, stopTimer, settings } = useTimeTracker();
   const [promptEntry, setPromptEntry] = useState<Entry | null>(null);
   const dismissedRef = useRef<Set<string>>(new Set());
   const notifiedRef = useRef<Set<string>>(new Set());
 
-  const usesEstimates = activeEntries.some(
-    (e) => e.expectedDurationMinutes != null && e.expectedDurationMinutes > 0
-  );
-
   useEffect(() => {
-    if (
-      typeof window !== 'undefined' &&
-      'Notification' in window &&
-      Notification.permission === 'default' &&
-      (settings?.targetAlertMinutes || usesEstimates)
-    ) {
-      Notification.requestPermission();
-    }
-  }, [settings?.targetAlertMinutes, usesEstimates]);
+    onPromptStateChange?.(promptEntry !== null);
+  }, [promptEntry, onPromptStateChange]);
 
   useEffect(() => {
     const interval = window.setInterval(() => {
@@ -38,13 +32,10 @@ export const OverrunDetector: React.FC = () => {
         if (elapsedMs >= entry.expectedDurationMinutes * 60 * 1000) {
           if (
             !notifiedRef.current.has(entry.id) &&
-            document.hidden &&
-            typeof window !== 'undefined' &&
-            'Notification' in window &&
-            Notification.permission === 'granted'
+            document.hidden
           ) {
             const tc = timecodes.find((t) => t.id === entry.timecodeId);
-            new Notification('Past your estimate', {
+            sendNotification('Past your estimate', {
               body: `${tc?.name || 'This task'} has passed its ${entry.expectedDurationMinutes} min estimate.`,
               tag: `overrun-${entry.id}`,
             });
@@ -76,32 +67,6 @@ export const OverrunDetector: React.FC = () => {
     return () => window.clearInterval(interval);
   }, [activeEntries, timecodes, settings?.overrunAudioAlertEnabled]);
 
-  // Flash title as zero-permission backup when prompt is pending and tab is hidden
-  useEffect(() => {
-    if (!promptEntry) return;
-    const originalTitle = document.title;
-    let flashOn = false;
-
-    const interval = setInterval(() => {
-      if (document.hidden) {
-        document.title = flashOn ? originalTitle : '⏰ Past estimate! · TimeDoco';
-        flashOn = !flashOn;
-      }
-    }, 1000);
-
-    const onVisible = () => {
-      if (!document.hidden) {
-        document.title = originalTitle;
-      }
-    };
-    document.addEventListener('visibilitychange', onVisible);
-
-    return () => {
-      clearInterval(interval);
-      document.removeEventListener('visibilitychange', onVisible);
-      document.title = originalTitle;
-    };
-  }, [promptEntry]);
 
   // Stop nagging about entries that are no longer active (stopped/paused elsewhere)
   useEffect(() => {

@@ -209,7 +209,7 @@ describe('OverrunDetector', () => {
     expect(screen.queryByText('Past your estimate')).toBeNull();
   });
 
-  it('requests notification permission if active entry has estimate', () => {
+  it('does NOT call requestPermission passively on mount', () => {
     const requestPermissionMock = vi.fn();
     const mockNotification = vi.fn();
     (mockNotification as any).permission = 'default';
@@ -235,7 +235,7 @@ describe('OverrunDetector', () => {
     ];
 
     render(<OverrunDetector />);
-    expect(requestPermissionMock).toHaveBeenCalledTimes(1);
+    expect(requestPermissionMock).not.toHaveBeenCalled();
   });
 
   it('fires Notification when tab is hidden and entry overruns', () => {
@@ -316,19 +316,12 @@ describe('OverrunDetector', () => {
     expect(screen.getByText('Past your estimate')).not.toBeNull();
   });
 
-  it('flashes document title when tab is hidden and overrun prompt exists', () => {
-    document.title = 'Initial Title';
-
-    let isHidden = true;
-    Object.defineProperty(document, 'hidden', {
-      configurable: true,
-      get: () => isHidden,
-    });
-
+  it('notifies onPromptStateChange when overrun prompt state changes', () => {
+    const onPromptStateChange = vi.fn();
     const startTime = new Date(Date.now() - 35 * 60 * 1000).toISOString();
     mockActiveEntries = [
       {
-        id: 'entry-flash-title',
+        id: 'entry-notify-prompt',
         timecodeId: 'tc-1',
         startTime,
         endTime: null,
@@ -344,26 +337,16 @@ describe('OverrunDetector', () => {
       },
     ];
 
-    const { unmount } = render(<OverrunDetector />);
+    render(<OverrunDetector onPromptStateChange={onPromptStateChange} />);
+    expect(onPromptStateChange).toHaveBeenCalledWith(false);
 
-    // Trigger overrun prompt interval
     act(() => {
       vi.advanceTimersByTime(5000);
     });
+    expect(onPromptStateChange).toHaveBeenCalledWith(true);
 
-    // Advance 1s for title flash
-    act(() => {
-      vi.advanceTimersByTime(1000);
-    });
-    expect(document.title).toBe('⏰ Past estimate! · TimeDoco');
-
-    act(() => {
-      vi.advanceTimersByTime(1000);
-    });
-    expect(document.title).toBe('Initial Title');
-
-    // Unmount restores original title
-    unmount();
-    expect(document.title).toBe('Initial Title');
+    const keepGoingButton = screen.getByText('Yes, keep going');
+    fireEvent.click(keepGoingButton);
+    expect(onPromptStateChange).toHaveBeenLastCalledWith(false);
   });
 });

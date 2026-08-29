@@ -49,6 +49,7 @@ const AppContent = () => {
   const [isFallbackMode, setIsFallbackMode] = useState(false);
   const { canInstall, promptInstall, installed, needsManualInstall } = useInstallPrompt();
   const [showIOSInstallModal, setShowIOSInstallModal] = useState(false);
+  const [isOverrunPromptActive, setIsOverrunPromptActive] = useState(false);
 
   const handleInstallClick = useCallback(() => {
     if (needsManualInstall) {
@@ -91,23 +92,31 @@ const AppContent = () => {
 
   // Calculate elapsed time for document title
   useEffect(() => {
-    if (activeEntries.length === 0) {
-      document.title = 'TimeDoco';
-      return;
-    }
-
-    // Pick the most recently started entry (last in the array usually, or sort by start time)
-    const primaryEntry = [...activeEntries].sort((a, b) => new Date(b.startTime).getTime() - new Date(a.startTime).getTime())[0];
-    const activeTimecode = timecodes.find(t => t.id === primaryEntry.timecodeId);
+    let flashOn = false;
 
     const updateTitle = () => {
-      if (document.hidden && document.title.includes('Past estimate!')) {
+      if (activeEntries.length === 0) {
+        if (isOverrunPromptActive && document.hidden && flashOn) {
+          document.title = '⏰ Past estimate! · TimeDoco';
+        } else {
+          document.title = 'TimeDoco';
+        }
         return;
       }
-      const elapsedMs = getElapsedTimeMs(primaryEntry.startTime, primaryEntry.pausedSegments);
-      const elapsed = Math.floor(elapsedMs / 1000);
+
+      // Prioritize running entries over paused entries
+      const runningEntry = activeEntries.find(e => !e.isPaused);
+      const primaryEntry = runningEntry || [...activeEntries].sort((a, b) => new Date(b.startTime).getTime() - new Date(a.startTime).getTime())[0];
+      const activeTimecode = timecodes.find(t => t.id === primaryEntry.timecodeId);
+
+      if (isOverrunPromptActive && document.hidden && flashOn) {
+        document.title = '⏰ Past estimate! · TimeDoco';
+        return;
+      }
 
       if (activeTimecode) {
+        const elapsedMs = getElapsedTimeMs(primaryEntry.startTime, primaryEntry.pausedSegments);
+        const elapsed = Math.floor(elapsedMs / 1000);
         const timeStr = formatElapsedSeconds(elapsed);
         let prefix = primaryEntry.isPaused ? '⏸️' : '🔴';
         if (activeEntries.length > 1) {
@@ -115,18 +124,21 @@ const AppContent = () => {
         }
         document.title = `${prefix} ${timeStr} - ${activeTimecode.name}`;
       } else {
-         document.title = 'TimeDoco';
+        document.title = 'TimeDoco';
       }
     };
 
     updateTitle();
 
-    // Only set interval if the primary entry is running
-    if (!primaryEntry.isPaused) {
-      const interval = setInterval(updateTitle, 500); // 500ms to ensure timely updates
+    const anyRunning = activeEntries.some(e => !e.isPaused);
+    if (anyRunning || isOverrunPromptActive) {
+      const interval = setInterval(() => {
+        flashOn = !flashOn;
+        updateTitle();
+      }, 500);
       return () => clearInterval(interval);
     }
-  }, [activeEntries, timecodes]);
+  }, [activeEntries, timecodes, isOverrunPromptActive]);
 
   // Reset new timer form when a timer starts or concurrent is disabled
   useEffect(() => {
@@ -372,7 +384,7 @@ const AppContent = () => {
         {showIOSInstallModal && <IOSInstallModal onClose={() => setShowIOSInstallModal(false)} />}
 
         <IdleDetector />
-        <OverrunDetector />
+        <OverrunDetector onPromptStateChange={setIsOverrunPromptActive} />
 
         {/* Render persistent global active timer bar when not on tracker tab */ }
         {activeTab !== 'tracker' && <GlobalActiveTimerBar />}
