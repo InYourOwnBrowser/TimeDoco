@@ -77,6 +77,18 @@ const AppContent = () => {
     return () => window.removeEventListener('idb-fallback-mode', handleFallbackMode);
   }, [addToast]);
 
+  // Prevent accidental navigation/closure when in fallback mode
+  useEffect(() => {
+    if (!isFallbackMode) return;
+    const handleBeforeUnload = (e: BeforeUnloadEvent) => {
+      e.preventDefault();
+      e.returnValue = 'Storage error detected. App is running in memory fallback mode. Data will be lost if you close this page.';
+      return e.returnValue;
+    };
+    window.addEventListener('beforeunload', handleBeforeUnload);
+    return () => window.removeEventListener('beforeunload', handleBeforeUnload);
+  }, [isFallbackMode]);
+
   // Calculate elapsed time for document title
   useEffect(() => {
     if (activeEntries.length === 0) {
@@ -184,8 +196,17 @@ const AppContent = () => {
   return (
       <div className="min-h-screen bg-stone dark:bg-ink flex flex-col items-center pt-12 px-4 font-sans text-gray-900 dark:text-gray-100 pb-24 relative">
         {isFallbackMode && (
-          <div className="w-full bg-red-600 text-white text-center py-2 px-4 font-medium text-sm shadow-sm sticky top-0 z-50">
-            ⚠️ Storage Error: App is running in memory fallback mode. Your data will not be saved after you close this page.
+          <div className="w-full bg-red-600 text-white text-center py-2 px-4 font-medium text-sm shadow-sm sticky top-0 z-50 flex items-center justify-center gap-3">
+            <span>⚠️ Storage Error: App is running in memory fallback mode. Your data will not be saved after you close this page.</span>
+            <button
+              onClick={() => {
+                const dateStr = new Date().toISOString().split('T')[0];
+                triggerDownload(getBackupBlob, `timedoco-fallback-backup-${dateStr}`, 'json');
+              }}
+              className="px-2.5 py-1 text-xs font-semibold bg-white text-red-700 hover:bg-gray-100 rounded-panel transition-colors flex items-center gap-1 shadow-sm"
+            >
+              <Save size={14} /> Export Backup
+            </button>
           </div>
         )}
         <div className="w-full max-w-3xl absolute top-4 right-4 flex justify-end gap-2 items-center">
