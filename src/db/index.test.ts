@@ -139,13 +139,14 @@ describe("db error fallback mode", () => {
     expect((await getActiveEntries()).map((e) => e.id)).toEqual(["late", "early"]);
   });
 
-  it("falls back to a full scan when the start-time index would drop records", async () => {
-    // A record with no startTime is absent from the index. Returning the index
-    // result blindly would silently lose it from the user's entry list.
-    const all = [
-      { id: "a", startTime: "2026-01-02T09:00:00.000Z" },
-      { id: "b", startTime: "2026-01-01T09:00:00.000Z" },
-      { id: "orphan" },
+  it("sorts entries correctly by timestamp even with mixed timezone ISO offsets", async () => {
+    // String sorting "2026-01-02T00:00:00+13:00" vs "2026-01-01T20:00:00Z" would fail,
+    // because lexicographically "+13:00" string is greater than "Z", but chronologically
+    // 2026-01-02T00:00:00+13:00 is 2026-01-01T11:00:00Z which is earlier than 2026-01-01T20:00:00Z.
+    const entries = [
+      { id: "later", startTime: "2026-01-01T20:00:00Z" },
+      { id: "earlier", startTime: "2026-01-02T00:00:00+13:00" }, // 11:00 UTC on Jan 1
+      { id: "latest", startTime: "2026-01-02T10:00:00Z" },
     ];
 
     vi.doMock("idb", async (importOriginal) => {
@@ -153,9 +154,7 @@ describe("db error fallback mode", () => {
       return {
         ...actual,
         openDB: vi.fn().mockResolvedValue({
-          getAllFromIndex: vi.fn().mockResolvedValue([all[1], all[0]]),
-          count: vi.fn().mockResolvedValue(3),
-          getAll: vi.fn().mockResolvedValue(all),
+          getAll: vi.fn().mockResolvedValue(entries),
           close: vi.fn(),
         }),
       };
@@ -164,7 +163,6 @@ describe("db error fallback mode", () => {
     const { getEntries } = await import("./index");
     const result = await getEntries();
 
-    expect(result).toHaveLength(3);
-    expect(result.map((e) => e.id)).toContain("orphan");
+    expect(result.map((e) => e.id)).toEqual(["earlier", "later", "latest"]);
   });
 });

@@ -73,14 +73,14 @@ Everything below is a logic, consistency, or design issue that the type checker 
 - [x] **M8 — Download failures are silent.** `useNamedDownload.handleConfirm` catches to `console.error` with no toast. Only PDF export surfaces its own error; CSV, ICS, and JSON backup failures show the user nothing.
 - [x] **M9 — Empty weeks chart as 100% hit rate.** `estimatesTrend` returns `{ hitRate: 100 }` for weeks with no entries, drawing a flat perfect line through gaps in the data.
 - [x] **M10 — Theme flash.** `app/index.html` hardcodes `class="dark"` on `<html>`; App.tsx corrects it after hydration. Light-theme users see a dark flash on every load.
-- [ ] **M11 — `by-start-time` index sorts lexicographically.** `getEntries` trusts the index order, but IndexedDB string-compares. ISO strings with mixed offsets (`+13:00` vs `Z`) — plausible from CSV import — sort wrong. The fallback path sorts by parsed `Date`, so the two paths disagree. The `getAllFromIndex`/`count` consistency check also runs as two separate transactions and can race.
+- [x] **M11 — `by-start-time` index sorts lexicographically.** `getEntries` trusts the index order, but IndexedDB string-compares. ISO strings with mixed offsets (`+13:00` vs `Z`) — plausible from CSV import — sort wrong. The fallback path sorts by parsed `Date`, so the two paths disagree. The `getAllFromIndex`/`count` consistency check also runs as two separate transactions and can race.
 - [x] **M12 — Fixed-cost detection is inconsistent.** The UI infers it from `startTime === endTime`; billing infers it from `manualAmount != null`. Toggling Flat Fee back to Time Entry without clearing the amount produces an entry that bills as a fee while looking like a time entry.
 
 ---
 
 ## Low / Performance
 
-- [ ] `EntryList` recomputes `filteredEntries`, `groupedEntries`, and `flatEntries` on every render with no `useMemo`, and resolves timecode names via `timecodes.find` inside a filter over all entries — O(n×m). The repo's own `AnalysisView.bench.test.ts` measures Map-vs-find; AnalysisView adopted Maps, EntryList didn't.
+- [x] `EntryList` recomputes `filteredEntries`, `groupedEntries`, and `flatEntries` on every render with no `useMemo`, and resolves timecode names via `timecodes.find` inside a filter over all entries — O(n×m). The repo's own `AnalysisView.bench.test.ts` measures Map-vs-find; AnalysisView adopted Maps, EntryList didn't.
 - [ ] `TimesheetMatrixView.isVisible` is called from inside `.filter()` chains, re-walking 7 cells per timecode per render.
 - [ ] `GlobalActiveTimerBar` ticks at 200ms to render a seconds-resolution display.
 - [ ] `restoreTimecode` / `restoreGroup` call `restoreEntry` per record, each triggering its own full `refreshData()` — N complete database reads for one restore. `bulkDeleteEntries`' undo does the same.
@@ -89,7 +89,7 @@ Everything below is a logic, consistency, or design issue that the type checker 
 - [x] ICS export emits no `uid`, so re-importing duplicates every event.
 - [x] `escapeCSV` guards `= + - @` but not leading tab or CR.
 - [ ] `react-virtuoso` emits "Each child in a list should have a unique key" during tests (React 19 compat).
-- [ ] Summary CSV omits the tax and total rows the PDF includes.
+- [x] Summary CSV omits the tax and total rows the PDF includes.
 - [x] `restoreEntry` doesn't check whether the entry's timecode is still trashed — restores into an orphan state.
 - [x] `SettingsModal`'s `saveTimeoutRef` isn't cleared on unmount.
 

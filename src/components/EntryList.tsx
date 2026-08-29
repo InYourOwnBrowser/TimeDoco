@@ -80,37 +80,44 @@ export const EntryList: React.FC = () => {
     return `${s}s`;
   };
 
-  const getTimecodeName = (id: string) => {
-    const tc = timecodes.find(t => t.id === id);
+  const timecodeMap = React.useMemo(() => new Map(timecodes.map(t => [t.id, t])), [timecodes]);
+
+  const getTimecodeName = React.useCallback((id: string) => {
+    const tc = timecodeMap.get(id);
     return tc ? tc.name : 'Unknown';
-  };
+  }, [timecodeMap]);
 
-  const getTimecodeColor = (id: string) => {
-    const tc = timecodes.find(t => t.id === id);
+  const getTimecodeColor = React.useCallback((id: string) => {
+    const tc = timecodeMap.get(id);
     return tc?.color || '#3b82f6';
-  };
+  }, [timecodeMap]);
 
-  const filteredEntries = entries.filter((entry) => {
-    const matchesSearch = searchTerm === '' ||
-      (entry.note?.toLowerCase().includes(searchTerm.toLowerCase())) ||
-      (getTimecodeName(entry.timecodeId).toLowerCase().includes(searchTerm.toLowerCase()));
+  const filteredEntries = React.useMemo(() => {
+    const searchLower = searchTerm.toLowerCase();
+    return entries.filter((entry) => {
+      const tc = timecodeMap.get(entry.timecodeId);
+      const tcName = tc ? tc.name : 'Unknown';
 
-    let matchesFilter = true;
-    if (selectedFilter.startsWith('group:')) {
-      const groupId = selectedFilter.slice(6);
-      const tc = timecodes.find(t => t.id === entry.timecodeId);
-      matchesFilter = tc?.groupId === groupId;
-    } else if (selectedFilter.startsWith('timecode:')) {
-      const timecodeId = selectedFilter.slice(9);
-      matchesFilter = entry.timecodeId === timecodeId;
-    }
+      const matchesSearch = searchTerm === '' ||
+        (entry.note?.toLowerCase().includes(searchLower)) ||
+        (tcName.toLowerCase().includes(searchLower));
 
-    const entryDate = format(parseISO(entry.startTime), 'yyyy-MM-dd');
-    const matchesFrom = !dateFrom || entryDate >= dateFrom;
-    const matchesTo = !dateTo || entryDate <= dateTo;
+      let matchesFilter = true;
+      if (selectedFilter.startsWith('group:')) {
+        const groupId = selectedFilter.slice(6);
+        matchesFilter = tc?.groupId === groupId;
+      } else if (selectedFilter.startsWith('timecode:')) {
+        const timecodeId = selectedFilter.slice(9);
+        matchesFilter = entry.timecodeId === timecodeId;
+      }
 
-    return matchesSearch && matchesFilter && matchesFrom && matchesTo;
-  });
+      const entryDate = format(parseISO(entry.startTime), 'yyyy-MM-dd');
+      const matchesFrom = !dateFrom || entryDate >= dateFrom;
+      const matchesTo = !dateTo || entryDate <= dateTo;
+
+      return matchesSearch && matchesFilter && matchesFrom && matchesTo;
+    });
+  }, [entries, timecodeMap, searchTerm, selectedFilter, dateFrom, dateTo]);
 
   const handleClearFilters = () => {
     setSearchTerm('');
