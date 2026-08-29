@@ -144,11 +144,11 @@ async function withDB<T>(
   return await operation(db);
 }
 
-/** Running entries, oldest first, so "the active timer" is never arbitrary. */
+/** Running entries, most recent first, matching GlobalActiveTimerBar and document title. */
 const selectActive = (entries: Entry[]): Entry[] =>
   entries
     .filter((e) => e.isRunning === true && !e.deletedAt)
-    .sort((a, b) => new Date(a.startTime).getTime() - new Date(b.startTime).getTime());
+    .sort((a, b) => new Date(b.startTime).getTime() - new Date(a.startTime).getTime());
 
 // --- Groups ---
 export const getGroups = async (): Promise<Group[]> =>
@@ -227,9 +227,8 @@ export const deleteEntry = async (id: string): Promise<void> =>
   });
 
 /**
- * The primary running timer: the one that has been running longest. Picking
- * whichever record `getAll` happened to return first made the timer shown in
- * the global bar non-deterministic when concurrency is enabled.
+ * The primary running timer: the most recently started active timer,
+ * matching GlobalActiveTimerBar and document title.
  */
 export const getActiveEntry = async (): Promise<Entry | undefined> =>
   withDB(
