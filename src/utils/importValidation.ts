@@ -149,6 +149,10 @@ function validateSettings(settings: any): void {
     throw new Error('Import failed: "settings" must be an object.');
   }
 
+  if (settings.id !== undefined && settings.id !== null && settings.id !== 'user-settings') {
+    throw new Error('Import failed: "settings.id" must be "user-settings".');
+  }
+
   if (settings.roundingRule !== undefined && settings.roundingRule !== null) {
     if (!['none', '5min', '10min', '15min'].includes(settings.roundingRule)) {
       throw new Error('Import failed: settings contain an invalid rounding rule.');

@@ -35,25 +35,34 @@ export const TimecodeSelector: React.FC<TimecodeSelectorProps> = ({ onSelect, se
     setNewGroupName('');
   };
 
+  const unarchivedTimecodes = useMemo(() => {
+    return timecodes.filter(t => {
+      if (t.archived) return false;
+      if (t.groupId) {
+        const group = groups.find(g => g.id === t.groupId);
+        if (group?.archived) return false;
+      }
+      return true;
+    });
+  }, [timecodes, groups]);
+
   const filteredTimecodes = useMemo(() => {
-    const unarchived = timecodes.filter(t => !t.archived);
-    if (!search) return unarchived;
-    return unarchived.filter(t => t.name.toLowerCase().includes(search.toLowerCase()));
-  }, [timecodes, search]);
+    if (!search) return unarchivedTimecodes;
+    return unarchivedTimecodes.filter(t => t.name.toLowerCase().includes(search.toLowerCase()));
+  }, [unarchivedTimecodes, search]);
 
 
   const recentTimecodes = useMemo(() => {
     if (search) return [];
 
-    const unarchived = timecodes.filter(t => !t.archived);
     const sortedEntries = [...entries].sort((a, b) => new Date(b.startTime).getTime() - new Date(a.startTime).getTime());
     const recentIds = Array.from(new Set(sortedEntries.map(e => e.timecodeId)));
 
     return recentIds
-      .map(id => unarchived.find(t => t.id === id))
+      .map(id => unarchivedTimecodes.find(t => t.id === id))
       .filter((t): t is typeof timecodes[0] => t !== undefined)
       .slice(0, 3);
-  }, [entries, timecodes, search]);
+  }, [entries, unarchivedTimecodes, search]);
 
   const exactMatch = filteredTimecodes.find(t => t.name.toLowerCase() === search.toLowerCase());
 
