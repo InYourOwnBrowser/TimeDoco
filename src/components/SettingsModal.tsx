@@ -16,7 +16,7 @@ interface SettingsModalProps {
 }
 
 export const SettingsModal: React.FC<SettingsModalProps> = ({ onClose }) => {
-  const { getBackupBlob, importData, wipeAllData, settings, updateSettings, bulkAddManualEntries, addTimecode, timecodes, deletedEntries, restoreEntry, hardDeleteEntry, deletedTimecodes, restoreTimecode, hardDeleteTimecode, deletedGroups, restoreGroup, hardDeleteGroup, emptyTrash } = useTimeTracker();
+  const { getBackupBlob, importData, wipeAllData, settings, updateSettings, bulkAddManualEntries, addTimecode, refreshData, timecodes, deletedEntries, restoreEntry, hardDeleteEntry, deletedTimecodes, restoreTimecode, hardDeleteTimecode, deletedGroups, restoreGroup, hardDeleteGroup, emptyTrash } = useTimeTracker();
   const { triggerDownload, SaveAsDialog } = useNamedDownload();
   const { addToast } = useToast();
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -38,6 +38,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ onClose }) => {
       }
     };
   }, []);
+
 
   const [showWipeConfirm, setShowWipeConfirm] = useState(false);
   const [wipeConfirmText, setWipeConfirmText] = useState('');
@@ -157,6 +158,15 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ onClose }) => {
 
   const [importPreview, setImportPreview] = useState<{ groups: number, timecodes: number, entries: number } | null>(null);
 
+  // The preview is validated against the selected mode, so switching mode
+  // invalidates it: a merge preview says nothing about whether a replace import
+  // would be accepted.
+  React.useEffect(() => {
+    setImportPreview(null);
+    setShowReplaceConfirm(false);
+    setReplaceConfirmText('');
+  }, [importMode]);
+
   const handleImport = async () => {
     if (!fileInputRef.current?.files?.length) {
       setStatusMsg({ type: 'error', text: 'Please select a backup file first.' });
@@ -184,7 +194,13 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ onClose }) => {
         });
 
         const parsed = JSON.parse(content);
-        const knownTimecodeIds = new Set(timecodes.map(t => t.id));
+        // Validate exactly as importData will, or the preview passes a file the
+        // import then rejects (and vice versa). Merge mode is the only one that
+        // accepts a reference to a locally-stored timecode, and "locally stored"
+        // there means every timecode in the database, trashed ones included.
+        const knownTimecodeIds = importMode === 'merge'
+          ? new Set([...timecodes, ...deletedTimecodes].map(t => t.id))
+          : undefined;
         validateBackupPayload(parsed, knownTimecodeIds);
 
         setImportPreview({
@@ -253,6 +269,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ onClose }) => {
         let importedCount = 0;
         let skippedCount = 0;
         const localTimecodes = [...timecodes];
+        const createdTimecodeIds: string[] = [];
         const entriesToBulkAdd: { startTime: string, endTime: string, timecodeId: string, note: string }[] = [];
 
         for (const row of results.data as any[]) {
@@ -287,8 +304,12 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ onClose }) => {
 
             let tc = localTimecodes.find(t => t.name.toLowerCase() === timecodeName.toLowerCase());
             if (!tc) {
-              tc = await addTimecode(timecodeName);
+              // Defer the reload: bulkAddManualEntries below refreshes once for
+              // the whole import, so a 50-timecode CSV does not read the entire
+              // database 50 times before writing anything.
+              tc = await addTimecode(timecodeName, undefined, undefined, undefined, { deferRefresh: true });
               localTimecodes.push(tc);
+              createdTimecodeIds.push(tc.id);
             }
 
             entriesToBulkAdd.push({
@@ -312,6 +333,11 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ onClose }) => {
             importedCount -= result.skipped;
             skippedCount += result.skipped;
           }
+        } else if (createdTimecodeIds.length > 0) {
+          // No entries were written, so nothing else will reload: show the
+          // timecodes this import did create rather than leaving them invisible
+          // until the next reload.
+          await refreshData();
         }
 
         if (importedCount > 0 && skippedCount === 0) {

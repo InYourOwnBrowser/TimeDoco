@@ -45,21 +45,27 @@ export const ActiveTimer: React.FC<{ activeEntry: Entry | null }> = ({ activeEnt
 
   const { settings } = useTimeTracker();
   const { addToast } = useToast();
-  const alertTriggeredRef = useRef(false);
+  // Which entry (and which target) the alert has already fired for. A plain
+  // boolean was only reset when the timer bar emptied, so starting a second
+  // timer straight after the first — the bar never goes empty — left the flag
+  // set and the new timer never announced its target.
+  const alertedForRef = useRef<string | null>(null);
 
   useEffect(() => {
     if (!activeEntry) {
       setElapsedSeconds(0);
-      alertTriggeredRef.current = false;
+      alertedForRef.current = null;
       return;
     }
+
+    const alertKey = `${activeEntry.id}:${settings?.targetAlertMinutes ?? ''}`;
 
     const calculateElapsed = () => {
       const elapsedMs = getElapsedTimeMs(activeEntry.startTime, activeEntry.pausedSegments);
       const seconds = Math.floor(elapsedMs / 1000);
       setElapsedSeconds(seconds);
 
-      if (settings?.targetAlertMinutes && !alertTriggeredRef.current) {
+      if (settings?.targetAlertMinutes && alertedForRef.current !== alertKey) {
         if (seconds >= settings.targetAlertMinutes * 60) {
           addToast(`Target reached! ${settings.targetAlertMinutes} minutes elapsed.`, 'info', undefined, 10000);
           if ('Notification' in window && Notification.permission === 'granted') {
@@ -67,7 +73,7 @@ export const ActiveTimer: React.FC<{ activeEntry: Entry | null }> = ({ activeEnt
                body: `You have tracked ${settings.targetAlertMinutes} minutes.`,
              });
           }
-          alertTriggeredRef.current = true;
+          alertedForRef.current = alertKey;
         }
       }
     };

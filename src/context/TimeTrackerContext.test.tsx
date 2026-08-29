@@ -962,6 +962,108 @@ describe('TimeTrackerContext Reducer Logic', () => {
     });
   });
 
+  it('splitEntry does not duplicate a flat fee or an estimate onto both halves', async () => {
+    let ctx: ReturnType<typeof useTimeTracker> | undefined;
+
+    render(
+      <ToastProvider><TimeTrackerProvider>
+        <TestConsumer onReady={(c) => (ctx = c)} />
+      </TimeTrackerProvider></ToastProvider>
+    );
+
+    await waitFor(() => expect(ctx?.groups).toBeDefined());
+
+    let tcId = '';
+    await act(async () => {
+      tcId = (await ctx!.addTimecode('Fee TC')).id;
+      await ctx!.addManualEntry({
+        startTime: '2024-02-01T10:00:00Z',
+        endTime: '2024-02-01T12:00:00Z',
+        timecodeId: tcId,
+        note: 'Fixed fee job',
+        manualAmount: 500,
+      });
+    });
+
+    let original: any;
+    await waitFor(() => {
+      original = ctx!.entries.find((e) => e.note === 'Fixed fee job');
+      expect(original).toBeDefined();
+    });
+
+    await act(async () => {
+      await ctx!.updateEntry(original.id, { expectedDurationMinutes: 90 });
+      await ctx!.splitEntry(original.id, '2024-02-01T11:00:00Z');
+    });
+
+    await waitFor(() => expect(ctx!.entries.length).toBe(2));
+
+    const first = ctx!.entries.find((e) => e.id === original.id)!;
+    const second = ctx!.entries.find((e) => e.id !== original.id)!;
+
+    // Copying manualAmount onto both halves billed a $500 fee twice.
+    expect(first.manualAmount).toBe(500);
+    expect(second.manualAmount).toBeNull();
+    expect(second.expectedDurationMinutes).toBeNull();
+  });
+
+  it('stamps updatedAt when trashing and restoring, so an older backup cannot undo it', async () => {
+    let ctx: ReturnType<typeof useTimeTracker> | undefined;
+
+    render(
+      <ToastProvider><TimeTrackerProvider>
+        <TestConsumer onReady={(c) => (ctx = c)} />
+      </TimeTrackerProvider></ToastProvider>
+    );
+
+    await waitFor(() => expect(ctx?.groups).toBeDefined());
+
+    let tcId = '';
+    await act(async () => {
+      tcId = (await ctx!.addTimecode('Stamp TC')).id;
+      await ctx!.addManualEntry({
+        startTime: '2024-03-01T10:00:00Z',
+        endTime: '2024-03-01T11:00:00Z',
+        timecodeId: tcId,
+        note: 'Stamped',
+      });
+    });
+
+    let entryId = '';
+    await waitFor(() => {
+      const e = ctx!.entries.find((x) => x.note === 'Stamped');
+      expect(e).toBeDefined();
+      entryId = e!.id;
+    });
+
+    const createdStamp = (await db.getEntry(entryId))!.updatedAt;
+    const tcCreatedStamp = (await db.getTimecode(tcId))!.updatedAt;
+
+    // Merge import resolves conflicts on updatedAt, so a trash that leaves the
+    // old stamp in place is silently undone by importing an older backup.
+    await act(async () => { await ctx!.deleteTimecode(tcId); });
+    const trashedEntry = (await db.getEntry(entryId))!;
+    const trashedTc = (await db.getTimecode(tcId))!;
+    expect(trashedEntry.deletedAt).toBeTruthy();
+    expect(new Date(trashedEntry.updatedAt).getTime())
+      .toBeGreaterThan(new Date(createdStamp).getTime());
+    expect(new Date(trashedTc.updatedAt).getTime())
+      .toBeGreaterThan(new Date(tcCreatedStamp).getTime());
+
+    // Let the clock move on, so "kept the old stamp" and "stamped again in the
+    // same millisecond" cannot be confused for each other.
+    await new Promise((r) => setTimeout(r, 5));
+
+    await act(async () => { await ctx!.restoreTimecode(tcId); });
+    const restoredEntry = (await db.getEntry(entryId))!;
+    const restoredTc = (await db.getTimecode(tcId))!;
+    expect(restoredEntry.deletedAt).toBeUndefined();
+    expect(new Date(restoredEntry.updatedAt).getTime())
+      .toBeGreaterThan(new Date(trashedEntry.updatedAt).getTime());
+    expect(new Date(restoredTc.updatedAt).getTime())
+      .toBeGreaterThan(new Date(trashedTc.updatedAt).getTime());
+  });
+
   it('startTimer stops every running timer even while another stop is in flight', async () => {
     let ctx: ReturnType<typeof useTimeTracker> | undefined;
 

@@ -52,8 +52,10 @@ export const Modal: React.FC<ModalProps> = ({ onClose, children, className = '',
           onClose();
         }
       } else if (e.key === 'Tab') {
-        // Focus trap
+        // Focus trap — only for the modal on top, so a stacked dialog does not
+        // pull focus back into the one behind it.
         if (!modalRef.current) return;
+        if (modalStack[modalStack.length - 1] !== idRef.current) return;
 
         const focusableElements = modalRef.current.querySelectorAll(
           'a[href], button:not([disabled]), textarea:not([disabled]), input:not([disabled]), select:not([disabled]), [tabindex]:not([tabindex="-1"])'
@@ -64,13 +66,26 @@ export const Modal: React.FC<ModalProps> = ({ onClose, children, className = '',
         const firstElement = focusableElements[0] as HTMLElement;
         const lastElement = focusableElements[focusableElements.length - 1] as HTMLElement;
 
+        // Anything not inside this modal is out of bounds, not just the two
+        // ends of the list: focus can leave by a click on the page behind, or
+        // by the browser restoring it somewhere else, and tabbing from there
+        // walked off through the rest of the document.
+        const active = document.activeElement;
+        const insideModal = active instanceof Node && modalRef.current.contains(active);
+
+        if (!insideModal) {
+          e.preventDefault();
+          (e.shiftKey ? lastElement : firstElement).focus();
+          return;
+        }
+
         if (e.shiftKey) {
-          if (document.activeElement === firstElement || document.activeElement === modalRef.current) {
+          if (active === firstElement || active === modalRef.current) {
             e.preventDefault();
             lastElement.focus();
           }
         } else {
-          if (document.activeElement === lastElement) {
+          if (active === lastElement) {
             e.preventDefault();
             firstElement.focus();
           }
@@ -86,17 +101,23 @@ export const Modal: React.FC<ModalProps> = ({ onClose, children, className = '',
   }, [onClose, isDirty]);
 
   useEffect(() => {
-    // Initial focus on the modal
-    if (modalRef.current) {
-        const focusableElements = modalRef.current.querySelectorAll(
-            'button:not([disabled]), input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])'
-        );
-        if (focusableElements.length > 0) {
-            // We focus the first element, or just the modal itself if we add tabIndex={-1}
-            // For now, let's just make the modal container focusable and focus it to avoid snapping to a potentially bad input
-            modalRef.current.focus();
-        }
-    }
+    // Remember where focus came from so it can go back on close. Without this a
+    // keyboard user lands back at the top of the document every time they
+    // dismiss a dialog.
+    const previouslyFocused = document.activeElement as HTMLElement | null;
+
+    // Focus the container rather than the first control, which would otherwise
+    // snap to whatever input happens to come first.
+    modalRef.current?.focus();
+
+    return () => {
+      // Only if the trigger is still in the document and still focusable; a
+      // modal opened from a row that the modal itself deleted has nowhere to
+      // return to.
+      if (previouslyFocused && previouslyFocused.isConnected && typeof previouslyFocused.focus === 'function') {
+        previouslyFocused.focus();
+      }
+    };
   }, []);
 
   const handleBackdropClick = (e: React.MouseEvent<HTMLDivElement>) => {

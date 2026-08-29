@@ -158,22 +158,30 @@ export const EntryList: React.FC = () => {
     return '0m';
   };
 
-  // Group entries by date
-  const groupedEntries = filteredEntries.reduce((acc, entry) => {
-    const dateStr = format(parseISO(entry.startTime), 'yyyy-MM-dd');
-    if (!acc[dateStr]) {
-      acc[dateStr] = [];
-    }
-    acc[dateStr].push(entry);
-    return acc;
-  }, {} as Record<string, Entry[]>);
+  // Grouping by date walks and re-sorts the whole filtered list, so it is
+  // memoised alongside the filter rather than redone on every render — the
+  // running-timer tick alone would otherwise repeat it once a minute.
+  const { groupedEntries, sortedDates, groupCounts, flatEntries } = React.useMemo(() => {
+    const grouped = filteredEntries.reduce((acc, entry) => {
+      const dateStr = format(parseISO(entry.startTime), 'yyyy-MM-dd');
+      if (!acc[dateStr]) {
+        acc[dateStr] = [];
+      }
+      acc[dateStr].push(entry);
+      return acc;
+    }, {} as Record<string, Entry[]>);
 
-  const sortedDates = Object.keys(groupedEntries).sort((a, b) => b.localeCompare(a));
+    const dates = Object.keys(grouped).sort((a, b) => b.localeCompare(a));
 
-  const groupCounts = sortedDates.map(date => groupedEntries[date].length);
-  // Flat, group-ordered view of the rows, so each virtualised row can be keyed
-  // by its entry id rather than by position.
-  const flatEntries = sortedDates.flatMap(date => groupedEntries[date]);
+    return {
+      groupedEntries: grouped,
+      sortedDates: dates,
+      groupCounts: dates.map(date => grouped[date].length),
+      // Flat, group-ordered view of the rows, so each virtualised row can be
+      // keyed by its entry id rather than by position.
+      flatEntries: dates.flatMap(date => grouped[date]),
+    };
+  }, [filteredEntries]);
 
   const formatDateHeader = (dateStr: string) => {
     const date = parseISO(dateStr + 'T00:00:00'); // Ensure local timezone

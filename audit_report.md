@@ -12,7 +12,11 @@ Everything below is a logic, consistency, or design issue that the type checker 
 - [x] **C1 — Splitting a flat-fee entry duplicates the charge**
   `splitEntry` builds `entry2` as `{ ...entry, id: crypto.randomUUID(), ... }`. `manualAmount` is copied verbatim. Billing keys fixed costs off `entry.manualAmount != null`, so a $500 flat fee split in two bills **$1000**. `EntrySplitModal` offers no warning. `expectedDurationMinutes` is duplicated the same way, corrupting estimate stats.
 
+  *Verified:* `entry2` now clears both fields, so the fee stays whole on the first half. Regression test added — the fix had none.
+
 - [x] **C2 — CSP `style-src 'self'` blocks every inline style**
+  *Verified:* `public/_headers` now sends `style-src 'self' 'unsafe-inline'`.
+
   `public/_headers` sets `style-src 'self'` with no `'unsafe-inline'`. Under CSP Level 3, `style-src` governs `style=""` attributes. The app uses them everywhere (`style={{ backgroundColor: tc.color }}` in ActiveTimer, GlobalActiveTimerBar, GroupingManagement, and all of Recharts' internals). In production this should strip every timecode colour dot and break chart rendering. Needs verifying against the deployed site immediately — either it's broken, or the header isn't actually being applied, and both are worth knowing.
 
 - [x] **C3 — Four different answers for "how much time this week"**
@@ -47,6 +51,8 @@ Everything below is a logic, consistency, or design issue that the type checker 
   ```
   Merge-mode import resolves conflicts by comparing `updatedAt`. A renamed group keeps its old stamp, so **importing an older backup silently reverts the rename**. Same for `restoreGroup`, `restoreTimecode`, `restoreEntry`, and `emptyTrash`'s `groupId: null` cascade. Both functions also read from React state rather than the DB, unlike every delete path on this branch, which was specifically changed to read from the DB for exactly this reason.
 
+  *Was only half done.* `updateGroup`/`updateTimecode` were fixed, but every other path named here still wrote records with the old stamp — `restoreGroupInternal`, `restoreTimecodeInternal`, `restoreEntryInternal`, the `emptyTrash` and `hardDeleteGroup` `groupId: null` cascades, the auto-purge cascade, and every soft-delete (`deleteGroup`, `deleteTimecode`, `deleteEntry`, `bulkDeleteEntries`, `mergeTimecodes`) plus the delete-undo restores. All of them now go through one `touch()` helper. Regression test covers trash-then-restore.
+
 - [x] **H2 — Settings writes clobber across tabs**
   `updateSettings` spreads the whole React `settings` snapshot and writes it back, with no `notifyOtherTabs()` and no re-read. Two tabs open, each saving a different field, and the second write reverts the first. Templates live in `settings.templates`, so template edits are affected too. `getBackupBlob` calls `updateSettings` on every export, widening the window.
 
@@ -56,8 +62,12 @@ Everything below is a logic, consistency, or design issue that the type checker 
 - [x] **H4 — Import preview is stricter than the import itself**
   `SettingsModal.handleImport` calls `validateBackupPayload(parsed)` with no `knownTimecodeIds`. In merge mode the real import passes the locally-stored ids. So a valid merge backup whose entries reference existing local timecodes **fails at the preview step** with "refers to timecode X, which is not in this backup" — an import the app would have accepted.
 
+  *Was only half done.* The preview started passing ids, but unconditionally and from the live-only React list, leaving two fresh mismatches: a replace-mode preview passed a file the import then rejected, and a backup referencing a *trashed* local timecode still failed preview though the import resolves it. The preview now validates with exactly what `importData` will use, and is dropped when the mode changes underneath it. Three regression tests.
+
 - [x] **H5 — CSV import creates orphan timecodes from rows it then rejects**
   In `handleImportCSV`, `addTimecode(timecodeName)` runs *before* date validation. A row with a good name and an unparseable date leaves a permanent new timecode behind. If every row fails, the user gets "Failed to import any entries" plus a pile of junk timecodes and no rollback. Each `addTimecode` also triggers a full `refreshData()` — 50 new timecodes means 50 complete database reads.
+
+  *Was only half done.* Date validation had been moved ahead of `addTimecode`, but the `refreshData()` storm was untouched. `addTimecode` now takes `deferRefresh`, and the CSV import reloads once at the end. Two-pass validation with rollback is still the outstanding follow-up below.
 
 - [x] **H6 — Timesheet cell edits fight their own rounding**
   `commitCell` compares the typed value against raw unrounded `e.duration`, but the cell *displays* a rounded value. Retyping the number already on screen (0.25 rounded up from 0.20) computes a positive delta and silently creates a phantom "Timesheet adjustment" entry. Those adjustments are written via `addManualEntry`, which performs no overlap check, so they land on top of real entries and are then flagged by AnalysisView's overlap detector.
@@ -65,20 +75,22 @@ Everything below is a logic, consistency, or design issue that the type checker 
 - [x] **H7 — `Notification` accessed unguarded inside a 1-second interval**
   `ActiveTimer`'s `calculateElapsed` does `if (Notification.permission === 'granted')` with no `'Notification' in window` check — the effect 20 lines below it guards correctly. On a browser without the API this throws every second, flooding the error log and freezing the elapsed display. Related: `alertTriggeredRef` is only reset when `activeEntry` becomes `null`, so switching directly between timers means the second one never fires its target alert.
 
+  *Was only half done.* The `'Notification' in window` guard was added; the flag was not. It is now keyed to the entry (and its target), so switching timers announces the new one. Regression tests for both halves.
+
 ---
 
 ## Medium
 
-- [x] **M1 — Negative amounts print as `—`.** `amount > 0 ? amount.toFixed(2) : '-'` appears in the PDF summary, PDF detail table, and detailed CSV. Credits, discounts, and negative-rate adjustments are invisible on the invoice while still counting toward the total.
+- [x] **M1 — Negative amounts print as `—`.** `amount > 0 ? amount.toFixed(2) : '-'` appears in the PDF summary, PDF detail table, and detailed CSV. Credits, discounts, and negative-rate adjustments are invisible on the invoice while still counting toward the total. *Was only half done:* the detail table and detailed CSV were fixed, the PDF summary rows and footer were not, and the on-screen breakdown both hid negative cells and dropped its Earnings column entirely when the net was not positive. All money now prints through one `formatAmount` helper. Regression test.
 - [x] **M2 — Three definitions of "the primary timer."** `db.getActiveEntry` picks the longest-running (its comment claims this is what the global bar shows); `GlobalActiveTimerBar` and App's document title both pick the most recently started.
 - [x] **M3 — `buildBillableLines` doc comment contradicts the code.** Rule 2 states "`amount` is derived from the same two-decimal `hours` value that gets printed, so a client checking `rate x hours = amount` finds it holds." Amounts are now allocated from a timecode-level total, so per-line `rate × hours ≠ amount`. `BillableLine.amount`'s doc has the same stale claim. A client reconciling a line item will find it doesn't.
 - [x] **M4 — Overlap detection ignores the concurrency setting.** AnalysisView's `overlaps` memo compares across all timecodes regardless of `allowConcurrentTimers`, so users who deliberately run concurrent timers get a permanent red warning chip. It's also O(n²) with no dedup.
-- [x] **M5 — Escape closes all stacked modals.** `Modal` binds its Escape handler at the document level with no stack awareness. The focus trap only fires when `activeElement` is exactly the first or last element, so focus that escapes the modal isn't recaptured, and focus is never restored to the trigger on close.
+- [x] **M5 — Escape closes all stacked modals.** `Modal` binds its Escape handler at the document level with no stack awareness. The focus trap only fires when `activeElement` is exactly the first or last element, so focus that escapes the modal isn't recaptured, and focus is never restored to the trigger on close. *Was only half done:* the Escape stack was added, the two focus problems were not. Tab now recaptures focus from anywhere outside the modal (and only the top modal traps), and closing returns focus to the element that opened it. Two regression tests.
 - [x] **M6 — Notification spam.** `OverrunDetector`'s 5-second interval re-fires `new Notification(...)` for the same overrun indefinitely; only `tag` dedup keeps it visually tolerable. It also fights App.tsx over `document.title` — App rewrites the title every 500ms while OverrunDetector flashes it every 1000ms.
 - [x] **M7 — Timecodes in archived groups stay visible.** `TimecodeSelector` filters on `t.archived` only, never `group.archived`. Archiving a client leaves all its timecodes in the picker.
 - [x] **M8 — Download failures are silent.** `useNamedDownload.handleConfirm` catches to `console.error` with no toast. Only PDF export surfaces its own error; CSV, ICS, and JSON backup failures show the user nothing.
 - [x] **M9 — Empty weeks chart as 100% hit rate.** `estimatesTrend` returns `{ hitRate: 100 }` for weeks with no entries, drawing a flat perfect line through gaps in the data.
-- [x] **M10 — Theme flash.** `app/index.html` hardcodes `class="dark"` on `<html>`; App.tsx corrects it after hydration. Light-theme users see a dark flash on every load.
+- [x] **M10 — Theme flash.** `app/index.html` hardcodes `class="dark"` on `<html>`; App.tsx corrects it after hydration. Light-theme users see a dark flash on every load. *Was only half done:* the boot script started reading `prefers-color-scheme`, which still flashes for anyone whose explicit theme contradicts their OS — the setting lives in IndexedDB, which cannot be read before paint. App.tsx now mirrors the theme to `localStorage` and the boot script resolves exactly what App will apply.
 - [x] **M11 — `by-start-time` index sorts lexicographically.** `getEntries` trusts the index order, but IndexedDB string-compares. ISO strings with mixed offsets (`+13:00` vs `Z`) — plausible from CSV import — sort wrong. The fallback path sorts by parsed `Date`, so the two paths disagree. The `getAllFromIndex`/`count` consistency check also runs as two separate transactions and can race.
 - [x] **M12 — Fixed-cost detection is inconsistent.** The UI infers it from `startTime === endTime`; billing infers it from `manualAmount != null`. Toggling Flat Fee back to Time Entry without clearing the amount produces an entry that bills as a fee while looking like a time entry.
 
@@ -86,7 +98,7 @@ Everything below is a logic, consistency, or design issue that the type checker 
 
 ## Low / Performance
 
-- [x] `EntryList` recomputes `filteredEntries`, `groupedEntries`, and `flatEntries` on every render with no `useMemo`, and resolves timecode names via `timecodes.find` inside a filter over all entries — O(n×m). The repo's own `AnalysisView.bench.test.ts` measures Map-vs-find; AnalysisView adopted Maps, EntryList didn't.
+- [x] `EntryList` recomputes `filteredEntries`, `groupedEntries`, and `flatEntries` on every render with no `useMemo`, and resolves timecode names via `timecodes.find` inside a filter over all entries — O(n×m). The repo's own `AnalysisView.bench.test.ts` measures Map-vs-find; AnalysisView adopted Maps, EntryList didn't. *Was only half done:* the Map and the `filteredEntries` memo landed; `groupedEntries` / `sortedDates` / `groupCounts` / `flatEntries` were still redone on every render. Now memoised with the filter.
 - [x] `TimesheetMatrixView.isVisible` is called from inside `.filter()` chains, re-walking 7 cells per timecode per render.
 - [x] `GlobalActiveTimerBar` ticks at 200ms to render a seconds-resolution display.
 - [x] `restoreTimecode` / `restoreGroup` call `restoreEntry` per record, each triggering its own full `refreshData()` — N complete database reads for one restore. `bulkDeleteEntries`' undo does the same.
@@ -115,4 +127,8 @@ The two things I'd fix before anything else are **C2** (verify against productio
 
 ---
 
-**Status update:** all five Critical items are now closed. C3, C4 and C5 were fixed together with regression tests; the suite stands at 203 passing, `tsc -b` clean, `oxlint` unchanged at the same 2 fast-refresh warnings.
+**Status update:** all five Critical items are now closed. C3, C4 and C5 were fixed together with regression tests.
+
+Every previously-checked item was then re-verified against the code. Eight were only partly done and have been completed: **H1** (only two of eight-plus write paths stamped `updatedAt`), **H4** (preview matched neither the mode nor the id set the import uses), **H5** (the `refreshData()` storm), **H7** (the alert flag), **M1** (the PDF summary and on-screen breakdown), **M5** (both focus problems), **M10** (an explicit theme against the OS preference), and the EntryList grouping memo. **C1** was correct but untested. Fully verified as correct with no changes needed: C2, H2, H3, H6, M2, M3, M4, M6, M7, M8, M9, M11, M12 and the remaining Low/Performance items.
+
+The suite stands at 214 passing, `tsc -b` clean, production build clean, `oxlint` unchanged at the same 2 pre-existing fast-refresh warnings. Each new test was confirmed to fail against the pre-fix code.

@@ -612,6 +612,16 @@ export const AnalysisView: React.FC = () => {
     }));
   }, [dateRange, filteredEntries, billableLines]);
 
+  const showEarningsColumn = totalEarnings !== 0 || timecodeData.some(tc => tc.earnings !== 0);
+
+  /**
+   * Money as it appears on a report. A zero is a dash; anything else prints,
+   * negatives included — a credit, a discount or a negative-rate adjustment
+   * counts toward the total, so hiding it makes the total unreconcilable.
+   */
+  const formatAmount = (amount: number) =>
+    amount === 0 ? '-' : `${currencySymbol}${amount.toFixed(2)}`;
+
   const escapeCSV = (str: string) => {
     let escaped = str.replace(/"/g, '""');
     if (/^[=+\-@\t\r]/.test(escaped)) {
@@ -871,7 +881,7 @@ export const AnalysisView: React.FC = () => {
         const timecode = timecodeMap.get(tc.id);
         const groupName = timecode?.groupId ? groupMap.get(timecode.groupId)?.name || 'Unknown' : 'Ungrouped';
         const rate = timecode?.hourlyRate ? `${currencySymbol}${timecode.hourlyRate.toFixed(2)}/hr` : '-';
-        return [tc.name, groupName, rate, tc.durationHours.toFixed(2), tc.earnings > 0 ? `${currencySymbol}${tc.earnings.toFixed(2)}` : '-'];
+        return [tc.name, groupName, rate, tc.durationHours.toFixed(2), formatAmount(tc.earnings)];
       });
 
       const foot = taxBreakdown
@@ -880,7 +890,7 @@ export const AnalysisView: React.FC = () => {
             ['', '', '', `${settings?.taxLabel || 'Tax'} (${settings?.taxRate}%)`, `${currencySymbol}${taxBreakdown.tax.toFixed(2)}`],
             ['', 'Total', '', totalHours.toFixed(2), `${currencySymbol}${taxBreakdown.total.toFixed(2)}`],
           ]
-        : [['', 'Total', '', totalHours.toFixed(2), totalEarnings > 0 ? `${currencySymbol}${totalEarnings.toFixed(2)}` : '-']];
+        : [['', 'Total', '', totalHours.toFixed(2), formatAmount(totalEarnings)]];
 
       autoTable(doc, {
         startY: y + 4,
@@ -909,7 +919,7 @@ export const AnalysisView: React.FC = () => {
             e.endTime ? format(parseISO(e.endTime), 'HH:mm') : 'Running',
             paused,
             hrs,
-            amount !== 0 ? `${currencySymbol}${amount.toFixed(2)}` : '-',
+            formatAmount(amount),
             e.note || '—',
           ];
         });
@@ -1446,7 +1456,7 @@ export const AnalysisView: React.FC = () => {
                               {breakdownType === 'timecode' ? 'Timecode' : 'Group'}
                             </th>
                             <th className="px-4 py-2.5 text-right font-semibold text-gray-600 dark:text-gray-400 font-sans text-xs uppercase tracking-wide">Hours</th>
-                            {totalEarnings > 0 && breakdownType === 'timecode' && (
+                            {showEarningsColumn && breakdownType === 'timecode' && (
                               <th className="px-4 py-2.5 text-right font-semibold text-gray-600 dark:text-gray-400 font-sans text-xs uppercase tracking-wide">Earnings</th>
                             )}
                           </tr>
@@ -1468,10 +1478,10 @@ export const AnalysisView: React.FC = () => {
                                   <span className="font-medium text-graphite dark:text-stone">{row.name}</span>
                                 </td>
                                 <td className="px-4 py-2 text-right text-graphite dark:text-stone font-mono tabular">{row.durationHours.toFixed(2)}</td>
-                                {totalEarnings > 0 && breakdownType === 'timecode' && (
+                                {showEarningsColumn && breakdownType === 'timecode' && (
                                   <td className="px-4 py-2 text-right text-graphite dark:text-stone font-mono tabular">
-                                    {'earnings' in row && typeof (row as { earnings?: number }).earnings === 'number' && (row as { earnings: number }).earnings > 0
-                                      ? `${currencySymbol}${(row as { earnings: number }).earnings.toFixed(2)}`
+                                    {'earnings' in row && typeof (row as { earnings?: number }).earnings === 'number'
+                                      ? formatAmount((row as { earnings: number }).earnings)
                                       : '-'}
                                   </td>
                                 )}

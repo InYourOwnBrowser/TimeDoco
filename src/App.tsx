@@ -146,6 +146,17 @@ const AppContent = () => {
 
     root.classList.add(activeTheme);
 
+    // Mirror the choice where the pre-hydration script can read it. IndexedDB
+    // cannot be read synchronously before paint, so without this a user whose
+    // explicit theme contradicts their OS preference sees the wrong one flash
+    // on every load.
+    try {
+      localStorage.setItem('theme', theme);
+    } catch {
+      // Private mode or blocked storage: the boot script falls back to the OS
+      // preference, which is what it did before.
+    }
+
     const metaThemeColor = document.querySelector('meta[name="theme-color"]');
     if (metaThemeColor) {
       metaThemeColor.setAttribute('content', activeTheme === 'dark' ? '#111827' : '#f9fafb');

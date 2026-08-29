@@ -18,7 +18,7 @@ interface TimeTrackerContextType {
   addGroup: (name: string, color: string) => Promise<Group>;
   updateGroup: (id: string, updates: Partial<Group>) => Promise<void>;
   deleteGroup: (id: string) => Promise<void>;
-  addTimecode: (name: string, color?: string, groupId?: string, hourlyRate?: number) => Promise<Timecode>;
+  addTimecode: (name: string, color?: string, groupId?: string, hourlyRate?: number, options?: { deferRefresh?: boolean }) => Promise<Timecode>;
   updateTimecode: (id: string, updates: Partial<Timecode>) => Promise<void>;
   deleteTimecode: (id: string) => Promise<void>;
   mergeTimecodes: (sourceId: string, destId: string) => Promise<void>;
@@ -135,6 +135,18 @@ export const TimeTrackerProvider: React.FC<{ children: ReactNode }> = ({ childre
     setLastStoppedEntry(null);
     await refreshData();
   };
+
+  /**
+   * Stamp a record as changed now.
+   *
+   * Merge-mode import resolves conflicts by comparing `updatedAt`, so any write
+   * that leaves the old stamp in place is silently reversible: importing a
+   * backup taken before the change wins and undoes it. Trashing, restoring and
+   * the cascades that null a `groupId` are all real changes and all go through
+   * here.
+   */
+  const touch = <T extends { updatedAt: string }>(record: T, at: string = new Date().toISOString()): T =>
+    ({ ...record, updatedAt: at });
 
   const isStartingTimerRef = useRef(false);
   const isPausingTimerRef = useRef(false);
@@ -368,7 +380,7 @@ export const TimeTrackerProvider: React.FC<{ children: ReactNode }> = ({ childre
       for (const group of groupsToDelete) {
         const timecodesToUpdate = [...loadedTimecodes].filter((tc) => tc.groupId === group.id);
         if (timecodesToUpdate.length > 0) {
-          await Promise.all(timecodesToUpdate.map((tc) => db.putTimecode({ ...tc, groupId: null })));
+          await Promise.all(timecodesToUpdate.map((tc) => db.putTimecode(touch({ ...tc, groupId: null }))));
         }
         await db.deleteGroup(group.id);
         purged = true;
@@ -614,7 +626,7 @@ export const TimeTrackerProvider: React.FC<{ children: ReactNode }> = ({ childre
     const [allTimecodes, allEntries] = await Promise.all([db.getTimecodes(), db.getEntries()]);
     const timecodesToDelete = allTimecodes.filter(tc => tc.groupId === id && !tc.deletedAt);
     for (const tc of timecodesToDelete) {
-      await db.putTimecode({ ...tc, deletedAt: now });
+      await db.putTimecode(touch({ ...tc, deletedAt: now }, now));
 
       // Cascade soft-delete to entries for each timecode
       const entriesToDelete = allEntries.filter((e) => e.timecodeId === tc.id && !e.deletedAt);
@@ -623,12 +635,12 @@ export const TimeTrackerProvider: React.FC<{ children: ReactNode }> = ({ childre
           await stopTimerById(entry.id);
         }
         const latestEntry = await db.getEntry(entry.id) || entry;
-        await db.putEntry({ ...latestEntry, deletedAt: now });
+        await db.putEntry(touch({ ...latestEntry, deletedAt: now }, now));
       }
     }
 
     if (group) {
-      await db.putGroup({ ...group, deletedAt: now });
+      await db.putGroup(touch({ ...group, deletedAt: now }, now));
 
       // Update templates to remove timecodes that were deleted
       const currentSettings = await db.getSettings();
@@ -654,7 +666,7 @@ export const TimeTrackerProvider: React.FC<{ children: ReactNode }> = ({ childre
       // Cascading: set groupId to null for all timecodes in this group
       const timecodesToUpdate = [...timecodes, ...deletedTimecodes].filter((tc) => tc.groupId === group.id);
       if (timecodesToUpdate.length > 0) {
-        await Promise.all(timecodesToUpdate.map((tc) => db.putTimecode({ ...tc, groupId: null })));
+        await Promise.all(timecodesToUpdate.map((tc) => db.putTimecode(touch({ ...tc, groupId: null }))));
       }
       await db.deleteGroup(group.id);
     }
@@ -676,7 +688,7 @@ export const TimeTrackerProvider: React.FC<{ children: ReactNode }> = ({ childre
     // Cascading: set groupId to null for all timecodes in this group
     const timecodesToUpdate = [...timecodes, ...deletedTimecodes].filter((tc) => tc.groupId === id);
     if (timecodesToUpdate.length > 0) {
-      await Promise.all(timecodesToUpdate.map((tc) => db.putTimecode({ ...tc, groupId: null })));
+      await Promise.all(timecodesToUpdate.map((tc) => db.putTimecode(touch({ ...tc, groupId: null }))));
     }
     await db.deleteGroup(id);
     await refreshData();
@@ -687,7 +699,7 @@ export const TimeTrackerProvider: React.FC<{ children: ReactNode }> = ({ childre
     if (group) {
       const deletedTime = group.deletedAt;
       group.deletedAt = undefined;
-      await db.putGroup(group);
+      await db.putGroup(touch(group));
 
       const allTimecodes = await db.getTimecodes();
       const tcsToRestore = allTimecodes.filter(tc => tc.groupId === id && tc.deletedAt === deletedTime);
@@ -702,7 +714,19 @@ export const TimeTrackerProvider: React.FC<{ children: ReactNode }> = ({ childre
     await refreshData();
   };
 
-  const addTimecode = async (name: string, color?: string, groupId?: string, hourlyRate?: number): Promise<Timecode> => {
+  /**
+   * @param options.deferRefresh skip the reload, for a caller creating several
+   *   timecodes in a row. A CSV naming 50 new timecodes otherwise triggers 50
+   *   complete reads of the database before a single entry is written; the
+   *   caller reloads once when it is done.
+   */
+  const addTimecode = async (
+    name: string,
+    color?: string,
+    groupId?: string,
+    hourlyRate?: number,
+    options?: { deferRefresh?: boolean },
+  ): Promise<Timecode> => {
     const newTimecode: Timecode = {
       id: crypto.randomUUID(),
       name,
@@ -713,7 +737,7 @@ export const TimeTrackerProvider: React.FC<{ children: ReactNode }> = ({ childre
       updatedAt: new Date().toISOString(),
     };
     await db.putTimecode(newTimecode);
-    await refreshData();
+    if (!options?.deferRefresh) await refreshData();
     return newTimecode;
   };
 
@@ -934,7 +958,8 @@ export const TimeTrackerProvider: React.FC<{ children: ReactNode }> = ({ childre
     // 4. Soft delete the source timecode
     const sourceTc = await db.getTimecode(sourceId);
     if (sourceTc) {
-      await db.putTimecode({ ...sourceTc, deletedAt: new Date().toISOString() });
+      const mergedAt = new Date().toISOString();
+      await db.putTimecode(touch({ ...sourceTc, deletedAt: mergedAt }, mergedAt));
     }
 
     // 5. Refresh everything
@@ -952,11 +977,11 @@ export const TimeTrackerProvider: React.FC<{ children: ReactNode }> = ({ childre
       }
       // Re-fetch the entry in case it was updated by stopTimerById
       const latestEntry = await db.getEntry(entry.id) || entry;
-      await db.putEntry({ ...latestEntry, deletedAt: now });
+      await db.putEntry(touch({ ...latestEntry, deletedAt: now }, now));
     }
     const tc = await db.getTimecode(id);
     if (tc) {
-      await db.putTimecode({ ...tc, deletedAt: now });
+      await db.putTimecode(touch({ ...tc, deletedAt: now }, now));
     }
 
     // Update templates
@@ -979,13 +1004,13 @@ export const TimeTrackerProvider: React.FC<{ children: ReactNode }> = ({ childre
            const tcToRestore = await db.getTimecode(id);
            if (tcToRestore) {
              const { deletedAt: _tcDeleted, ...restoredTc } = tcToRestore;
-             await db.putTimecode(restoredTc as Timecode);
+             await db.putTimecode(touch(restoredTc as Timecode));
            }
            await Promise.all(entriesToDelete.map(async (entry) => {
              const latest = await db.getEntry(entry.id);
              if (!latest) return;
              const { deletedAt: _entryDeleted, ...restored } = latest;
-             await db.putEntry(restored as Entry);
+             await db.putEntry(touch(restored as Entry));
            }));
 
            if (originalTemplates.length > 0) {
@@ -1034,7 +1059,7 @@ export const TimeTrackerProvider: React.FC<{ children: ReactNode }> = ({ childre
     if (tc) {
       const deletedTime = tc.deletedAt;
       tc.deletedAt = undefined;
-      await db.putTimecode(tc);
+      await db.putTimecode(touch(tc));
 
       const allEntries = await db.getEntries();
       const entriesToRestore = allEntries.filter(e => e.timecodeId === id && e.deletedAt === deletedTime);
@@ -1131,7 +1156,8 @@ export const TimeTrackerProvider: React.FC<{ children: ReactNode }> = ({ childre
   const deleteEntry = async (id: string) => {
     const entry = await db.getEntry(id);
     if (entry) {
-      await db.putEntry({ ...entry, deletedAt: new Date().toISOString() });
+      const deletedAt = new Date().toISOString();
+      await db.putEntry(touch({ ...entry, deletedAt }, deletedAt));
       addToast('Entry deleted', 'success', { label: 'Undo', onClick: () => restoreEntry(id) }, 5000);
       await refreshData();
     }
@@ -1142,7 +1168,7 @@ export const TimeTrackerProvider: React.FC<{ children: ReactNode }> = ({ childre
     const now = new Date().toISOString();
     const targets = await Promise.all(ids.map((id) => db.getEntry(id)));
     await Promise.all(
-      targets.filter((e): e is Entry => !!e).map((e) => db.putEntry({ ...e, deletedAt: now }))
+      targets.filter((e): e is Entry => !!e).map((e) => db.putEntry(touch({ ...e, deletedAt: now }, now)))
     );
     addToast(
       `${ids.length} ${ids.length === 1 ? 'entry' : 'entries'} deleted`,
@@ -1162,13 +1188,13 @@ export const TimeTrackerProvider: React.FC<{ children: ReactNode }> = ({ childre
     const entry = await db.getEntry(id);
     if (entry) {
       entry.deletedAt = undefined;
-      await db.putEntry(entry);
+      await db.putEntry(touch(entry));
 
       if (entry.timecodeId) {
         const tc = await db.getTimecode(entry.timecodeId);
         if (tc && tc.deletedAt) {
           tc.deletedAt = undefined;
-          await db.putTimecode(tc);
+          await db.putTimecode(touch(tc));
         }
       }
     }
