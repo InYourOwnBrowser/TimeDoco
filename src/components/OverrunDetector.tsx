@@ -9,6 +9,7 @@ export const OverrunDetector: React.FC = () => {
   const { activeEntries, timecodes, stopTimer, settings } = useTimeTracker();
   const [promptEntry, setPromptEntry] = useState<Entry | null>(null);
   const dismissedRef = useRef<Set<string>>(new Set());
+  const notifiedRef = useRef<Set<string>>(new Set());
 
   const usesEstimates = activeEntries.some(
     (e) => e.expectedDurationMinutes != null && e.expectedDurationMinutes > 0
@@ -36,6 +37,7 @@ export const OverrunDetector: React.FC = () => {
         const elapsedMs = getElapsedTimeMs(entry.startTime, entry.pausedSegments);
         if (elapsedMs >= entry.expectedDurationMinutes * 60 * 1000) {
           if (
+            !notifiedRef.current.has(entry.id) &&
             document.hidden &&
             typeof window !== 'undefined' &&
             'Notification' in window &&
@@ -46,6 +48,7 @@ export const OverrunDetector: React.FC = () => {
               body: `${tc?.name || 'This task'} has passed its ${entry.expectedDurationMinutes} min estimate.`,
               tag: `overrun-${entry.id}`,
             });
+            notifiedRef.current.add(entry.id);
           }
         }
       });
@@ -105,6 +108,9 @@ export const OverrunDetector: React.FC = () => {
     const activeIds = new Set(activeEntries.map((e) => e.id));
     dismissedRef.current.forEach((id) => {
       if (!activeIds.has(id)) dismissedRef.current.delete(id);
+    });
+    notifiedRef.current.forEach((id) => {
+      if (!activeIds.has(id)) notifiedRef.current.delete(id);
     });
   }, [activeEntries]);
 

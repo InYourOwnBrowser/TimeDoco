@@ -298,6 +298,7 @@ export const AnalysisView: React.FC = () => {
   const overlaps = useMemo(() => {
     const overlappingPairs: { e1: Entry, e2: Entry }[] = [];
     const sorted = [...filteredEntries].sort((a, b) => new Date(a.startTime).getTime() - new Date(b.startTime).getTime());
+    const allowConcurrent = settings?.allowConcurrentTimers ?? false;
 
     for (let i = 0; i < sorted.length; i++) {
       for (let j = i + 1; j < sorted.length; j++) {
@@ -309,15 +310,21 @@ export const AnalysisView: React.FC = () => {
         const start2 = new Date(e2.startTime).getTime();
         const end2 = e2.endTime ? new Date(e2.endTime).getTime() : Date.now();
 
+        if (start2 >= end1) {
+          break;
+        }
+
+        if (allowConcurrent && e1.timecodeId !== e2.timecodeId) {
+          continue;
+        }
+
         if (start1 < end2 && start2 < end1) {
           overlappingPairs.push({ e1, e2 });
-        } else if (start2 >= end1) {
-          break;
         }
       }
     }
     return overlappingPairs;
-  }, [filteredEntries]);
+  }, [filteredEntries, settings?.allowConcurrentTimers]);
 
   // Detect gaps > 15 minutes
   const gaps = useMemo(() => {

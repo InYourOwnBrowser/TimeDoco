@@ -89,6 +89,9 @@ const AppContent = () => {
     const activeTimecode = timecodes.find(t => t.id === primaryEntry.timecodeId);
 
     const updateTitle = () => {
+      if (document.hidden && document.title.includes('Past estimate!')) {
+        return;
+      }
       const elapsedMs = getElapsedTimeMs(primaryEntry.startTime, primaryEntry.pausedSegments);
       const elapsed = Math.floor(elapsedMs / 1000);
 
