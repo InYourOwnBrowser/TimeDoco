@@ -327,6 +327,40 @@ describe('validateBackupPayload', () => {
       expect(() => validateBackupPayload(payload)).toThrow(/contains 2 running entries/);
     });
 
+    it('judges concurrency by the setting that will be in force, not the file\'s', () => {
+      // The file permits concurrent timers; the database being merged into does
+      // not. In merge mode the local setting is the one that matters.
+      const payload = {
+        groups: [], timecodes: [{ id: 'tc1', name: 'TC', updatedAt: '2025-01-01T00:00:00.000Z' }],
+        entries: [
+          { id: 'e1', timecodeId: 'tc1', startTime: '2025-01-01T09:00:00.000Z', endTime: null, duration: 0, isRunning: true },
+          { id: 'e2', timecodeId: 'tc1', startTime: '2025-01-01T10:00:00.000Z', endTime: null, duration: 0, isRunning: true },
+        ],
+        settings: { allowConcurrentTimers: true },
+      };
+
+      expect(() => validateBackupPayload(payload)).not.toThrow();
+      expect(() => validateBackupPayload(payload, undefined, { allowConcurrentTimers: false }))
+        .toThrow(/concurrent timers are disabled/);
+    });
+
+    it('counts timers already running locally toward the post-merge total', () => {
+      // One running entry in the file is fine on its own, but not beside a
+      // timer already running here.
+      const payload = {
+        groups: [], timecodes: [{ id: 'tc1', name: 'TC', updatedAt: '2025-01-01T00:00:00.000Z' }],
+        entries: [
+          { id: 'e1', timecodeId: 'tc1', startTime: '2025-01-01T09:00:00.000Z', endTime: null, duration: 0, isRunning: true },
+        ],
+        settings: { allowConcurrentTimers: false },
+      };
+
+      expect(() => validateBackupPayload(payload, undefined, { allowConcurrentTimers: false })).not.toThrow();
+      expect(() =>
+        validateBackupPayload(payload, undefined, { allowConcurrentTimers: false, existingRunningCount: 1 })
+      ).toThrow(/already running here/);
+    });
+
     it('accepts multiple running entries when allowConcurrentTimers is true', () => {
       const payload = {
         ...validPayload,

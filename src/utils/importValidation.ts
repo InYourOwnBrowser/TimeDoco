@@ -79,13 +79,31 @@ export function parseCSVDate(dateStr: string, format: 'iso' | 'dmy' | 'mdy' = 'i
   return new Date(isoStr);
 }
 
+export interface BackupValidationOptions {
+  /**
+   * Whether concurrent timers will be allowed **after** the import. In merge
+   * mode that is the local setting, not the file's — the file's setting may not
+   * even be applied. Defaults to the file's when omitted.
+   */
+  allowConcurrentTimers?: boolean;
+  /**
+   * Running entries already stored locally that this import will not overwrite.
+   * They count toward the post-import running total in merge mode.
+   */
+  existingRunningCount?: number;
+}
+
 /**
  * @param knownTimecodeIds Timecode ids that will exist after the import but are
  *   not carried in the payload — in merge mode, the ones already stored
  *   locally. Omitted for a replace, where nothing survives that is not in the
  *   file.
  */
-export function validateBackupPayload(parsed: any, knownTimecodeIds?: Set<string>): void {
+export function validateBackupPayload(
+  parsed: any,
+  knownTimecodeIds?: Set<string>,
+  options?: BackupValidationOptions
+): void {
   if (!parsed || typeof parsed !== 'object') {
     throw new Error('Import failed: Backup data is not a valid JSON object.');
   }
@@ -240,9 +258,19 @@ export function validateBackupPayload(parsed: any, knownTimecodeIds?: Set<string
     }
   }
 
-  const allowConcurrent = Boolean(parsed.settings?.allowConcurrentTimers);
-  if (!allowConcurrent && runningCount > 1) {
-    throw new Error(`Import failed: Backup contains ${runningCount} running entries while concurrent timers are disabled.`);
+  // The constraint that matters is the one in force after the import. Reading
+  // it from the file meant a merge could pass validation on the file's
+  // permissive setting and then land two running timers in a database whose own
+  // setting forbids them.
+  const allowConcurrent = options?.allowConcurrentTimers ?? Boolean(parsed.settings?.allowConcurrentTimers);
+  const totalRunning = runningCount + (options?.existingRunningCount ?? 0);
+  if (!allowConcurrent && totalRunning > 1) {
+    const existingRunning = options?.existingRunningCount ?? 0;
+    throw new Error(
+      existingRunning > 0
+        ? `Import failed: this would leave ${totalRunning} running timers (${runningCount} in the backup, ${existingRunning} already running here) while concurrent timers are disabled.`
+        : `Import failed: Backup contains ${runningCount} running entries while concurrent timers are disabled.`
+    );
   }
 
   validateSettings(parsed.settings, resolvableTimecodeIds);

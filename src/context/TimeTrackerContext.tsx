@@ -1657,19 +1657,72 @@ export const TimeTrackerProvider: React.FC<{ children: ReactNode }> = ({ childre
       ? new Set((await db.getTimecodes()).map((tc) => tc.id))
       : undefined;
 
-    // Validate what will actually be written, not the pre-migration input.
-    validateBackupPayload(migratedData, knownTimecodeIds);
+    let importedEntries: Entry[] = migratedData.entries || [];
+    let skippedOverlaps = 0;
+
+    if (mode === 'merge') {
+      const localEntries = await db.getEntries();
+      const incomingIds = new Set(importedEntries.map((e) => e.id));
+
+      // An incoming record with an id already stored is an update to that
+      // record, not a second entry beside it, so it must not be weighed against
+      // its own local copy.
+      const untouchedLocal = localEntries.filter((e) => !incomingIds.has(e.id) && !e.deletedAt);
+
+      // The local setting is what will be in force after a merge — the file's
+      // settings may not even be applied.
+      const localSettings = await db.getSettings();
+      const effectiveAllowConcurrent = localSettings?.allowConcurrentTimers ?? false;
+
+      validateBackupPayload(migratedData, knownTimecodeIds, {
+        allowConcurrentTimers: effectiveAllowConcurrent,
+        existingRunningCount: untouchedLocal.filter((e) => e.isRunning).length,
+      });
+
+      // Every single-entry path checks for overlaps, and CSV import does too,
+      // but backup merge did not — so a merge could create the overlapping
+      // entries the UI refuses to accept, and overlapping entries double-count
+      // on an invoice. Trashed incoming records are left alone: they occupy no
+      // time until restored, and restoreEntry does its own checking.
+      const liveIncoming: Entry[] = [];
+      const liveIncomingIndexes: number[] = [];
+      importedEntries.forEach((e, index) => {
+        if (!e.deletedAt) {
+          liveIncoming.push(e);
+          liveIncomingIndexes.push(index);
+        }
+      });
+
+      const clashing = findOverlappingCandidates(liveIncoming, untouchedLocal, effectiveAllowConcurrent);
+      if (clashing.size > 0) {
+        const dropped = new Set(Array.from(clashing).map((i) => liveIncomingIndexes[i]));
+        importedEntries = importedEntries.filter((_, index) => !dropped.has(index));
+        skippedOverlaps = clashing.size;
+      }
+    } else {
+      // Validate what will actually be written, not the pre-migration input.
+      validateBackupPayload(migratedData, knownTimecodeIds);
+    }
 
     await db.importBackup(
       {
         groups: migratedData.groups || [],
         timecodes: migratedData.timecodes || [],
-        entries: migratedData.entries || [],
+        entries: importedEntries,
         settings: migratedData.settings,
       },
       mode
     );
     await refreshData();
+
+    if (skippedOverlaps > 0) {
+      addToast(
+        `Imported, but skipped ${skippedOverlaps} ${skippedOverlaps === 1 ? 'entry' : 'entries'} that overlapped time you already have.`,
+        'info',
+        undefined,
+        8000
+      );
+    }
   };
 
   return (

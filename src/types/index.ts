@@ -84,4 +84,12 @@ export interface Settings {
   customFields?: { id: string; label: string; value: string }[];
   userLogoBase64?: string | null;
   reportFooterText?: string;
+  /**
+   * ISO datetime, stamped on every write. Merge-mode import compares it the way
+   * every other record's updatedAt is compared; without it a merge silently
+   * replaced the local rounding rule, currency, tax configuration and preparer
+   * details with whatever the file happened to carry. Optional because settings
+   * stored before this field existed have none — those count as older.
+   */
+  updatedAt?: string;
 }

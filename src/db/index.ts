@@ -247,11 +247,19 @@ export const selectActiveEntries = (entries: Entry[]): Entry[] => selectActive(e
 export const getSettings = async (): Promise<Settings | undefined> =>
   withDB((db) => db.get('settings', 'user-settings'), () => fallbackMemoryDB.settings.get('user-settings'));
 
-export const putSettings = async (settings: Settings): Promise<string> =>
-  withDB((db) => db.put('settings', settings), () => {
-    fallbackMemoryDB.settings.set(settings.id, settings);
-    return settings.id;
+/**
+ * Stamps `updatedAt` on every settings write. Doing it here rather than at each
+ * of the ~a dozen call sites is what makes the field trustworthy enough for
+ * merge-mode import to compare against, the way it already compares groups,
+ * timecodes and entries.
+ */
+export const putSettings = async (settings: Settings): Promise<string> => {
+  const stamped: Settings = { ...settings, updatedAt: new Date().toISOString() };
+  return withDB((db) => db.put('settings', stamped), () => {
+    fallbackMemoryDB.settings.set(stamped.id, stamped);
+    return stamped.id;
   });
+};
 
 export const wipeAllData = async (): Promise<void> => {
   if (isFallbackMode) {
@@ -383,6 +391,8 @@ export const importBackup = async (
     } else if (mode === 'merge') {
       const existingSettings = await settingsStore.get('user-settings');
       if (existingSettings) {
+        // Templates are genuinely additive: a merge should end up holding both
+        // sides' templates, and that is what the user expects from "merge".
         const mergedTemplates = [...(existingSettings.templates || [])];
         if (data.settings.templates) {
           data.settings.templates.forEach(t => {
@@ -391,11 +401,23 @@ export const importBackup = async (
             }
           });
         }
-        await settingsStore.put({
-          ...existingSettings,
-          ...data.settings,
-          templates: mergedTemplates
-        });
+
+        // Everything else is a single-valued preference, so the newer write
+        // wins — the same rule groups, timecodes and entries already follow.
+        // Spreading the file over the local settings unconditionally silently
+        // replaced the user's rounding rule, scope, currency, tax setup,
+        // preparer details, logo and footer with the file's. Settings written
+        // before updatedAt existed carry none, and count as older.
+        const incomingAt = data.settings.updatedAt ? new Date(data.settings.updatedAt).getTime() : NaN;
+        const existingAt = existingSettings.updatedAt ? new Date(existingSettings.updatedAt).getTime() : NaN;
+        const incomingIsNewer =
+          Number.isFinite(incomingAt) && (!Number.isFinite(existingAt) || incomingAt > existingAt);
+
+        await settingsStore.put(
+          incomingIsNewer
+            ? { ...existingSettings, ...data.settings, templates: mergedTemplates }
+            : { ...existingSettings, templates: mergedTemplates }
+        );
       } else {
         await settingsStore.put(data.settings);
       }

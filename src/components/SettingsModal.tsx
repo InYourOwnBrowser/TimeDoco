@@ -205,7 +205,24 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ onClose }) => {
         const knownTimecodeIds = importMode === 'merge'
           ? new Set([...timecodes, ...deletedTimecodes].map(t => t.id))
           : undefined;
-        validateBackupPayload(parsed, knownTimecodeIds);
+        // The running-timer rule is judged against the setting that will be in
+        // force after the import, and against the timers already running here —
+        // the same inputs importData uses, so the two verdicts agree.
+        validateBackupPayload(
+          parsed,
+          knownTimecodeIds,
+          importMode === 'merge'
+            ? {
+                allowConcurrentTimers: settings?.allowConcurrentTimers ?? false,
+                existingRunningCount: (() => {
+                  const incomingIds = new Set<string>(
+                    Array.isArray(parsed.entries) ? parsed.entries.map((e: any) => e?.id) : []
+                  );
+                  return entries.filter((e) => e.isRunning && !e.deletedAt && !incomingIds.has(e.id)).length;
+                })(),
+              }
+            : undefined
+        );
 
         setImportPreview({
           groups: parsed.groups.length,

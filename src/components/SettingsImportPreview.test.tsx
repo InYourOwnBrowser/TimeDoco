@@ -24,6 +24,7 @@ vi.mock('../context/TimeTrackerContext', () => ({
     addTimecode: vi.fn(),
     refreshData: vi.fn(),
     timecodes: liveTimecodes,
+    entries: [],
     deletedEntries: [],
     restoreEntry: vi.fn(),
     hardDeleteEntry: vi.fn(),

@@ -1826,4 +1826,116 @@ describe('TimeTrackerContext Reducer Logic', () => {
     expect(running.ok).toBe(false);
     expect(!running.ok && running.reason).toMatch(/running timer/i);
   });
+  // --- H6: merge-mode import ---
+
+  /**
+   * Builds a backup File the way an export does, using the fallback checksum
+   * (crypto.subtle is not available under jsdom).
+   */
+  const backupFile = (payload: Record<string, unknown>): File => {
+    const body = {
+      groups: [], timecodes: [], entries: [], settings: undefined,
+      ...payload,
+      schemaVersion: 1,
+      checksumAlgorithm: 'fallback',
+    };
+    const payloadString = JSON.stringify(body);
+    let hash = 0;
+    for (let i = 0; i < payloadString.length; i++) {
+      hash = (hash << 5) - hash + payloadString.charCodeAt(i);
+      hash = hash & hash;
+    }
+    return new File(
+      [JSON.stringify({ ...body, checksum: hash.toString(16) })],
+      'backup.json',
+      { type: 'application/json' }
+    );
+  };
+
+  const settingsFixture = (over: Partial<import('../types').Settings> = {}): import('../types').Settings => ({
+    id: 'user-settings',
+    lastBackupDate: null,
+    reminderIntervalDays: 7,
+    roundingRule: 'none',
+    roundingScope: 'day',
+    idleThresholdMinutes: null,
+    weeklyTargetHours: null,
+    allowConcurrentTimers: false,
+    overrunAudioAlertEnabled: true,
+    theme: 'dark',
+    ...over,
+  });
+
+  it('a merge import does not overwrite newer local settings', async () => {
+    await db.putSettings(settingsFixture({ roundingRule: '15min', currencySymbol: 'NZ$' }));
+    const localAt = (await db.getSettings())!.updatedAt!;
+
+    // The file is older than what is stored locally.
+    await db.importBackup({
+      groups: [], timecodes: [], entries: [],
+      settings: settingsFixture({
+        roundingRule: 'none',
+        currencySymbol: 'EUR',
+        updatedAt: new Date(new Date(localAt).getTime() - 60_000).toISOString(),
+        templates: [{ id: 'tpl-file', title: 'From file', timecodeId: 'tc-x', note: '', tags: [], durationMinutes: null }],
+      }),
+    }, 'merge');
+
+    const after = await db.getSettings();
+    // Single-valued preferences are kept...
+    expect(after!.roundingRule).toBe('15min');
+    expect(after!.currencySymbol).toBe('NZ$');
+    // ...while templates still merge, which is what "merge" should mean.
+    expect(after!.templates?.map((t) => t.id)).toEqual(['tpl-file']);
+  });
+
+  it('a merge import applies settings from a file that is newer', async () => {
+    await db.putSettings(settingsFixture({ roundingRule: '15min' }));
+    const localAt = (await db.getSettings())!.updatedAt!;
+
+    await db.importBackup({
+      groups: [], timecodes: [], entries: [],
+      settings: settingsFixture({
+        roundingRule: '5min',
+        updatedAt: new Date(new Date(localAt).getTime() + 60_000).toISOString(),
+      }),
+    }, 'merge');
+
+    expect((await db.getSettings())!.roundingRule).toBe('5min');
+  });
+
+  it('putSettings stamps updatedAt so the comparison has something to compare', async () => {
+    const before = Date.now();
+    await db.putSettings(settingsFixture());
+    const stored = await db.getSettings();
+    expect(stored!.updatedAt).toBeTruthy();
+    expect(new Date(stored!.updatedAt!).getTime()).toBeGreaterThanOrEqual(before - 1000);
+  });
+
+  it('a merge import skips entries that overlap time already recorded', async () => {
+    await db.putTimecode(seedTimecode('tc-ov', { updatedAt: NOW_ISO }));
+    await db.putEntry(liveEntry('e-local', 'tc-ov', '2024-07-01T09:00:00.000Z', '2024-07-01T11:00:00.000Z'));
+
+    const getCtx = await renderCtx();
+    await waitFor(() => expect(getCtx().entries.length).toBe(1));
+
+    // One incoming entry sits inside the local one; the other is clear of it.
+    const payload = {
+      schemaVersion: 1,
+      groups: [],
+      timecodes: [seedTimecode('tc-ov', { updatedAt: NOW_ISO })],
+      entries: [
+        liveEntry('e-clash', 'tc-ov', '2024-07-01T10:00:00.000Z', '2024-07-01T10:30:00.000Z'),
+        liveEntry('e-clear', 'tc-ov', '2024-07-01T13:00:00.000Z', '2024-07-01T14:00:00.000Z'),
+      ],
+    };
+    const file = backupFile(payload);
+
+    await act(async () => { await getCtx().importData(file, 'merge'); });
+
+    await waitFor(() => {
+      const ids = getCtx().entries.map((e) => e.id).sort();
+      expect(ids).toEqual(['e-clear', 'e-local']);
+    });
+  });
 });
