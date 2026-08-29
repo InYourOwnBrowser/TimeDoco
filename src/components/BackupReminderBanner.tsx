@@ -5,7 +5,7 @@ import { differenceInDays } from 'date-fns';
 import { X, AlertCircle } from 'lucide-react';
 
 export const BackupReminderBanner: React.FC = () => {
-  const { settings, getBackupBlob, entries, timecodes, groups } = useTimeTracker();
+  const { settings, getBackupBlob, markBackupSaved, entries, timecodes, groups } = useTimeTracker();
   const { triggerDownload, SaveAsDialog } = useNamedDownload();
   const [isVisible, setIsVisible] = useState(false);
 
@@ -77,7 +77,12 @@ export const BackupReminderBanner: React.FC = () => {
                 getBackupBlob,
                 `timedoco-backup-${dateStr}`,
                 'json',
-                handleDismiss
+                () => {
+                  // Both only once the file is actually saved: the banner has
+                  // to stay up if the download failed.
+                  markBackupSaved();
+                  handleDismiss();
+                }
               );
             }}
             className="px-3 py-1.5 text-sm font-medium text-stone dark:text-ink bg-graphite hover:bg-ink dark:bg-stone dark:hover:bg-gray-300 rounded-md transition-colors"

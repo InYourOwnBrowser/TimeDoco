@@ -16,7 +16,7 @@ interface SettingsModalProps {
 }
 
 export const SettingsModal: React.FC<SettingsModalProps> = ({ onClose }) => {
-  const { getBackupBlob, importData, wipeAllData, settings, updateSettings, bulkAddManualEntries, addTimecode, refreshData, timecodes, deletedEntries, restoreEntry, hardDeleteEntry, deletedTimecodes, restoreTimecode, hardDeleteTimecode, deletedGroups, restoreGroup, hardDeleteGroup, emptyTrash } = useTimeTracker();
+  const { getBackupBlob, markBackupSaved, importData, wipeAllData, settings, updateSettings, bulkAddManualEntries, addTimecode, refreshData, timecodes, deletedEntries, restoreEntry, hardDeleteEntry, deletedTimecodes, restoreTimecode, hardDeleteTimecode, deletedGroups, restoreGroup, hardDeleteGroup, emptyTrash } = useTimeTracker();
   const { triggerDownload, SaveAsDialog } = useNamedDownload();
   const { addToast } = useToast();
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -149,7 +149,10 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ onClose }) => {
         getBackupBlob,
         `timedoco-backup-${dateStr}`,
         'json',
-        () => setStatusMsg({ type: 'success', text: 'Data exported successfully!' })
+        () => {
+          markBackupSaved();
+          setStatusMsg({ type: 'success', text: 'Data exported successfully!' });
+        }
       );
     } catch {
       setStatusMsg({ type: 'error', text: 'Failed to export data.' });

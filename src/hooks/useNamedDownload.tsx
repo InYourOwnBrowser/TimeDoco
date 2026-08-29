@@ -38,6 +38,7 @@ export function useNamedDownload(): UseNamedDownloadReturn {
   const handleConfirm = useCallback(async (chosenName: string) => {
     if (!source) return;
 
+    let succeeded = false;
     try {
       const blob = typeof source === 'function' ? await source() : source;
       const cleanName = sanitizeFilename(chosenName) || defaultFilename;
@@ -55,15 +56,24 @@ export function useNamedDownload(): UseNamedDownloadReturn {
       // the browser has finished reading the blob.
       setTimeout(() => URL.revokeObjectURL(url), 10000);
 
-      if (onSuccessCallback) {
-        onSuccessCallback();
-      }
+      succeeded = true;
     } catch (err) {
       console.error('Download failed:', err);
       addToast('Download failed. Please try again.', 'error');
     } finally {
       setIsOpen(false);
       setSource(null);
+    }
+
+    // Outside the try: callers use this to record that the download happened,
+    // and a callback that throws must not be reported back to the user as a
+    // failed download.
+    if (succeeded && onSuccessCallback) {
+      try {
+        onSuccessCallback();
+      } catch (err) {
+        console.error('Download onSuccess failed:', err);
+      }
     }
   }, [source, defaultFilename, extension, onSuccessCallback, addToast]);
 

@@ -1133,6 +1133,150 @@ describe('TimeTrackerContext Reducer Logic', () => {
     expect(tcB).not.toBe('');
   });
 
+  it('getBackupBlob does not stamp lastBackupDate until the backup is saved', async () => {
+    let ctx: ReturnType<typeof useTimeTracker> | undefined;
+
+    render(
+      <ToastProvider><TimeTrackerProvider>
+        <TestConsumer onReady={(c) => (ctx = c)} />
+      </TimeTrackerProvider></ToastProvider>
+    );
+
+    await waitFor(() => expect(ctx?.settings).not.toBeNull());
+    expect(ctx!.settings?.lastBackupDate).toBeNull();
+
+    let blob: Blob | undefined;
+    await act(async () => { blob = await ctx!.getBackupBlob(); });
+
+    // Serialising is not saving: a download that fails after this point would
+    // otherwise suppress the reminder over a file the user never received.
+    expect((await db.getSettings())?.lastBackupDate).toBeNull();
+
+    // The file itself records when it was taken, so restoring it does not
+    // reinstate the previous backup date.
+    const payload = JSON.parse(await blob!.text());
+    expect(payload.settings.lastBackupDate).not.toBeNull();
+    expect(Number.isNaN(Date.parse(payload.settings.lastBackupDate))).toBe(false);
+
+    await act(async () => { await ctx!.markBackupSaved(); });
+
+    await waitFor(() => expect(ctx!.settings?.lastBackupDate).not.toBeNull());
+    expect((await db.getSettings())?.lastBackupDate).not.toBeNull();
+  });
+
+  it('a note save already in flight cannot resurrect a stopped timer', async () => {
+    let ctx: ReturnType<typeof useTimeTracker> | undefined;
+
+    render(
+      <ToastProvider><TimeTrackerProvider>
+        <TestConsumer onReady={(c) => (ctx = c)} />
+      </TimeTrackerProvider></ToastProvider>
+    );
+
+    await waitFor(() => expect(ctx?.settings).not.toBeNull());
+
+    let tcId = '';
+    await act(async () => {
+      tcId = (await ctx!.addTimecode('Race Note')).id;
+      await ctx!.startTimer(tcId, 'first');
+    });
+    await waitFor(() => expect(ctx!.activeEntries.length).toBe(1));
+    const runningId = ctx!.activeEntries[0].id;
+
+    // Hold the note autosave's write, so the save is provably still in flight
+    // when the stop runs — the state ActiveTimer reaches on every stop, since
+    // it flushes the note immediately before stopping.
+    let release: (() => void) | undefined;
+    let noteReachedWrite = false;
+    const held = new Promise<void>((resolve) => { release = resolve; });
+    const realPutEntry = db.putEntry;
+    const putSpy = vi.spyOn(db, 'putEntry').mockImplementation(async (entry) => {
+      if (entry.id === runningId && entry.note === 'still typing') {
+        noteReachedWrite = true;
+        await held;
+      }
+      return realPutEntry(entry);
+    });
+
+    try {
+      await act(async () => {
+        const saving = ctx!.updateActiveNote(runningId, 'still typing');
+        while (!noteReachedWrite) await new Promise((r) => setTimeout(r, 1));
+
+        const stopping = ctx!.stopTimer(runningId);
+        // Long enough for a stop that does not queue to read the still-running
+        // entry and write it back as stopped.
+        await new Promise((r) => setTimeout(r, 20));
+
+        release!();
+        await Promise.all([saving, stopping]);
+      });
+    } finally {
+      putSpy.mockRestore();
+    }
+
+    // A note save that sails past the stop writes its pre-stop copy back, and
+    // the timer comes back to life with its duration erased.
+    const stored = await db.getEntry(runningId);
+    expect(stored!.isRunning).toBe(false);
+    expect(stored!.endTime).not.toBeNull();
+    expect(stored!.duration).toBeGreaterThanOrEqual(0);
+    // The stop still has to keep what the user typed.
+    expect(stored!.note).toBe('still typing');
+  });
+
+  it('a pause already in flight cannot resurrect a stopped timer', async () => {
+    let ctx: ReturnType<typeof useTimeTracker> | undefined;
+
+    render(
+      <ToastProvider><TimeTrackerProvider>
+        <TestConsumer onReady={(c) => (ctx = c)} />
+      </TimeTrackerProvider></ToastProvider>
+    );
+
+    await waitFor(() => expect(ctx?.settings).not.toBeNull());
+
+    let tcId = '';
+    await act(async () => {
+      tcId = (await ctx!.addTimecode('Race Pause')).id;
+      await ctx!.startTimer(tcId);
+    });
+    await waitFor(() => expect(ctx!.activeEntries.length).toBe(1));
+    const runningId = ctx!.activeEntries[0].id;
+
+    let release: (() => void) | undefined;
+    let pauseReachedWrite = false;
+    const held = new Promise<void>((resolve) => { release = resolve; });
+    const realPutEntry = db.putEntry;
+    const putSpy = vi.spyOn(db, 'putEntry').mockImplementation(async (entry) => {
+      if (entry.id === runningId && entry.isPaused) {
+        pauseReachedWrite = true;
+        await held;
+      }
+      return realPutEntry(entry);
+    });
+
+    try {
+      await act(async () => {
+        const pausing = ctx!.pauseTimer(runningId);
+        while (!pauseReachedWrite) await new Promise((r) => setTimeout(r, 1));
+
+        const stopping = ctx!.stopTimer(runningId);
+        await new Promise((r) => setTimeout(r, 20));
+
+        release!();
+        await Promise.all([pausing, stopping]);
+      });
+    } finally {
+      putSpy.mockRestore();
+    }
+
+    const stored = await db.getEntry(runningId);
+    expect(stored!.isRunning).toBe(false);
+    expect(stored!.isPaused).toBe(false);
+    expect(stored!.endTime).not.toBeNull();
+  });
+
   it('note autosave updates state without re-reading every entry', async () => {
     let ctx: ReturnType<typeof useTimeTracker> | undefined;
 

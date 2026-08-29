@@ -37,6 +37,8 @@ interface TimeTrackerContextType {
   updateSettings: (updates: Partial<Settings>) => Promise<void>;
   exportData: (customFilename?: string) => Promise<void>;
   getBackupBlob: () => Promise<Blob>;
+  /** Stamp `lastBackupDate`. Call only once a backup has actually been saved. */
+  markBackupSaved: () => Promise<void>;
   importData: (file: File, mode: 'merge' | 'replace') => Promise<void>;
   wipeAllData: () => Promise<void>;
   lastStoppedEntry: Entry | null;
@@ -149,17 +151,23 @@ export const TimeTrackerProvider: React.FC<{ children: ReactNode }> = ({ childre
     ({ ...record, updatedAt: at });
 
   const isStartingTimerRef = useRef(false);
-  const isPausingTimerRef = useRef(false);
-  const isResumingTimerRef = useRef(false);
 
   /**
-   * Serialises the mutations that decide how many timers are running.
+   * Serialises every mutation that reads a running entry and writes the whole
+   * record back — starting, stopping, undoing a stop, pausing, resuming and the
+   * note autosave.
    *
    * A plain "already stopping" boolean could only refuse a concurrent call, and
    * refusing is the wrong answer for `startTimer`: it would carry on and create
    * its entry while the stop it asked for was still in flight, leaving two
    * running timers with `allowConcurrentTimers` off. Queueing makes the second
    * caller wait for the first to finish instead of skipping past it.
+   *
+   * Per-call booleans could not do this job either: they reject a re-entrant
+   * call from the same component but do nothing about two different callers
+   * interleaving a read and a write. Taking the queue means each of these reads
+   * the state the one before it left behind, so a note save can no longer write
+   * a pre-stop copy of the entry back over a stop and resurrect the timer.
    */
   const timerQueueRef = useRef<Promise<unknown>>(Promise.resolve());
 
@@ -516,45 +524,52 @@ export const TimeTrackerProvider: React.FC<{ children: ReactNode }> = ({ childre
   const stopTimerById = (entryId: string): Promise<boolean> => runExclusive(() => performStop(entryId));
 
   const stopTimer = async (entryId: string) => {
-    const entry = await db.getEntry(entryId);
-    const didStop = await stopTimerById(entryId);
-    // Only claim the timer stopped when it did — a concurrent stop makes
-    // stopTimerById a no-op and the timer keeps running.
-    if (didStop && entry) {
-      setLastStoppedEntry(entry);
-      addToast('Timer stopped', 'success', { label: 'Undo', onClick: () => undoStopTimer(entry) }, 5000);
+    // The pre-stop snapshot is read inside the queue, so it is the entry as it
+    // actually stood when the stop ran: a note save queued ahead of this one has
+    // already been applied and is part of what the undo would restore.
+    const stoppedEntry = await runExclusive(async () => {
+      const entry = await db.getEntry(entryId);
+      const didStop = await performStop(entryId);
+      // Only claim the timer stopped when it did — a concurrent stop makes
+      // performStop a no-op and there is nothing to offer an undo for.
+      return didStop ? entry : null;
+    });
+
+    if (stoppedEntry) {
+      setLastStoppedEntry(stoppedEntry);
+      addToast('Timer stopped', 'success', { label: 'Undo', onClick: () => undoStopTimer(stoppedEntry) }, 5000);
     }
     await refreshData();
   };
 
   const pauseTimer = async (entryId: string, pauseStartTime?: string) => {
-    if (isPausingTimerRef.current) return;
-    isPausingTimerRef.current = true;
-    try {
+    // Takes the timer queue for the same reason stopping does: this reads the
+    // whole entry and writes the whole entry back, so a stop that lands between
+    // the read and the write would be overwritten by the pre-stop copy.
+    const updatedEntry = await runExclusive(async () => {
       const entry = await db.getEntry(entryId);
-      if (!entry || !entry.isRunning || entry.isPaused) return;
+      if (!entry || !entry.isRunning || entry.isPaused) return null;
       const now = new Date().toISOString();
       const startOfPause = pauseStartTime || now;
-      const updatedEntry: Entry = {
+      const paused: Entry = {
         ...entry,
         isPaused: true,
         pausedSegments: [...entry.pausedSegments, { pauseStart: startOfPause }],
         updatedAt: now,
       };
-      await db.putEntry(updatedEntry);
-      replaceEntryInState(updatedEntry);
-      addToast('Timer paused', 'info');
-    } finally {
-      isPausingTimerRef.current = false;
-    }
+      await db.putEntry(paused);
+      return paused;
+    });
+
+    if (!updatedEntry) return;
+    replaceEntryInState(updatedEntry);
+    addToast('Timer paused', 'info');
   };
 
   const resumeTimer = async (entryId: string) => {
-    if (isResumingTimerRef.current) return;
-    isResumingTimerRef.current = true;
-    try {
+    const updatedEntry = await runExclusive(async () => {
       const entry = await db.getEntry(entryId);
-      if (!entry || !entry.isRunning || !entry.isPaused) return;
+      if (!entry || !entry.isRunning || !entry.isPaused) return null;
       const now = new Date().toISOString();
       const newPausedSegments = [...entry.pausedSegments];
       if (newPausedSegments.length > 0) {
@@ -563,32 +578,42 @@ export const TimeTrackerProvider: React.FC<{ children: ReactNode }> = ({ childre
           pauseEnd: now,
         };
       }
-      const updatedEntry: Entry = {
+      const resumed: Entry = {
         ...entry,
         isPaused: false,
         pausedSegments: newPausedSegments,
         updatedAt: now,
       };
-      await db.putEntry(updatedEntry);
-      replaceEntryInState(updatedEntry);
-      addToast('Timer resumed', 'success');
-    } finally {
-      isResumingTimerRef.current = false;
-    }
+      await db.putEntry(resumed);
+      return resumed;
+    });
+
+    if (!updatedEntry) return;
+    replaceEntryInState(updatedEntry);
+    addToast('Timer resumed', 'success');
   };
 
   const updateActiveNote = async (entryId: string, note: string, tags?: string[]) => {
-    const entry = await db.getEntry(entryId);
-    if (!entry || !entry.isRunning) return;
-    const now = new Date().toISOString();
-    const updatedEntry: Entry = {
-      ...entry,
-      note,
-      ...(tags !== undefined ? { tags } : {}),
-      updatedAt: now,
-    };
-    await db.putEntry(updatedEntry);
-    replaceEntryInState(updatedEntry);
+    // The autosave writes the whole entry back on a one second debounce while
+    // the user types, and stopping the timer fires one last save immediately
+    // before the stop. Outside the queue the "still running" check runs against
+    // a read taken before the stop, and the write that follows resurrects the
+    // timer with endTime null and the duration erased.
+    const updatedEntry = await runExclusive(async () => {
+      const entry = await db.getEntry(entryId);
+      if (!entry || !entry.isRunning) return null;
+      const now = new Date().toISOString();
+      const withNote: Entry = {
+        ...entry,
+        note,
+        ...(tags !== undefined ? { tags } : {}),
+        updatedAt: now,
+      };
+      await db.putEntry(withNote);
+      return withNote;
+    });
+
+    if (updatedEntry) replaceEntryInState(updatedEntry);
   };
 
   const addGroup = async (name: string, color: string): Promise<Group> => {
@@ -1205,11 +1230,40 @@ export const TimeTrackerProvider: React.FC<{ children: ReactNode }> = ({ childre
     await refreshData();
   };
 
+  /**
+   * Record that a backup actually reached the user's disk.
+   *
+   * This is deliberately not done by `getBackupBlob`: serialising the data is
+   * not saving it. The download can still fail after the blob exists — an
+   * object URL that cannot be created, a click the browser refuses — and a
+   * stamp written at serialisation time would suppress the reminder banner for
+   * another interval over a file the user never received.
+   */
+  const markBackupSaved = async () => {
+    try {
+      await updateSettings({ lastBackupDate: new Date().toISOString() });
+    } catch (error) {
+      // Callers fire this from a download callback that cannot await it, so a
+      // rejection here would surface as an unhandled one. Failing to record the
+      // date only means the reminder comes back sooner, which is the safe way
+      // for this to break.
+      logError(error as Error, 'markBackupSaved');
+    }
+  };
+
   const getBackupBlob = async (): Promise<Blob> => {
     const allGroups = await db.getGroups();
     const allTimecodes = await db.getTimecodes();
     const allEntries = await db.getEntries();
-    const currentSettings = await db.getSettings();
+    const storedSettings = await db.getSettings();
+
+    // The file records when it was taken, so restoring it does not resurrect
+    // the previous backup date and start the reminder countdown from there.
+    // Only the copy inside the file is stamped here; the stored settings are
+    // stamped by `markBackupSaved` once the download has actually succeeded.
+    const currentSettings = storedSettings
+      ? { ...storedSettings, lastBackupDate: new Date().toISOString() }
+      : storedSettings;
 
     const dataToExport = {
       schemaVersion: 1,
@@ -1249,10 +1303,6 @@ export const TimeTrackerProvider: React.FC<{ children: ReactNode }> = ({ childre
       checksum,
     };
 
-    if (currentSettings) {
-      await updateSettings({ lastBackupDate: new Date().toISOString() });
-    }
-
     return new Blob([JSON.stringify(finalExport, null, 2)], { type: 'application/json' });
   };
 
@@ -1273,6 +1323,11 @@ export const TimeTrackerProvider: React.FC<{ children: ReactNode }> = ({ childre
     // Revoking synchronously can cancel a large download in Firefox before
     // the browser has finished reading the blob.
     setTimeout(() => URL.revokeObjectURL(url), 10000);
+
+    // Only once the download is handed to the browser, for the same reason
+    // `markBackupSaved` exists: anything above can throw, and a stamp written
+    // before it would claim a backup the user never got.
+    await markBackupSaved();
   };
 
   const migrateImportData = (data: any, fromVersion: number) => {
@@ -1432,6 +1487,7 @@ export const TimeTrackerProvider: React.FC<{ children: ReactNode }> = ({ childre
       updateSettings,
       exportData,
       getBackupBlob,
+      markBackupSaved,
       importData,
       wipeAllData,
       lastStoppedEntry,

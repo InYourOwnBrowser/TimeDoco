@@ -85,7 +85,11 @@ export const TemplateList: React.FC = () => {
     }
 
     if (settings) {
-      await updateSettings({ ...settings, templates: newTemplates });
+      // Only the changed field: updateSettings re-reads the stored settings and
+      // merges these keys over them, so passing the whole React snapshot would
+      // reinstate every other field as this tab last saw it and undo whatever a
+      // second tab changed in the meantime.
+      await updateSettings({ templates: newTemplates });
       addToast(`Template ${editingTemplate ? 'updated' : 'created'}`);
       handleCloseModal();
     }
@@ -102,11 +106,11 @@ export const TemplateList: React.FC = () => {
 
     const newTemplates = templates.filter(t => t.id !== id);
     if (settings) {
-      await updateSettings({ ...settings, templates: newTemplates });
+      await updateSettings({ templates: newTemplates });
       addToast('Template deleted', 'success', {
         label: 'Undo',
         onClick: () => {
-          updateSettings({ ...settings, templates: [...newTemplates, templateToDelete] });
+          updateSettings({ templates: [...newTemplates, templateToDelete] });
         }
       }, 5000);
     }

@@ -89,6 +89,35 @@ describe('useNamedDownload', () => {
     clickSpy.mockRestore();
   });
 
+  it('does not run onSuccess when the download fails after the blob is built', async () => {
+    // The blob exists, but saving it does not: a caller's onSuccess is what
+    // records that a backup reached the user, so it must not fire here.
+    createObjectURLSpy.mockImplementation(() => { throw new Error('no object URL'); });
+    const consoleSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
+    const onSuccess = vi.fn();
+    const source = vi.fn().mockResolvedValue(new Blob(['{}'], { type: 'application/json' }));
+
+    render(
+      <TestComponent
+        source={source}
+        defaultName="timedoco-backup"
+        extension="json"
+        onSuccess={onSuccess}
+      />
+    );
+
+    fireEvent.click(screen.getByText('Trigger'));
+    fireEvent.click(screen.getByText('Save'));
+
+    await waitFor(() => {
+      expect(source).toHaveBeenCalled();
+      expect(screen.queryByText('Save File As')).toBeNull();
+    });
+    expect(onSuccess).not.toHaveBeenCalled();
+
+    consoleSpy.mockRestore();
+  });
+
   it('supports async getter function sources', async () => {
     const clickSpy = vi.spyOn(HTMLAnchorElement.prototype, 'click').mockImplementation(() => {});
     const asyncGetter = vi.fn().mockResolvedValue(new Blob(['pdf content'], { type: 'application/pdf' }));

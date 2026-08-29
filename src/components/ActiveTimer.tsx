@@ -101,7 +101,7 @@ export const ActiveTimer: React.FC<{ activeEntry: Entry | null }> = ({ activeEnt
       if (localNote !== activeEntry.note || tagsChanged) {
         await updateActiveNote(activeEntry.id, localNote, tagsArray);
       }
-      stopTimer(activeEntry.id);
+      await stopTimer(activeEntry.id);
     }
   };
 

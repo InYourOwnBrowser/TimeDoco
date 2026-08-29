@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useTimeTracker } from '../context/TimeTrackerContext';
 import { differenceInSeconds } from 'date-fns';
 import { X, AlertCircle } from 'lucide-react';
-import { checkOverlap } from '../utils/timeUtils';
+import { checkOverlap, formatDurationShort } from '../utils/timeUtils';
 import { Modal } from './ui/Modal';
 import { useToast } from '../context/ToastContext';
 import { TimecodeSelector } from './TimecodeSelector';
@@ -27,6 +27,15 @@ export const ManualEntryModal: React.FC<ManualEntryModalProps> = ({ onClose }) =
   const [warning, setWarning] = useState<string | null>(null);
 
   const isDirty = startTime !== '' || endTime !== '' || timecodeId !== '' || note !== '' || tagsStr !== '' || breakMinutes !== '' || manualAmount !== '' || isFixedCost;
+
+  // A Flat Fee is stored as a zero-length record at noon on the chosen date, so
+  // it ignores the times and break already typed into the form rather than
+  // saving them. Only a span that would actually be thrown away counts.
+  const typedSpanSeconds = startTime && endTime
+    ? Math.max(0, differenceInSeconds(new Date(endTime), new Date(startTime)))
+    : 0;
+  const typedBreakMinutes = Math.max(0, parseInt(breakMinutes, 10) || 0);
+  const flatFeeDiscardsInput = typedSpanSeconds > 0 || typedBreakMinutes > 0;
 
   useEffect(() => {
     if (!startTime || !endTime) {
@@ -69,6 +78,18 @@ export const ManualEntryModal: React.FC<ManualEntryModalProps> = ({ onClose }) =
       if (!manualAmount || parseFloat(manualAmount) <= 0) {
         setError('Please enter a fixed amount.');
         return;
+      }
+
+      if (flatFeeDiscardsInput) {
+        const losses: string[] = [];
+        if (typedSpanSeconds > 0) losses.push(`the times you entered (${formatDurationShort(typedSpanSeconds)})`);
+        if (typedBreakMinutes > 0) losses.push(`the ${typedBreakMinutes} minute break`);
+
+        const confirmed = window.confirm(
+          `A Flat Fee is saved as a zero-length record at 12:00 on ${fixedCostDate}, ` +
+          `so ${losses.join(' and ')} will not be saved.\n\nContinue?`
+        );
+        if (!confirmed) return;
       }
 
       const instant = new Date(`${fixedCostDate}T12:00:00`);
@@ -178,6 +199,11 @@ export const ManualEntryModal: React.FC<ManualEntryModalProps> = ({ onClose }) =
                 onChange={(e) => { setFixedCostDate(e.target.value); setError(null); }}
                 className="w-full px-3 py-2 border border-graphite/20 dark:border-white/20 rounded-md shadow-sm focus:outline-none focus-visible:ring-2 focus-visible:ring-signal sm:text-sm bg-white dark:bg-graphite text-graphite dark:text-stone"
               />
+              {flatFeeDiscardsInput && (
+                <p className="text-xs text-rust dark:text-orange-300 mt-1">
+                  A flat fee is a zero-length record at 12:00, so the times and break you entered will not be saved.
+                </p>
+              )}
             </div>
           ) : (
             <div className="grid grid-cols-2 gap-4">

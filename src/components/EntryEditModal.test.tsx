@@ -125,3 +125,76 @@ describe('EntryEditModal pause history', () => {
     expect(mockUpdateEntry).not.toHaveBeenCalled();
   });
 });
+
+describe('EntryEditModal flat fee conversion', () => {
+  beforeEach(() => {
+    cleanup();
+    vi.clearAllMocks();
+  });
+
+  afterEach(cleanup);
+
+  const convertToFlatFee = () => {
+    fireEvent.click(screen.getByRole('button', { name: 'Flat Fee' }));
+    fireEvent.change(screen.getByPlaceholderText('e.g. 150.00'), { target: { value: '400' } });
+    fireEvent.click(screen.getByText('Save Changes'));
+  };
+
+  it('confirms before collapsing a real entry into a zero-length flat fee', async () => {
+    const confirmSpy = vi.spyOn(window, 'confirm').mockReturnValue(true);
+    render(<EntryEditModal entry={entryWithPauses} onClose={() => {}} />);
+
+    convertToFlatFee();
+
+    await waitFor(() => expect(mockUpdateEntry).toHaveBeenCalled());
+
+    const message = confirmSpy.mock.calls[0][0] as string;
+    // The two things it destroys are both named, since neither is recoverable
+    // from editHistory once the entry has been rewritten.
+    expect(message).toContain('2h');
+    expect(message).toContain('3 pause periods');
+
+    const [, updates] = mockUpdateEntry.mock.calls[0];
+    expect(updates.startTime).toBe(updates.endTime);
+    expect(updates.pausedSegments).toEqual([]);
+    confirmSpy.mockRestore();
+  });
+
+  it('keeps the entry untouched when the flat fee confirmation is declined', async () => {
+    const confirmSpy = vi.spyOn(window, 'confirm').mockReturnValue(false);
+    render(<EntryEditModal entry={entryWithPauses} onClose={() => {}} />);
+
+    convertToFlatFee();
+
+    await waitFor(() => expect(confirmSpy).toHaveBeenCalled());
+    expect(mockUpdateEntry).not.toHaveBeenCalled();
+    confirmSpy.mockRestore();
+  });
+
+  it('warns in the panel as soon as Flat Fee is selected', () => {
+    render(<EntryEditModal entry={entryWithPauses} onClose={() => {}} />);
+    fireEvent.click(screen.getByRole('button', { name: 'Flat Fee' }));
+    expect(screen.getByText(/zero-length record at 12:00/)).toBeTruthy();
+  });
+
+  it('does not confirm when the entry is already a zero-length flat fee', async () => {
+    const confirmSpy = vi.spyOn(window, 'confirm').mockReturnValue(true);
+    const flatFee: Entry = {
+      ...entryWithPauses,
+      id: 'entry-2',
+      endTime: entryWithPauses.startTime,
+      duration: 0,
+      pausedSegments: [],
+      manualAmount: 400,
+    };
+    render(<EntryEditModal entry={flatFee} onClose={() => {}} />);
+
+    fireEvent.change(screen.getByPlaceholderText('e.g. 150.00'), { target: { value: '450' } });
+    fireEvent.click(screen.getByText('Save Changes'));
+
+    await waitFor(() => expect(mockUpdateEntry).toHaveBeenCalled());
+    // Nothing is being thrown away, so nothing to ask about.
+    expect(confirmSpy).not.toHaveBeenCalled();
+    confirmSpy.mockRestore();
+  });
+});

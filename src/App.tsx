@@ -39,7 +39,7 @@ const AppContent = () => {
     window.addEventListener('unhandledrejection', onRejection);
     return () => { window.removeEventListener('error', onError); window.removeEventListener('unhandledrejection', onRejection); };
   }, []);
-  const { activeEntries, stopTimer, startTimer, timecodes, entries, settings, forgotToStopEntry, getBackupBlob } = useTimeTracker();
+  const { activeEntries, stopTimer, startTimer, timecodes, entries, settings, forgotToStopEntry, getBackupBlob, markBackupSaved } = useTimeTracker();
   const { triggerDownload, SaveAsDialog } = useNamedDownload();
   const { addToast } = useToast();
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
@@ -212,7 +212,7 @@ const AppContent = () => {
             <button
               onClick={() => {
                 const dateStr = new Date().toISOString().split('T')[0];
-                triggerDownload(getBackupBlob, `timedoco-fallback-backup-${dateStr}`, 'json');
+                triggerDownload(getBackupBlob, `timedoco-fallback-backup-${dateStr}`, 'json', markBackupSaved);
               }}
               className="px-2.5 py-1 text-xs font-semibold bg-white text-red-700 hover:bg-gray-100 rounded-panel transition-colors flex items-center gap-1 shadow-sm"
             >
@@ -232,7 +232,7 @@ const AppContent = () => {
           <button
             onClick={() => {
               const dateStr = new Date().toISOString().split('T')[0];
-              triggerDownload(getBackupBlob, `timedoco-backup-${dateStr}`, 'json');
+              triggerDownload(getBackupBlob, `timedoco-backup-${dateStr}`, 'json', markBackupSaved);
             }}
             className="p-2 text-gray-600 dark:text-gray-400 hover:text-gray-800 dark:hover:text-gray-200 hover:bg-gray-200/60 dark:hover:bg-gray-800/60 rounded-panel transition-colors focus-visible:ring-2 focus-visible:ring-signal focus-visible:ring-offset-2"
             aria-label="Backup data"

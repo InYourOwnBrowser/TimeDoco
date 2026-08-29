@@ -39,6 +39,15 @@ export const EntryEditModal: React.FC<EntryEditModalProps> = ({ entry, onClose }
 
   const recordedPeriodsLabel = `${recordedSegments.length} recorded pause ${recordedSegments.length === 1 ? 'period' : 'periods'}`;
 
+  // Saving as a Flat Fee rewrites the entry into a zero-length record at noon
+  // on the chosen date and empties pausedSegments. editHistory tracks startTime
+  // and endTime but not pausedSegments, so the pause timeline is gone for good.
+  const recordedSpanSeconds = entry.endTime
+    ? Math.max(0, differenceInSeconds(parseISO(entry.endTime), parseISO(entry.startTime)))
+    : 0;
+  const flatFeeDiscardsTimes = entry.isRunning || recordedSpanSeconds > 0;
+  const flatFeeDiscardsPauses = recordedSegments.length > 0;
+
   const [breakMinutes, setBreakMinutes] = useState(!entry.isRunning ? initialBreakMinutes : '');
   const [manualAmount, setManualAmount] = useState(entry.manualAmount != null ? entry.manualAmount.toString() : '');
   const [isFixedCost, setIsFixedCost] = useState(entry.manualAmount != null);
@@ -117,6 +126,27 @@ export const EntryEditModal: React.FC<EntryEditModalProps> = ({ entry, onClose }
 
       const instant = new Date(`${fixedCostDate}T12:00:00`);
 
+      const willDiscard = flatFeeDiscardsTimes || flatFeeDiscardsPauses;
+      if (willDiscard) {
+        const losses: string[] = [];
+        if (entry.isRunning) {
+          losses.push('stop the running timer and discard the time it has accrued');
+        } else if (recordedSpanSeconds > 0) {
+          losses.push(`discard its recorded times (${formatDurationShort(recordedSpanSeconds)})`);
+        }
+        if (flatFeeDiscardsPauses) {
+          losses.push(`delete its ${recordedSegments.length} pause ${recordedSegments.length === 1 ? 'period' : 'periods'}`);
+        }
+
+        const confirmed = window.confirm(
+          `Saving this as a Flat Fee will ${losses.join(', and ')}.\n\n` +
+          `It becomes a zero-length record at 12:00 on ${fixedCostDate}.` +
+          (flatFeeDiscardsPauses ? ' The pause history is not kept in the edit history and cannot be restored.' : '') +
+          '\n\nContinue?'
+        );
+        if (!confirmed) return;
+      }
+
       await updateEntry(entry.id, {
         timecodeId,
         note,
@@ -127,7 +157,7 @@ export const EntryEditModal: React.FC<EntryEditModalProps> = ({ entry, onClose }
         manualAmount: parseFloat(manualAmount),
       });
 
-      addToast('Changes saved', 'success');
+      addToast(willDiscard ? 'Saved as a flat fee — recorded times removed' : 'Changes saved', 'success');
       onClose();
       return;
     }
@@ -256,6 +286,15 @@ export const EntryEditModal: React.FC<EntryEditModalProps> = ({ entry, onClose }
                 onChange={(e) => { setFixedCostDate(e.target.value); setError(null); }}
                 className="w-full px-3 py-2 border border-graphite/20 dark:border-white/20 rounded-md shadow-sm focus:outline-none focus-visible:ring-2 focus-visible:ring-signal sm:text-sm bg-white dark:bg-graphite text-graphite dark:text-stone"
               />
+              {(flatFeeDiscardsTimes || flatFeeDiscardsPauses) && (
+                <p className="text-xs text-rust dark:text-orange-300 mt-1">
+                  Saving replaces this entry&rsquo;s{' '}
+                  {flatFeeDiscardsTimes && (entry.isRunning ? 'running timer' : `recorded times (${formatDurationShort(recordedSpanSeconds)})`)}
+                  {flatFeeDiscardsTimes && flatFeeDiscardsPauses ? ' and ' : ''}
+                  {flatFeeDiscardsPauses && recordedPeriodsLabel}
+                  {' '}with a zero-length record at 12:00.
+                </p>
+              )}
             </div>
           ) : (
             <div className="grid grid-cols-2 gap-4">

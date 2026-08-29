@@ -136,6 +136,21 @@ describe('Fixed Cost & Template Deletion', () => {
       });
     });
 
+    it('sends only the templates delta so a concurrent tab is not clobbered', async () => {
+      render(<TemplateList />);
+
+      fireEvent.click(screen.getByText(/New Template/i));
+      fireEvent.change(screen.getByPlaceholderText('e.g. Daily Standup'), { target: { value: 'Admin' } });
+      fireEvent.click(screen.getByText('Save Template'));
+
+      await waitFor(() => {
+        expect(mockUpdateSettings).toHaveBeenCalled();
+      });
+
+      const updates = mockUpdateSettings.mock.calls[0][0];
+      expect(Object.keys(updates)).toEqual(['templates']);
+    });
+
     it('passes template tags when logging a timer template or fixed duration template', async () => {
       const confirmSpy = vi.spyOn(window, 'confirm').mockReturnValue(true);
       render(<TemplateList />);
@@ -182,10 +197,9 @@ describe('Fixed Cost & Template Deletion', () => {
       fireEvent.click(deleteBtn);
 
       expect(confirmSpy).toHaveBeenCalledWith('Delete template "Daily Standup"? This can be undone from the toast for a few seconds.');
-      expect(mockUpdateSettings).toHaveBeenCalledWith({
-        ...mockSettings,
-        templates: [],
-      });
+      // Only the templates delta — passing the whole snapshot would make
+      // updateSettings' re-read-and-merge overwrite every other field.
+      expect(mockUpdateSettings).toHaveBeenCalledWith({ templates: [] });
 
       confirmSpy.mockRestore();
     });
@@ -229,6 +243,37 @@ describe('Fixed Cost & Template Deletion', () => {
         });
         expect(onClose).toHaveBeenCalled();
       });
+    });
+
+    it('confirms before a flat fee throws away times already typed into the form', async () => {
+      const confirmSpy = vi.spyOn(window, 'confirm').mockReturnValue(false);
+      const onClose = vi.fn();
+      const { container } = render(<ManualEntryModal onClose={onClose} />);
+
+      const timecodeCombo = screen.getByPlaceholderText('Select or type to create...');
+      fireEvent.click(timecodeCombo);
+      const options = screen.getAllByText('Materials & Expenses');
+      fireEvent.click(options[options.length - 1]);
+
+      const [startInput, endInput] = Array.from(
+        container.querySelectorAll('input[type="datetime-local"]')
+      );
+      fireEvent.change(startInput, { target: { value: '2025-05-10T09:00:00' } });
+      fireEvent.change(endInput, { target: { value: '2025-05-10T17:00:00' } });
+
+      fireEvent.click(screen.getByRole('button', { name: 'Flat Fee' }));
+      // The warning is on screen before the user commits to it.
+      expect(screen.getByText(/will not be saved/)).toBeTruthy();
+
+      fireEvent.change(screen.getByPlaceholderText('e.g. 150.00'), { target: { value: '250.00' } });
+      fireEvent.click(screen.getByText('Add Entry'));
+
+      await waitFor(() => expect(confirmSpy).toHaveBeenCalled());
+      expect(confirmSpy.mock.calls[0][0]).toContain('8h');
+      expect(mockAddManualEntry).not.toHaveBeenCalled();
+      expect(onClose).not.toHaveBeenCalled();
+
+      confirmSpy.mockRestore();
     });
 
     it('allows flat fee entries for timecodes WITH an hourly rate', async () => {
