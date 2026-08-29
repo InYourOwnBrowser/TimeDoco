@@ -270,6 +270,11 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ onClose }) => {
       header: true,
       skipEmptyLines: true,
       complete: async (results) => {
+        // Declared outside the try: pass 2 creates timecodes before it writes
+        // any entries, so a throw from the entry write would otherwise strand
+        // them in the database with nothing referencing them, and every retry
+        // would strand another set.
+        const createdTimecodes: string[] = [];
         try {
           if (results.data.length > MAX_IMPORT_ENTRIES) {
             setStatusMsg({ type: 'error', text: `CSV contains ${results.data.length} rows, exceeding the limit of ${MAX_IMPORT_ENTRIES}.` });
@@ -408,7 +413,6 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ onClose }) => {
 
           // Pass 2: Create required timecodes and add surviving entries
           const localTimecodes = [...timecodes];
-          const createdTimecodes: string[] = [];
           const entriesToBulkAdd: { startTime: string; endTime: string; timecodeId: string; note: string; tags: string[]; manualAmount: number | null }[] = [];
 
           for (const item of survivingCandidates) {
@@ -442,7 +446,22 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ onClose }) => {
             setStatusMsg({ type: 'error', text: 'Failed to import any entries. Check the CSV format, and that its rows do not overlap entries you already have.' });
           }
         } catch (err: any) {
-          setStatusMsg({ type: 'error', text: `CSV Import Error: ${err.message || 'An unexpected error occurred.'}` });
+          // Roll back the timecodes this import created. They are new by
+          // construction — nothing outside this failed import can reference
+          // them yet — so hard-deleting them cannot orphan anything.
+          let rolledBack = 0;
+          for (const id of createdTimecodes) {
+            try {
+              await hardDeleteTimecode(id);
+              rolledBack++;
+            } catch (cleanupError) {
+              console.warn('Could not roll back timecode created during a failed CSV import:', id, cleanupError);
+            }
+          }
+          const suffix = rolledBack > 0
+            ? ` No entries were imported; ${rolledBack} ${rolledBack === 1 ? 'timecode' : 'timecodes'} created by this import ${rolledBack === 1 ? 'was' : 'were'} removed.`
+            : '';
+          setStatusMsg({ type: 'error', text: `CSV Import Error: ${err.message || 'An unexpected error occurred.'}${suffix}` });
         } finally {
           setIsProcessing(false);
           if (csvInputRef.current) csvInputRef.current.value = '';

@@ -962,7 +962,7 @@ describe('TimeTrackerContext Reducer Logic', () => {
     });
   });
 
-  it('splitEntry does not duplicate a flat fee or an estimate onto both halves', async () => {
+  it('splitEntry moves a flat fee to one half and divides the estimate, never duplicating either', async () => {
     let ctx: ReturnType<typeof useTimeTracker> | undefined;
 
     render(
@@ -1001,11 +1001,18 @@ describe('TimeTrackerContext Reducer Logic', () => {
     const first = ctx!.entries.find((e) => e.id === original.id)!;
     const second = ctx!.entries.find((e) => e.id !== original.id)!;
 
-    // Splitting an entry nulls flat fee and estimate on both halves to avoid misattribution.
-    expect(first.manualAmount).toBeNull();
-    expect(first.expectedDurationMinutes).toBeNull();
+    // Neither value may be duplicated — that would double-bill the fee and
+    // double-count the estimate. Nulling both (the previous behaviour) avoided
+    // that by destroying billable money and dropping the entry out of the
+    // Estimates tab instead. The fee now lands on exactly one half, defaulting
+    // to the first, and the estimate is divided in proportion to tracked time.
+    expect(first.manualAmount).toBe(500);
     expect(second.manualAmount).toBeNull();
-    expect(second.expectedDurationMinutes).toBeNull();
+
+    // 90 minutes across an even 1h/1h split.
+    expect(first.expectedDurationMinutes).toBe(45);
+    expect(second.expectedDurationMinutes).toBe(45);
+    expect((first.expectedDurationMinutes ?? 0) + (second.expectedDurationMinutes ?? 0)).toBe(90);
   });
 
   it('stamps updatedAt when trashing and restoring, so an older backup cannot undo it', async () => {
@@ -1727,5 +1734,96 @@ describe('TimeTrackerContext Reducer Logic', () => {
 
     expect(await db.getEntry('e-live')).toBeDefined();
     expect(await db.getTimecode('tc-old')).toBeDefined();
+  });
+  // --- H5: splitEntry ---
+
+  const NOW_ISO = new Date().toISOString();
+  const liveEntry = (id: string, timecodeId: string, startTime: string, endTime: string, over: Partial<import('../types').Entry> = {}) => ({
+    id, timecodeId, startTime, endTime,
+    duration: Math.round((new Date(endTime).getTime() - new Date(startTime).getTime()) / 1000),
+    note: id, isRunning: false, isPaused: false, pausedSegments: [], editHistory: [],
+    createdAt: NOW_ISO, updatedAt: NOW_ISO, ...over,
+  });
+
+  const renderCtx = async () => {
+    let ctx: ReturnType<typeof useTimeTracker> | undefined;
+    render(
+      <ToastProvider><TimeTrackerProvider>
+        <TestConsumer onReady={(c) => (ctx = c)} />
+      </TimeTrackerProvider></ToastProvider>
+    );
+    await waitFor(() => expect(ctx?.settings).not.toBeNull());
+    return () => ctx!;
+  };
+
+  it('splitEntry divides the estimate between the halves instead of dropping it', async () => {
+    await db.putTimecode(seedTimecode('tc-split', { updatedAt: NOW_ISO }));
+    // 10:00 -> 14:00 split at 11:00 is a 1h/3h split of a 120-minute estimate.
+    await db.putEntry(liveEntry('e-est', 'tc-split', '2024-06-01T10:00:00.000Z', '2024-06-01T14:00:00.000Z', {
+      expectedDurationMinutes: 120,
+    }));
+    const getCtx = await renderCtx();
+
+    let result: import('./TimeTrackerContext').SplitEntryResult | undefined;
+    await act(async () => {
+      result = await getCtx().splitEntry('e-est', '2024-06-01T11:00:00.000Z');
+    });
+
+    expect(result!.ok).toBe(true);
+    expect(result!.ok && result!.estimateSplit).toBe(true);
+
+    await waitFor(() => {
+      const halves = getCtx().entries.filter((e) => e.timecodeId === 'tc-split');
+      expect(halves.length).toBe(2);
+      const estimates = halves.map((e) => e.expectedDurationMinutes ?? 0).sort((a, b) => a - b);
+      // Proportional to tracked time, and summing back to the original estimate.
+      expect(estimates).toEqual([30, 90]);
+    });
+  });
+
+  it('splitEntry keeps a flat fee on the half the caller names', async () => {
+    await db.putTimecode(seedTimecode('tc-fee', { updatedAt: NOW_ISO }));
+    await db.putEntry(liveEntry('e-fee', 'tc-fee', '2024-06-01T10:00:00.000Z', '2024-06-01T12:00:00.000Z', {
+      manualAmount: 250,
+    }));
+    const getCtx = await renderCtx();
+
+    await act(async () => {
+      await getCtx().splitEntry('e-fee', '2024-06-01T11:00:00.000Z', undefined, { feeAllocation: 'second' });
+    });
+
+    await waitFor(() => {
+      const halves = getCtx().entries.filter((e) => e.timecodeId === 'tc-fee');
+      expect(halves.length).toBe(2);
+      // The money survives the split, on exactly one half.
+      expect(halves.filter((e) => e.manualAmount === 250).length).toBe(1);
+      expect(halves.filter((e) => e.manualAmount == null).length).toBe(1);
+      expect(halves.find((e) => e.startTime === '2024-06-01T11:00:00.000Z')!.manualAmount).toBe(250);
+    });
+  });
+
+  it('splitEntry reports why it declined instead of silently doing nothing', async () => {
+    await db.putTimecode(seedTimecode('tc-dec', { updatedAt: NOW_ISO }));
+    await db.putEntry(liveEntry('e-dec', 'tc-dec', '2024-06-01T10:00:00.000Z', '2024-06-01T12:00:00.000Z'));
+    await db.putEntry(liveEntry('e-run', 'tc-dec', '2024-06-02T10:00:00.000Z', '2024-06-02T12:00:00.000Z', {
+      endTime: null, isRunning: true,
+    }));
+    const getCtx = await renderCtx();
+
+    let missing!: import('./TimeTrackerContext').SplitEntryResult;
+    let outOfRange!: import('./TimeTrackerContext').SplitEntryResult;
+    let running!: import('./TimeTrackerContext').SplitEntryResult;
+    await act(async () => {
+      missing = await getCtx().splitEntry('no-such-entry', '2024-06-01T11:00:00.000Z');
+      outOfRange = await getCtx().splitEntry('e-dec', '2024-06-01T09:00:00.000Z');
+      running = await getCtx().splitEntry('e-run', '2024-06-02T11:00:00.000Z');
+    });
+
+    expect(missing.ok).toBe(false);
+    expect(!missing.ok && missing.reason).toMatch(/no longer exists/i);
+    expect(outOfRange.ok).toBe(false);
+    expect(!outOfRange.ok && outOfRange.reason).toMatch(/between/i);
+    expect(running.ok).toBe(false);
+    expect(!running.ok && running.reason).toMatch(/running timer/i);
   });
 });

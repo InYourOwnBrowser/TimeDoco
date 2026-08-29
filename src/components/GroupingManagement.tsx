@@ -220,9 +220,19 @@ export const GroupingManagement: React.FC = () => {
         'Are you sure you want to merge these timecodes? All entries from the source will be moved to the destination, and the source timecode will be deleted. This cannot be undone.'
       )
     ) {
-      await mergeTimecodes(sourceId, mergeDestId);
-      setMergingTimecodeId(null);
-      setMergeDestId('');
+      // mergeTimecodes rejects a merge that would leave two running timers or
+      // produce overlapping entries. Unhandled, that reached the user as an
+      // unhandled rejection and a panel stuck open, with nothing to say whether
+      // the merge had happened. Its messages are already written for the user.
+      try {
+        await mergeTimecodes(sourceId, mergeDestId);
+        addToast('Timecodes merged.', 'success');
+      } catch (error) {
+        addToast(error instanceof Error ? error.message : 'Merge failed.', 'error');
+      } finally {
+        setMergingTimecodeId(null);
+        setMergeDestId('');
+      }
     }
   };
 

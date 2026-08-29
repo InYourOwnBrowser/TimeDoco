@@ -1,11 +1,23 @@
 import React, { createContext, useContext, useState, useEffect, useCallback, useRef, type ReactNode } from 'react';
-import type { Group, Timecode, Entry, Settings, PauseSegment } from '../types';
+import type { Group, Timecode, Entry, Settings, PauseSegment, EditHistory } from '../types';
 import * as db from '../db';
 import { differenceInSeconds, isSameDay } from 'date-fns';
 import { calculateDuration, findOverlappingCandidates } from '../utils/timeUtils';
 import { clearErrorLog, logError } from '../utils/errorLog';
 import { useToast } from './ToastContext';
 import { validateBackupPayload, MAX_IMPORT_FILE_BYTES, MAX_IMPORT_ENTRIES } from '../utils/importValidation';
+
+/** Which half of a split keeps a flat fee. A fee is not a rate, so it cannot be divided by time. */
+export type FeeAllocation = 'first' | 'second' | 'discard';
+
+/**
+ * splitEntry has several ways to decline (missing entry, still running, in the
+ * trash, a split time outside the entry). Each used to be a silent no-op that
+ * the caller could not tell from success.
+ */
+export type SplitEntryResult =
+  | { ok: true; newEntryId: string; feeMoved: FeeAllocation | null; estimateSplit: boolean }
+  | { ok: false; reason: string };
 
 interface TimeTrackerContextType {
   groups: Group[];
@@ -28,7 +40,7 @@ interface TimeTrackerContextType {
   updateEntry: (id: string, updates: Partial<Entry>) => Promise<void>;
   deleteEntry: (id: string) => Promise<void>;
   bulkDeleteEntries: (ids: string[]) => Promise<void>;
-  splitEntry: (entryId: string, splitTime: string, newTimecodeId?: string) => Promise<void>;
+  splitEntry: (entryId: string, splitTime: string, newTimecodeId?: string, options?: { feeAllocation?: FeeAllocation }) => Promise<SplitEntryResult>;
   addManualEntry: (entryData: { startTime: string; endTime: string; timecodeId: string; note: string; tags?: string[]; pausedSegments?: PauseSegment[]; manualAmount?: number | null }) => Promise<void>;
   bulkAddManualEntries: (entriesData: { startTime: string, endTime: string, timecodeId: string, note: string, tags?: string[], manualAmount?: number | null }[]) => Promise<{ added: number; skipped: number }>;
   forgotToStopEntry: Entry | null;
@@ -1230,15 +1242,27 @@ export const TimeTrackerProvider: React.FC<{ children: ReactNode }> = ({ childre
   };
 
 
-  const splitEntry = async (entryId: string, splitTime: string, newTimecodeId?: string) => {
+  const splitEntry = async (
+    entryId: string,
+    splitTime: string,
+    newTimecodeId?: string,
+    options?: { feeAllocation?: FeeAllocation }
+  ): Promise<SplitEntryResult> => {
     const entry = await db.getEntry(entryId);
-    if (!entry || !entry.endTime || entry.deletedAt) return; // Can only split active, completed entries
+    if (!entry) return { ok: false, reason: 'That entry no longer exists.' };
+    if (entry.deletedAt) return { ok: false, reason: 'That entry is in the trash. Restore it before splitting.' };
+    if (!entry.endTime) return { ok: false, reason: 'A running timer cannot be split. Stop it first.' };
 
     const splitDate = new Date(splitTime);
     const startDate = new Date(entry.startTime);
     const endDate = new Date(entry.endTime);
 
-    if (splitDate <= startDate || splitDate >= endDate) return;
+    if (!Number.isFinite(splitDate.getTime())) {
+      return { ok: false, reason: 'That split time could not be read.' };
+    }
+    if (splitDate <= startDate || splitDate >= endDate) {
+      return { ok: false, reason: 'Split time must be strictly between the start and end times.' };
+    }
 
     // Filter paused segments for both halves
     const pausedSegments1: PauseSegment[] = [];
@@ -1270,13 +1294,50 @@ export const TimeTrackerProvider: React.FC<{ children: ReactNode }> = ({ childre
 
     const now = new Date().toISOString();
 
+    // An estimate describes the whole of the work, so splitting the work splits
+    // the estimate with it, in proportion to the time each half actually took.
+    // Dropping it (the previous behaviour) silently removed the entry from the
+    // Estimates tab's statistics; parking it all on one half would report that
+    // half as wildly under and the other as unestimated.
+    let expected1: number | null = null;
+    let expected2: number | null = null;
+    const expectedTotal = entry.expectedDurationMinutes ?? null;
+    if (expectedTotal != null && Number.isFinite(expectedTotal)) {
+      const totalDuration = duration1 + duration2;
+      if (totalDuration > 0) {
+        expected1 = Math.round((expectedTotal * duration1) / totalDuration);
+        // The remainder rather than a second rounding, so the two halves always
+        // sum back to the original estimate.
+        expected2 = expectedTotal - expected1;
+      } else {
+        expected1 = expectedTotal;
+        expected2 = 0;
+      }
+    }
+
+    // A flat fee cannot be divided by time — it is not a rate — so the caller
+    // says which half keeps it. Silently discarding it destroyed billable money
+    // with no warning and no undo.
+    const feeAllocation: FeeAllocation = options?.feeAllocation ?? 'first';
+    const hadFee = entry.manualAmount != null;
+    const fee1 = hadFee && feeAllocation === 'first' ? entry.manualAmount! : null;
+    const fee2 = hadFee && feeAllocation === 'second' ? entry.manualAmount! : null;
+
+    const splitNote: EditHistory = {
+      field: 'split',
+      oldValue: { endTime: entry.endTime, duration: entry.duration, manualAmount: entry.manualAmount ?? null, expectedDurationMinutes: expectedTotal },
+      newValue: { endTime: splitDate.toISOString(), duration: duration1, manualAmount: fee1, expectedDurationMinutes: expected1 },
+      editedAt: now,
+    };
+
     const entry1: Entry = {
       ...entry,
       endTime: splitDate.toISOString(),
       duration: duration1,
       pausedSegments: pausedSegments1,
-      manualAmount: null,
-      expectedDurationMinutes: null,
+      manualAmount: fee1,
+      expectedDurationMinutes: expected1,
+      editHistory: [...(entry.editHistory || []), splitNote],
       deletedAt: undefined,
       updatedAt: now,
     };
@@ -1290,15 +1351,22 @@ export const TimeTrackerProvider: React.FC<{ children: ReactNode }> = ({ childre
       pausedSegments: pausedSegments2,
       createdAt: now,
       updatedAt: now,
-      editHistory: [],
-      manualAmount: null,
-      expectedDurationMinutes: null,
+      editHistory: [splitNote],
+      manualAmount: fee2,
+      expectedDurationMinutes: expected2,
       deletedAt: undefined,
     };
 
     await db.putEntry(entry1);
     await db.putEntry(entry2);
     await refreshData();
+
+    return {
+      ok: true,
+      newEntryId: entry2.id,
+      feeMoved: hadFee ? feeAllocation : null,
+      estimateSplit: expectedTotal != null,
+    };
   };
 
   const deleteEntry = async (id: string) => {
