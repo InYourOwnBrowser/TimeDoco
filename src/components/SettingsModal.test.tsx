@@ -5,19 +5,23 @@ import { SettingsModal } from './SettingsModal';
 const mockUpdateSettings = vi.fn().mockResolvedValue(undefined);
 const mockAddToast = vi.fn();
 const mockAddTimecode = vi.fn();
+const mockBulkAddManualEntries = vi.fn().mockResolvedValue({ added: 1, skipped: 0 });
+let mockEntries: any[] = [];
 
 vi.mock('../context/TimeTrackerContext', () => ({
   useTimeTracker: () => ({
     exportData: vi.fn(),
     importData: vi.fn(),
+    refreshData: vi.fn().mockResolvedValue(undefined),
     settings: {
       userLogoBase64: null,
       theme: 'system',
       allowConcurrentTimers: false,
     },
     updateSettings: mockUpdateSettings,
-    bulkAddManualEntries: vi.fn(),
+    bulkAddManualEntries: mockBulkAddManualEntries,
     addTimecode: mockAddTimecode,
+    entries: mockEntries,
     timecodes: [],
     deletedEntries: [],
     restoreEntry: vi.fn(),
@@ -157,6 +161,82 @@ describe('SettingsModal Logo Upload Validation', () => {
 
     await waitFor(() => {
       expect(mockAddTimecode).not.toHaveBeenCalled();
+    });
+  });
+
+  it('does not create orphan timecode when CSV row overlaps existing entry (M2)', async () => {
+    mockEntries = [
+      {
+        id: 'existing-1',
+        timecodeId: 'tc-existing',
+        startTime: '2024-01-01T10:00:00.000Z',
+        endTime: '2024-01-01T11:00:00.000Z',
+        duration: 3600,
+      },
+    ];
+
+    const { getByRole, container } = renderComponent();
+    fireEvent.click(getByRole('button', { name: 'Data' }));
+
+    const csvFileInput = container.querySelector('input[type="file"][accept=".csv"]') as HTMLInputElement;
+    const overlappingCsv = 'Start Time,End Time,Timecode,Note\n2024-01-01T10:30:00Z,2024-01-01T11:30:00Z,NewCollidingTimecode,Test\n';
+    const csvFile = new File([overlappingCsv], 'overlap.csv', { type: 'text/csv' });
+
+    fireEvent.change(csvFileInput, { target: { files: [csvFile] } });
+    fireEvent.click(getByRole('button', { name: /import csv/i }));
+
+    await waitFor(() => {
+      expect(mockAddTimecode).not.toHaveBeenCalled();
+      expect(mockBulkAddManualEntries).not.toHaveBeenCalled();
+    });
+  });
+
+  it('resets isProcessing even if bulkAddManualEntries rejects (M1)', async () => {
+    mockBulkAddManualEntries.mockRejectedValueOnce(new Error('Transaction aborted'));
+    mockAddTimecode.mockResolvedValueOnce({ id: 'tc-new', name: 'ValidCode' });
+
+    const { getByRole, container } = renderComponent();
+    fireEvent.click(getByRole('button', { name: 'Data' }));
+
+    const csvFileInput = container.querySelector('input[type="file"][accept=".csv"]') as HTMLInputElement;
+    const validCsv = 'Start Time,End Time,Timecode,Note\n2024-01-01T12:00:00Z,2024-01-01T13:00:00Z,ValidCode,Test\n';
+    const csvFile = new File([validCsv], 'valid.csv', { type: 'text/csv' });
+
+    fireEvent.change(csvFileInput, { target: { files: [csvFile] } });
+    const importBtn = getByRole('button', { name: /import csv/i });
+    fireEvent.click(importBtn);
+
+    await waitFor(() => {
+      expect((importBtn as HTMLButtonElement).disabled).toBe(false);
+    });
+  });
+
+  it('correctly uses DMY date format selection (M3)', async () => {
+    mockAddTimecode.mockResolvedValueOnce({ id: 'tc-dmy', name: 'DMYCode' });
+    const { getByRole, container } = renderComponent();
+    fireEvent.click(getByRole('button', { name: 'Data' }));
+
+    // Select DMY date format
+    const select = container.querySelector('select[class*="border"]') as HTMLSelectElement;
+    if (select) {
+      fireEvent.change(select, { target: { value: 'dmy' } });
+    }
+
+    const csvFileInput = container.querySelector('input[type="file"][accept=".csv"]') as HTMLInputElement;
+    // 01/02/2024 in DMY is 1st February 2024
+    const dmyCsv = 'Start Time,End Time,Timecode,Note\n01/02/2024 10:00:00,01/02/2024 11:00:00,DMYCode,Test\n';
+    const csvFile = new File([dmyCsv], 'dmy.csv', { type: 'text/csv' });
+
+    fireEvent.change(csvFileInput, { target: { files: [csvFile] } });
+    fireEvent.click(getByRole('button', { name: /import csv/i }));
+
+    await waitFor(() => {
+      expect(mockBulkAddManualEntries).toHaveBeenCalledWith([
+        expect.objectContaining({
+          startTime: '2024-02-01T10:00:00.000Z',
+          endTime: '2024-02-01T11:00:00.000Z',
+        }),
+      ]);
     });
   });
 });

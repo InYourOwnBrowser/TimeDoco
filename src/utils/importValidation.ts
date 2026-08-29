@@ -1,10 +1,73 @@
 export const MAX_IMPORT_FILE_BYTES = 20 * 1024 * 1024; // 20MB
+export const MAX_IMPORT_ENTRIES = 50000;
 /** ~4MB of base64, comfortably above the 1MB upload cap after encoding. */
 export const MAX_LOGO_DATA_URL_LENGTH = 4 * 1024 * 1024;
 
 /** Data URLs only — never a remote reference that would make the app phone home. */
 const isSafeImageDataUrl = (value: string): boolean =>
   /^data:image\/(png|jpeg|jpg|webp|gif);base64,/i.test(value);
+
+/**
+ * Parses a date string based on an explicit format selection.
+ * Supported formats:
+ * - 'iso': ISO 8601 string or standard YYYY-MM-DD / ISO format
+ * - 'dmy': Day/Month/Year e.g., DD/MM/YYYY or DD-MM-YYYY (with optional time)
+ * - 'mdy': Month/Day/Year e.g., MM/DD/YYYY or MM-DD-YYYY (with optional time)
+ */
+export function parseCSVDate(dateStr: string, format: 'iso' | 'dmy' | 'mdy' = 'iso'): Date {
+  if (!dateStr || typeof dateStr !== 'string') {
+    return new Date(NaN);
+  }
+  const str = dateStr.trim();
+  if (!str) return new Date(NaN);
+
+  if (format === 'iso') {
+    const d = new Date(str);
+    return d;
+  }
+
+  // Split date and time parts (e.g., "01/02/2024 14:30:00" or "01/02/2024")
+  const parts = str.split(/\s+/);
+  const datePart = parts[0];
+  const timePart = parts.slice(1).join(' ');
+
+  const dateTokens = datePart.split(/[/.-]/);
+  if (dateTokens.length !== 3) {
+    return new Date(NaN);
+  }
+
+  let day: number, month: number, year: number;
+  if (format === 'dmy') {
+    day = parseInt(dateTokens[0], 10);
+    month = parseInt(dateTokens[1], 10);
+    year = parseInt(dateTokens[2], 10);
+  } else {
+    // 'mdy'
+    month = parseInt(dateTokens[0], 10);
+    day = parseInt(dateTokens[1], 10);
+    year = parseInt(dateTokens[2], 10);
+  }
+
+  if (isNaN(day) || isNaN(month) || isNaN(year) || month < 1 || month > 12 || day < 1 || day > 31) {
+    return new Date(NaN);
+  }
+
+  // Two-digit year handling if present, otherwise assume full year
+  if (year < 100) {
+    year += year < 50 ? 2000 : 1900;
+  }
+
+  const paddedMonth = String(month).padStart(2, '0');
+  const paddedDay = String(day).padStart(2, '0');
+  const paddedYear = String(year).padStart(4, '0');
+
+  let isoStr = `${paddedYear}-${paddedMonth}-${paddedDay}`;
+  if (timePart) {
+    isoStr += `T${timePart}`;
+  }
+
+  return new Date(isoStr);
+}
 
 /**
  * @param knownTimecodeIds Timecode ids that will exist after the import but are
@@ -25,6 +88,10 @@ export function validateBackupPayload(parsed: any, knownTimecodeIds?: Set<string
   }
   if (!Array.isArray(parsed.entries)) {
     throw new Error('Import failed: "entries" must be an array.');
+  }
+
+  if (parsed.entries.length > MAX_IMPORT_ENTRIES) {
+    throw new Error(`Import failed: Backup contains ${parsed.entries.length} entries, exceeding the maximum cap of ${MAX_IMPORT_ENTRIES}.`);
   }
 
   // Validate groups

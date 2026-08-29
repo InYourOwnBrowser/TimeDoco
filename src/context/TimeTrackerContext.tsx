@@ -5,7 +5,7 @@ import { differenceInSeconds, isSameDay } from 'date-fns';
 import { calculateDuration, findOverlappingCandidates } from '../utils/timeUtils';
 import { clearErrorLog, logError } from '../utils/errorLog';
 import { useToast } from './ToastContext';
-import { validateBackupPayload, MAX_IMPORT_FILE_BYTES } from '../utils/importValidation';
+import { validateBackupPayload, MAX_IMPORT_FILE_BYTES, MAX_IMPORT_ENTRIES } from '../utils/importValidation';
 
 interface TimeTrackerContextType {
   groups: Group[];
@@ -30,7 +30,7 @@ interface TimeTrackerContextType {
   bulkDeleteEntries: (ids: string[]) => Promise<void>;
   splitEntry: (entryId: string, splitTime: string, newTimecodeId?: string) => Promise<void>;
   addManualEntry: (entryData: { startTime: string; endTime: string; timecodeId: string; note: string; tags?: string[]; pausedSegments?: PauseSegment[]; manualAmount?: number | null }) => Promise<void>;
-  bulkAddManualEntries: (entriesData: { startTime: string, endTime: string, timecodeId: string, note: string, tags?: string[] }[]) => Promise<{ added: number; skipped: number }>;
+  bulkAddManualEntries: (entriesData: { startTime: string, endTime: string, timecodeId: string, note: string, tags?: string[], manualAmount?: number | null }[]) => Promise<{ added: number; skipped: number }>;
   forgotToStopEntry: Entry | null;
   dismissForgotToStop: () => void;
   settings: Settings | null;
@@ -900,7 +900,11 @@ export const TimeTrackerProvider: React.FC<{ children: ReactNode }> = ({ childre
     await refreshData();
   };
 
-  const bulkAddManualEntries = async (entriesData: { startTime: string, endTime: string, timecodeId: string, note: string, tags?: string[] }[]) => {
+  const bulkAddManualEntries = async (entriesData: { startTime: string, endTime: string, timecodeId: string, note: string, tags?: string[], manualAmount?: number | null }[]) => {
+    if (entriesData.length > MAX_IMPORT_ENTRIES) {
+      throw new Error(`Cannot import more than ${MAX_IMPORT_ENTRIES} entries at once.`);
+    }
+
     const now = new Date().toISOString();
     const wellFormed: Entry[] = [];
     let skipped = 0;
@@ -929,6 +933,7 @@ export const TimeTrackerProvider: React.FC<{ children: ReactNode }> = ({ childre
         isPaused: false,
         pausedSegments: [],
         editHistory: [],
+        manualAmount: entryData.manualAmount ?? null,
         createdAt: now,
         updatedAt: now,
       });

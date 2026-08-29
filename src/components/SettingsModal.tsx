@@ -5,10 +5,10 @@ import { X, Upload, Download, AlertTriangle, CheckCircle2, Trash2 } from 'lucide
 import Papa from 'papaparse';
 import { Modal } from './ui/Modal';
 import { Panel } from './ui/Panel';
-import { parseISO } from 'date-fns';
 import { HelpTooltip } from './ui/HelpTooltip';
 import { useToast } from '../context/ToastContext';
-import { validateBackupPayload, MAX_IMPORT_FILE_BYTES } from '../utils/importValidation';
+import { validateBackupPayload, MAX_IMPORT_FILE_BYTES, MAX_IMPORT_ENTRIES, parseCSVDate } from '../utils/importValidation';
+import { findOverlappingCandidates } from '../utils/timeUtils';
 import { formatErrorLogForClipboard } from '../utils/errorLog';
 
 interface SettingsModalProps {
@@ -16,13 +16,14 @@ interface SettingsModalProps {
 }
 
 export const SettingsModal: React.FC<SettingsModalProps> = ({ onClose }) => {
-  const { getBackupBlob, markBackupSaved, importData, wipeAllData, settings, updateSettings, bulkAddManualEntries, addTimecode, refreshData, timecodes, deletedEntries, restoreEntry, hardDeleteEntry, deletedTimecodes, restoreTimecode, hardDeleteTimecode, deletedGroups, restoreGroup, hardDeleteGroup, emptyTrash } = useTimeTracker();
+  const { getBackupBlob, markBackupSaved, importData, wipeAllData, settings, updateSettings, bulkAddManualEntries, addTimecode, refreshData, entries, timecodes, deletedEntries, restoreEntry, hardDeleteEntry, deletedTimecodes, restoreTimecode, hardDeleteTimecode, deletedGroups, restoreGroup, hardDeleteGroup, emptyTrash } = useTimeTracker();
   const { triggerDownload, SaveAsDialog } = useNamedDownload();
   const { addToast } = useToast();
   const fileInputRef = useRef<HTMLInputElement>(null);
   const csvInputRef = useRef<HTMLInputElement>(null);
 
   const [importMode, setImportMode] = useState<'merge' | 'replace'>('merge');
+  const [csvDateFormat, setCsvDateFormat] = useState<'iso' | 'dmy' | 'mdy'>('iso');
   const [statusMsg, setStatusMsg] = useState<{ type: 'error' | 'success'; text: string } | null>(null);
   const [isProcessing, setIsProcessing] = useState(false);
   const [showReplaceConfirm, setShowReplaceConfirm] = useState(false);
@@ -269,92 +270,183 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ onClose }) => {
       header: true,
       skipEmptyLines: true,
       complete: async (results) => {
-        let importedCount = 0;
-        let skippedCount = 0;
-        const localTimecodes = [...timecodes];
-        const createdTimecodeIds: string[] = [];
-        const entriesToBulkAdd: { startTime: string, endTime: string, timecodeId: string, note: string }[] = [];
-
-        for (const row of results.data as any[]) {
-          try {
-            const startTime = row['Start Time'] || row.startTime || row.start;
-            const endTime = row['End Time'] || row.endTime || row.end;
-            const timecodeName = row['Timecode'] || row.timecode || row.name;
-            const note = row['Note'] || row.note || '';
-
-            if (!startTime || !endTime || !timecodeName) {
-              skippedCount++;
-              continue;
-            }
-
-            // Validate date parsing BEFORE creating any new timecode entity
-            let startObj = new Date(startTime);
-            let endObj = new Date(endTime);
-
-            if (isNaN(startObj.getTime())) {
-              startObj = parseISO(startTime);
-            }
-            if (isNaN(endObj.getTime())) {
-              endObj = parseISO(endTime);
-            }
-
-            if (isNaN(startObj.getTime()) || isNaN(endObj.getTime())) {
-              throw new Error('Invalid date');
-            }
-
-            const startISO = startObj.toISOString();
-            const endISO = endObj.toISOString();
-
-            let tc = localTimecodes.find(t => t.name.toLowerCase() === timecodeName.toLowerCase());
-            if (!tc) {
-              // Defer the reload: bulkAddManualEntries below refreshes once for
-              // the whole import, so a 50-timecode CSV does not read the entire
-              // database 50 times before writing anything.
-              tc = await addTimecode(timecodeName, undefined, undefined, undefined, { deferRefresh: true });
-              localTimecodes.push(tc);
-              createdTimecodeIds.push(tc.id);
-            }
-
-            entriesToBulkAdd.push({
-              startTime: startISO,
-              endTime: endISO,
-              timecodeId: tc.id,
-              note
-            });
-            importedCount++;
-          } catch (error) {
-            console.warn('Skipping malformed CSV row:', row, error);
-            skippedCount++;
+        try {
+          if (results.data.length > MAX_IMPORT_ENTRIES) {
+            setStatusMsg({ type: 'error', text: `CSV contains ${results.data.length} rows, exceeding the limit of ${MAX_IMPORT_ENTRIES}.` });
+            return;
           }
-        }
 
-        if (entriesToBulkAdd.length > 0) {
-          // Rows with an end at or before their start are rejected on write;
-          // count them as skipped rather than reporting them as imported.
+          let skippedCount = 0;
+
+          // Two-pass approach:
+          // Pass 1: Validate row fields, dates, amounts, tags, and check overlap in-memory BEFORE creating any timecodes or writing entries.
+          type PreparedCandidate = {
+            id: string;
+            timecodeName: string;
+            startTime: string;
+            endTime: string;
+            note: string;
+            tags: string[];
+            manualAmount: number | null;
+          };
+
+          const candidates: PreparedCandidate[] = [];
+
+          for (const row of results.data as any[]) {
+            try {
+              const startTimeRaw = row['Start Time'] || row.startTime || row.start;
+              const endTimeRaw = row['End Time'] || row.endTime || row.end;
+              const timecodeName = (row['Timecode'] || row.timecode || row.name || '').trim();
+              const note = (row['Note'] || row.note || '').trim();
+              const tagsRaw = row['Tags'] || row.tags || '';
+              const amountRaw = row['Amount'] || row.amount || row.manualAmount || row['Manual Amount'];
+
+              if (!startTimeRaw || !endTimeRaw || !timecodeName) {
+                skippedCount++;
+                continue;
+              }
+
+              if (timecodeName.length > 100) {
+                skippedCount++;
+                continue;
+              }
+
+              if (note.length > 2000) {
+                skippedCount++;
+                continue;
+              }
+
+              const startObj = parseCSVDate(startTimeRaw, csvDateFormat);
+              const endObj = parseCSVDate(endTimeRaw, csvDateFormat);
+
+              if (isNaN(startObj.getTime()) || isNaN(endObj.getTime()) || endObj <= startObj) {
+                skippedCount++;
+                continue;
+              }
+
+              let tags: string[] = [];
+              if (Array.isArray(tagsRaw)) {
+                tags = tagsRaw.filter((t: any) => typeof t === 'string').map(t => t.trim()).filter(Boolean);
+              } else if (typeof tagsRaw === 'string' && tagsRaw.trim()) {
+                tags = tagsRaw.split(',').map(t => t.trim()).filter(Boolean);
+              }
+              if (tags.length > 20 || tags.join(', ').length > 500) {
+                skippedCount++;
+                continue;
+              }
+
+              let manualAmount: number | null = null;
+              if (amountRaw !== undefined && amountRaw !== null && String(amountRaw).trim() !== '') {
+                const parsedAmt = parseFloat(String(amountRaw));
+                if (!isNaN(parsedAmt) && isFinite(parsedAmt)) {
+                  manualAmount = parsedAmt;
+                } else {
+                  skippedCount++;
+                  continue;
+                }
+              }
+
+              candidates.push({
+                id: crypto.randomUUID(),
+                timecodeName,
+                startTime: startObj.toISOString(),
+                endTime: endObj.toISOString(),
+                note,
+                tags,
+                manualAmount,
+              });
+            } catch (error) {
+              console.warn('Skipping malformed CSV row:', row, error);
+              skippedCount++;
+            }
+          }
+
+          if (candidates.length === 0) {
+            setStatusMsg({ type: 'error', text: 'Failed to import any entries. Check the CSV format and date settings.' });
+            return;
+          }
+
+          // Use current local timecodes map to construct dummy entries for findOverlappingCandidates
+          const tcMapByName = new Map<string, string>();
+          timecodes.forEach(tc => tcMapByName.set(tc.name.toLowerCase(), tc.id));
+
+          // Assign temporary or existing timecode IDs for overlap check
+          const candidateEntriesForCheck = candidates.map(c => {
+            const existingId = tcMapByName.get(c.timecodeName.toLowerCase());
+            return {
+              id: c.id,
+              timecodeId: existingId || `temp-${c.timecodeName.toLowerCase()}`,
+              startTime: c.startTime,
+              endTime: c.endTime,
+              duration: 0,
+              note: c.note,
+              tags: c.tags,
+              isRunning: false,
+              isPaused: false,
+              pausedSegments: [],
+              editHistory: [],
+              createdAt: c.startTime,
+              updatedAt: c.startTime,
+            };
+          });
+
+          // Fetch full list of entries from tracker context state if needed or we use current entries from tracker
+          // Since we are inside component, we can access entries from useTimeTracker:
+          const rejectedIndices = findOverlappingCandidates(
+            candidateEntriesForCheck,
+            entries,
+            settings?.allowConcurrentTimers ?? false
+          );
+
+          const survivingCandidates = candidates.filter((_, idx) => !rejectedIndices.has(idx));
+          skippedCount += rejectedIndices.size;
+
+          if (survivingCandidates.length === 0) {
+            setStatusMsg({ type: 'error', text: 'Failed to import any entries. All rows overlapped existing entries.' });
+            return;
+          }
+
+          // Pass 2: Create required timecodes and add surviving entries
+          const localTimecodes = [...timecodes];
+          const createdTimecodes: string[] = [];
+          const entriesToBulkAdd: { startTime: string; endTime: string; timecodeId: string; note: string; tags: string[]; manualAmount: number | null }[] = [];
+
+          for (const item of survivingCandidates) {
+            let tc = localTimecodes.find(t => t.name.toLowerCase() === item.timecodeName.toLowerCase());
+            if (!tc) {
+              tc = await addTimecode(item.timecodeName, undefined, undefined, undefined, { deferRefresh: true });
+              localTimecodes.push(tc);
+              createdTimecodes.push(tc.id);
+            }
+            entriesToBulkAdd.push({
+              startTime: item.startTime,
+              endTime: item.endTime,
+              timecodeId: tc.id,
+              note: item.note,
+              tags: item.tags,
+              manualAmount: item.manualAmount,
+            });
+          }
+
           const result = await bulkAddManualEntries(entriesToBulkAdd);
+          let importedCount = result ? result.added : entriesToBulkAdd.length;
           if (result && result.skipped > 0) {
-            importedCount -= result.skipped;
             skippedCount += result.skipped;
           }
-        } else if (createdTimecodeIds.length > 0) {
-          // No entries were written, so nothing else will reload: show the
-          // timecodes this import did create rather than leaving them invisible
-          // until the next reload.
-          await refreshData();
-        }
 
-        if (importedCount > 0 && skippedCount === 0) {
-          setStatusMsg({ type: 'success', text: `Successfully imported all ${importedCount} entries from CSV.` });
-        } else if (importedCount > 0 && skippedCount > 0) {
-          // Skipped rows are either malformed or would overlap an entry that
-          // already exists, so the wording covers both.
-          setStatusMsg({ type: 'error', text: `Imported ${importedCount} entries, skipped ${skippedCount} rows that were malformed or overlapped existing entries.` }); // Note: Using 'error' styled toast to indicate partial failure visually
-        } else {
-          setStatusMsg({ type: 'error', text: 'Failed to import any entries. Check the CSV format, and that its rows do not overlap entries you already have.' });
+          if (importedCount > 0 && skippedCount === 0) {
+            setStatusMsg({ type: 'success', text: `Successfully imported all ${importedCount} entries from CSV.` });
+          } else if (importedCount > 0 && skippedCount > 0) {
+            setStatusMsg({ type: 'error', text: `Imported ${importedCount} entries, skipped ${skippedCount} rows that were malformed or overlapped existing entries.` });
+          } else {
+            setStatusMsg({ type: 'error', text: 'Failed to import any entries. Check the CSV format, and that its rows do not overlap entries you already have.' });
+          }
+        } catch (err: any) {
+          setStatusMsg({ type: 'error', text: `CSV Import Error: ${err.message || 'An unexpected error occurred.'}` });
+        } finally {
+          setIsProcessing(false);
+          if (csvInputRef.current) csvInputRef.current.value = '';
         }
-
-        setIsProcessing(false);
-        if (csvInputRef.current) csvInputRef.current.value = '';
       },
       error: (error) => {
         setStatusMsg({ type: 'error', text: `CSV Parse Error: ${error.message}` });
@@ -873,6 +965,22 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ onClose }) => {
                     ref={csvInputRef}
                     className="block w-full text-sm text-gray-600 dark:text-gray-400 file:mr-4 file:py-2 file:px-4 file:rounded file:border-0 file:text-sm file:font-semibold file:bg-stone dark:file:bg-gray-800/30 file:text-graphite dark:file:text-stone hover:file:bg-gray-200 dark:hover:file:bg-gray-800/50 border border-graphite/20 dark:border-white/20 rounded cursor-pointer"
                   />
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-graphite dark:text-stone mb-1 flex items-center">
+                    Date Format in CSV
+                    <HelpTooltip text="Choose how dates and times in your CSV are formatted so day and month values are parsed accurately." />
+                  </label>
+                  <select
+                    value={csvDateFormat}
+                    onChange={(e) => setCsvDateFormat(e.target.value as 'iso' | 'dmy' | 'mdy')}
+                    className="w-full px-3 py-1.5 border border-graphite/20 dark:border-white/20 rounded outline-none focus-visible:ring-2 focus-visible:ring-signal text-sm bg-white dark:bg-graphite text-graphite dark:text-stone"
+                  >
+                    <option value="iso">ISO 8601 / Standard (YYYY-MM-DD)</option>
+                    <option value="dmy">Day/Month/Year (DD/MM/YYYY)</option>
+                    <option value="mdy">Month/Day/Year (MM/DD/YYYY)</option>
+                  </select>
                 </div>
 
                 <button

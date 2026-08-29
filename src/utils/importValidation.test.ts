@@ -1,7 +1,49 @@
 import { describe, it, expect } from 'vitest';
-import { validateBackupPayload } from './importValidation';
+import { validateBackupPayload, parseCSVDate, MAX_IMPORT_ENTRIES } from './importValidation';
+
+describe('parseCSVDate', () => {
+  it('parses ISO format correctly', () => {
+    const d = parseCSVDate('2024-01-02T10:00:00Z', 'iso');
+    expect(d.getTime()).not.toBeNaN();
+    expect(d.toISOString()).toBe('2024-01-02T10:00:00.000Z');
+  });
+
+  it('parses DMY format correctly (01/02/2024 -> 1 Feb 2024)', () => {
+    const d = parseCSVDate('01/02/2024 10:00:00', 'dmy');
+    expect(d.getTime()).not.toBeNaN();
+    expect(d.getFullYear()).toBe(2024);
+    expect(d.getMonth()).toBe(1); // February (0-indexed)
+    expect(d.getDate()).toBe(1);
+  });
+
+  it('parses MDY format correctly (01/02/2024 -> 2 Jan 2024)', () => {
+    const d = parseCSVDate('01/02/2024 10:00:00', 'mdy');
+    expect(d.getTime()).not.toBeNaN();
+    expect(d.getFullYear()).toBe(2024);
+    expect(d.getMonth()).toBe(0); // January (0-indexed)
+    expect(d.getDate()).toBe(2);
+  });
+
+  it('returns invalid date for malformed dates', () => {
+    expect(parseCSVDate('invalid', 'dmy').getTime()).toBeNaN();
+    expect(parseCSVDate('32/01/2024', 'dmy').getTime()).toBeNaN();
+    expect(parseCSVDate('01/13/2024', 'dmy').getTime()).toBeNaN();
+  });
+});
 
 describe('validateBackupPayload', () => {
+  it('throws error when entries count exceeds MAX_IMPORT_ENTRIES', () => {
+    const payload = {
+      groups: [],
+      timecodes: [{ id: 'tc1', name: 'Work' }],
+      entries: Array.from({ length: MAX_IMPORT_ENTRIES + 1 }, (_, i) => ({
+        id: `e${i}`,
+        timecodeId: 'tc1',
+        startTime: '2024-01-01T10:00:00Z',
+      })),
+    };
+    expect(() => validateBackupPayload(payload)).toThrow(/exceeding the maximum cap/);
+  });
   const validPayload = {
     groups: [{ id: 'g1', name: 'Group 1' }],
     timecodes: [{ id: 'tc1', name: 'Code 1', hourlyRate: 50 }],
