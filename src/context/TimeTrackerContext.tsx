@@ -601,9 +601,6 @@ export const TimeTrackerProvider: React.FC<{ children: ReactNode }> = ({ childre
 
       addToast('Group deleted', 'success', { label: 'Undo', onClick: async () => {
         await restoreGroup(id);
-        for (const tc of timecodesToDelete) {
-          await restoreTimecode(tc.id);
-        }
       } }, 5000);
     }
     await refreshData();
@@ -644,18 +641,23 @@ export const TimeTrackerProvider: React.FC<{ children: ReactNode }> = ({ childre
     await refreshData();
   };
 
-  const restoreGroup = async (id: string) => {
+  const restoreGroupInternal = async (id: string) => {
     const group = await db.getGroup(id);
     if (group) {
       const deletedTime = group.deletedAt;
       group.deletedAt = undefined;
       await db.putGroup(group);
 
-      const tcsToRestore = deletedTimecodes.filter(tc => tc.groupId === id && tc.deletedAt === deletedTime);
+      const allTimecodes = await db.getTimecodes();
+      const tcsToRestore = allTimecodes.filter(tc => tc.groupId === id && tc.deletedAt === deletedTime);
       for (const tc of tcsToRestore) {
-        await restoreTimecode(tc.id);
+        await restoreTimecodeInternal(tc.id);
       }
     }
+  };
+
+  const restoreGroup = async (id: string) => {
+    await restoreGroupInternal(id);
     await refreshData();
   };
 
@@ -986,18 +988,23 @@ export const TimeTrackerProvider: React.FC<{ children: ReactNode }> = ({ childre
     await refreshData();
   };
 
-  const restoreTimecode = async (id: string) => {
+  const restoreTimecodeInternal = async (id: string) => {
     const tc = await db.getTimecode(id);
     if (tc) {
       const deletedTime = tc.deletedAt;
       tc.deletedAt = undefined;
       await db.putTimecode(tc);
 
-      const entriesToRestore = deletedEntries.filter(e => e.timecodeId === id && e.deletedAt === deletedTime);
+      const allEntries = await db.getEntries();
+      const entriesToRestore = allEntries.filter(e => e.timecodeId === id && e.deletedAt === deletedTime);
       for (const entry of entriesToRestore) {
-        await restoreEntry(entry.id);
+        await restoreEntryInternal(entry.id);
       }
     }
+  };
+
+  const restoreTimecode = async (id: string) => {
+    await restoreTimecodeInternal(id);
     await refreshData();
   };
 
@@ -1099,7 +1106,7 @@ export const TimeTrackerProvider: React.FC<{ children: ReactNode }> = ({ childre
     addToast(
       `${ids.length} ${ids.length === 1 ? 'entry' : 'entries'} deleted`,
       'success',
-      { label: 'Undo', onClick: () => Promise.all(ids.map((id) => restoreEntry(id))).then(() => refreshData()) },
+      { label: 'Undo', onClick: () => Promise.all(ids.map((id) => restoreEntryInternal(id))).then(() => refreshData()) },
       5000
     );
     await refreshData();
@@ -1110,7 +1117,7 @@ export const TimeTrackerProvider: React.FC<{ children: ReactNode }> = ({ childre
     await refreshData();
   };
 
-  const restoreEntry = async (id: string) => {
+  const restoreEntryInternal = async (id: string) => {
     const entry = await db.getEntry(id);
     if (entry) {
       entry.deletedAt = undefined;
@@ -1123,9 +1130,12 @@ export const TimeTrackerProvider: React.FC<{ children: ReactNode }> = ({ childre
           await db.putTimecode(tc);
         }
       }
-
-      await refreshData();
     }
+  };
+
+  const restoreEntry = async (id: string) => {
+    await restoreEntryInternal(id);
+    await refreshData();
   };
 
   const getBackupBlob = async (): Promise<Blob> => {

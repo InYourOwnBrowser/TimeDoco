@@ -81,9 +81,9 @@ Everything below is a logic, consistency, or design issue that the type checker 
 ## Low / Performance
 
 - [x] `EntryList` recomputes `filteredEntries`, `groupedEntries`, and `flatEntries` on every render with no `useMemo`, and resolves timecode names via `timecodes.find` inside a filter over all entries — O(n×m). The repo's own `AnalysisView.bench.test.ts` measures Map-vs-find; AnalysisView adopted Maps, EntryList didn't.
-- [ ] `TimesheetMatrixView.isVisible` is called from inside `.filter()` chains, re-walking 7 cells per timecode per render.
-- [ ] `GlobalActiveTimerBar` ticks at 200ms to render a seconds-resolution display.
-- [ ] `restoreTimecode` / `restoreGroup` call `restoreEntry` per record, each triggering its own full `refreshData()` — N complete database reads for one restore. `bulkDeleteEntries`' undo does the same.
+- [x] `TimesheetMatrixView.isVisible` is called from inside `.filter()` chains, re-walking 7 cells per timecode per render.
+- [x] `GlobalActiveTimerBar` ticks at 200ms to render a seconds-resolution display.
+- [x] `restoreTimecode` / `restoreGroup` call `restoreEntry` per record, each triggering its own full `refreshData()` — N complete database reads for one restore. `bulkDeleteEntries`' undo does the same.
 - [ ] `applyRounding` on a live ticking timer means a 15-minute rule shows "0s" for seven and a half minutes, then jumps.
 - [ ] Fallback mode is a silent data-loss path: writes go to memory only, and `closeDB` clears that memory unconditionally.
 - [x] ICS export emits no `uid`, so re-importing duplicates every event.
