@@ -129,7 +129,14 @@ export const GroupingManagement: React.FC = () => {
       return;
     }
 
-    await addGroup(trimmedName, newGroupColor);
+    // addGroup reports a failed write and rethrows, so the record is never
+    // handed back unstored. Catching here keeps the add form open with what the
+    // user typed instead of clearing it as though the group had been created.
+    try {
+      await addGroup(trimmedName, newGroupColor);
+    } catch {
+      return;
+    }
     setNewGroupName('');
     setNewGroupColor('#3E7368');
     setIsAddingGroup(false);
@@ -202,12 +209,18 @@ export const GroupingManagement: React.FC = () => {
     }
 
     const parsedRate = parseFloat(newTimecodeRate);
-    await addTimecode(
-      trimmedName,
-      newTimecodeColor,
-      groupId || undefined,
-      isNaN(parsedRate) || parsedRate <= 0 ? undefined : parsedRate
-    );
+    // As with handleCreateGroup: a failed write is already reported, and the
+    // form keeps what was typed rather than resetting as though it had saved.
+    try {
+      await addTimecode(
+        trimmedName,
+        newTimecodeColor,
+        groupId || undefined,
+        isNaN(parsedRate) || parsedRate <= 0 ? undefined : parsedRate
+      );
+    } catch {
+      return;
+    }
     setNewTimecodeName('');
     setNewTimecodeRate('');
     setAddingTimecodeGroupId(null);

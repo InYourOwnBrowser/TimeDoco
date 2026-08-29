@@ -1938,4 +1938,48 @@ describe('TimeTrackerContext Reducer Logic', () => {
       expect(ids).toEqual(['e-clear', 'e-local']);
     });
   });
+  // --- H8: storage write failures ---
+
+  it('reports a failed write instead of leaving the UI showing unsaved state', async () => {
+    await db.putTimecode(seedTimecode('tc-quota', { updatedAt: NOW_ISO }));
+
+    const getCtx = await renderCtx();
+
+    // The connection is healthy; this one write fails, exactly as a
+    // QuotaExceededError or a Safari private-mode rejection does.
+    const quotaError = Object.assign(new Error('QuotaExceededError'), { name: 'QuotaExceededError' });
+    const putSpy = vi.spyOn(db, 'putEntry').mockRejectedValueOnce(quotaError);
+
+    await act(async () => {
+      await getCtx().addManualEntry({
+        startTime: '2024-08-01T09:00:00.000Z',
+        endTime: '2024-08-01T10:00:00.000Z',
+        timecodeId: 'tc-quota',
+        note: 'never stored',
+      });
+    });
+
+    expect(putSpy).toHaveBeenCalled();
+    // The rejection was caught rather than becoming unhandled...
+    expect(await db.getEntries()).toHaveLength(0);
+    // ...and the list does not show an entry that was never written.
+    expect(getCtx().entries.find((e) => e.note === 'never stored')).toBeUndefined();
+
+    putSpy.mockRestore();
+  });
+
+  it('rolls back an optimistic settings change when the write fails', async () => {
+    const getCtx = await renderCtx();
+    await act(async () => { await getCtx().updateSettings({ roundingRule: '15min' }); });
+    await waitFor(() => expect(getCtx().settings?.roundingRule).toBe('15min'));
+
+    const putSpy = vi.spyOn(db, 'putSettings').mockRejectedValueOnce(new Error('QuotaExceededError'));
+    await act(async () => { await getCtx().updateSettings({ roundingRule: '5min' }); });
+
+    // The panel must not keep showing a preference that was never stored.
+    await waitFor(() => expect(getCtx().settings?.roundingRule).toBe('15min'));
+    expect((await db.getSettings())?.roundingRule).toBe('15min');
+
+    putSpy.mockRestore();
+  });
 });

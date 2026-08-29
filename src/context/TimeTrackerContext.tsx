@@ -193,6 +193,100 @@ export const TimeTrackerProvider: React.FC<{ children: ReactNode }> = ({ childre
     return result;
   }, []);
 
+  /**
+   * Turns a storage failure into something the user can act on.
+   *
+   * Running out of quota is the one case with an obvious remedy, and it is also
+   * the one most likely to hit a long-running local-first database, so it gets
+   * its own message rather than a generic "could not save".
+   */
+  const describeStorageError = (error: unknown, action: string): string => {
+    const name = (error as { name?: string } | null)?.name;
+    const message = error instanceof Error ? error.message : String(error ?? '');
+    if (name === 'QuotaExceededError' || /quota/i.test(message)) {
+      return `Could not ${action}: this browser is out of storage for TimeDoco. Export a backup from Settings, then clear the trash or remove old entries to free space.`;
+    }
+    return `Could not ${action}. Your change was not saved.`;
+  };
+
+  /**
+   * Wraps a storage mutation so a failed write is reported rather than becoming
+   * an unhandled rejection behind a success toast.
+   *
+   * `withDB` deliberately rethrows single-operation errors — a rejected put, an
+   * aborted transaction, a Safari private-mode rejection — because one bad
+   * record must not flip the whole app into an empty in-memory store. That is
+   * correct, but almost nothing caught what it threw, so a failed write left the
+   * UI showing state that was never persisted.
+   *
+   * Returns whether the write went through. Callers must gate their success
+   * toast on that: a toast fired before the write resolves reports success for
+   * something that may never have been stored.
+   */
+  const mutateValue = useCallback(
+    async <T,>(action: string, operation: () => Promise<T>): Promise<T | null> => {
+      try {
+        return await operation();
+      } catch (error) {
+        logError(error as Error, `mutate:${action}`);
+        addToast(describeStorageError(error, action), 'error', undefined, 8000);
+        return null;
+      }
+    },
+    // addToast is stable; describeStorageError is a pure local helper.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [addToast]
+  );
+
+  /**
+   * Reports a failed write and rethrows it.
+   *
+   * For a mutation whose caller is waiting on a record it will go on to use:
+   * absorbing the error there would hand back an object that was never stored.
+   * The user is told either way, and the caller's own handling still runs.
+   */
+  const reportAndRethrow = useCallback(
+    async (action: string, operation: () => Promise<unknown>): Promise<void> => {
+      try {
+        await operation();
+      } catch (error) {
+        logError(error as Error, `mutate:${action}`);
+        addToast(describeStorageError(error, action), 'error', undefined, 8000);
+        throw error;
+      }
+    },
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [addToast]
+  );
+
+  /** `mutateValue` for a mutation with no result; resolves to whether it was stored. */
+  const mutate = useCallback(
+    async (action: string, operation: () => Promise<void>): Promise<boolean> =>
+      (await mutateValue(action, async () => {
+        await operation();
+        return true as const;
+      })) === true,
+    [mutateValue]
+  );
+
+  /**
+   * Wraps a cascade in `mutate` without restructuring it.
+   *
+   * The trash and delete cascades issue many writes across several stores; any
+   * of them can fail. Guarding at the boundary catches the whole sequence in
+   * one place and keeps the public signature, rather than threading a result
+   * through code whose shape is about the cascade, not about error handling.
+   * A partial cascade is still partial — the toast says the change did not go
+   * through, and the reload that follows shows what actually landed.
+   */
+  const guarded = useCallback(
+    <A extends unknown[]>(action: string, fn: (...args: A) => Promise<unknown>) =>
+      async (...args: A): Promise<void> => {
+        await mutate(action, async () => { await fn(...args); });
+      },
+    [mutate]
+  );
+
   const broadcastRef = useRef<BroadcastChannel | null>(null);
 
   /** Tell other open tabs that stored data changed and they should re-read. */
@@ -481,7 +575,7 @@ export const TimeTrackerProvider: React.FC<{ children: ReactNode }> = ({ childre
       // mutation can slip between deciding what to stop and writing the new
       // entry. `performStop` is the unlocked body: calling `stopTimerById` here
       // would wait on a queue this call already owns.
-      const started = await runExclusive(async () => {
+      const started = await mutateValue('start the timer', () => runExclusive(async () => {
         const isConcurrentAllowed = settings?.allowConcurrentTimers ?? false;
         const currentActive = await db.getActiveEntries();
 
@@ -520,9 +614,10 @@ export const TimeTrackerProvider: React.FC<{ children: ReactNode }> = ({ childre
         };
         await db.putEntry(newEntry);
         return true;
-      });
+      }));
 
       await refreshData();
+      if (started === null) return; // the write failed and has been reported
       if (started) {
         addToast('Timer started', 'success');
       } else {
@@ -577,17 +672,17 @@ export const TimeTrackerProvider: React.FC<{ children: ReactNode }> = ({ childre
     // The pre-stop snapshot is read inside the queue, so it is the entry as it
     // actually stood when the stop ran: a note save queued ahead of this one has
     // already been applied and is part of what the undo would restore.
-    const stoppedEntry = await runExclusive(async () => {
+    const stopped = await mutateValue('stop the timer', () => runExclusive(async () => {
       const entry = await db.getEntry(entryId);
       const didStop = await performStop(entryId);
       // Only claim the timer stopped when it did — a concurrent stop makes
       // performStop a no-op and there is nothing to offer an undo for.
       return didStop ? entry : null;
-    });
+    }));
 
-    if (stoppedEntry) {
-      setLastStoppedEntry(stoppedEntry);
-      addToast('Timer stopped', 'success', { label: 'Undo', onClick: () => undoStopTimer(stoppedEntry) }, 5000);
+    if (stopped) {
+      setLastStoppedEntry(stopped);
+      addToast('Timer stopped', 'success', { label: 'Undo', onClick: () => undoStopTimer(stopped) }, 5000);
     }
     await refreshData();
   };
@@ -596,7 +691,7 @@ export const TimeTrackerProvider: React.FC<{ children: ReactNode }> = ({ childre
     // Takes the timer queue for the same reason stopping does: this reads the
     // whole entry and writes the whole entry back, so a stop that lands between
     // the read and the write would be overwritten by the pre-stop copy.
-    const updatedEntry = await runExclusive(async () => {
+    const updatedEntry = await mutateValue('pause the timer', () => runExclusive(async () => {
       const entry = await db.getEntry(entryId);
       if (!entry || !entry.isRunning || entry.isPaused) return null;
       const now = new Date().toISOString();
@@ -609,7 +704,7 @@ export const TimeTrackerProvider: React.FC<{ children: ReactNode }> = ({ childre
       };
       await db.putEntry(paused);
       return paused;
-    });
+    }));
 
     if (!updatedEntry) return;
     replaceEntryInState(updatedEntry);
@@ -617,7 +712,7 @@ export const TimeTrackerProvider: React.FC<{ children: ReactNode }> = ({ childre
   };
 
   const resumeTimer = async (entryId: string) => {
-    const updatedEntry = await runExclusive(async () => {
+    const updatedEntry = await mutateValue('resume the timer', () => runExclusive(async () => {
       const entry = await db.getEntry(entryId);
       if (!entry || !entry.isRunning || !entry.isPaused) return null;
       const now = new Date().toISOString();
@@ -636,7 +731,7 @@ export const TimeTrackerProvider: React.FC<{ children: ReactNode }> = ({ childre
       };
       await db.putEntry(resumed);
       return resumed;
-    });
+    }));
 
     if (!updatedEntry) return;
     replaceEntryInState(updatedEntry);
@@ -649,7 +744,7 @@ export const TimeTrackerProvider: React.FC<{ children: ReactNode }> = ({ childre
     // before the stop. Outside the queue the "still running" check runs against
     // a read taken before the stop, and the write that follows resurrects the
     // timer with endTime null and the duration erased.
-    const updatedEntry = await runExclusive(async () => {
+    const updatedEntry = await mutateValue('save the note', () => runExclusive(async () => {
       const entry = await db.getEntry(entryId);
       if (!entry || !entry.isRunning) return null;
       const now = new Date().toISOString();
@@ -661,7 +756,7 @@ export const TimeTrackerProvider: React.FC<{ children: ReactNode }> = ({ childre
       };
       await db.putEntry(withNote);
       return withNote;
-    });
+    }));
 
     if (updatedEntry) replaceEntryInState(updatedEntry);
   };
@@ -674,7 +769,10 @@ export const TimeTrackerProvider: React.FC<{ children: ReactNode }> = ({ childre
       archived: false,
       updatedAt: new Date().toISOString(),
     };
-    await db.putGroup(newGroup);
+    // Creators report and rethrow rather than absorbing: the caller is waiting
+    // for a record it will act on, and handing back one that was never stored
+    // would be worse than the failure.
+    await reportAndRethrow('create the group', () => db.putGroup(newGroup));
     await refreshData();
     return newGroup;
   };
@@ -687,7 +785,7 @@ export const TimeTrackerProvider: React.FC<{ children: ReactNode }> = ({ childre
       ...updates,
       updatedAt: new Date().toISOString()
     };
-    await db.putGroup(updatedGroup);
+    if (!(await mutate('save the group', () => db.putGroup(updatedGroup).then(() => undefined)))) return;
     await refreshData();
   };
 
@@ -842,7 +940,7 @@ export const TimeTrackerProvider: React.FC<{ children: ReactNode }> = ({ childre
       archived: false,
       updatedAt: new Date().toISOString(),
     };
-    await db.putTimecode(newTimecode);
+    await reportAndRethrow('create the timecode', () => db.putTimecode(newTimecode));
     if (!options?.deferRefresh) await refreshData();
     return newTimecode;
   };
@@ -855,7 +953,7 @@ export const TimeTrackerProvider: React.FC<{ children: ReactNode }> = ({ childre
       ...updates,
       updatedAt: new Date().toISOString()
     };
-    await db.putTimecode(updatedTimecode);
+    if (!(await mutate('save the timecode', () => db.putTimecode(updatedTimecode).then(() => undefined)))) return;
     await refreshData();
   };
 
@@ -925,7 +1023,10 @@ export const TimeTrackerProvider: React.FC<{ children: ReactNode }> = ({ childre
       updatedAt: now,
     };
 
-    await db.putEntry(finalEntry);
+    // Bail before the follow-on state changes: clearing the forgot-to-stop
+    // banner for an edit that was never stored would hide a timer that is still
+    // wrong.
+    if (!(await mutate('save the entry', () => db.putEntry(finalEntry).then(() => undefined)))) return;
 
     if (forgotToStopEntry && forgotToStopEntry.id === id && updates.endTime) {
       setForgotToStopEntry(null);
@@ -964,7 +1065,7 @@ export const TimeTrackerProvider: React.FC<{ children: ReactNode }> = ({ childre
       updatedAt: now,
     };
 
-    await db.putEntry(newEntry);
+    if (!(await mutate('save the entry', () => db.putEntry(newEntry).then(() => undefined)))) return;
     await refreshData();
   };
 
@@ -1226,17 +1327,21 @@ export const TimeTrackerProvider: React.FC<{ children: ReactNode }> = ({ childre
 
   const updateSettings = async (updates: Partial<Settings>) => {
     if (!settings) return;
+    const previousSettings = settings;
     const newSettings = { ...settings, ...updates };
     setSettings(newSettings);
 
     // Read the latest settings from the DB to prevent clobbering fields saved by other tabs
     const currentSettings = await db.getSettings();
-    if (currentSettings) {
-      const mergedSettings = { ...currentSettings, ...updates };
-      setSettings(mergedSettings);
-      await db.putSettings(mergedSettings);
-    } else {
-      await db.putSettings(newSettings);
+    const toWrite = currentSettings ? { ...currentSettings, ...updates } : newSettings;
+    if (currentSettings) setSettings(toWrite);
+
+    // The state above is optimistic. If the write fails, put it back rather than
+    // leaving the panel showing a preference that was never stored — the user
+    // would carry on believing it had been saved.
+    if (!(await mutate('save your settings', () => db.putSettings(toWrite).then(() => undefined)))) {
+      setSettings(previousSettings);
+      return;
     }
     notifyOtherTabs();
   };
@@ -1374,7 +1479,7 @@ export const TimeTrackerProvider: React.FC<{ children: ReactNode }> = ({ childre
     // the read and the write, and so the trashed record can never sit in storage
     // with isRunning: true — restoring it would otherwise revive a timer that
     // has been "running" for as long as it sat in the trash.
-    const deleted = await runExclusive(async () => {
+    const deleted = await mutateValue('delete the entry', () => runExclusive(async () => {
       const entry = await db.getEntry(id);
       if (!entry) return false;
       if (entry.isRunning) {
@@ -1384,7 +1489,7 @@ export const TimeTrackerProvider: React.FC<{ children: ReactNode }> = ({ childre
       const deletedAt = new Date().toISOString();
       await db.putEntry(touch({ ...latestEntry, deletedAt }, deletedAt));
       return true;
-    });
+    }));
     if (deleted) {
       addToast('Entry deleted', 'success', { label: 'Undo', onClick: () => restoreEntry(id) }, 5000);
     }
@@ -1395,7 +1500,7 @@ export const TimeTrackerProvider: React.FC<{ children: ReactNode }> = ({ childre
     if (ids.length === 0) return;
     // Sequential inside one queue slot: each entry is stopped before it is
     // trashed, and no concurrent timer mutation can interleave with the batch.
-    const deletedIds = await runExclusive(async () => {
+    const deletedIds = await mutateValue('delete the entries', () => runExclusive(async () => {
       const now = new Date().toISOString();
       const done: string[] = [];
       for (const id of ids) {
@@ -1409,8 +1514,8 @@ export const TimeTrackerProvider: React.FC<{ children: ReactNode }> = ({ childre
         done.push(id);
       }
       return done;
-    });
-    if (deletedIds.length > 0) {
+    }));
+    if (deletedIds && deletedIds.length > 0) {
       addToast(
         `${deletedIds.length} ${deletedIds.length === 1 ? 'entry' : 'entries'} deleted`,
         'success',
@@ -1736,12 +1841,12 @@ export const TimeTrackerProvider: React.FC<{ children: ReactNode }> = ({ childre
       resumeTimer,
       addGroup,
       updateGroup,
-      deleteGroup,
+      deleteGroup: guarded('delete the group', deleteGroup),
       addTimecode,
       updateTimecode,
-      deleteTimecode,
+      deleteTimecode: guarded('delete the timecode', deleteTimecode),
       mergeTimecodes,
-      updateActiveNote,
+      updateActiveNote: guarded('save the note', updateActiveNote),
       refreshData,
       entries,
       updateEntry,
@@ -1765,13 +1870,13 @@ export const TimeTrackerProvider: React.FC<{ children: ReactNode }> = ({ childre
       deletedGroups,
       deletedTimecodes,
       deletedEntries,
-      restoreGroup,
-      restoreTimecode,
-      restoreEntry,
-      hardDeleteGroup,
-      hardDeleteTimecode,
-      hardDeleteEntry,
-      emptyTrash,
+      restoreGroup: guarded('restore the group', restoreGroup),
+      restoreTimecode: guarded('restore the timecode', restoreTimecode),
+      restoreEntry: guarded('restore the entry', restoreEntry),
+      hardDeleteGroup: guarded('permanently delete the group', hardDeleteGroup),
+      hardDeleteTimecode: guarded('permanently delete the timecode', hardDeleteTimecode),
+      hardDeleteEntry: guarded('permanently delete the entry', hardDeleteEntry),
+      emptyTrash: guarded('empty the trash', emptyTrash),
     }}>
       {children}
     </TimeTrackerContext.Provider>
