@@ -187,28 +187,24 @@ export const deleteTimecode = async (id: string): Promise<void> =>
   });
 
 // --- Entries ---
-const byStartTimeAsc = (a: Entry, b: Entry) =>
-  new Date(a.startTime).getTime() - new Date(b.startTime).getTime();
+const byStartTimeAsc = (a: Entry, b: Entry) => {
+  const tA = a.startTime ? new Date(a.startTime).getTime() : NaN;
+  const tB = b.startTime ? new Date(b.startTime).getTime() : NaN;
+  const validA = Number.isNaN(tA) ? 0 : tA;
+  const validB = Number.isNaN(tB) ? 0 : tB;
+  return validA - validB;
+};
 
 /**
- * Entries ordered oldest-first by start time, read back already sorted from
- * the index rather than sorted in JS on every refresh.
+ * Entries ordered oldest-first by start time, sorted explicitly by timestamp.
  *
- * IndexedDB omits records whose indexed key is absent, so the index result is
- * checked against the store count and a plain scan is used if anything would
- * have been dropped. Silently losing an entry with a malformed startTime is a
- * far worse outcome than sorting in memory.
+ * Sorting in JavaScript by parsed Date timestamp ensures ISO strings with
+ * varying timezone offsets (e.g. +13:00 vs Z) sort correctly according to
+ * actual epoch time, avoiding IndexedDB string index comparison pitfalls.
  */
 export const getEntries = async (): Promise<Entry[]> =>
   withDB(
-    async (db) => {
-      const [indexed, total] = await Promise.all([
-        db.getAllFromIndex('entries', 'by-start-time'),
-        db.count('entries'),
-      ]);
-      if (indexed.length === total) return indexed;
-      return (await db.getAll('entries')).sort(byStartTimeAsc);
-    },
+    async (db) => (await db.getAll('entries')).sort(byStartTimeAsc),
     () => Array.from(fallbackMemoryDB.entries.values()).sort(byStartTimeAsc),
   );
 

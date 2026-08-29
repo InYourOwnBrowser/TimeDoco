@@ -646,6 +646,34 @@ export const AnalysisView: React.FC = () => {
           ].join(',');
         });
 
+        if (taxBreakdown) {
+          rows.push([
+            escapeCSV('Subtotal'),
+            '',
+            totalHours.toFixed(2),
+            taxBreakdown.subtotal.toFixed(2)
+          ].join(','));
+          rows.push([
+            escapeCSV(`${settings?.taxLabel || 'Tax'} (${settings?.taxRate}%)`),
+            '',
+            '',
+            taxBreakdown.tax.toFixed(2)
+          ].join(','));
+          rows.push([
+            escapeCSV('Total'),
+            '',
+            totalHours.toFixed(2),
+            taxBreakdown.total.toFixed(2)
+          ].join(','));
+        } else {
+          rows.push([
+            escapeCSV('Total'),
+            '',
+            totalHours.toFixed(2),
+            totalEarnings.toFixed(2)
+          ].join(','));
+        }
+
         const csvContent = [headers.join(','), ...rows].join('\n');
         return new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
       },

@@ -174,4 +174,12 @@ describe('AnalysisView Redesign Tabs & Metrics', () => {
     expect(generatePdfBtn).not.toBeNull();
     fireEvent.click(generatePdfBtn);
   });
+
+  it('triggers Summary CSV export including total row', () => {
+    render(<AnalysisView />);
+
+    const summaryCsvBtn = screen.getByRole('button', { name: /Summary CSV/i });
+    expect(summaryCsvBtn).not.toBeNull();
+    fireEvent.click(summaryCsvBtn);
+  });
 });
