@@ -30,6 +30,9 @@ export const WeeklySummary: React.FC = () => {
     // pause recorded twice was subtracted twice, and it ignored the rounding
     // rule the rest of the app applies — two ways for the progress bar to
     // disagree with every other view of the same week.
+    // dateRange doubles as the scope window, so a 'timecode' or 'invoice'
+    // bucket here is this week's total — the same bucket the timesheet grid
+    // builds for the same week, rather than a different slice of history.
     const lines = buildLinesFromSettings(inWeek, settings, {
       dateRange: { start, end },
       now,

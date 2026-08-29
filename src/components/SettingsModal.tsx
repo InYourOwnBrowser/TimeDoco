@@ -838,6 +838,14 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ onClose }) => {
                   </select>
                 </div>
               )}
+              {(settings?.roundingRule ?? 'none') !== 'none' &&
+                (settings?.roundingScope === 'timecode' || settings?.roundingScope === 'invoice') && (
+                  <p className="text-xs text-gray-600 dark:text-gray-400 -mt-1 mb-2">
+                    These two totals are measured over a reporting period, so they apply on reports, the
+                    timesheet and the weekly summary. The entry list covers all time and has no period,
+                    so it rounds each day's total there.
+                  </p>
+                )}
             </Panel>
             </>
           )}

@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { buildBillableLines, buildLinesFromSettings, computeBillableLine, distributeAcrossBuckets, sumBillableLines } from './billing';
+import { buildBillableLines, buildLinesFromSettings, computeBillableLine, distributeAcrossBuckets, effectiveRoundingScope, sumBillableLines } from './billing';
 import type { Entry, Timecode } from '../types';
 
 const tc = (over: Partial<Timecode> = {}): Timecode => ({
@@ -234,6 +234,80 @@ describe('rounding scope', () => {
       expect(totals.seconds).toBe(70 * 60);
       expect(totals.seconds).toBe(totals.workedSeconds);
     }
+  });
+});
+
+describe('rounding scope window', () => {
+  const settings = { roundingRule: '15min' as const, roundingScope: 'invoice' as const };
+  const timecodeMap = new Map([['tc-1', tc()]]);
+
+  // Two 12-minute entries in January, one in February. At 'invoice' scope the
+  // bucket is "the report total", so what counts as the report decides the
+  // answer — which is exactly what used to differ per surface.
+  const jan1 = entry({ id: 'jan-1', startTime: '2026-01-10T09:00:00.000Z', endTime: '2026-01-10T09:12:00.000Z' });
+  const jan2 = entry({ id: 'jan-2', startTime: '2026-01-11T09:00:00.000Z', endTime: '2026-01-11T09:12:00.000Z' });
+  // Deliberately a different length from the January entries: a 12/12 split
+  // would allocate back to the same per-entry figure and hide the bug.
+  const feb1 = entry({ id: 'feb-1', startTime: '2026-02-10T09:00:00.000Z', endTime: '2026-02-10T09:40:00.000Z' });
+
+  it('degrades timecode and invoice scope to day when there is no reporting window', () => {
+    expect(effectiveRoundingScope('invoice', null)).toBe('day');
+    expect(effectiveRoundingScope('timecode', null)).toBe('day');
+    // A named window leaves them alone, and the narrow scopes are never touched.
+    expect(effectiveRoundingScope('invoice', january)).toBe('invoice');
+    expect(effectiveRoundingScope('timecode', january)).toBe('timecode');
+    expect(effectiveRoundingScope('day', null)).toBe('day');
+    expect(effectiveRoundingScope('entry', null)).toBe('entry');
+  });
+
+  it('a windowless surface bills an entry the same however much unrelated history exists', () => {
+    // The entry list shows all time and has no reporting window. Its figure for
+    // one entry must not move when an unrelated entry in another month is
+    // recorded — which is what a single all-history 'invoice' bucket did.
+    const alone = buildLinesFromSettings([jan1], settings, { scopeWindow: null, timecodeMap });
+    const withHistory = buildLinesFromSettings([jan1, feb1], settings, { scopeWindow: null, timecodeMap });
+
+    expect(alone.get('jan-1')!.seconds).toBe(withHistory.get('jan-1')!.seconds);
+    // Degraded to day scope: 12 minutes alone on its day rounds to 15. Under a
+    // single all-history bucket the 52-minute total rounds to 45 and shares
+    // back only about 10 minutes to this entry.
+    expect(alone.get('jan-1')!.seconds).toBe(15 * 60);
+    // February keeps its own day bucket too, rather than being pooled.
+    expect(withHistory.get('feb-1')!.seconds).toBe(45 * 60);
+  });
+
+  it('two surfaces reporting the same window agree at invoice scope', () => {
+    const monthEntries = [jan1, jan2];
+
+    // One surface displays only part of the window but reports on all of it;
+    // the other displays all of it. Same window, same entries, same answer.
+    const a = buildLinesFromSettings(monthEntries, settings, { scopeWindow: january, timecodeMap });
+    const b = buildLinesFromSettings(monthEntries, settings, { dateRange: january, timecodeMap });
+
+    expect(a.get('jan-1')!.seconds).toBe(b.get('jan-1')!.seconds);
+    expect(a.get('jan-2')!.seconds).toBe(b.get('jan-2')!.seconds);
+    // 24 minutes in one bucket rounds to 30, shared between the two lines.
+    expect(a.get('jan-1')!.seconds + a.get('jan-2')!.seconds).toBe(30 * 60);
+  });
+
+  it('a named window pools the report, a missing one does not', () => {
+    // The same three entries, once as a report over both months and once with
+    // no reporting window at all. The report pools them into a single invoice
+    // bucket; the windowless surface rounds each day on its own. The entry list
+    // used to take the first answer while showing all of history as the pool.
+    const bothMonths = { start: january.start, end: february.end };
+    const reported = buildBillableLines([jan1, jan2, feb1], {
+      dateRange: bothMonths, roundingRule: '15min', roundingScope: 'invoice', timecodeMap,
+    });
+    const listed = buildBillableLines([jan1, jan2, feb1], {
+      dateRange: null, scopeWindow: null, roundingRule: '15min', roundingScope: 'invoice', timecodeMap,
+    });
+
+    // 12 + 12 + 40 = 64 minutes pooled, rounded to 60.
+    expect(sumBillableLines([...reported.values()]).seconds).toBe(60 * 60);
+    // Rounded per day instead: 15 + 15 + 45.
+    expect(sumBillableLines([...listed.values()]).seconds).toBe(75 * 60);
+    expect(listed.get('feb-1')!.seconds).toBe(45 * 60);
   });
 });
 

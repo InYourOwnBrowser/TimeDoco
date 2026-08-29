@@ -47,13 +47,24 @@ const base: Pick<Entry, 'timecodeId' | 'note' | 'tags' | 'isPaused' | 'pausedSeg
 // Monday: 12 + 12 minutes, which 15-minute rounding at day scope lifts to 30.
 // Wednesday: a timer that has been running for 30 minutes, whose stored
 // `duration` is still 0. Week total: exactly one hour.
-const entries: Entry[] = [
+const weekEntries: Entry[] = [
   { ...base, id: 'e1', startTime: local(6, 9, 0), endTime: local(6, 9, 12), duration: 720, isRunning: false, createdAt: local(6, 9, 0), updatedAt: local(6, 9, 12) },
   { ...base, id: 'e2', startTime: local(6, 10, 0), endTime: local(6, 10, 12), duration: 720, isRunning: false, createdAt: local(6, 10, 0), updatedAt: local(6, 10, 12) },
   { ...base, id: 'e3', startTime: local(8, 13, 30), endTime: null, duration: 0, isRunning: true, createdAt: local(8, 13, 30), updatedAt: local(8, 13, 30) },
 ];
 
-const settings: Settings = {
+// Two weeks earlier, so it is history the entry list shows but no week-scoped
+// surface does. 40 minutes: a length that rounds differently on its own day
+// than it does pooled with the week.
+const olderEntry: Entry = {
+  ...base, id: 'e0', startTime: local(2, 9, 0), endTime: local(2, 9, 40), duration: 2400,
+  isRunning: false, createdAt: local(2, 9, 0), updatedAt: local(2, 9, 40),
+};
+
+// Read through a holder so a test can widen the history between renders.
+let entries: Entry[] = weekEntries;
+
+const baseSettings: Settings = {
   id: 'user-settings',
   lastBackupDate: null,
   reminderIntervalDays: 0,
@@ -65,13 +76,16 @@ const settings: Settings = {
   currencySymbol: '$',
 };
 
+// Read through a holder so a test can change the rounding scope between renders.
+let settings: Settings = baseSettings;
+
 vi.mock('../context/TimeTrackerContext', () => ({
   useTimeTracker: () => ({
-    entries,
-    activeEntries: entries.filter(e => e.isRunning),
+    get entries() { return entries; },
+    get activeEntries() { return entries.filter(e => e.isRunning); },
     timecodes,
     groups,
-    settings,
+    get settings() { return settings; },
     deleteEntry: vi.fn(),
     bulkDeleteEntries: vi.fn(),
     updateEntry: vi.fn(),
@@ -87,6 +101,8 @@ vi.mock('../context/ToastContext', () => ({
 describe('every surface answers "how much time this week" with the same number', () => {
   beforeEach(() => {
     cleanup();
+    settings = baseSettings;
+    entries = weekEntries;
     vi.useFakeTimers();
     vi.setSystemTime(NOW);
   });
@@ -114,6 +130,44 @@ describe('every surface answers "how much time this week" with the same number',
   it('weekly target bar reads the same hour', () => {
     render(<WeeklySummary />);
     expect(screen.getByText('1.0')).toBeTruthy();
+  });
+
+  // At 'timecode' and 'invoice' scope a bucket's total is the entry set it is
+  // built from, so before the scope window was named explicitly each surface
+  // rounded a different slice: the entry list all of history, the grid one
+  // week, the summary one week, the report its period.
+  for (const scope of ['timecode', 'invoice'] as const) {
+    it(`timesheet grid and weekly summary agree on the week at ${scope} scope`, () => {
+      settings = { ...baseSettings, roundingScope: scope };
+
+      render(<TimesheetMatrixView />);
+      // 24 minutes on Monday plus 30 running on Wednesday is 54 minutes, pooled
+      // into one weekly bucket and rounded to an hour.
+      expect(screen.getAllByText('1.00').length).toBeGreaterThan(0);
+      cleanup();
+
+      render(<WeeklySummary />);
+      // The same week, the same window, the same hour.
+      expect(screen.getByText('1.0')).toBeTruthy();
+    });
+  }
+
+  it('entry list rounds per day at invoice scope rather than pooling all history', () => {
+    // The list has no reporting window. Taken literally, 'invoice' scope would
+    // make its bucket the user's entire history: 40 + 12 + 12 + 30 = 94 minutes
+    // pooled and rounded to 90. Degrading to 'day' rounds each day on its own —
+    // 45 + 30 + 30 — which is the figure that stays stable as history grows and
+    // does not move when an unrelated old entry is edited.
+    settings = { ...baseSettings, roundingScope: 'invoice' };
+    entries = [olderEntry, ...weekEntries];
+    render(<EntryList />);
+
+    fireEvent.change(screen.getByPlaceholderText('Search notes or timecode...'), {
+      target: { value: 'billable' },
+    });
+    fireEvent.click(screen.getByText('Delete all 4 filtered entries'));
+
+    expect(document.body.textContent).toContain('totaling 1h 45m');
   });
 
   it('entry list totals the same hour, running timer included', () => {

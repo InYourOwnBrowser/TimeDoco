@@ -36,7 +36,11 @@ export const TimesheetCalendarView: React.FC = () => {
       if (dayStr >= gridStartStr && dayStr <= gridEndStr) visible.push(e);
     }
 
-    const lines = buildLinesFromSettings(visible, settings, { now: new Date(nowMs) });
+    // The visible grid is the scope window; `visible` is every entry in it.
+    const lines = buildLinesFromSettings(visible, settings, {
+      scopeWindow: { start: startDate, end: endDate },
+      now: new Date(nowMs),
+    });
 
     const byDay = new Map<string, number>();
     for (const e of visible) {
@@ -44,6 +48,7 @@ export const TimesheetCalendarView: React.FC = () => {
       byDay.set(dayStr, (byDay.get(dayStr) || 0) + secondsFor(lines, e.id));
     }
     return { billableLines: lines, hoursByDay: byDay };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [entries, settings, gridStartStr, gridEndStr, nowMs]);
 
   const getDayTotalHours = (date: Date) => (hoursByDay.get(format(date, 'yyyy-MM-dd')) || 0) / 3600;

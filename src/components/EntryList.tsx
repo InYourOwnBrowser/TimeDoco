@@ -134,8 +134,13 @@ export const EntryList: React.FC = () => {
   // list files each entry under the day it started rather than clipping to a
   // window. Computed over all non-deleted entries so filtering/search does not
   // alter bucket rounding.
+  // scopeWindow is explicitly null: this list has no reporting period, it shows
+  // all time. At 'timecode' or 'invoice' scope that would make the bucket the
+  // user's entire history, so an entry's billable minutes would shift whenever
+  // an unrelated entry was recorded months later. buildLinesFromSettings
+  // degrades those two scopes to 'day' here — see `effectiveRoundingScope`.
   const billableLines = React.useMemo(
-    () => buildLinesFromSettings(nonDeletedEntries, settings, { now: new Date(nowMs) }),
+    () => buildLinesFromSettings(nonDeletedEntries, settings, { scopeWindow: null, now: new Date(nowMs) }),
     [nonDeletedEntries, settings, nowMs]
   );
 

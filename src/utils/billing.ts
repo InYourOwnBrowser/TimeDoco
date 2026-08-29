@@ -83,7 +83,37 @@ const computeRaw = (entry: Entry, dateRange: DateRange | null, now: Date) => {
   };
 };
 
-const bucketKeyFor = (scope: RoundingScope, entry: Entry, entryStart: Date): string => {
+/**
+ * A stable key for the window a report covers, so two buckets from different
+ * windows can never be confused for one another.
+ */
+const windowKeyFor = (scopeWindow: DateRange | null | undefined): string | null =>
+  scopeWindow ? `${scopeWindow.start.getTime()}-${scopeWindow.end.getTime()}` : null;
+
+/**
+ * The scope actually applied, which is not always the one configured.
+ *
+ * 'timecode' and 'invoice' are defined relative to a reporting period — they
+ * mean "this timecode's total on this report" and "this report's total". A
+ * surface with no reporting window (the entry list, which shows all time) has
+ * no such bucket to offer: taken literally, the bucket becomes the user's
+ * entire history, so one entry's billable minutes shift every time an unrelated
+ * entry is recorded months later, and the figure never matches the report's.
+ * Falling back to 'day' gives that surface a bucket that is well defined,
+ * stable, and identical however the list is filtered.
+ */
+export const effectiveRoundingScope = (
+  scope: RoundingScope,
+  scopeWindow: DateRange | null | undefined,
+): RoundingScope =>
+  (scope === 'timecode' || scope === 'invoice') && !scopeWindow ? 'day' : scope;
+
+const bucketKeyFor = (
+  scope: RoundingScope,
+  entry: Entry,
+  entryStart: Date,
+  windowKey: string | null,
+): string => {
   switch (scope) {
     case 'entry':
       return `e:${entry.id}`;
@@ -91,9 +121,9 @@ const bucketKeyFor = (scope: RoundingScope, entry: Entry, entryStart: Date): str
       // Per timecode per day, so a bucket never spans two summary rows.
       return `d:${entry.timecodeId}:${format(entryStart, 'yyyy-MM-dd')}`;
     case 'timecode':
-      return `t:${entry.timecodeId}`;
+      return `t:${entry.timecodeId}:${windowKey}`;
     case 'invoice':
-      return 'i:all';
+      return `i:${windowKey}`;
   }
 };
 
@@ -135,6 +165,21 @@ export interface BuildOptions {
   dateRange: DateRange | null;
   roundingRule?: RoundingRule;
   roundingScope?: RoundingScope;
+  /**
+   * The reporting window the wider rounding scopes are measured over.
+   *
+   * At 'timecode' and 'invoice' scope a bucket's total *is* the set of entries
+   * handed in, so without this the window was whatever slice the caller
+   * happened to be rendering — and the entry list, the timesheet, the weekly
+   * summary and the report each rendered a different one, giving four different
+   * billable figures for the same entry. Naming the window makes the bucket a
+   * property of the report rather than of the caller's slice.
+   *
+   * The caller must pass every entry in this window, not only the ones it
+   * displays, or the bucket total is short. Pass null (or omit) on a surface
+   * with no reporting window; see `effectiveRoundingScope`.
+   */
+  scopeWindow?: DateRange | null;
   timecodeMap?: Map<string, Timecode>;
   now?: Date;
 }
@@ -156,7 +201,19 @@ export interface BuildOptions {
  *     entry straddling two invoices is not billed in full on both.
  */
 export const buildBillableLines = (entries: Entry[], options: BuildOptions): Map<string, BillableLine> => {
-  const { dateRange, roundingRule = 'none', roundingScope = DEFAULT_ROUNDING_SCOPE, timecodeMap, now = new Date() } = options;
+  const {
+    dateRange,
+    roundingRule = 'none',
+    roundingScope = DEFAULT_ROUNDING_SCOPE,
+    timecodeMap,
+    now = new Date(),
+  } = options;
+
+  // A surface that clips to a reporting window is reporting on that window, so
+  // it is the scope window too unless one is named explicitly.
+  const scopeWindow = options.scopeWindow !== undefined ? options.scopeWindow : dateRange;
+  const scope = effectiveRoundingScope(roundingScope, scopeWindow);
+  const windowKey = windowKeyFor(scopeWindow);
 
   const raws: RawLine[] = entries.map((entry) => {
     const { entryStart, workedSeconds, isRunning, isClipped } = computeRaw(entry, dateRange, now);
@@ -174,7 +231,7 @@ export const buildBillableLines = (entries: Entry[], options: BuildOptions): Map
       // bucket where it could shift another entry's billable minutes.
       bucketKey: entry.manualAmount != null
         ? `f:${entry.id}`
-        : bucketKeyFor(roundingScope, entry, entryStart),
+        : bucketKeyFor(scope, entry, entryStart, windowKey),
     };
   });
 
@@ -310,12 +367,19 @@ export type BillingSettings = Pick<Settings, 'roundingRule' | 'roundingScope'> |
 export const buildLinesFromSettings = (
   entries: Entry[],
   settings: BillingSettings,
-  options: { dateRange?: DateRange | null; timecodeMap?: Map<string, Timecode>; now?: Date } = {},
+  options: {
+    dateRange?: DateRange | null;
+    /** See `BuildOptions.scopeWindow`. Defaults to `dateRange`. */
+    scopeWindow?: DateRange | null;
+    timecodeMap?: Map<string, Timecode>;
+    now?: Date;
+  } = {},
 ): Map<string, BillableLine> =>
   buildBillableLines(entries, {
     dateRange: options.dateRange ?? null,
     roundingRule: settings?.roundingRule || 'none',
     roundingScope: settings?.roundingScope || DEFAULT_ROUNDING_SCOPE,
+    scopeWindow: options.scopeWindow !== undefined ? options.scopeWindow : (options.dateRange ?? null),
     timecodeMap: options.timecodeMap,
     now: options.now,
   });
