@@ -175,6 +175,21 @@ describe('AnalysisView Redesign Tabs & Metrics', () => {
     fireEvent.click(generatePdfBtn);
   });
 
+  it('handles clearing custom date inputs without crashing and displays fallback warning', () => {
+    render(<AnalysisView />);
+
+    const customBtn = screen.getByRole('button', { name: 'Custom' });
+    fireEvent.click(customBtn);
+
+    const dateInputs = screen.getAllByDisplayValue(/\d{4}-\d{2}-\d{2}/);
+    expect(dateInputs.length).toBe(2);
+
+    // Clear start date
+    fireEvent.change(dateInputs[0], { target: { value: '' } });
+
+    expect(screen.getByText('Invalid custom date range. Showing current week as fallback.')).not.toBeNull();
+  });
+
   it('triggers Summary CSV export including total row', () => {
     render(<AnalysisView />);
 

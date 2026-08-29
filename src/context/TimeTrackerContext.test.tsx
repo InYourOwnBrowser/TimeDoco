@@ -1447,6 +1447,165 @@ describe('TimeTrackerContext Reducer Logic', () => {
     expect(await db.getEntry('e-stale')).toBeUndefined();
   });
 
+  it('C3: emptyTrash accumulates template removals correctly without clobbering', async () => {
+    let ctx: ReturnType<typeof useTimeTracker> | undefined;
+
+    render(
+      <ToastProvider><TimeTrackerProvider>
+        <TestConsumer onReady={(c) => (ctx = c)} />
+      </TimeTrackerProvider></ToastProvider>
+    );
+
+    await waitFor(() => expect(ctx?.settings).not.toBeNull());
+
+    let tcAId = '';
+    let tcBId = '';
+    let tcKeepId = '';
+    await act(async () => {
+      tcAId = (await ctx!.addTimecode('Trash A')).id;
+      tcBId = (await ctx!.addTimecode('Trash B')).id;
+      tcKeepId = (await ctx!.addTimecode('Keep')).id;
+
+      await ctx!.updateSettings({
+        templates: [
+          { id: 'tmpl-1', name: 'Temp A', timecodeId: tcAId, note: '', tags: [], defaultDurationMinutes: null },
+          { id: 'tmpl-2', name: 'Temp B', timecodeId: tcBId, note: '', tags: [], defaultDurationMinutes: null },
+          { id: 'tmpl-3', name: 'Temp Keep', timecodeId: tcKeepId, note: '', tags: [], defaultDurationMinutes: null },
+        ],
+      });
+    });
+
+    vi.spyOn(window, 'confirm').mockImplementation(() => true);
+    await act(async () => {
+      await ctx!.deleteTimecode(tcAId);
+      await ctx!.deleteTimecode(tcBId);
+    });
+
+    await act(async () => {
+      await ctx!.emptyTrash();
+    });
+
+    await waitFor(() => {
+      const remainingTemplates = ctx!.settings?.templates || [];
+      expect(remainingTemplates.length).toBe(1);
+      expect(remainingTemplates[0].timecodeId).toBe(tcKeepId);
+    });
+
+    vi.restoreAllMocks();
+  });
+
+  it('C3: emptyTrash skips purging timecodes that have live entries', async () => {
+    let ctx: ReturnType<typeof useTimeTracker> | undefined;
+
+    render(
+      <ToastProvider><TimeTrackerProvider>
+        <TestConsumer onReady={(c) => (ctx = c)} />
+      </TimeTrackerProvider></ToastProvider>
+    );
+
+    await waitFor(() => expect(ctx?.settings).not.toBeNull());
+
+    let tcId = '';
+    await act(async () => {
+      tcId = (await ctx!.addTimecode('Timecode')).id;
+      await ctx!.addManualEntry({
+        startTime: '2024-02-01T10:00:00Z',
+        endTime: '2024-02-01T11:00:00Z',
+        timecodeId: tcId,
+        note: 'Live Entry',
+      });
+    });
+
+    let entryId = '';
+    await waitFor(() => {
+      expect(ctx!.entries.length).toBe(1);
+      entryId = ctx!.entries[0].id;
+    });
+
+    // Manually soft-delete timecode in DB directly while entry remains live
+    const now = new Date().toISOString();
+    const tcObj = (await db.getTimecode(tcId))!;
+    await db.putTimecode({ ...tcObj, deletedAt: now, updatedAt: now });
+    await ctx!.refreshData();
+
+    await waitFor(() => {
+      expect(ctx!.entries.some((e) => e.id === entryId)).toBe(true);
+      expect(ctx!.deletedTimecodes.some((t) => t.id === tcId)).toBe(true);
+    });
+
+    // Empty trash
+    await act(async () => {
+      await ctx!.emptyTrash();
+    });
+
+    await waitFor(async () => {
+      // Live entry was NOT destroyed and timecode was NOT purged because of live entry
+      expect(ctx!.entries.some((e) => e.id === entryId)).toBe(true);
+      const tc = await db.getTimecode(tcId);
+      expect(tc).toBeDefined();
+    });
+  });
+
+  it('C4: deleteEntry and bulkDeleteEntries stop running timers before trashing', async () => {
+    let ctx: ReturnType<typeof useTimeTracker> | undefined;
+
+    render(
+      <ToastProvider><TimeTrackerProvider>
+        <TestConsumer onReady={(c) => (ctx = c)} />
+      </TimeTrackerProvider></ToastProvider>
+    );
+
+    await waitFor(() => expect(ctx?.settings).not.toBeNull());
+
+    let tcId = '';
+    await act(async () => {
+      tcId = (await ctx!.addTimecode('Running TC')).id;
+      await ctx!.startTimer(tcId, 'Timer 1');
+    });
+
+    let runningEntryId = '';
+    await waitFor(() => {
+      expect(ctx!.activeEntries.length).toBe(1);
+      runningEntryId = ctx!.activeEntries[0].id;
+    });
+
+    // Trashing the single running entry
+    await act(async () => {
+      await ctx!.deleteEntry(runningEntryId);
+    });
+
+    await waitFor(() => {
+      expect(ctx!.activeEntries.length).toBe(0);
+      const trashed = ctx!.deletedEntries.find((e) => e.id === runningEntryId);
+      expect(trashed).toBeDefined();
+      expect(trashed!.isRunning).toBe(false);
+      expect(trashed!.endTime).not.toBeNull();
+    });
+
+    // Test bulkDeleteEntries with running timer
+    await act(async () => {
+      await ctx!.startTimer(tcId, 'Timer 2');
+    });
+
+    let bulkRunningId = '';
+    await waitFor(() => {
+      expect(ctx!.activeEntries.length).toBe(1);
+      bulkRunningId = ctx!.activeEntries[0].id;
+    });
+
+    await act(async () => {
+      await ctx!.bulkDeleteEntries([bulkRunningId]);
+    });
+
+    await waitFor(() => {
+      expect(ctx!.activeEntries.length).toBe(0);
+      const trashedBulk = ctx!.deletedEntries.find((e) => e.id === bulkRunningId);
+      expect(trashedBulk).toBeDefined();
+      expect(trashedBulk!.isRunning).toBe(false);
+      expect(trashedBulk!.endTime).not.toBeNull();
+    });
+  });
+
   it('M8: restoreEntryInternal restores parent timecode and all sibling entries deleted with it', async () => {
     let ctx: ReturnType<typeof useTimeTracker> | undefined;
 
