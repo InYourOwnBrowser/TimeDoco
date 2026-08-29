@@ -1053,6 +1053,8 @@ export const TimeTrackerProvider: React.FC<{ children: ReactNode }> = ({ childre
       createdAt: now,
       updatedAt: now,
       editHistory: [],
+      manualAmount: null,
+      expectedDurationMinutes: null,
     };
 
     await db.putEntry(entry1);
