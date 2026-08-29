@@ -1005,7 +1005,17 @@ export const TimeTrackerProvider: React.FC<{ children: ReactNode }> = ({ childre
     if (!settings) return;
     const newSettings = { ...settings, ...updates };
     setSettings(newSettings);
-    await db.putSettings(newSettings);
+
+    // Read the latest settings from the DB to prevent clobbering fields saved by other tabs
+    const currentSettings = await db.getSettings();
+    if (currentSettings) {
+      const mergedSettings = { ...currentSettings, ...updates };
+      setSettings(mergedSettings);
+      await db.putSettings(mergedSettings);
+    } else {
+      await db.putSettings(newSettings);
+    }
+    notifyOtherTabs();
   };
 
 
