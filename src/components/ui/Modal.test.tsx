@@ -1,6 +1,5 @@
 import { render, fireEvent } from '@testing-library/react';
 import { describe, it, expect, vi } from 'vitest';
-import React from 'react';
 import { Modal } from './Modal';
 
 describe('Modal stack escape handling', () => {

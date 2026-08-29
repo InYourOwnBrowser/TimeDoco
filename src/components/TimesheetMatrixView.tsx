@@ -1,7 +1,8 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { useTimeTracker } from '../context/TimeTrackerContext';
 import { format, startOfWeek, endOfWeek, addWeeks, subWeeks, eachDayOfInterval, parseISO, setHours, setMinutes, addSeconds } from 'date-fns';
-import { applyRounding } from '../utils/timeUtils';
+import { buildLinesFromSettings, secondsFor } from '../utils/billing';
+import { useNowTick } from '../hooks/useNowTick';
 import { useToast } from '../context/ToastContext';
 import { ChevronLeft, ChevronRight } from 'lucide-react';
 import { Button } from './ui/Button';
@@ -40,20 +41,40 @@ export const TimesheetMatrixView: React.FC = () => {
     return map;
   }, [entries]);
 
+  // A running timer's stored `duration` is 0 until it stops, so the grid used
+  // to show a blank cell for time being tracked right now.
+  const hasRunningEntry = entries.some(e => !e.endTime && !e.deletedAt);
+  const nowMs = useNowTick(hasRunningEntry);
+
+  const weekDateStrings = useMemo(() => weekDays.map(day => format(day, 'yyyy-MM-dd')), [weekDays]);
+
+  const weekEntries = useMemo(() => {
+    const inWeek = new Set(weekDateStrings);
+    return entries.filter(e => !e.deletedAt && inWeek.has(format(parseISO(e.startTime), 'yyyy-MM-dd')));
+  }, [entries, weekDateStrings]);
+
+  // One set of billable lines for the whole visible week, shared with the
+  // report and the entry list. Summing the stored `duration` and rounding each
+  // cell separately gave a grid that ignored the rounding scope and disagreed
+  // with every other view; sharing out one scope-aware figure keeps the cells,
+  // the row totals and the week total reconciling with each other.
+  const billableLines = useMemo(
+    () => buildLinesFromSettings(weekEntries, settings, { now: new Date(nowMs) }),
+    [weekEntries, settings, nowMs]
+  );
+
   const cellHoursMap = useMemo(() => {
     const map = new Map<string, number>();
-    const roundingRule = settings?.roundingRule || 'none';
     for (const tc of activeTimecodes) {
-      for (const day of weekDays) {
-        const dateStr = format(day, 'yyyy-MM-dd');
+      for (const dateStr of weekDateStrings) {
         const key = `${tc.id}|${dateStr}`;
         const cellEntries = entriesByTimecodeAndDate.get(key) || [];
-        const totalSeconds = cellEntries.reduce((sum, e) => sum + e.duration, 0);
-        map.set(key, applyRounding(totalSeconds, roundingRule) / 3600);
+        const totalSeconds = cellEntries.reduce((sum, e) => sum + secondsFor(billableLines, e.id), 0);
+        map.set(key, totalSeconds / 3600);
       }
     }
     return map;
-  }, [activeTimecodes, weekDays, entriesByTimecodeAndDate, settings?.roundingRule]);
+  }, [activeTimecodes, weekDateStrings, entriesByTimecodeAndDate, billableLines]);
 
   const rowTotalHoursMap = useMemo(() => {
     const map = new Map<string, number>();
@@ -102,14 +123,24 @@ export const TimesheetMatrixView: React.FC = () => {
     return activeTimecodes.reduce((sum, tc) => sum + getRowTotalHours(tc.id), 0);
   };
 
+  // Half of the 0.01h the cell prints. The displayed value never round-trips to
+  // the exact second, so re-committing the number already on screen has to read
+  // as "unchanged" — otherwise it either invents a phantom adjustment or
+  // reports an impossible reduction.
+  const CELL_DISPLAY_TOLERANCE_SECONDS = 18;
+
   const commitCell = async (timecodeId: string, day: Date, newHours: number) => {
     const existingEntriesForCell = getCellEntries(timecodeId, day);
-    const rawTrackedSeconds = existingEntriesForCell
+    // Measured from the same billable lines the cell displays, so the value the
+    // user sees and the value they are editing are the same number.
+    const cellSeconds = existingEntriesForCell.reduce((sum, e) => sum + secondsFor(billableLines, e.id), 0);
+    const trackedSeconds = existingEntriesForCell
       .filter(e => !e.tags?.includes(ADJUSTMENT_TAG))
-      .reduce((sum, e) => sum + e.duration, 0);
-    const trackedSeconds = applyRounding(rawTrackedSeconds, settings?.roundingRule || 'none');
+      .reduce((sum, e) => sum + secondsFor(billableLines, e.id), 0);
 
     const targetSeconds = Math.round(newHours * 3600);
+    if (Math.abs(targetSeconds - cellSeconds) < CELL_DISPLAY_TOLERANCE_SECONDS) return;
+
     const delta = targetSeconds - trackedSeconds;
 
     const existingAdjustment = existingEntriesForCell.find(e => e.tags?.includes(ADJUSTMENT_TAG));

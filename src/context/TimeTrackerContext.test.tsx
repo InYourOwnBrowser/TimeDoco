@@ -962,6 +962,75 @@ describe('TimeTrackerContext Reducer Logic', () => {
     });
   });
 
+  it('startTimer stops every running timer even while another stop is in flight', async () => {
+    let ctx: ReturnType<typeof useTimeTracker> | undefined;
+
+    render(
+      <ToastProvider><TimeTrackerProvider>
+        <TestConsumer onReady={(c) => (ctx = c)} />
+      </TimeTrackerProvider></ToastProvider>
+    );
+
+    await waitFor(() => expect(ctx?.settings).not.toBeNull());
+
+    // Two timers running, then concurrency turned off — the state a user
+    // reaches by flipping the setting, or by starting a timer in a second tab.
+    await act(async () => { await ctx!.updateSettings({ allowConcurrentTimers: true }); });
+    await waitFor(() => expect(ctx!.settings?.allowConcurrentTimers).toBe(true));
+
+    let tcA = '';
+    let tcB = '';
+    let tcC = '';
+    await act(async () => {
+      tcA = (await ctx!.addTimecode('Race A')).id;
+      tcB = (await ctx!.addTimecode('Race B')).id;
+      tcC = (await ctx!.addTimecode('Race C')).id;
+      await ctx!.startTimer(tcA);
+      await ctx!.startTimer(tcB);
+    });
+    await waitFor(() => expect(ctx!.activeEntries.length).toBe(2));
+    const runningAId = ctx!.activeEntries.find((e) => e.timecodeId === tcA)!.id;
+
+    await act(async () => { await ctx!.updateSettings({ allowConcurrentTimers: false }); });
+    await waitFor(() => expect(ctx!.settings?.allowConcurrentTimers).toBe(false));
+
+    // Hold the write that finishes A's stop, so the stop is provably still in
+    // flight when the next start runs.
+    let release: (() => void) | undefined;
+    let stopReachedWrite = false;
+    const held = new Promise<void>((resolve) => { release = resolve; });
+    const realPutEntry = db.putEntry;
+    const putSpy = vi.spyOn(db, 'putEntry').mockImplementation(async (entry) => {
+      if (entry.id === runningAId && !entry.isRunning) {
+        stopReachedWrite = true;
+        await held;
+      }
+      return realPutEntry(entry);
+    });
+
+    try {
+      await act(async () => {
+        const stopping = ctx!.stopTimer(runningAId);
+        while (!stopReachedWrite) await new Promise((r) => setTimeout(r, 1));
+
+        const starting = ctx!.startTimer(tcC);
+        // Long enough for a startTimer that does not queue to run its stops,
+        // give up on them, and write its own entry.
+        await new Promise((r) => setTimeout(r, 20));
+
+        release!();
+        await Promise.all([stopping, starting]);
+      });
+    } finally {
+      putSpy.mockRestore();
+    }
+
+    // A start that sails past an in-flight stop leaves B running alongside C.
+    const stillRunning = (await db.getEntries()).filter((e) => e.isRunning && !e.deletedAt);
+    expect(stillRunning.map((e) => e.timecodeId)).toEqual([tcC]);
+    expect(tcB).not.toBe('');
+  });
+
   it('note autosave updates state without re-reading every entry', async () => {
     let ctx: ReturnType<typeof useTimeTracker> | undefined;
 

@@ -8,7 +8,9 @@ import { EntrySplitModal } from './EntrySplitModal';
 import { ManualEntryModal } from './ManualEntryModal';
 import { Modal } from './ui/Modal';
 import type { Entry } from '../types';
-import { applyRounding, getElapsedTimeMs, formatDurationShort } from '../utils/timeUtils';
+import { getElapsedTimeMs, formatDurationShort } from '../utils/timeUtils';
+import { buildLinesFromSettings, secondsFor, sumBillableLines } from '../utils/billing';
+import { useNowTick } from '../hooks/useNowTick';
 
 const LiveEntryDuration: React.FC<{ entry: Entry, formatDuration: (s: number) => string }> = ({ entry, formatDuration }) => {
   const [elapsed, setElapsed] = useState(0);
@@ -119,6 +121,21 @@ export const EntryList: React.FC = () => {
     });
   }, [entries, timecodeMap, searchTerm, selectedFilter, dateFrom, dateTo]);
 
+  // A running timer's stored `duration` is 0 until it stops, so the list used
+  // to leave it out of both the row and the total. Measuring to `now` counts it,
+  // and refreshing that on a tick keeps it current while it runs.
+  const hasRunningEntry = filteredEntries.some(e => !e.endTime);
+  const nowMs = useNowTick(hasRunningEntry);
+
+  // The same lines the report and the timesheet are built from, so an entry
+  // cannot show one duration here and another there. `dateRange` is null: this
+  // list files each entry under the day it started rather than clipping to a
+  // window.
+  const billableLines = React.useMemo(
+    () => buildLinesFromSettings(filteredEntries, settings, { now: new Date(nowMs) }),
+    [filteredEntries, settings, nowMs]
+  );
+
   const handleClearFilters = () => {
     setSearchTerm('');
     setSelectedFilter('all');
@@ -128,7 +145,7 @@ export const EntryList: React.FC = () => {
 
   const hasActiveFilters = searchTerm !== '' || selectedFilter !== 'all' || dateFrom !== '' || dateTo !== '';
 
-  const totalFilteredSeconds = filteredEntries.reduce((acc, e) => acc + applyRounding(e.duration, settings?.roundingRule || 'none'), 0);
+  const totalFilteredSeconds = sumBillableLines([...billableLines.values()]).seconds;
 
   const formatTotalDurationShort = (seconds: number) => {
     const h = Math.floor(seconds / 3600);
@@ -353,13 +370,13 @@ export const EntryList: React.FC = () => {
                           <span className="text-lg font-mono tabular font-medium text-graphite dark:text-stone">
                             {entry.isRunning
                               ? <LiveEntryDuration entry={entry} formatDuration={formatDuration} />
-                              : formatDuration(applyRounding(entry.duration, settings?.roundingRule || 'none'))}
+                              : formatDuration(secondsFor(billableLines, entry.id))}
                           </span>
                           {entry.expectedDurationMinutes ? (
                             <span className="text-xs font-mono tabular whitespace-nowrap">
                               {entry.isRunning
                                 ? <LiveEstimateComparison entry={entry} expectedSeconds={entry.expectedDurationMinutes * 60} />
-                                : <EstimateComparison entry={entry} expectedSeconds={entry.expectedDurationMinutes * 60} actualSeconds={applyRounding(entry.duration, settings?.roundingRule || 'none')} />}
+                                : <EstimateComparison entry={entry} expectedSeconds={entry.expectedDurationMinutes * 60} actualSeconds={secondsFor(billableLines, entry.id)} />}
                             </span>
                           ) : null}
                         </div>

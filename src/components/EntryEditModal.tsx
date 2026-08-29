@@ -2,8 +2,8 @@ import React, { useState, useEffect } from 'react';
 import { useTimeTracker } from '../context/TimeTrackerContext';
 import { format, parseISO, differenceInSeconds } from 'date-fns';
 import { X, AlertCircle } from 'lucide-react';
-import { checkOverlap } from '../utils/timeUtils';
-import type { Entry } from '../types';
+import { calculateTotalPausedSeconds, checkOverlap, formatDurationShort } from '../utils/timeUtils';
+import type { Entry, PauseSegment } from '../types';
 import { Modal } from './ui/Modal';
 import { useToast } from '../context/ToastContext';
 import { TimecodeSelector } from './TimecodeSelector';
@@ -22,13 +22,22 @@ export const EntryEditModal: React.FC<EntryEditModalProps> = ({ entry, onClose }
   const [note, setNote] = useState(entry.note);
   const [tagsStr, setTagsStr] = useState((entry.tags || []).join(', '));
 
-  const initialBreakMinutes = Math.round(
-    entry.pausedSegments.reduce((sum, seg) => {
-      const segStart = new Date(seg.pauseStart).getTime();
-      const segEnd = seg.pauseEnd ? new Date(seg.pauseEnd).getTime() : Date.now();
-      return sum + Math.max(0, segEnd - segStart);
-    }, 0) / 60000
-  ).toString();
+  const recordedSegments = entry.pausedSegments || [];
+
+  // The exact recorded break, measured the same way every duration on this
+  // entry is: clamped to the entry and with overlapping segments merged, so a
+  // pause recorded twice is not subtracted twice.
+  const recordedBreakSeconds = calculateTotalPausedSeconds(
+    parseISO(entry.startTime),
+    entry.endTime ? parseISO(entry.endTime) : new Date(),
+    recordedSegments,
+  );
+
+  // The field only holds whole minutes, so it cannot round-trip the recorded
+  // break exactly. That is why an untouched field is never written back below.
+  const initialBreakMinutes = Math.round(recordedBreakSeconds / 60).toString();
+
+  const recordedPeriodsLabel = `${recordedSegments.length} recorded pause ${recordedSegments.length === 1 ? 'period' : 'periods'}`;
 
   const [breakMinutes, setBreakMinutes] = useState(!entry.isRunning ? initialBreakMinutes : '');
   const [manualAmount, setManualAmount] = useState(entry.manualAmount != null ? entry.manualAmount.toString() : '');
@@ -161,15 +170,39 @@ export const EntryEditModal: React.FC<EntryEditModalProps> = ({ entry, onClose }
     }
 
     if (!entry.isRunning && end) {
-      const breakMins = Math.max(0, parseInt(breakMinutes, 10) || 0);
-      if (breakMins * 60 >= differenceInSeconds(end, start)) {
+      // Only rewrite the pause history when the break field was actually
+      // edited. Writing it on every save collapsed a real pause timeline into
+      // one block, and rounded the break to whole minutes while doing it — so
+      // correcting a note could move the entry's duration by up to 30 seconds.
+      const breakEdited = breakMinutes !== initialBreakMinutes;
+      const replacementSegments: PauseSegment[] | null = breakEdited
+        ? (() => {
+            const breakMins = Math.max(0, parseInt(breakMinutes, 10) || 0);
+            return breakMins > 0
+              ? [{ pauseStart: start.toISOString(), pauseEnd: new Date(start.getTime() + breakMins * 60000).toISOString() }]
+              : [];
+          })()
+        : null;
+
+      const effectiveSegments = replacementSegments ?? recordedSegments;
+      // Validate against the segments that will actually apply, clamped to the
+      // new window: shrinking an entry can push a preserved pause past its end.
+      if (calculateTotalPausedSeconds(start, end, effectiveSegments) >= differenceInSeconds(end, start)) {
         setError('Break time cannot exceed the entry duration.');
         return;
       }
-      const pausedSegments = breakMins > 0
-        ? [{ pauseStart: start.toISOString(), pauseEnd: new Date(start.getTime() + breakMins * 60000).toISOString() }]
-        : [];
-      updates.pausedSegments = pausedSegments;
+
+      if (replacementSegments && recordedSegments.length > 1) {
+        const confirmed = window.confirm(
+          `This entry has ${recordedSegments.length} recorded pause periods. ` +
+          'Saving a break time replaces them with a single block.\n\nContinue?'
+        );
+        if (!confirmed) return;
+      }
+
+      if (replacementSegments) {
+        updates.pausedSegments = replacementSegments;
+      }
     }
 
     await updateEntry(entry.id, updates);
@@ -260,6 +293,13 @@ export const EntryEditModal: React.FC<EntryEditModalProps> = ({ entry, onClose }
                 placeholder="0"
                 className="w-full px-3 py-2 border border-graphite/20 dark:border-white/20 rounded-md shadow-sm focus:outline-none focus-visible:ring-2 focus-visible:ring-signal sm:text-sm bg-white dark:bg-graphite text-graphite dark:text-stone"
               />
+              {recordedSegments.length > 0 && (
+                <p className="text-xs text-gray-600 dark:text-gray-400 mt-1">
+                  {breakMinutes !== initialBreakMinutes
+                    ? `Replaces the ${recordedPeriodsLabel} below with a single break.`
+                    : `From ${recordedPeriodsLabel}${recordedBreakSeconds > 0 ? ` totalling ${formatDurationShort(recordedBreakSeconds)}` : ''}. Left alone, they are kept exactly as recorded.`}
+                </p>
+              )}
             </div>
           )}
 

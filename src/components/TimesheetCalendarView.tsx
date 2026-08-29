@@ -1,7 +1,8 @@
-import React, { useState } from 'react';
+import React, { useMemo, useState } from 'react';
 import { useTimeTracker } from '../context/TimeTrackerContext';
 import { format, startOfMonth, endOfMonth, eachDayOfInterval, startOfWeek, endOfWeek, addMonths, subMonths, isSameMonth, isToday, parseISO } from 'date-fns';
-import { applyRounding } from '../utils/timeUtils';
+import { buildLinesFromSettings, secondsFor } from '../utils/billing';
+import { useNowTick } from '../hooks/useNowTick';
 import { ChevronLeft, ChevronRight } from 'lucide-react';
 import { Button } from './ui/Button';
 
@@ -16,13 +17,36 @@ export const TimesheetCalendarView: React.FC = () => {
 
   const days = eachDayOfInterval({ start: startDate, end: endDate });
 
-  const getDayTotalHours = (date: Date) => {
-    const dayStr = format(date, 'yyyy-MM-dd');
-    const dayEntries = entries.filter(e => format(parseISO(e.startTime), 'yyyy-MM-dd') === dayStr);
-    const totalSeconds = dayEntries.reduce((sum, e) => sum + e.duration, 0);
-    const roundedSeconds = applyRounding(totalSeconds, settings?.roundingRule || 'none');
-    return roundedSeconds / 3600;
-  };
+  // A running timer's stored `duration` is 0 until it stops, so today's square
+  // stayed empty while time was being tracked into it.
+  const hasRunningEntry = entries.some(e => !e.endTime && !e.deletedAt);
+  const nowMs = useNowTick(hasRunningEntry);
+
+  const gridStartStr = format(startDate, 'yyyy-MM-dd');
+  const gridEndStr = format(endDate, 'yyyy-MM-dd');
+
+  // Built once for the whole visible grid, from the same helper the report, the
+  // entry list and the timesheet grid use, rather than re-rounding a sum of the
+  // stored `duration` per square.
+  const { billableLines, hoursByDay } = useMemo(() => {
+    const visible: typeof entries = [];
+    for (const e of entries) {
+      if (e.deletedAt) continue;
+      const dayStr = format(parseISO(e.startTime), 'yyyy-MM-dd');
+      if (dayStr >= gridStartStr && dayStr <= gridEndStr) visible.push(e);
+    }
+
+    const lines = buildLinesFromSettings(visible, settings, { now: new Date(nowMs) });
+
+    const byDay = new Map<string, number>();
+    for (const e of visible) {
+      const dayStr = format(parseISO(e.startTime), 'yyyy-MM-dd');
+      byDay.set(dayStr, (byDay.get(dayStr) || 0) + secondsFor(lines, e.id));
+    }
+    return { billableLines: lines, hoursByDay: byDay };
+  }, [entries, settings, gridStartStr, gridEndStr, nowMs]);
+
+  const getDayTotalHours = (date: Date) => (hoursByDay.get(format(date, 'yyyy-MM-dd')) || 0) / 3600;
 
   const weeklyTarget = settings?.weeklyTargetHours || 40;
   const dailyTarget = weeklyTarget / 5;
@@ -115,7 +139,7 @@ export const TimesheetCalendarView: React.FC = () => {
                         </span>
                       </div>
                       <span className="font-mono text-gray-600 dark:text-gray-300">
-                        {(applyRounding(entry.duration, settings?.roundingRule || 'none') / 3600).toFixed(2)}h
+                        {(secondsFor(billableLines, entry.id) / 3600).toFixed(2)}h
                       </span>
                     </div>
                   );

@@ -1,55 +1,42 @@
-import React, { useMemo, useState, useEffect } from 'react';
+import React, { useMemo } from 'react';
 import { useTimeTracker } from '../context/TimeTrackerContext';
 import { startOfWeek, endOfWeek, parseISO } from 'date-fns';
 import { Target, TrendingUp } from 'lucide-react';
+import { buildLinesFromSettings, sumBillableLines } from '../utils/billing';
+import { useNowTick } from '../hooks/useNowTick';
 
 export const WeeklySummary: React.FC = () => {
   const { entries, settings } = useTimeTracker();
-  const [tick, setTick] = useState(0);
 
-  useEffect(() => {
-    const interval = setInterval(() => setTick(t => t + 1), 60000);
-    return () => clearInterval(interval);
-  }, []);
+  // A running timer grows the week's total, so the bar has to keep up with it.
+  const hasRunningEntry = entries.some(e => !e.endTime && !e.deletedAt);
+  const nowMs = useNowTick(hasRunningEntry);
 
   const weeklyData = useMemo(() => {
-    // using tick as dependency to recompute since we depend on new Date()
-    const now = new Date();
+    const now = new Date(nowMs);
     // Assuming week starts on Monday
     const start = startOfWeek(now, { weekStartsOn: 1 });
     const end = endOfWeek(now, { weekStartsOn: 1 });
 
-    let totalSeconds = 0;
-
-    entries.forEach(entry => {
+    const inWeek = entries.filter(entry => {
+      if (entry.deletedAt) return false;
       const entryStart = parseISO(entry.startTime);
       const entryEnd = entry.endTime ? parseISO(entry.endTime) : now;
-
-      if (entryEnd >= start && entryStart <= end) {
-        let actualStart = entryStart < start ? start : entryStart;
-        let actualEnd = entryEnd > end ? end : entryEnd;
-
-        let pauseMs = 0;
-        entry.pausedSegments.forEach(seg => {
-            const ps = parseISO(seg.pauseStart);
-            const pe = seg.pauseEnd ? parseISO(seg.pauseEnd) : now;
-
-            if (pe >= start && ps <= end) {
-                const adjPs = ps < start ? start : ps;
-                const adjPe = pe > end ? end : pe;
-                pauseMs += (adjPe.getTime() - adjPs.getTime());
-            }
-        });
-
-        const durationMs = actualEnd.getTime() - actualStart.getTime() - pauseMs;
-        totalSeconds += Math.max(0, Math.floor(durationMs / 1000));
-      }
+      return entryEnd >= start && entryStart <= end;
     });
 
-    const hours = totalSeconds / 3600;
-    return hours;
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [entries, tick]);
+    // Shared with the report and the timesheet rather than re-derived here.
+    // The hand-rolled version this replaces summed pause segments raw, so a
+    // pause recorded twice was subtracted twice, and it ignored the rounding
+    // rule the rest of the app applies — two ways for the progress bar to
+    // disagree with every other view of the same week.
+    const lines = buildLinesFromSettings(inWeek, settings, {
+      dateRange: { start, end },
+      now,
+    });
+
+    return sumBillableLines([...lines.values()]).seconds / 3600;
+  }, [entries, settings, nowMs]);
 
   const targetHours = settings?.weeklyTargetHours;
 

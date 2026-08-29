@@ -15,7 +15,7 @@ Everything below is a logic, consistency, or design issue that the type checker 
 - [x] **C2 — CSP `style-src 'self'` blocks every inline style**
   `public/_headers` sets `style-src 'self'` with no `'unsafe-inline'`. Under CSP Level 3, `style-src` governs `style=""` attributes. The app uses them everywhere (`style={{ backgroundColor: tc.color }}` in ActiveTimer, GlobalActiveTimerBar, GroupingManagement, and all of Recharts' internals). In production this should strip every timecode colour dot and break chart rendering. Needs verifying against the deployed site immediately — either it's broken, or the header isn't actually being applied, and both are worth knowing.
 
-- [ ] **C3 — Four different answers for "how much time this week"**
+- [x] **C3 — Four different answers for "how much time this week"**
   | Surface | Source | Rounding |
   |---|---|---|
   | AnalysisView | `buildBillableLines` (recomputed, clipped, scope-aware) | scope-aware |
@@ -24,11 +24,17 @@ Everything below is a logic, consistency, or design issue that the type checker 
   | WeeklySummary | hand-rolled pause maths | **none** |
   Two consequences beyond the mismatch: the stored `duration` field is `0` while a timer runs, so **running timers contribute nothing** to the timesheet and entry-list totals but count in reports; and `WeeklySummary` re-implements pause subtraction without the `mergePausedSegments` overlap-merging that `timeUtils` added precisely because duplicate segments over-subtract. `AnalysisView`'s own `timelineDays` also ignores `roundingScope`, applying `applyRounding` per entry-slice.
 
-- [ ] **C4 — Editing any entry silently rewrites its pause history**
+  *Fixed:* every surface now builds its figures with `buildLinesFromSettings`, a thin wrapper over `buildBillableLines` that reads the rounding rule and scope in one place. EntryList, TimesheetMatrixView, TimesheetCalendarView and WeeklySummary each build one set of lines and read `seconds` off them, so durations are recomputed from start/end (running timers included, refreshed on a shared `useNowTick`) and pause subtraction goes through `mergePausedSegments` everywhere. `timelineDays` no longer re-rounds each day-slice: `distributeAcrossBuckets` shares each line's already-scoped billable seconds across the days its worked time covers, so the chart reconciles with the report beside it. `commitCell` compares the typed value against the same billable seconds the cell displays, with a half-display-step tolerance so re-committing the printed value is a no-op. Covered by `TimeTotals.consistency.test.tsx` (all four surfaces on one fixture) and new `distributeAcrossBuckets` cases in `billing.test.ts`.
+
+- [x] **C4 — Editing any entry silently rewrites its pause history**
   `EntryEditModal` collapses all pause segments into one integer `breakMinutes` field, then on save replaces `pausedSegments` with a single block anchored at the entry start. Two losses: the real pause timeline is destroyed, and `Math.round(...)` to whole minutes means **saving an unrelated field (a note) can shift the entry's duration by up to 30 seconds**. Nothing tells the user.
 
-- [ ] **C5 — Global stop-guard lets a second timer start while one is stopping**
+  *Fixed:* `pausedSegments` is only written when the break field was actually edited, so an untouched field never round-trips through whole minutes and editing a note leaves the recorded timeline byte-identical. The field's initial value now comes from `calculateTotalPausedSeconds`, so it agrees with the duration maths. When an edit would discard more than one recorded period the user is asked to confirm, and the field carries a note saying what is kept or replaced. The "break cannot exceed the entry" check runs against whichever segments will actually apply, clamped to the new window, so shrinking an entry past its preserved pauses is caught.
+
+- [x] **C5 — Global stop-guard lets a second timer start while one is stopping**
   `isStoppingTimerRef` is a single module-level flag. `startTimer` loops `await stopTimerById(...)` to enforce non-concurrency, but if a stop is already in flight the call returns `false` silently and `startTimer` proceeds to create the new entry anyway — two running timers with `allowConcurrentTimers: false`.
+
+  *Fixed:* the boolean is replaced by a promise queue (`runExclusive`). A caller that arrives during an in-flight stop now waits for it rather than being refused, so `startTimer` cannot sail past its own stop requests. `startTimer` holds the queue across the whole stop-then-create sequence and re-reads `getActiveEntries()` before writing — another tab shares the database but not the queue — and reports an error instead of creating a second running entry. `undoStopTimer` takes the same queue, since it also turns an entry back into a running one. Covered by a regression test that fails on the old flag.
 
 ---
 
@@ -97,12 +103,16 @@ Everything below is a logic, consistency, or design issue that the type checker 
 
 ## Suggested Features / Follow-ups
 
-- [ ] **Route every surface through `buildBillableLines`.** This is the single highest-value change and would close C3, most of the timesheet issues, and the running-timer discrepancy in one pass. The function already exists and is well-tested.
+- [x] **Route every surface through `buildBillableLines`.** This is the single highest-value change and would close C3, most of the timesheet issues, and the running-timer discrepancy in one pass. The function already exists and is well-tested. *(Done as part of C3, via `buildLinesFromSettings`.)*
 - [ ] **Give `updateGroup`/`updateTimecode` an `updatedAt` stamp and a DB read**, matching the pattern the delete paths already use on this branch.
-- [ ] **Preserve real pause segments in the edit modal** — show them as a list with add/remove, and reserve the single "break minutes" field for entries that have none.
+- [ ] **Preserve real pause segments in the edit modal** — show them as a list with add/remove, and reserve the single "break minutes" field for entries that have none. *(C4 stops the silent rewrite and warns before a deliberate one; per-segment add/remove editing is still outstanding.)*
 - [ ] **Guard `splitEntry`** against `manualAmount`, or prompt the user to assign the fee to one half.
 - [ ] **Make `updateSettings` read-modify-write from the DB and broadcast**, closing the cross-tab clobber.
 - [ ] **CSV import**: two-pass (validate all rows, then create timecodes), a row cap, tag/amount column support, and explicit date-format selection instead of `new Date()` fallback.
 - [ ] **CI**: `npm audit --audit-level=high` will block unrelated deploys on any new upstream advisory; `npx license-checker` is unpinned and resolves at build time; the workflow has no `permissions:` block and no `concurrency:` group. The `on: push` trigger paired with `if: github.event_name == 'workflow_dispatch'` on the deploy job means pushes verify but never deploy — worth a comment if intentional.
 
 The two things I'd fix before anything else are **C2** (verify against production — it may already be breaking the live app) and **C1** (silent double-billing is the kind of bug that costs a user a client).
+
+---
+
+**Status update:** all five Critical items are now closed. C3, C4 and C5 were fixed together with regression tests; the suite stands at 203 passing, `tsc -b` clean, `oxlint` unchanged at the same 2 fast-refresh warnings.

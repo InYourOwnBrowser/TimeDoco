@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { buildBillableLines, computeBillableLine, sumBillableLines } from './billing';
+import { buildBillableLines, buildLinesFromSettings, computeBillableLine, distributeAcrossBuckets, sumBillableLines } from './billing';
 import type { Entry, Timecode } from '../types';
 
 const tc = (over: Partial<Timecode> = {}): Timecode => ({
@@ -234,5 +234,62 @@ describe('rounding scope', () => {
       expect(totals.seconds).toBe(70 * 60);
       expect(totals.seconds).toBe(totals.workedSeconds);
     }
+  });
+});
+
+describe('distributeAcrossBuckets', () => {
+  const map = new Map([['tc-1', tc({ hourlyRate: 60 })]]);
+  const build = (entries: Entry[], scope: any, rule: any = '15min') =>
+    buildBillableLines(entries, { dateRange: january, roundingRule: rule, roundingScope: scope, timecodeMap: map });
+
+  // Half-open days, matching how the timeline slices its range.
+  const dayBuckets = (isoDays: string[]) =>
+    isoDays.map((day) => ({
+      start: new Date(`${day}T00:00:00.000Z`).getTime(),
+      end: new Date(`${day}T00:00:00.000Z`).getTime() + 24 * 3600 * 1000,
+    }));
+
+  it('adds up to exactly the billable total under every rounding scope', () => {
+    const spread = [
+      entry({ id: 'a', startTime: '2026-01-05T09:00:00.000Z', endTime: '2026-01-05T09:07:00.000Z' }),
+      entry({ id: 'b', startTime: '2026-01-05T14:00:00.000Z', endTime: '2026-01-05T14:23:00.000Z' }),
+      entry({ id: 'c', startTime: '2026-01-06T08:00:00.000Z', endTime: '2026-01-06T11:31:00.000Z' }),
+    ];
+    const buckets = dayBuckets(['2026-01-05', '2026-01-06']);
+
+    for (const scope of ['entry', 'day', 'timecode', 'invoice'] as const) {
+      const lines = build(spread, scope);
+      const perDay = distributeAcrossBuckets(spread, lines, buckets);
+      const total = sumBillableLines([...lines.values()]).seconds;
+      // A chart that re-rounded each day-slice on its own disagreed with the
+      // report total beside it; sharing out the scoped figure cannot.
+      expect(perDay.reduce((sum, value) => sum + value, 0)).toBe(total);
+    }
+  });
+
+  it('splits an entry that spans midnight without billing a rounding interval on each side', () => {
+    const overnight = [
+      entry({ id: 'night', startTime: '2026-01-05T23:00:00.000Z', endTime: '2026-01-06T01:00:00.000Z' }),
+    ];
+    const buckets = dayBuckets(['2026-01-05', '2026-01-06']);
+    const lines = build(overnight, 'day');
+    const perDay = distributeAcrossBuckets(overnight, lines, buckets);
+
+    expect(perDay.reduce((sum, value) => sum + value, 0)).toBe(2 * 3600);
+    // One hour fell on each side of midnight.
+    expect(perDay[0]).toBe(3600);
+    expect(perDay[1]).toBe(3600);
+  });
+
+  it('measures a running entry up to now rather than reading its stored duration', () => {
+    const now = new Date('2026-01-05T10:30:00.000Z');
+    const running = [
+      entry({ id: 'live', startTime: '2026-01-05T10:00:00.000Z', endTime: null, duration: 0, isRunning: true }),
+    ];
+    const lines = buildLinesFromSettings(running, { roundingRule: 'none', roundingScope: 'day' }, { now });
+    const perDay = distributeAcrossBuckets(running, lines, dayBuckets(['2026-01-05']), now);
+
+    expect(lines.get('live')!.seconds).toBe(30 * 60);
+    expect(perDay[0]).toBe(30 * 60);
   });
 });

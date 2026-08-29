@@ -13,8 +13,8 @@ import {
   CheckCircle2, Info, Plus, BarChart2, PieChart as PieIcon, ExternalLink
 } from 'lucide-react';
 import { useToast } from '../context/ToastContext';
-import { applyRounding, calculateDuration, calculateTaxBreakdown, calculateTotalPausedSeconds, formatDurationShort, roundCurrency, roundHours } from '../utils/timeUtils';
-import { buildBillableLines, sumBillableLines } from '../utils/billing';
+import { calculateTaxBreakdown, calculateTotalPausedSeconds, formatDurationShort, roundCurrency, roundHours } from '../utils/timeUtils';
+import { buildLinesFromSettings, distributeAcrossBuckets, sumBillableLines } from '../utils/billing';
 import type { RoundingScope } from '../utils/billing';
 import type { BillableLine } from '../utils/billing';
 import { createEvents, type EventAttributes } from 'ics';
@@ -179,14 +179,8 @@ export const AnalysisView: React.FC = () => {
   // and detail tables, and the CSV export. Computing it once is what stops the
   // same entry being billed differently on different surfaces of one invoice.
   const billableLines = useMemo(() => {
-    return buildBillableLines(filteredEntries, {
-      dateRange,
-      roundingRule: settings?.roundingRule || 'none',
-      roundingScope: settings?.roundingScope || 'day',
-      timecodeMap,
-      now: new Date(),
-    });
-  }, [filteredEntries, dateRange, timecodeMap, settings?.roundingRule, settings?.roundingScope]);
+    return buildLinesFromSettings(filteredEntries, settings, { dateRange, timecodeMap, now: new Date() });
+  }, [filteredEntries, dateRange, timecodeMap, settings]);
 
   // Calculations for Current Period
   const { timecodeData, groupData, totalSeconds, totalHours, totalWorkedSeconds, totalEarnings, taxBreakdown } = useMemo(() => {
@@ -258,10 +252,8 @@ export const AnalysisView: React.FC = () => {
     let pSec = 0;
     let pEarn = 0;
 
-    const prevLines = buildBillableLines(prevFilteredEntries, {
+    const prevLines = buildLinesFromSettings(prevFilteredEntries, settings, {
       dateRange: prevDateRange,
-      roundingRule: settings?.roundingRule || 'none',
-      roundingScope: settings?.roundingScope || 'day',
       timecodeMap,
       now: new Date(),
     });
@@ -283,7 +275,7 @@ export const AnalysisView: React.FC = () => {
       diffEarnings,
       pctEarnings
     };
-  }, [prevFilteredEntries, prevDateRange, comparePrevious, totalSeconds, totalEarnings, timecodeMap, settings?.roundingRule, settings?.roundingScope]);
+  }, [prevFilteredEntries, prevDateRange, comparePrevious, totalSeconds, totalEarnings, timecodeMap, settings]);
 
   // Billed-vs-worked, so the effect of rounding is visible rather than silent.
   const roundingDelta = useMemo(() => {
@@ -594,32 +586,31 @@ export const AnalysisView: React.FC = () => {
   }, [estimateDeepData?.perTimecodeTable, tcSortField, tcSortAsc]);
 
   // Timeline Data
+  //
+  // Built from the same billable lines as the summary, not by re-rounding each
+  // day-slice on its own: rounding per slice ignored `roundingScope` entirely,
+  // so the bars could add up to a different total than the report they sit in.
+  // Each line's billable seconds are shared across the days its worked time
+  // covers, in proportion to how much fell on each, so the chart reconciles
+  // with the total whatever scope is in use.
   const timelineDays = useMemo(() => {
     const days = eachDayOfInterval({ start: dateRange.start, end: dateRange.end });
-    return days.map(d => {
-      const dStart = startOfDay(d);
-      const dEnd = endOfDay(d);
-      let daySec = 0;
+    // Half-open days: each ends where the next begins, so an entry crossing
+    // midnight loses no second to `endOfDay`'s .999 and is not counted twice at
+    // the boundary either.
+    const dayBounds = days.map(d => ({
+      start: Math.max(startOfDay(d).getTime(), dateRange.start.getTime()),
+      end: Math.min(addDays(startOfDay(d), 1).getTime(), dateRange.end.getTime()),
+    }));
+    const daySeconds = distributeAcrossBuckets(filteredEntries, billableLines, dayBounds);
 
-      filteredEntries.forEach(e => {
-        const eStart = parseISO(e.startTime);
-        const eEnd = e.endTime ? parseISO(e.endTime) : new Date();
-        if (eStart <= dEnd && eEnd >= dStart) {
-          const effStart = eStart < dStart ? dStart : eStart;
-          const effEnd = eEnd > dEnd ? dEnd : eEnd;
-          const dur = calculateDuration(effStart, effEnd, e.pausedSegments || []);
-          daySec += applyRounding(dur, settings?.roundingRule || 'none');
-        }
-      });
-
-      return {
-        date: d,
-        dateStr: format(d, 'MMM d, yyyy'),
-        hours: Number((daySec / 3600).toFixed(1)),
-        seconds: daySec,
-      };
-    });
-  }, [dateRange, filteredEntries, settings?.roundingRule]);
+    return days.map((d, i) => ({
+      date: d,
+      dateStr: format(d, 'MMM d, yyyy'),
+      hours: Number((daySeconds[i] / 3600).toFixed(1)),
+      seconds: daySeconds[i],
+    }));
+  }, [dateRange, filteredEntries, billableLines]);
 
   const escapeCSV = (str: string) => {
     let escaped = str.replace(/"/g, '""');

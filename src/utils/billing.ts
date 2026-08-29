@@ -1,5 +1,5 @@
 import { format } from 'date-fns';
-import type { Entry, Timecode } from '../types';
+import type { Entry, Settings, Timecode } from '../types';
 import { applyRounding, calculateDuration, roundCurrency, roundHours } from './timeUtils';
 
 export type RoundingRule = 'none' | '5min' | '10min' | '15min';
@@ -98,11 +98,14 @@ const bucketKeyFor = (scope: RoundingScope, entry: Entry, entryStart: Date): str
 };
 
 /**
- * Share a bucket's rounded total back across its lines using largest remainder,
- * so the per-entry figures still add up to the rounded bucket total exactly and
- * a report reconciles at every level regardless of the scope in use.
+ * Share a total back across parts in proportion to their raw sizes, using
+ * largest remainder so the parts add up to the target exactly.
+ *
+ * Buckets use it to share a rounded total across their lines; the timeline uses
+ * it to share one line's billable seconds across the days it spans. Either way
+ * the parts reconcile with the whole, whatever rounding scope is in use.
  */
-const allocate = (rawSeconds: number[], target: number): number[] => {
+export const allocateProportionally = (rawSeconds: number[], target: number): number[] => {
   const total = rawSeconds.reduce((sum, value) => sum + value, 0);
   if (total <= 0 || target <= 0) return rawSeconds.map(() => 0);
 
@@ -187,7 +190,7 @@ export const buildBillableLines = (entries: Entry[], options: BuildOptions): Map
     const rawSeconds = bucket.map((line) => line.workedSeconds);
     const bucketTotal = rawSeconds.reduce((sum, value) => sum + value, 0);
     const target = applyRounding(bucketTotal, roundingRule);
-    const allocated = allocate(rawSeconds, target);
+    const allocated = allocateProportionally(rawSeconds, target);
     bucket.forEach((line, index) => billableSeconds.set(line.entryId, allocated[index]));
   }
 
@@ -222,7 +225,7 @@ export const buildBillableLines = (entries: Entry[], options: BuildOptions): Map
     const totalSeconds = seconds.reduce((sum, value) => sum + value, 0);
     // The figure a client checks: rate x the row's printed hours.
     const rowAmount = roundCurrency(roundHours(totalSeconds / 3600) * rate);
-    const cents = allocate(seconds, Math.round(rowAmount * 100));
+    const cents = allocateProportionally(seconds, Math.round(rowAmount * 100));
     group.forEach((line, index) => lineAmounts.set(line.entryId, cents[index] / 100));
   }
 
@@ -245,6 +248,81 @@ export const buildBillableLines = (entries: Entry[], options: BuildOptions): Map
 
   return result;
 };
+
+/**
+ * Share each entry's billable seconds across a series of time buckets — the
+ * days of a timeline — in proportion to how much of its worked time fell in
+ * each.
+ *
+ * Re-rounding every day-slice on its own was the alternative, and it ignored
+ * the rounding scope: a chart drawn that way did not add up to the total on the
+ * report beside it. Allocating one already-scoped figure keeps the bars and the
+ * total reconciled, and keeps an entry that spans midnight from being counted
+ * as a whole rounding interval on each side of it.
+ *
+ * `buckets` are millisecond [start, end] pairs; the returned array matches them
+ * index for index.
+ */
+export const distributeAcrossBuckets = (
+  entries: Entry[],
+  lines: Map<string, BillableLine>,
+  buckets: Array<{ start: number; end: number }>,
+  now: Date = new Date(),
+): number[] => {
+  const totals = new Array<number>(buckets.length).fill(0);
+
+  for (const entry of entries) {
+    const line = lines.get(entry.id);
+    if (!line || line.seconds <= 0) continue;
+
+    const entryStart = new Date(entry.startTime).getTime();
+    const entryEnd = entry.endTime ? new Date(entry.endTime).getTime() : now.getTime();
+
+    const workedPerBucket = buckets.map(({ start, end }) => {
+      const effStart = Math.max(entryStart, start);
+      const effEnd = Math.min(entryEnd, end);
+      if (effEnd <= effStart) return 0;
+      return calculateDuration(new Date(effStart), new Date(effEnd), entry.pausedSegments || []);
+    });
+
+    const allocated = allocateProportionally(workedPerBucket, line.seconds);
+    for (let i = 0; i < totals.length; i++) totals[i] += allocated[i];
+  }
+
+  return totals;
+};
+
+/** The rounding fields any surface needs to agree with every other surface. */
+export type BillingSettings = Pick<Settings, 'roundingRule' | 'roundingScope'> | null | undefined;
+
+/**
+ * Build billable lines straight from the user's settings.
+ *
+ * Every surface that answers "how much time" — the entry list, the timesheet
+ * grid and calendar, the weekly target, the report — goes through this, so the
+ * rounding rule and its scope are read once, in one place, and the surfaces
+ * cannot drift into four different answers for the same week.
+ *
+ * `dateRange` is the window the answer is about: a report clips to it, while a
+ * view that files each entry under the day it started (the grid, the calendar,
+ * the list) passes `null` and lets each entry count in full.
+ */
+export const buildLinesFromSettings = (
+  entries: Entry[],
+  settings: BillingSettings,
+  options: { dateRange?: DateRange | null; timecodeMap?: Map<string, Timecode>; now?: Date } = {},
+): Map<string, BillableLine> =>
+  buildBillableLines(entries, {
+    dateRange: options.dateRange ?? null,
+    roundingRule: settings?.roundingRule || 'none',
+    roundingScope: settings?.roundingScope || DEFAULT_ROUNDING_SCOPE,
+    timecodeMap: options.timecodeMap,
+    now: options.now,
+  });
+
+/** Billable seconds for one entry, or 0 for an entry outside the built set. */
+export const secondsFor = (lines: Map<string, BillableLine>, entryId: string): number =>
+  lines.get(entryId)?.seconds ?? 0;
 
 /** Single-entry convenience wrapper; rounding necessarily applies at entry scope. */
 export const computeBillableLine = (

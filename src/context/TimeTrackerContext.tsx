@@ -106,34 +106,60 @@ export const TimeTrackerProvider: React.FC<{ children: ReactNode }> = ({ childre
       return;
     }
 
-    // Another timer may have been started inside the 5 second undo window.
-    if (!(settings?.allowConcurrentTimers ?? false)) {
-      const stillActive = await db.getActiveEntries();
-      if (stillActive.length > 0) {
-        addToast('Cannot undo — another timer is already running', 'error');
-        setLastStoppedEntry(null);
-        return;
+    // Resurrecting the entry makes it running again, so it takes the timer
+    // queue for the same reason startTimer does: checking for another running
+    // timer and then writing this one has to be one indivisible step.
+    const restored = await runExclusive(async () => {
+      // Another timer may have been started inside the 5 second undo window.
+      if (!(settings?.allowConcurrentTimers ?? false)) {
+        const stillActive = await db.getActiveEntries();
+        if (stillActive.length > 0) return false;
       }
+
+      // Remove endTime and duration, set isRunning back to true
+      const updatedEntry: Entry = {
+        ...current,
+        endTime: null,
+        duration: 0,
+        isRunning: true,
+        updatedAt: new Date().toISOString(),
+      };
+
+      await db.putEntry(updatedEntry);
+      return true;
+    });
+
+    if (!restored) {
+      addToast('Cannot undo — another timer is already running', 'error');
     }
-
-    // Remove endTime and duration, set isRunning back to true
-    const updatedEntry: Entry = {
-      ...current,
-      endTime: null,
-      duration: 0,
-      isRunning: true,
-      updatedAt: new Date().toISOString(),
-    };
-
-    await db.putEntry(updatedEntry);
     setLastStoppedEntry(null);
     await refreshData();
   };
 
   const isStartingTimerRef = useRef(false);
-  const isStoppingTimerRef = useRef(false);
   const isPausingTimerRef = useRef(false);
   const isResumingTimerRef = useRef(false);
+
+  /**
+   * Serialises the mutations that decide how many timers are running.
+   *
+   * A plain "already stopping" boolean could only refuse a concurrent call, and
+   * refusing is the wrong answer for `startTimer`: it would carry on and create
+   * its entry while the stop it asked for was still in flight, leaving two
+   * running timers with `allowConcurrentTimers` off. Queueing makes the second
+   * caller wait for the first to finish instead of skipping past it.
+   */
+  const timerQueueRef = useRef<Promise<unknown>>(Promise.resolve());
+
+  const runExclusive = useCallback(<T,>(task: () => Promise<T>): Promise<T> => {
+    // Run after the queued work whether it settled or threw, so one failed
+    // mutation cannot wedge every later one.
+    const result = timerQueueRef.current.then(task, task);
+    // The queue itself must never hold a rejection, or the next `.then` would
+    // skip straight to its rejection handler and surface as unhandled.
+    timerQueueRef.current = result.then(() => undefined, () => undefined);
+    return result;
+  }, []);
 
   const broadcastRef = useRef<BroadcastChannel | null>(null);
 
@@ -381,86 +407,101 @@ export const TimeTrackerProvider: React.FC<{ children: ReactNode }> = ({ childre
     if (isStartingTimerRef.current) return;
     isStartingTimerRef.current = true;
     try {
-      const isConcurrentAllowed = settings?.allowConcurrentTimers ?? false;
-      const currentActive = await db.getActiveEntries();
+      // The whole stop-then-create sequence holds the queue, so no other timer
+      // mutation can slip between deciding what to stop and writing the new
+      // entry. `performStop` is the unlocked body: calling `stopTimerById` here
+      // would wait on a queue this call already owns.
+      const started = await runExclusive(async () => {
+        const isConcurrentAllowed = settings?.allowConcurrentTimers ?? false;
+        const currentActive = await db.getActiveEntries();
 
-      if (!isConcurrentAllowed) {
-        // Stop all running timers
         for (const entry of currentActive) {
-          await stopTimerById(entry.id);
-        }
-      } else {
-        // Stop timer for the exact same timecode if it exists to prevent duplicates
-        for (const entry of currentActive) {
-          if (entry.timecodeId === timecodeId) {
-            await stopTimerById(entry.id);
+          // With concurrency allowed only a duplicate on the same timecode is
+          // stopped; otherwise every running timer is.
+          if (!isConcurrentAllowed || entry.timecodeId === timecodeId) {
+            await performStop(entry.id);
           }
         }
-      }
 
-      const now = new Date().toISOString();
-      const newEntry: Entry = {
-        id: crypto.randomUUID(),
-        timecodeId,
-        startTime: now,
-        endTime: null,
-        duration: 0,
-        note,
-        tags,
-        isRunning: true,
-        isPaused: false,
-        pausedSegments: [],
-        editHistory: [],
-        createdAt: now,
-        updatedAt: now,
-        expectedDurationMinutes: expectedDurationMinutes ?? null,
-      };
-      await db.putEntry(newEntry);
+        if (!isConcurrentAllowed) {
+          // Re-read rather than trusting the loop above: another tab shares this
+          // database and does not share the queue, so it can have started a
+          // timer while these stops were running.
+          const stillActive = await db.getActiveEntries();
+          if (stillActive.length > 0) return false;
+        }
+
+        const now = new Date().toISOString();
+        const newEntry: Entry = {
+          id: crypto.randomUUID(),
+          timecodeId,
+          startTime: now,
+          endTime: null,
+          duration: 0,
+          note,
+          tags,
+          isRunning: true,
+          isPaused: false,
+          pausedSegments: [],
+          editHistory: [],
+          createdAt: now,
+          updatedAt: now,
+          expectedDurationMinutes: expectedDurationMinutes ?? null,
+        };
+        await db.putEntry(newEntry);
+        return true;
+      });
+
       await refreshData();
-      addToast('Timer started', 'success');
+      if (started) {
+        addToast('Timer started', 'success');
+      } else {
+        addToast('Another timer is already running — stop it first', 'error');
+      }
     } finally {
       isStartingTimerRef.current = false;
     }
   };
 
-  const stopTimerById = async (entryId: string): Promise<boolean> => {
-    // Returns whether this call actually stopped the timer, so callers do not
-    // report success for a re-entrant or already-stopped no-op.
-    if (isStoppingTimerRef.current) return false;
-    isStoppingTimerRef.current = true;
-    try {
-      const entry = await db.getEntry(entryId);
-      if (!entry || !entry.isRunning) return false;
-      const now = new Date();
-      const endTimeIso = now.toISOString();
+  /**
+   * Stop one running timer. The caller must already hold the timer queue;
+   * `stopTimerById` is the entry point that takes it.
+   *
+   * Returns whether this call actually stopped the timer, so callers do not
+   * report success for an already-stopped no-op.
+   */
+  const performStop = async (entryId: string): Promise<boolean> => {
+    const entry = await db.getEntry(entryId);
+    if (!entry || !entry.isRunning) return false;
+    const now = new Date();
+    const endTimeIso = now.toISOString();
 
-      // Close open pause segment if paused
-      let newPausedSegments = [...entry.pausedSegments];
-      if (entry.isPaused && newPausedSegments.length > 0) {
-        newPausedSegments[newPausedSegments.length - 1] = {
-          ...newPausedSegments[newPausedSegments.length - 1],
-          pauseEnd: endTimeIso,
-        };
-      }
-
-      const start = new Date(entry.startTime);
-      const duration = calculateDuration(start, now, newPausedSegments);
-
-      const updatedEntry: Entry = {
-        ...entry,
-        endTime: endTimeIso,
-        duration,
-        isRunning: false,
-        isPaused: false,
-        pausedSegments: newPausedSegments,
-        updatedAt: endTimeIso,
+    // Close open pause segment if paused
+    const newPausedSegments = [...entry.pausedSegments];
+    if (entry.isPaused && newPausedSegments.length > 0) {
+      newPausedSegments[newPausedSegments.length - 1] = {
+        ...newPausedSegments[newPausedSegments.length - 1],
+        pauseEnd: endTimeIso,
       };
-      await db.putEntry(updatedEntry);
-      return true;
-    } finally {
-      isStoppingTimerRef.current = false;
     }
+
+    const start = new Date(entry.startTime);
+    const duration = calculateDuration(start, now, newPausedSegments);
+
+    const updatedEntry: Entry = {
+      ...entry,
+      endTime: endTimeIso,
+      duration,
+      isRunning: false,
+      isPaused: false,
+      pausedSegments: newPausedSegments,
+      updatedAt: endTimeIso,
+    };
+    await db.putEntry(updatedEntry);
+    return true;
   };
+
+  const stopTimerById = (entryId: string): Promise<boolean> => runExclusive(() => performStop(entryId));
 
   const stopTimer = async (entryId: string) => {
     const entry = await db.getEntry(entryId);
