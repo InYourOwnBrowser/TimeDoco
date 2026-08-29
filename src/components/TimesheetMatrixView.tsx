@@ -26,9 +26,6 @@ export const TimesheetMatrixView: React.FC = () => {
     end: endOfWeek(currentWeekStart, { weekStartsOn: 1 })
   }), [currentWeekStart]);
 
-  const activeTimecodes = useMemo(() => timecodes.filter(t => !t.archived), [timecodes]);
-  const activeGroups = useMemo(() => groups.filter(g => !g.archived), [groups]);
-
   const entriesByTimecodeAndDate = useMemo(() => {
     const map = new Map<string, typeof entries>();
     for (const e of entries) {
@@ -53,6 +50,24 @@ export const TimesheetMatrixView: React.FC = () => {
     return entries.filter(e => !e.deletedAt && inWeek.has(format(parseISO(e.startTime), 'yyyy-MM-dd')));
   }, [entries, weekDateStrings]);
 
+  const weekTimecodeIdsWithEntries = useMemo(() => {
+    const set = new Set<string>();
+    for (const e of weekEntries) {
+      set.add(e.timecodeId);
+    }
+    return set;
+  }, [weekEntries]);
+
+  const gridTimecodes = useMemo(() => {
+    return timecodes.filter(t => !t.archived || weekTimecodeIdsWithEntries.has(t.id));
+  }, [timecodes, weekTimecodeIdsWithEntries]);
+
+  const gridGroups = useMemo(() => {
+    const activeGroupIds = new Set(groups.filter(g => !g.archived).map(g => g.id));
+    const groupsInUse = new Set(gridTimecodes.map(t => t.groupId).filter(Boolean) as string[]);
+    return groups.filter(g => activeGroupIds.has(g.id) || groupsInUse.has(g.id));
+  }, [groups, gridTimecodes]);
+
   // One set of billable lines for the whole visible week, shared with the
   // report and the entry list. Summing the stored `duration` and rounding each
   // cell separately gave a grid that ignored the rounding scope and disagreed
@@ -65,7 +80,7 @@ export const TimesheetMatrixView: React.FC = () => {
 
   const cellHoursMap = useMemo(() => {
     const map = new Map<string, number>();
-    for (const tc of activeTimecodes) {
+    for (const tc of gridTimecodes) {
       for (const dateStr of weekDateStrings) {
         const key = `${tc.id}|${dateStr}`;
         const cellEntries = entriesByTimecodeAndDate.get(key) || [];
@@ -74,11 +89,11 @@ export const TimesheetMatrixView: React.FC = () => {
       }
     }
     return map;
-  }, [activeTimecodes, weekDateStrings, entriesByTimecodeAndDate, billableLines]);
+  }, [gridTimecodes, weekDateStrings, entriesByTimecodeAndDate, billableLines]);
 
   const rowTotalHoursMap = useMemo(() => {
     const map = new Map<string, number>();
-    for (const tc of activeTimecodes) {
+    for (const tc of gridTimecodes) {
       let sum = 0;
       for (const day of weekDays) {
         const dateStr = format(day, 'yyyy-MM-dd');
@@ -87,7 +102,7 @@ export const TimesheetMatrixView: React.FC = () => {
       map.set(tc.id, sum);
     }
     return map;
-  }, [activeTimecodes, weekDays, cellHoursMap]);
+  }, [gridTimecodes, weekDays, cellHoursMap]);
 
   const getCellEntries = (timecodeId: string, date: Date) =>
     entriesByTimecodeAndDate.get(`${timecodeId}|${format(date, 'yyyy-MM-dd')}`) || [];
@@ -101,26 +116,26 @@ export const TimesheetMatrixView: React.FC = () => {
   const isVisible = (tcId: string) => getRowTotalHours(tcId) > 0 || manuallyShownIds.has(tcId);
 
   // Group timecodes by group
-  const groupedTimecodes = activeGroups.map(g => ({
+  const groupedTimecodes = gridGroups.map(g => ({
     ...g,
-    timecodes: activeTimecodes.filter(t => t.groupId === g.id && isVisible(t.id))
+    timecodes: gridTimecodes.filter(t => t.groupId === g.id && isVisible(t.id))
   })).filter(g => g.timecodes.length > 0);
 
-  const unassignedTimecodes = activeTimecodes.filter(t => !t.groupId && isVisible(t.id));
+  const unassignedTimecodes = gridTimecodes.filter(t => !t.groupId && isVisible(t.id));
   if (unassignedTimecodes.length > 0) {
     groupedTimecodes.push({ id: 'unassigned', name: 'Unassigned', color: '#9ca3af', archived: false, updatedAt: '', timecodes: unassignedTimecodes });
   }
 
-  const hiddenTimecodes = activeTimecodes.filter(t => !isVisible(t.id));
+  const hiddenTimecodes = timecodes.filter(t => !t.archived && !isVisible(t.id));
 
   const getColTotalHours = (date: Date) => {
-    return activeTimecodes.reduce((sum, tc) => sum + getCellHours(tc.id, date), 0);
+    return gridTimecodes.reduce((sum, tc) => sum + getCellHours(tc.id, date), 0);
   };
 
   const displayHours = (n: number) => (n > 0 ? n.toFixed(2) : '');
 
   const getWeekTotalHours = () => {
-    return activeTimecodes.reduce((sum, tc) => sum + getRowTotalHours(tc.id), 0);
+    return gridTimecodes.reduce((sum, tc) => sum + getRowTotalHours(tc.id), 0);
   };
 
   // Half of the 0.01h the cell prints. The displayed value never round-trips to

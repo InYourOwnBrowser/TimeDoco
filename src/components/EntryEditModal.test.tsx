@@ -160,6 +160,18 @@ describe('EntryEditModal flat fee conversion', () => {
     confirmSpy.mockRestore();
   });
 
+  it('saves optional manualAmount on non-fixed time entry when provided', async () => {
+    render(<EntryEditModal entry={entryWithPauses} onClose={() => {}} />);
+
+    fireEvent.change(screen.getByPlaceholderText('e.g. 150.00'), { target: { value: '125.50' } });
+    fireEvent.click(screen.getByText('Save Changes'));
+
+    await waitFor(() => expect(mockUpdateEntry).toHaveBeenCalled());
+
+    const [, updates] = mockUpdateEntry.mock.calls[0];
+    expect(updates.manualAmount).toBe(125.50);
+  });
+
   it('keeps the entry untouched when the flat fee confirmation is declined', async () => {
     const confirmSpy = vi.spyOn(window, 'confirm').mockReturnValue(false);
     render(<EntryEditModal entry={entryWithPauses} onClose={() => {}} />);

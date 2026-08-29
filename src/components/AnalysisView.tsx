@@ -899,7 +899,7 @@ export const AnalysisView: React.FC = () => {
         foot,
         footStyles: { fontStyle: 'bold', fillColor: [238, 240, 236], textColor: [16, 22, 28] },
         margin: { top: 25 },
-        didDrawPage: (data) => ensureHeader(data.pageNumber),
+        didDrawPage: () => ensureHeader((doc.internal as any).getNumberOfPages()),
       });
 
       const detailRows = [...filteredEntries]
@@ -931,7 +931,7 @@ export const AnalysisView: React.FC = () => {
         styles: { fontSize: 8, cellPadding: 2 },
         columnStyles: { 7: { cellWidth: 60 } },
         margin: { top: 25 },
-        didDrawPage: (data) => ensureHeader(data.pageNumber),
+        didDrawPage: () => ensureHeader((doc.internal as any).getNumberOfPages()),
       });
 
       const footerText = footerTextOverride || settings?.reportFooterText;

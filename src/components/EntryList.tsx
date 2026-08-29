@@ -121,19 +121,22 @@ export const EntryList: React.FC = () => {
     });
   }, [entries, timecodeMap, searchTerm, selectedFilter, dateFrom, dateTo]);
 
+  const nonDeletedEntries = React.useMemo(() => entries.filter(e => !e.deletedAt), [entries]);
+
   // A running timer's stored `duration` is 0 until it stops, so the list used
   // to leave it out of both the row and the total. Measuring to `now` counts it,
   // and refreshing that on a tick keeps it current while it runs.
-  const hasRunningEntry = filteredEntries.some(e => !e.endTime);
+  const hasRunningEntry = nonDeletedEntries.some(e => !e.endTime);
   const nowMs = useNowTick(hasRunningEntry);
 
   // The same lines the report and the timesheet are built from, so an entry
   // cannot show one duration here and another there. `dateRange` is null: this
   // list files each entry under the day it started rather than clipping to a
-  // window.
+  // window. Computed over all non-deleted entries so filtering/search does not
+  // alter bucket rounding.
   const billableLines = React.useMemo(
-    () => buildLinesFromSettings(filteredEntries, settings, { now: new Date(nowMs) }),
-    [filteredEntries, settings, nowMs]
+    () => buildLinesFromSettings(nonDeletedEntries, settings, { now: new Date(nowMs) }),
+    [nonDeletedEntries, settings, nowMs]
   );
 
   const handleClearFilters = () => {
@@ -145,7 +148,10 @@ export const EntryList: React.FC = () => {
 
   const hasActiveFilters = searchTerm !== '' || selectedFilter !== 'all' || dateFrom !== '' || dateTo !== '';
 
-  const totalFilteredSeconds = sumBillableLines([...billableLines.values()]).seconds;
+  const totalFilteredSeconds = React.useMemo(
+    () => filteredEntries.reduce((sum, e) => sum + secondsFor(billableLines, e.id), 0),
+    [filteredEntries, billableLines]
+  );
 
   const formatTotalDurationShort = (seconds: number) => {
     const h = Math.floor(seconds / 3600);
@@ -221,21 +227,36 @@ export const EntryList: React.FC = () => {
             className="block w-full sm:w-64 pl-3 pr-10 py-2 text-base border-graphite/20 dark:border-white/20 shadow-inner focus:outline-none focus:ring-signal focus:border-signal sm:text-sm rounded-panel bg-white dark:bg-graphite text-graphite dark:text-stone focus-visible:ring-2 focus-visible:ring-offset-2 ring-offset-stone dark:ring-offset-graphite focus-visible:ring-signal"
           >
             <option value="all">All Groups & Timecodes</option>
-            {groups.filter(g => !g.archived).map((g) => (
-              <optgroup key={g.id} label={g.name}>
-                <option value={`group:${g.id}`}>All {g.name}</option>
-                {timecodes.filter(t => !t.archived && t.groupId === g.id).map((t) => (
-                  <option key={t.id} value={`timecode:${t.id}`}>{t.name}</option>
-                ))}
-              </optgroup>
-            ))}
-            {timecodes.filter(t => !t.archived && !t.groupId).length > 0 && (
-              <optgroup label="Ungrouped">
-                {timecodes.filter(t => !t.archived && !t.groupId).map((t) => (
-                  <option key={t.id} value={`timecode:${t.id}`}>{t.name}</option>
-                ))}
-              </optgroup>
-            )}
+            {(() => {
+              const timecodeIdsInEntries = new Set(entries.filter(e => !e.deletedAt).map(e => e.timecodeId));
+              const availableTimecodes = timecodes.filter(t => !t.archived || timecodeIdsInEntries.has(t.id));
+              const availableGroupIds = new Set(availableTimecodes.map(t => t.groupId).filter(Boolean) as string[]);
+              const availableGroups = groups.filter(g => !g.archived || availableGroupIds.has(g.id));
+              const ungrouped = availableTimecodes.filter(t => !t.groupId);
+
+              return (
+                <>
+                  {availableGroups.map((g) => {
+                    const groupTcs = availableTimecodes.filter(t => t.groupId === g.id);
+                    return (
+                      <optgroup key={g.id} label={`${g.name}${g.archived ? ' (archived)' : ''}`}>
+                        <option value={`group:${g.id}`}>All {g.name}</option>
+                        {groupTcs.map((t) => (
+                          <option key={t.id} value={`timecode:${t.id}`}>{t.name}{t.archived ? ' (archived)' : ''}</option>
+                        ))}
+                      </optgroup>
+                    );
+                  })}
+                  {ungrouped.length > 0 && (
+                    <optgroup label="Ungrouped">
+                      {ungrouped.map((t) => (
+                        <option key={t.id} value={`timecode:${t.id}`}>{t.name}{t.archived ? ' (archived)' : ''}</option>
+                      ))}
+                    </optgroup>
+                  )}
+                </>
+              );
+            })()}
           </select>
         </div>
         <div className="flex flex-col sm:flex-row gap-4 items-start sm:items-center">
