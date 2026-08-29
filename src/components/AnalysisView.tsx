@@ -2,7 +2,7 @@ import React, { useState, useMemo, useEffect } from 'react';
 import { useTimeTracker } from '../context/TimeTrackerContext';
 import {
   startOfDay, endOfDay, startOfWeek, endOfWeek, subWeeks, parseISO, format,
-  eachDayOfInterval, addDays
+  eachDayOfInterval, addDays, isValid
 } from 'date-fns';
 import {
   BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, PieChart, Pie, Cell,
@@ -114,9 +114,20 @@ export const AnalysisView: React.FC = () => {
     return () => clearInterval(interval);
   }, []);
 
+  const isCustomInvalid = useMemo(() => {
+    if (preset !== 'custom') return false;
+    if (!customStart || !customEnd) return true;
+    const s = new Date(customStart + 'T00:00:00');
+    const e = new Date(customEnd + 'T00:00:00');
+    return !isValid(s) || !isValid(e) || e < s;
+  }, [preset, customStart, customEnd]);
+
   // Main Date Range
   const dateRange = useMemo(() => {
     const now = new Date();
+    if (preset === 'custom' && isCustomInvalid) {
+      return { start: startOfWeek(now, { weekStartsOn: 1 }), end: endOfWeek(now, { weekStartsOn: 1 }) };
+    }
     switch (preset) {
       case 'week':
         return { start: startOfWeek(now, { weekStartsOn: 1 }), end: endOfWeek(now, { weekStartsOn: 1 }) };
@@ -125,14 +136,17 @@ export const AnalysisView: React.FC = () => {
         return { start, end: endOfWeek(now, { weekStartsOn: 1 }) };
       }
       case 'custom':
-      default:
-        return {
-          start: startOfDay(new Date(customStart + 'T00:00:00')),
-          end: endOfDay(new Date(customEnd + 'T00:00:00'))
-        };
+      default: {
+        const s = startOfDay(new Date(customStart + 'T00:00:00'));
+        const e = endOfDay(new Date(customEnd + 'T00:00:00'));
+        if (!isValid(s) || !isValid(e)) {
+          return { start: startOfWeek(now, { weekStartsOn: 1 }), end: endOfWeek(now, { weekStartsOn: 1 }) };
+        }
+        return { start: s, end: e };
+      }
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [preset, customStart, customEnd, tick]);
+  }, [preset, customStart, customEnd, isCustomInvalid, tick]);
 
   // Previous Date Range for comparison
   const prevDateRange = useMemo(() => {
@@ -630,9 +644,11 @@ export const AnalysisView: React.FC = () => {
     return `"${escaped}"`;
   };
 
+  const safeFormatDate = (d: Date, fmt: string, fallback = '') => (isValid(d) ? format(d, fmt) : fallback);
+
   // Export CSV
   const handleExportCSV = () => {
-    const defaultFilename = `time-report-${scopeSlug}-${format(dateRange.start, 'yyyy-MM-dd')}`;
+    const defaultFilename = `time-report-${scopeSlug}-${safeFormatDate(dateRange.start, 'yyyy-MM-dd', 'custom-period')}`;
     triggerDownload(
       () => {
         const headers = ['Timecode', 'Group', 'Duration (Hours)', 'Earnings'];
@@ -717,7 +733,7 @@ export const AnalysisView: React.FC = () => {
 
     if (events.length === 0) return;
 
-    const defaultFilename = `time-entries-${scopeSlug}-${format(dateRange.start, 'yyyy-MM-dd')}`;
+    const defaultFilename = `time-entries-${scopeSlug}-${safeFormatDate(dateRange.start, 'yyyy-MM-dd', 'custom-period')}`;
     triggerDownload(
       () => new Promise<Blob>((resolve, reject) => {
         createEvents(events, (error, value) => {
@@ -736,7 +752,7 @@ export const AnalysisView: React.FC = () => {
 
   // Export Detailed Raw CSV
   const downloadDetailedRawCSV = () => {
-    const defaultFilename = `time-entries-${scopeSlug}-${format(dateRange.start, 'yyyy-MM-dd')}`;
+    const defaultFilename = `time-entries-${scopeSlug}-${safeFormatDate(dateRange.start, 'yyyy-MM-dd', 'custom-period')}`;
     triggerDownload(
       () => {
         const headers = ['Date', 'Timecode', 'Group', 'Start', 'End', 'Duration (h)', 'Amount', 'Note'];
@@ -824,7 +840,7 @@ export const AnalysisView: React.FC = () => {
 
       addMeta('Prepared for:', preparedFor);
       addMeta('Prepared by:', preparedBy);
-      addMeta('Period:', `${format(dateRange.start, 'MMM d, yyyy')} – ${format(dateRange.end, 'MMM d, yyyy')}`);
+      addMeta('Period:', `${safeFormatDate(dateRange.start, 'MMM d, yyyy')} – ${safeFormatDate(dateRange.end, 'MMM d, yyyy')}`);
       addMeta('Generated:', format(new Date(), "MMM d, yyyy 'at' HH:mm"));
 
       // Disclose rounding on the document itself. Without this the client sees
@@ -977,7 +993,7 @@ export const AnalysisView: React.FC = () => {
   };
 
   const handlePrint = () => {
-    const defaultFilename = `time-report-${scopeSlug}-${format(dateRange.start, 'yyyy-MM-dd')}`;
+    const defaultFilename = `time-report-${scopeSlug}-${safeFormatDate(dateRange.start, 'yyyy-MM-dd', 'custom-period')}`;
     triggerDownload(
       generatePdfBlob,
       defaultFilename,
@@ -1030,20 +1046,27 @@ export const AnalysisView: React.FC = () => {
 
         {/* Custom Date Inputs */}
         {preset === 'custom' && (
-          <div className="flex items-center gap-2 mb-4">
-            <input
-              type="date"
-              value={customStart}
-              onChange={(e) => setCustomStart(e.target.value)}
-              className="px-3 py-1.5 text-sm border border-graphite/20 dark:border-white/20 rounded-md bg-white dark:bg-graphite text-graphite dark:text-stone"
-            />
-            <span className="text-gray-600 dark:text-gray-400 text-sm">to</span>
-            <input
-              type="date"
-              value={customEnd}
-              onChange={(e) => setCustomEnd(e.target.value)}
-              className="px-3 py-1.5 text-sm border border-graphite/20 dark:border-white/20 rounded-md bg-white dark:bg-graphite text-graphite dark:text-stone"
-            />
+          <div className="flex flex-col gap-1 mb-4">
+            <div className="flex items-center gap-2">
+              <input
+                type="date"
+                value={customStart}
+                onChange={(e) => setCustomStart(e.target.value)}
+                className="px-3 py-1.5 text-sm border border-graphite/20 dark:border-white/20 rounded-md bg-white dark:bg-graphite text-graphite dark:text-stone"
+              />
+              <span className="text-gray-600 dark:text-gray-400 text-sm">to</span>
+              <input
+                type="date"
+                value={customEnd}
+                onChange={(e) => setCustomEnd(e.target.value)}
+                className="px-3 py-1.5 text-sm border border-graphite/20 dark:border-white/20 rounded-md bg-white dark:bg-graphite text-graphite dark:text-stone"
+              />
+            </div>
+            {isCustomInvalid && (
+              <p className="text-xs text-rust dark:text-orange-300">
+                Invalid custom date range. Showing current week as fallback.
+              </p>
+            )}
           </div>
         )}
 
@@ -1888,7 +1911,7 @@ export const AnalysisView: React.FC = () => {
               <div>
                 <span className="text-xs text-gray-500 dark:text-gray-400 block uppercase tracking-wide">Period</span>
                 <span className="font-semibold text-graphite dark:text-stone">
-                  {format(dateRange.start, 'MMM d, yyyy')} – {format(dateRange.end, 'MMM d, yyyy')}
+                  {safeFormatDate(dateRange.start, 'MMM d, yyyy')} – {safeFormatDate(dateRange.end, 'MMM d, yyyy')}
                 </span>
               </div>
               <div>

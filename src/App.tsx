@@ -16,6 +16,7 @@ const ResourcesView = lazy(() => import('./components/ResourcesView').then(modul
 import { WeeklySummary } from './components/WeeklySummary';
 import { IdleDetector } from './components/IdleDetector';
 import { OverrunDetector } from './components/OverrunDetector';
+import { ErrorBoundary } from './components/ErrorBoundary';
 import { Settings, BarChart2, Clock, ListTree, CalendarDays, Sparkles } from 'lucide-react';
 import { useTimeTracker } from './context/TimeTrackerContext';
 import { ToastProvider, useToast } from './context/ToastContext';
@@ -370,10 +371,10 @@ const AppContent = () => {
               <EntryList />
             </>
           )}
-          {activeTab === 'timesheet' && <Suspense fallback={<div className="p-8 text-center text-gray-500">Loading timesheet...</div>}><TimesheetView /></Suspense>}
-          {activeTab === 'analysis' && <Suspense fallback={<div className="p-8 text-center text-gray-500">Loading analysis...</div>}><AnalysisView /></Suspense>}
-          {activeTab === 'management' && <Suspense fallback={<div className="p-8 text-center text-gray-500">Loading management...</div>}><GroupingManagement /></Suspense>}
-          {activeTab === 'resources' && <Suspense fallback={<div className="p-8 text-center text-gray-500">Loading resources...</div>}><ResourcesView /></Suspense>}
+          {activeTab === 'timesheet' && <ErrorBoundary><Suspense fallback={<div className="p-8 text-center text-gray-500">Loading timesheet...</div>}><TimesheetView /></Suspense></ErrorBoundary>}
+          {activeTab === 'analysis' && <ErrorBoundary><Suspense fallback={<div className="p-8 text-center text-gray-500">Loading analysis...</div>}><AnalysisView /></Suspense></ErrorBoundary>}
+          {activeTab === 'management' && <ErrorBoundary><Suspense fallback={<div className="p-8 text-center text-gray-500">Loading management...</div>}><GroupingManagement /></Suspense></ErrorBoundary>}
+          {activeTab === 'resources' && <ErrorBoundary><Suspense fallback={<div className="p-8 text-center text-gray-500">Loading resources...</div>}><ResourcesView /></Suspense></ErrorBoundary>}
         </main>
 
         <footer className="mt-12 mb-4 flex justify-center">

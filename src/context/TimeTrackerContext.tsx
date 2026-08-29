@@ -395,9 +395,13 @@ export const TimeTrackerProvider: React.FC<{ children: ReactNode }> = ({ childre
       }
 
       for (const tc of timecodesToDelete) {
-        const relatedEntries = [...loadedEntries].filter((e) => e.timecodeId === tc.id);
-        if (relatedEntries.length > 0) {
-          await Promise.all(relatedEntries.map((e) => db.deleteEntry(e.id)));
+        const liveEntriesForTc = [...loadedEntries].filter((e) => e.timecodeId === tc.id && !e.deletedAt);
+        if (liveEntriesForTc.length > 0) {
+          continue;
+        }
+        const relatedDeletedEntries = [...loadedEntries].filter((e) => e.timecodeId === tc.id && e.deletedAt);
+        if (relatedDeletedEntries.length > 0) {
+          await Promise.all(relatedDeletedEntries.map((e) => db.deleteEntry(e.id)));
         }
         await db.deleteTimecode(tc.id);
         purged = true;
@@ -704,18 +708,29 @@ export const TimeTrackerProvider: React.FC<{ children: ReactNode }> = ({ childre
     }
 
     const deletedTimecodesInDb = allTimecodes.filter((tc) => tc.deletedAt);
+    const removedTimecodeIds = new Set<string>();
+
     for (const tc of deletedTimecodesInDb) {
-      const entriesToDelete = allEntries.filter((e) => e.timecodeId === tc.id);
+      // Check if there are live (non-deleted) entries referencing this trashed timecode.
+      // If a user restored an entry without restoring its timecode, purging the timecode would destroy live entries.
+      const liveEntriesForTc = allEntries.filter((e) => e.timecodeId === tc.id && !e.deletedAt);
+      if (liveEntriesForTc.length > 0) {
+        // Skip purging this timecode to protect live entries
+        continue;
+      }
+
+      const entriesToDelete = allEntries.filter((e) => e.timecodeId === tc.id && e.deletedAt);
       if (entriesToDelete.length > 0) {
         await Promise.all(entriesToDelete.map((e) => db.deleteEntry(e.id)));
       }
       await db.deleteTimecode(tc.id);
+      removedTimecodeIds.add(tc.id);
+    }
 
-      if (currentSettings && currentSettings.templates) {
-        const updatedTemplates = currentSettings.templates.filter((t) => t.timecodeId !== tc.id);
-        if (updatedTemplates.length !== currentSettings.templates.length) {
-          await db.putSettings({ ...currentSettings, templates: updatedTemplates });
-        }
+    if (currentSettings && currentSettings.templates && removedTimecodeIds.size > 0) {
+      const updatedTemplates = currentSettings.templates.filter((t) => !removedTimecodeIds.has(t.timecodeId));
+      if (updatedTemplates.length !== currentSettings.templates.length) {
+        await db.putSettings({ ...currentSettings, templates: updatedTemplates });
       }
     }
 
@@ -1253,22 +1268,36 @@ export const TimeTrackerProvider: React.FC<{ children: ReactNode }> = ({ childre
   };
 
   const deleteEntry = async (id: string) => {
-    const entry = await db.getEntry(id);
-    if (entry) {
-      const deletedAt = new Date().toISOString();
-      await db.putEntry(touch({ ...entry, deletedAt }, deletedAt));
-      addToast('Entry deleted', 'success', { label: 'Undo', onClick: () => restoreEntry(id) }, 5000);
-      await refreshData();
-    }
+    await runExclusive(async () => {
+      const entry = await db.getEntry(id);
+      if (entry) {
+        if (entry.isRunning) {
+          await performStop(entry.id);
+        }
+        const latestEntry = (await db.getEntry(id)) || entry;
+        const deletedAt = new Date().toISOString();
+        await db.putEntry(touch({ ...latestEntry, deletedAt }, deletedAt));
+      }
+    });
+    addToast('Entry deleted', 'success', { label: 'Undo', onClick: () => restoreEntry(id) }, 5000);
+    await refreshData();
   };
 
   const bulkDeleteEntries = async (ids: string[]) => {
     if (ids.length === 0) return;
-    const now = new Date().toISOString();
-    const targets = await Promise.all(ids.map((id) => db.getEntry(id)));
-    await Promise.all(
-      targets.filter((e): e is Entry => !!e).map((e) => db.putEntry(touch({ ...e, deletedAt: now }, now)))
-    );
+    await runExclusive(async () => {
+      const now = new Date().toISOString();
+      for (const id of ids) {
+        const entry = await db.getEntry(id);
+        if (entry) {
+          if (entry.isRunning) {
+            await performStop(entry.id);
+          }
+          const latestEntry = (await db.getEntry(id)) || entry;
+          await db.putEntry(touch({ ...latestEntry, deletedAt: now }, now));
+        }
+      }
+    });
     addToast(
       `${ids.length} ${ids.length === 1 ? 'entry' : 'entries'} deleted`,
       'success',
