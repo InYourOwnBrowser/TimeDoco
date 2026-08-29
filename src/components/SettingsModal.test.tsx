@@ -139,7 +139,7 @@ describe('SettingsModal Logo Upload Validation', () => {
   });
 
   it('does not create timecode when CSV row date is invalid', async () => {
-    const { getByRole, getByText, container } = renderComponent();
+    const { getByRole, container } = renderComponent();
 
     // Switch to Data tab
     fireEvent.click(getByRole('button', { name: 'Data' }));

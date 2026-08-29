@@ -32,7 +32,7 @@ export const EntryEditModal: React.FC<EntryEditModalProps> = ({ entry, onClose }
 
   const [breakMinutes, setBreakMinutes] = useState(!entry.isRunning ? initialBreakMinutes : '');
   const [manualAmount, setManualAmount] = useState(entry.manualAmount != null ? entry.manualAmount.toString() : '');
-  const [isFixedCost, setIsFixedCost] = useState(entry.startTime === entry.endTime);
+  const [isFixedCost, setIsFixedCost] = useState(entry.manualAmount != null);
   const [fixedCostDate, setFixedCostDate] = useState(
     entry.startTime ? format(parseISO(entry.startTime), 'yyyy-MM-dd') : new Date().toISOString().split('T')[0]
   );
@@ -42,7 +42,7 @@ export const EntryEditModal: React.FC<EntryEditModalProps> = ({ entry, onClose }
   const initialStartTime = format(parseISO(entry.startTime), "yyyy-MM-dd'T'HH:mm:ss");
   const initialEndTime = entry.endTime ? format(parseISO(entry.endTime), "yyyy-MM-dd'T'HH:mm:ss") : '';
   const initialManualAmount = entry.manualAmount != null ? entry.manualAmount.toString() : '';
-  const initialIsFixedCost = entry.startTime === entry.endTime;
+  const initialIsFixedCost = entry.manualAmount != null;
   const initialFixedCostDate = entry.startTime ? format(parseISO(entry.startTime), 'yyyy-MM-dd') : '';
 
   const isDirty = startTime !== initialStartTime ||
@@ -153,7 +153,7 @@ export const EntryEditModal: React.FC<EntryEditModalProps> = ({ entry, onClose }
       note,
       tags: tagsStr.split(',').map(t => t.trim()).filter(t => t !== '').slice(0, 20),
       startTime: start.toISOString(),
-      manualAmount: manualAmount ? parseFloat(manualAmount) : null,
+      manualAmount: isFixedCost ? (manualAmount ? parseFloat(manualAmount) : null) : null,
     };
 
     if (end) {

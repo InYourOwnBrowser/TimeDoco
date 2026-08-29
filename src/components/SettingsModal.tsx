@@ -31,6 +31,14 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ onClose }) => {
   const [justSaved, setJustSaved] = useState(false);
   const saveTimeoutRef = useRef<number | null>(null);
 
+  React.useEffect(() => {
+    return () => {
+      if (saveTimeoutRef.current) {
+        window.clearTimeout(saveTimeoutRef.current);
+      }
+    };
+  }, []);
+
   const [showWipeConfirm, setShowWipeConfirm] = useState(false);
   const [wipeConfirmText, setWipeConfirmText] = useState('');
   const [wipeAcknowledged, setWipeAcknowledged] = useState(false);
