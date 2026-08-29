@@ -259,13 +259,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ onClose }) => {
               continue;
             }
 
-            let tc = localTimecodes.find(t => t.name.toLowerCase() === timecodeName.toLowerCase());
-            if (!tc) {
-              tc = await addTimecode(timecodeName);
-              localTimecodes.push(tc);
-            }
-
-            // Validating the date parsed successfully to prevent RangeError inside addManualEntry
+            // Validate date parsing BEFORE creating any new timecode entity
             let startObj = new Date(startTime);
             let endObj = new Date(endTime);
 
@@ -282,6 +276,12 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ onClose }) => {
 
             const startISO = startObj.toISOString();
             const endISO = endObj.toISOString();
+
+            let tc = localTimecodes.find(t => t.name.toLowerCase() === timecodeName.toLowerCase());
+            if (!tc) {
+              tc = await addTimecode(timecodeName);
+              localTimecodes.push(tc);
+            }
 
             entriesToBulkAdd.push({
               startTime: startISO,
