@@ -50,7 +50,7 @@ Everything below is a logic, consistency, or design issue that the type checker 
 - [x] **H4 — Import preview is stricter than the import itself**
   `SettingsModal.handleImport` calls `validateBackupPayload(parsed)` with no `knownTimecodeIds`. In merge mode the real import passes the locally-stored ids. So a valid merge backup whose entries reference existing local timecodes **fails at the preview step** with "refers to timecode X, which is not in this backup" — an import the app would have accepted.
 
-- [ ] **H5 — CSV import creates orphan timecodes from rows it then rejects**
+- [x] **H5 — CSV import creates orphan timecodes from rows it then rejects**
   In `handleImportCSV`, `addTimecode(timecodeName)` runs *before* date validation. A row with a good name and an unparseable date leaves a permanent new timecode behind. If every row fails, the user gets "Failed to import any entries" plus a pile of junk timecodes and no rollback. Each `addTimecode` also triggers a full `refreshData()` — 50 new timecodes means 50 complete database reads.
 
 - [ ] **H6 — Timesheet cell edits fight their own rounding**
@@ -86,8 +86,8 @@ Everything below is a logic, consistency, or design issue that the type checker 
 - [ ] `restoreTimecode` / `restoreGroup` call `restoreEntry` per record, each triggering its own full `refreshData()` — N complete database reads for one restore. `bulkDeleteEntries`' undo does the same.
 - [ ] `applyRounding` on a live ticking timer means a 15-minute rule shows "0s" for seven and a half minutes, then jumps.
 - [ ] Fallback mode is a silent data-loss path: writes go to memory only, and `closeDB` clears that memory unconditionally.
-- [ ] ICS export emits no `uid`, so re-importing duplicates every event.
-- [ ] `escapeCSV` guards `= + - @` but not leading tab or CR.
+- [x] ICS export emits no `uid`, so re-importing duplicates every event.
+- [x] `escapeCSV` guards `= + - @` but not leading tab or CR.
 - [ ] `react-virtuoso` emits "Each child in a list should have a unique key" during tests (React 19 compat).
 - [ ] Summary CSV omits the tax and total rows the PDF includes.
 - [ ] `restoreEntry` doesn't check whether the entry's timecode is still trashed — restores into an orphan state.

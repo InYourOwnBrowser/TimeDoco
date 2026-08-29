@@ -4,6 +4,7 @@ import { SettingsModal } from './SettingsModal';
 
 const mockUpdateSettings = vi.fn().mockResolvedValue(undefined);
 const mockAddToast = vi.fn();
+const mockAddTimecode = vi.fn();
 
 vi.mock('../context/TimeTrackerContext', () => ({
   useTimeTracker: () => ({
@@ -16,7 +17,7 @@ vi.mock('../context/TimeTrackerContext', () => ({
     },
     updateSettings: mockUpdateSettings,
     bulkAddManualEntries: vi.fn(),
-    addTimecode: vi.fn(),
+    addTimecode: mockAddTimecode,
     timecodes: [],
     deletedEntries: [],
     restoreEntry: vi.fn(),
@@ -134,6 +135,28 @@ describe('SettingsModal Logo Upload Validation', () => {
 
     expect(mockUpdateSettings).toHaveBeenCalledWith({
       reportFooterText: 'Payment due in 30 days.',
+    });
+  });
+
+  it('does not create timecode when CSV row date is invalid', async () => {
+    const { getByRole, getByText, container } = renderComponent();
+
+    // Switch to Data tab
+    fireEvent.click(getByRole('button', { name: 'Data' }));
+
+    const csvFileInput = container.querySelector('input[type="file"][accept=".csv"]') as HTMLInputElement;
+    expect(csvFileInput).not.toBeNull();
+
+    const invalidCsvContent = 'Start Time,End Time,Timecode,Note\ninvalid-start,invalid-end,OrphanTimecode,Test\n';
+    const csvFile = new File([invalidCsvContent], 'invalid.csv', { type: 'text/csv' });
+
+    fireEvent.change(csvFileInput, { target: { files: [csvFile] } });
+
+    const importBtn = getByRole('button', { name: /import csv/i });
+    fireEvent.click(importBtn);
+
+    await waitFor(() => {
+      expect(mockAddTimecode).not.toHaveBeenCalled();
     });
   });
 });

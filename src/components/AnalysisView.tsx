@@ -616,7 +616,7 @@ export const AnalysisView: React.FC = () => {
 
   const escapeCSV = (str: string) => {
     let escaped = str.replace(/"/g, '""');
-    if (/^[=+\-@]/.test(escaped)) {
+    if (/^[=+\-@\t\r]/.test(escaped)) {
       escaped = "'" + escaped;
     }
     return `"${escaped}"`;
@@ -655,6 +655,7 @@ export const AnalysisView: React.FC = () => {
       const end = e.endTime ? parseISO(e.endTime) : new Date();
 
       return {
+        uid: e.id,
         start: [
           start.getUTCFullYear(),
           start.getUTCMonth() + 1,
