@@ -3,6 +3,112 @@ export const MAX_IMPORT_ENTRIES = 50000;
 /** ~4MB of base64, comfortably above the 1MB upload cap after encoding. */
 export const MAX_LOGO_DATA_URL_LENGTH = 4 * 1024 * 1024;
 
+/** The only backup schema this build can read. */
+export const SUPPORTED_SCHEMA_VERSION = 1;
+
+/**
+ * Reject a backup this build cannot migrate.
+ *
+ * Kept beside the checksum check so the preview and the import ask exactly the
+ * same questions: the preview used to look at neither, so a hand-edited or
+ * future-format file showed a clean green preview and then failed on import.
+ */
+export function assertSupportedSchemaVersion(version: unknown): void {
+  if (version !== SUPPORTED_SCHEMA_VERSION) {
+    throw new Error(`Unsupported schema version: ${version}. Cannot migrate.`);
+  }
+}
+
+/** The weak 32-bit hash used when the exporting context had no crypto.subtle. */
+const fallbackHash = (payload: string): string => {
+  let hash = 0;
+  for (let i = 0; i < payload.length; i++) {
+    const char = payload.charCodeAt(i);
+    hash = (hash << 5) - hash + char;
+    hash = hash & hash;
+  }
+  return hash.toString(16);
+};
+
+/**
+ * Verify a parsed backup's integrity checksum.
+ *
+ * Prefer SHA-256 always, and only fall back to the weak 32-bit hash when the
+ * file actually declares it — a backup exported from a context without
+ * crypto.subtle (plain-http dev, some embedded browsers) legitimately carries
+ * one. Note the checksum is an integrity check, not a security boundary:
+ * anyone crafting a backup can compute a valid digest under either algorithm.
+ */
+export async function verifyBackupChecksum(parsed: any): Promise<void> {
+  if (!parsed || typeof parsed !== 'object') {
+    throw new Error('Import failed: Backup data is not a valid JSON object.');
+  }
+  if (!parsed.checksum) {
+    throw new Error('No checksum found in backup file');
+  }
+
+  const { checksum, ...dataToVerify } = parsed;
+  let payloadString: string = JSON.stringify(dataToVerify);
+
+  let verified = false;
+  let subtleAvailable = true;
+
+  try {
+    const msgUint8 = new TextEncoder().encode(payloadString);
+    const hashBuffer = await crypto.subtle.digest('SHA-256', msgUint8);
+    const hashArray = Array.from(new Uint8Array(hashBuffer));
+    verified = checksum === hashArray.map((b) => b.toString(16).padStart(2, '0')).join('');
+  } catch {
+    subtleAvailable = false;
+  }
+
+  if (!verified && dataToVerify.checksumAlgorithm === 'fallback') {
+    verified = checksum === fallbackHash(payloadString);
+  }
+
+  // The re-serialised payload is only needed for the checksum; drop it before
+  // returning so it is not resident alongside the records being imported.
+  payloadString = '';
+
+  if (!verified) {
+    if (!subtleAvailable && dataToVerify.checksumAlgorithm !== 'fallback') {
+      throw new Error('Cannot verify SHA-256 backup checksum in this environment. Ensure you are on HTTPS.');
+    }
+    throw new Error(
+      'Data corruption detected: Checksum mismatch. If you edited this backup by hand, re-export it from TimeDoco instead.'
+    );
+  }
+}
+
+/**
+ * Read a backup file and run every check that is about the *file* rather than
+ * its contents: size, parseability, schema version and checksum.
+ *
+ * The import preview and the import itself both call this, so the preview can
+ * no longer pass a file the import will reject.
+ *
+ * @returns the parsed backup, for the caller to validate and migrate.
+ */
+export async function verifyBackupFile(file: File): Promise<any> {
+  if (file.size > MAX_IMPORT_FILE_BYTES) {
+    throw new Error('Import failed: File size exceeds the 20MB limit.');
+  }
+
+  // file.text() rather than FileReader: a reader holds its own reference to the
+  // decoded string for as long as it is alive, so the file text could not be
+  // released after parsing. Here the local can be dropped, which matters when
+  // the text, the parsed object and the re-serialised payload would otherwise
+  // all be resident at once for a file up to 20MB.
+  let content: string = await file.text();
+  const parsed = JSON.parse(content);
+  content = '';
+
+  await verifyBackupChecksum(parsed);
+  assertSupportedSchemaVersion(parsed?.schemaVersion);
+
+  return parsed;
+}
+
 /** Data URLs only — never a remote reference that would make the app phone home. */
 const isSafeImageDataUrl = (value: string): boolean =>
   /^data:image\/(png|jpeg|jpg|webp|gif);base64,/i.test(value);

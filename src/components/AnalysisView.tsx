@@ -1,4 +1,4 @@
-import React, { useState, useMemo, useEffect } from 'react';
+import React, { useState, useMemo, useEffect, useCallback } from 'react';
 import { useTimeTracker } from '../context/TimeTrackerContext';
 import {
   startOfDay, endOfDay, startOfWeek, endOfWeek, subWeeks, parseISO, format,
@@ -156,45 +156,57 @@ export const AnalysisView: React.FC = () => {
     return { start: prevStart, end: prevEnd };
   }, [dateRange]);
 
-  // Filter entries in range
-  const filteredEntries = useMemo(() => {
+  // Every entry in the reporting window, before the group and timecode
+  // dropdowns are applied. This is what the rounding buckets are built from:
+  // at 'timecode' and 'invoice' scope a bucket's total is the set of entries
+  // handed to `buildLinesFromSettings`, so passing only the displayed subset
+  // made an entry's billable minutes move whenever the dropdowns changed.
+  const periodEntries = useMemo(() => {
     return entries.filter(entry => {
       const entryStart = parseISO(entry.startTime);
       const entryEnd = entry.endTime ? parseISO(entry.endTime) : new Date();
-      const inRange = entryStart <= dateRange.end && entryEnd >= dateRange.start;
-
-      const tc = timecodeMap.get(entry.timecodeId);
-      const matchesGroup = selectedGroupId === 'all' || tc?.groupId === selectedGroupId;
-      const matchesTimecode = selectedTimecodeId === 'all' || entry.timecodeId === selectedTimecodeId;
-
-      return inRange && matchesGroup && matchesTimecode;
+      return entryStart <= dateRange.end && entryEnd >= dateRange.start;
     });
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [entries, dateRange, tick, selectedGroupId, selectedTimecodeId, timecodeMap]);
+  }, [entries, dateRange, tick]);
 
-  // Previous Period Filtered Entries
-  const prevFilteredEntries = useMemo(() => {
+  const matchesFilters = useCallback((entry: Entry) => {
+    const tc = timecodeMap.get(entry.timecodeId);
+    const matchesGroup = selectedGroupId === 'all' || tc?.groupId === selectedGroupId;
+    const matchesTimecode = selectedTimecodeId === 'all' || entry.timecodeId === selectedTimecodeId;
+    return matchesGroup && matchesTimecode;
+  }, [timecodeMap, selectedGroupId, selectedTimecodeId]);
+
+  // What the report actually shows: the window narrowed by the dropdowns.
+  const filteredEntries = useMemo(
+    () => periodEntries.filter(matchesFilters),
+    [periodEntries, matchesFilters]
+  );
+
+  // Previous Period, same split: the whole window for the buckets, the filtered
+  // subset for what is compared.
+  const prevPeriodEntries = useMemo(() => {
     if (!comparePrevious) return [];
     return entries.filter(entry => {
       const entryStart = parseISO(entry.startTime);
       const entryEnd = entry.endTime ? parseISO(entry.endTime) : new Date();
-      const inRange = entryStart <= prevDateRange.end && entryEnd >= prevDateRange.start;
-
-      const tc = timecodeMap.get(entry.timecodeId);
-      const matchesGroup = selectedGroupId === 'all' || tc?.groupId === selectedGroupId;
-      const matchesTimecode = selectedTimecodeId === 'all' || entry.timecodeId === selectedTimecodeId;
-
-      return inRange && matchesGroup && matchesTimecode;
+      return entryStart <= prevDateRange.end && entryEnd >= prevDateRange.start;
     });
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [entries, prevDateRange, comparePrevious, selectedGroupId, selectedTimecodeId, timecodeMap]);
+  }, [entries, prevDateRange, comparePrevious]);
+
+  const prevFilteredEntries = useMemo(
+    () => prevPeriodEntries.filter(matchesFilters),
+    [prevPeriodEntries, matchesFilters]
+  );
 
   // One billable line per entry, shared by the on-screen totals, the PDF summary
   // and detail tables, and the CSV export. Computing it once is what stops the
   // same entry being billed differently on different surfaces of one invoice.
+  // Built over the whole window — see `periodEntries` — and looked up per
+  // displayed entry, which is what the scope window contract requires.
   const billableLines = useMemo(() => {
-    return buildLinesFromSettings(filteredEntries, settings, { dateRange, timecodeMap, now: new Date() });
-  }, [filteredEntries, dateRange, timecodeMap, settings]);
+    return buildLinesFromSettings(periodEntries, settings, { dateRange, timecodeMap, now: new Date() });
+  }, [periodEntries, dateRange, timecodeMap, settings]);
 
   // Calculations for Current Period
   const { timecodeData, groupData, totalSeconds, totalHours, totalWorkedSeconds, totalEarnings, taxBreakdown } = useMemo(() => {
@@ -266,12 +278,15 @@ export const AnalysisView: React.FC = () => {
     let pSec = 0;
     let pEarn = 0;
 
-    const prevLines = buildLinesFromSettings(prevFilteredEntries, settings, {
+    const prevLines = buildLinesFromSettings(prevPeriodEntries, settings, {
       dateRange: prevDateRange,
       timecodeMap,
       now: new Date(),
     });
-    prevLines.forEach(line => {
+    // Sum only the displayed subset, from lines bucketed over the whole window.
+    prevFilteredEntries.forEach(entry => {
+      const line = prevLines.get(entry.id);
+      if (!line) return;
       if (line.seconds <= 0 && line.amount === 0) return;
       pSec += line.seconds;
       pEarn += line.amount;
@@ -289,7 +304,7 @@ export const AnalysisView: React.FC = () => {
       diffEarnings,
       pctEarnings
     };
-  }, [prevFilteredEntries, prevDateRange, comparePrevious, totalSeconds, totalEarnings, timecodeMap, settings]);
+  }, [prevPeriodEntries, prevFilteredEntries, prevDateRange, comparePrevious, totalSeconds, totalEarnings, timecodeMap, settings]);
 
   // Billed-vs-worked, so the effect of rounding is visible rather than silent.
   const roundingDelta = useMemo(() => {
@@ -2060,6 +2075,7 @@ export const AnalysisView: React.FC = () => {
       {/* Entry Edit Modal */}
       {editingEntry && (
         <EntryEditModal
+          key={editingEntry.id}
           entry={editingEntry}
           onClose={() => setEditingEntry(null)}
         />

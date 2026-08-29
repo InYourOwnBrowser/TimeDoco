@@ -4,8 +4,8 @@ import { TimesheetMatrixView } from './TimesheetMatrixView';
 import { ToastProvider } from '../context/ToastContext';
 import { startOfWeek, format } from 'date-fns';
 
-const mockAddManualEntry = vi.fn().mockResolvedValue('entry-adj');
-const mockUpdateEntry = vi.fn().mockResolvedValue(undefined);
+const mockAddManualEntry = vi.fn().mockResolvedValue(true);
+const mockUpdateEntry = vi.fn().mockResolvedValue(true);
 const mockDeleteEntry = vi.fn().mockResolvedValue(undefined);
 
 const currentWeekStart = startOfWeek(new Date(), { weekStartsOn: 1 });

@@ -2,7 +2,7 @@ import { render, fireEvent, waitFor } from '@testing-library/react';
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { SettingsModal } from './SettingsModal';
 
-const mockUpdateSettings = vi.fn().mockResolvedValue(undefined);
+const mockUpdateSettings = vi.fn().mockResolvedValue(true);
 const mockAddToast = vi.fn();
 const mockAddTimecode = vi.fn();
 const mockBulkAddManualEntries = vi.fn().mockResolvedValue({ added: 1, skipped: 0 });

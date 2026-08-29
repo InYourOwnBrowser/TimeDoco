@@ -225,6 +225,33 @@ export const deleteEntry = async (id: string): Promise<void> =>
   });
 
 /**
+ * Write several entries as one unit: either every record lands or none does.
+ *
+ * Splitting an entry rewrites the original as the first half and creates the
+ * second half as a new record. Two sequential `putEntry` calls are two
+ * transactions, so a failure on the second — quota, an aborted transaction,
+ * Safari's private mode — leaves the original truncated and the remainder
+ * nowhere, which destroys time the user actually worked. One transaction makes
+ * that impossible: an error aborts it and the original stays as it was.
+ */
+export const putEntries = async (entries: Entry[]): Promise<void> => {
+  if (entries.length === 0) return;
+  return withDB(
+    async (db) => {
+      const tx = db.transaction('entries', 'readwrite');
+      const store = tx.objectStore('entries');
+      await Promise.all(entries.map((entry) => store.put(entry)));
+      await tx.done;
+    },
+    () => {
+      // The in-memory store has no transactions, but a Map write cannot fail
+      // partway either, so the same all-or-nothing holds without one.
+      entries.forEach((entry) => fallbackMemoryDB.entries.set(entry.id, entry));
+    },
+  );
+};
+
+/**
  * The primary running timer: the most recently started active timer,
  * matching GlobalActiveTimerBar and document title.
  */

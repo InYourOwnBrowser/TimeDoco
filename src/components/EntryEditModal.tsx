@@ -74,11 +74,30 @@ export const EntryEditModal: React.FC<EntryEditModalProps> = ({ entry, onClose }
     (isFixedCost && fixedCostDate !== initialFixedCostDate);
 
   useEffect(() => {
-    // Initialize formats for datetime-local inputs
+    // Re-sync every field, unconditionally.
+    //
+    // The end time used to be written only when the new entry had one. Pointed
+    // at a running entry without the component unmounting, the field kept the
+    // previous entry's end time and `handleSave` closed a live timer at a
+    // timestamp copied from an unrelated record. The other fields are `useState`
+    // initialisers, which only run on mount, so they were stale for the same
+    // reason — every one of them is reset here.
     setStartTime(initialStartTime);
-    if (entry.endTime) {
-      setEndTime(initialEndTime);
-    }
+    setEndTime(entry.endTime ? initialEndTime : '');
+    setTimecodeId(entry.timecodeId);
+    setNote(entry.note);
+    setTagsStr((entry.tags || []).join(', '));
+    setBreakMinutes(!entry.isRunning ? initialBreakMinutes : '');
+    setManualAmount(initialManualAmount);
+    setIsFixedCost(initialIsFixedCost);
+    setFixedCostDate(
+      entry.startTime ? format(parseISO(entry.startTime), 'yyyy-MM-dd') : new Date().toISOString().split('T')[0]
+    );
+    setError(null);
+    // Keyed on the entry's identity: the values above are recomputed on every
+    // render from a prop that changes identity on each reload, so depending on
+    // them would wipe the form out from under whoever is typing in it.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [entry.id]);
 
   useEffect(() => {
@@ -147,7 +166,10 @@ export const EntryEditModal: React.FC<EntryEditModalProps> = ({ entry, onClose }
         if (!confirmed) return;
       }
 
-      await updateEntry(entry.id, {
+      // Only report success once the write has actually landed. A failed write
+      // already raises its own error toast; adding a green one on top of it and
+      // closing the modal threw away everything the user had typed.
+      const savedFee = await updateEntry(entry.id, {
         timecodeId,
         note,
         tags: tagsStr.split(',').map(t => t.trim()).filter(t => t !== '').slice(0, 20),
@@ -156,6 +178,10 @@ export const EntryEditModal: React.FC<EntryEditModalProps> = ({ entry, onClose }
         pausedSegments: [],
         manualAmount: parseFloat(manualAmount),
       });
+      if (!savedFee) {
+        setError('Your changes were not saved. They are still here — try again.');
+        return;
+      }
 
       addToast(willDiscard ? 'Saved as a flat fee — recorded times removed' : 'Changes saved', 'success');
       onClose();
@@ -235,7 +261,11 @@ export const EntryEditModal: React.FC<EntryEditModalProps> = ({ entry, onClose }
       }
     }
 
-    await updateEntry(entry.id, updates);
+    const saved = await updateEntry(entry.id, updates);
+    if (!saved) {
+      setError('Your changes were not saved. They are still here — try again.');
+      return;
+    }
     addToast('Changes saved', 'success');
     onClose();
   };

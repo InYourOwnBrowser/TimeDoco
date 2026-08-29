@@ -44,7 +44,7 @@ vi.mock('../context/TimeTrackerContext', () => ({
     timecodes: mockTimecodes,
     groups: mockGroups,
     settings: { currencySymbol: '$', taxEnabled: false, templates: [] },
-    updateSettings: vi.fn(),
+    updateSettings: vi.fn().mockResolvedValue(true),
   }),
 }));
 

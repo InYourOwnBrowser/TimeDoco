@@ -5,8 +5,10 @@ import { AnalysisView } from './AnalysisView';
 import { TemplateList } from './TemplateList';
 import { ManualEntryModal } from './ManualEntryModal';
 
-const mockUpdateSettings = vi.fn().mockResolvedValue(undefined);
-const mockAddManualEntry = vi.fn().mockResolvedValue(undefined);
+// These resolve to whether the write was stored; callers gate their success
+// toast and their close on that.
+const mockUpdateSettings = vi.fn().mockResolvedValue(true);
+const mockAddManualEntry = vi.fn().mockResolvedValue(true);
 const mockStartTimer = vi.fn().mockResolvedValue(undefined);
 const mockAddToast = vi.fn();
 

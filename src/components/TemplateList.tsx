@@ -10,7 +10,7 @@ import { checkOverlap } from '../utils/timeUtils';
 import { HelpTooltip } from './ui/HelpTooltip';
 
 export const TemplateList: React.FC = () => {
-  const { settings, updateSettings, addManualEntry, timecodes, groups, entries, startTimer } = useTimeTracker();
+  const { settings, updateSettings, restoreTemplate, addManualEntry, timecodes, groups, entries, startTimer } = useTimeTracker();
   const { addToast } = useToast();
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingTemplate, setEditingTemplate] = useState<EntryTemplate | null>(null);
@@ -89,7 +89,9 @@ export const TemplateList: React.FC = () => {
       // merges these keys over them, so passing the whole React snapshot would
       // reinstate every other field as this tab last saw it and undo whatever a
       // second tab changed in the meantime.
-      await updateSettings({ templates: newTemplates });
+      // Only claim the template was saved once the write has landed, and leave
+      // the form open with its contents if it was not.
+      if (!(await updateSettings({ templates: newTemplates }))) return;
       addToast(`Template ${editingTemplate ? 'updated' : 'created'}`);
       handleCloseModal();
     }
@@ -104,13 +106,17 @@ export const TemplateList: React.FC = () => {
       return;
     }
 
+    const originalIndex = templates.findIndex(t => t.id === id);
     const newTemplates = templates.filter(t => t.id !== id);
     if (settings) {
-      await updateSettings({ templates: newTemplates });
+      if (!(await updateSettings({ templates: newTemplates }))) return;
       addToast('Template deleted', 'success', {
         label: 'Undo',
         onClick: () => {
-          updateSettings({ templates: [...newTemplates, templateToDelete] });
+          // `restoreTemplate` merges against the stored list. Writing the
+          // pre-delete snapshot back instead deleted any template created
+          // during the five second undo window.
+          restoreTemplate(templateToDelete, originalIndex);
         }
       }, 5000);
     }
@@ -133,13 +139,14 @@ export const TemplateList: React.FC = () => {
       }
     }
 
-    await addManualEntry({
+    const logged = await addManualEntry({
       timecodeId: template.timecodeId,
       startTime: start.toISOString(),
       endTime: end.toISOString(),
       note: template.note,
       tags: template.tags
     });
+    if (!logged) return;
 
     addToast(`Logged ${template.durationMinutes}m for ${template.title}`, 'success');
   };

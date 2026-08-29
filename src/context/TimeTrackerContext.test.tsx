@@ -1982,4 +1982,246 @@ describe('TimeTrackerContext Reducer Logic', () => {
 
     putSpy.mockRestore();
   });
+
+  // --- C1: a split is one write or none ---
+
+  it('splitEntry leaves the original whole when the second half cannot be stored', async () => {
+    await db.putTimecode(seedTimecode('tc-atomic', { updatedAt: NOW_ISO }));
+    await db.putEntry(liveEntry('e-atomic', 'tc-atomic', '2024-06-01T10:00:00.000Z', '2024-06-01T12:00:00.000Z', {
+      manualAmount: 500,
+    }));
+    const getCtx = await renderCtx();
+    await waitFor(() => expect(getCtx().entries.length).toBe(1));
+
+    // Written as two sequential puts, a failure here truncated the original to
+    // the first half and lost the second half — and the fee on it — outright.
+    const quotaError = Object.assign(new Error('QuotaExceededError'), { name: 'QuotaExceededError' });
+    const putSpy = vi.spyOn(db, 'putEntries').mockRejectedValueOnce(quotaError);
+
+    let result: import('./TimeTrackerContext').SplitEntryResult | undefined;
+    await act(async () => {
+      result = await getCtx().splitEntry('e-atomic', '2024-06-01T11:00:00.000Z');
+    });
+
+    expect(result!.ok).toBe(false);
+
+    const stored = await db.getEntries();
+    expect(stored.length).toBe(1);
+    expect(stored[0].id).toBe('e-atomic');
+    expect(stored[0].endTime).toBe('2024-06-01T12:00:00.000Z');
+    expect(stored[0].manualAmount).toBe(500);
+
+    putSpy.mockRestore();
+  });
+
+  it('splitEntry writes both halves in one transaction', async () => {
+    await db.putTimecode(seedTimecode('tc-tx', { updatedAt: NOW_ISO }));
+    await db.putEntry(liveEntry('e-tx', 'tc-tx', '2024-06-01T10:00:00.000Z', '2024-06-01T12:00:00.000Z'));
+    const getCtx = await renderCtx();
+    await waitFor(() => expect(getCtx().entries.length).toBe(1));
+
+    const putEntriesSpy = vi.spyOn(db, 'putEntries');
+    const putEntrySpy = vi.spyOn(db, 'putEntry');
+
+    await act(async () => {
+      await getCtx().splitEntry('e-tx', '2024-06-01T11:00:00.000Z');
+    });
+
+    expect(putEntriesSpy).toHaveBeenCalledTimes(1);
+    expect(putEntriesSpy.mock.calls[0][0]).toHaveLength(2);
+    expect(putEntrySpy).not.toHaveBeenCalled();
+
+    putEntriesSpy.mockRestore();
+    putEntrySpy.mockRestore();
+  });
+
+  // --- C2: a mutation reports whether it stored anything ---
+
+  it('the write-returning mutations resolve false when the write fails', async () => {
+    await db.putTimecode(seedTimecode('tc-bool', { updatedAt: NOW_ISO }));
+    await db.putEntry(liveEntry('e-bool', 'tc-bool', '2024-06-02T10:00:00.000Z', '2024-06-02T11:00:00.000Z'));
+    const getCtx = await renderCtx();
+    await waitFor(() => expect(getCtx().entries.length).toBe(1));
+
+    const quotaError = Object.assign(new Error('QuotaExceededError'), { name: 'QuotaExceededError' });
+
+    let updated: boolean | undefined;
+    const entrySpy = vi.spyOn(db, 'putEntry').mockRejectedValueOnce(quotaError);
+    await act(async () => { updated = await getCtx().updateEntry('e-bool', { note: 'edited' }); });
+    expect(updated).toBe(false);
+    entrySpy.mockRestore();
+
+    let added: boolean | undefined;
+    const addSpy = vi.spyOn(db, 'putEntry').mockRejectedValueOnce(quotaError);
+    await act(async () => {
+      added = await getCtx().addManualEntry({
+        startTime: '2024-06-03T09:00:00.000Z',
+        endTime: '2024-06-03T10:00:00.000Z',
+        timecodeId: 'tc-bool',
+        note: 'never stored',
+      });
+    });
+    expect(added).toBe(false);
+    addSpy.mockRestore();
+
+    let settingsSaved: boolean | undefined;
+    const settingsSpy = vi.spyOn(db, 'putSettings').mockRejectedValueOnce(quotaError);
+    await act(async () => { settingsSaved = await getCtx().updateSettings({ roundingRule: '10min' }); });
+    expect(settingsSaved).toBe(false);
+    settingsSpy.mockRestore();
+
+    let tcSaved: boolean | undefined;
+    const tcSpy = vi.spyOn(db, 'putTimecode').mockRejectedValueOnce(quotaError);
+    await act(async () => { tcSaved = await getCtx().updateTimecode('tc-bool', { name: 'renamed' }); });
+    expect(tcSaved).toBe(false);
+    tcSpy.mockRestore();
+
+    let groupId = '';
+    await act(async () => { groupId = (await getCtx().addGroup('G', '#fff')).id; });
+    let groupSaved: boolean | undefined;
+    const groupSpy = vi.spyOn(db, 'putGroup').mockRejectedValueOnce(quotaError);
+    await act(async () => { groupSaved = await getCtx().updateGroup(groupId, { name: 'renamed' }); });
+    expect(groupSaved).toBe(false);
+    groupSpy.mockRestore();
+  });
+
+  it('the same mutations resolve true on a write that lands', async () => {
+    await db.putTimecode(seedTimecode('tc-ok', { updatedAt: NOW_ISO }));
+    await db.putEntry(liveEntry('e-ok', 'tc-ok', '2024-06-04T10:00:00.000Z', '2024-06-04T11:00:00.000Z'));
+    const getCtx = await renderCtx();
+    await waitFor(() => expect(getCtx().entries.length).toBe(1));
+
+    let updated: boolean | undefined;
+    await act(async () => { updated = await getCtx().updateEntry('e-ok', { note: 'edited' }); });
+    expect(updated).toBe(true);
+
+    let settingsSaved: boolean | undefined;
+    await act(async () => { settingsSaved = await getCtx().updateSettings({ roundingRule: '10min' }); });
+    expect(settingsSaved).toBe(true);
+
+    // An entry that is not there was never saved either, however healthy the
+    // database is — the caller must not report that as success.
+    let missing: boolean | undefined;
+    await act(async () => { missing = await getCtx().updateEntry('no-such-entry', { note: 'x' }); });
+    expect(missing).toBe(false);
+  });
+
+  // --- H2: updateEntry takes the timer queue ---
+
+  it('a stop landing mid-edit is not overwritten by the pre-stop copy', async () => {
+    await db.putTimecode(seedTimecode('tc-race', { updatedAt: NOW_ISO }));
+    const getCtx = await renderCtx();
+
+    let runningId = '';
+    await act(async () => { await getCtx().startTimer('tc-race'); });
+    await waitFor(() => {
+      expect(getCtx().activeEntries.length).toBe(1);
+      runningId = getCtx().activeEntries[0].id;
+    });
+
+    // Hold updateEntry's read open, start a stop behind it, then let it finish.
+    // Without the queue the edit writes the whole record back from the copy it
+    // read before the stop, resurrecting the timer and losing the end time.
+    let releaseRead: () => void = () => {};
+    const gate = new Promise<void>((resolve) => { releaseRead = resolve; });
+    const realGetEntry = db.getEntry;
+    const getSpy = vi.spyOn(db, 'getEntry').mockImplementationOnce(async (id: string) => {
+      const value = await realGetEntry(id);
+      await gate;
+      return value;
+    });
+
+    await act(async () => {
+      const editing = getCtx().updateEntry(runningId, { note: 'edited while running' });
+      const stopping = getCtx().stopTimer(runningId);
+
+      // Give the stop every chance to land before the edit's write, rather than
+      // guessing at a delay. Serialised it never can — the edit holds the queue
+      // — so this waits out its ceiling and the stop runs after the edit, and
+      // both stick. Unserialised the stop lands here, and the edit then writes
+      // the copy it read before it straight over the top.
+      for (let waited = 0; waited < 400; waited += 20) {
+        // The unspied read: the one-shot mock belongs to updateEntry's own read,
+        // and consuming it here would gate this poll instead and deadlock.
+        if (!(await realGetEntry(runningId))!.isRunning) break;
+        await new Promise((resolve) => setTimeout(resolve, 20));
+      }
+
+      releaseRead();
+      await Promise.all([editing, stopping]);
+    });
+
+    const stored = await db.getEntry(runningId);
+    expect(stored!.isRunning).toBe(false);
+    expect(stored!.endTime).toBeTruthy();
+    expect(stored!.note).toBe('edited while running');
+
+    getSpy.mockRestore();
+  });
+
+  // --- H6: undoing a stop reports a failed write ---
+
+  it('undoStopTimer surfaces a failed write instead of leaving the timer stopped in silence', async () => {
+    await db.putTimecode(seedTimecode('tc-undo', { updatedAt: NOW_ISO }));
+    const getCtx = await renderCtx();
+
+    let runningId = '';
+    await act(async () => { await getCtx().startTimer('tc-undo'); });
+    await waitFor(() => {
+      expect(getCtx().activeEntries.length).toBe(1);
+      runningId = getCtx().activeEntries[0].id;
+    });
+
+    await act(async () => { await getCtx().stopTimer(runningId); });
+    await waitFor(() => expect(getCtx().lastStoppedEntry?.id).toBe(runningId));
+
+    const stopped = getCtx().lastStoppedEntry!;
+    const quotaError = Object.assign(new Error('QuotaExceededError'), { name: 'QuotaExceededError' });
+    const putSpy = vi.spyOn(db, 'putEntry').mockRejectedValueOnce(quotaError);
+
+    // Invoked the way the toast invokes it: nothing awaits the result, so an
+    // unwrapped rejection here surfaced as an unhandled one and told the user
+    // nothing at all.
+    await act(async () => { await getCtx().undoStopTimer(stopped); });
+
+    const stored = await db.getEntry(runningId);
+    expect(stored!.isRunning).toBe(false);
+    expect(getCtx().lastStoppedEntry).toBeNull();
+
+    putSpy.mockRestore();
+  });
+
+  // --- H4: restoring a deleted template merges rather than replays ---
+
+  it('restoreTemplate keeps a template created inside the undo window', async () => {
+    const getCtx = await renderCtx();
+    await act(async () => {
+      await getCtx().updateSettings({
+        templates: [
+          { id: 't-deleted', title: 'Deleted', timecodeId: 'tc-1', durationMinutes: 15, note: '' },
+          { id: 't-kept', title: 'Kept', timecodeId: 'tc-1', durationMinutes: 30, note: '' },
+        ],
+      });
+    });
+
+    const removed = getCtx().settings!.templates!.find((t) => t.id === 't-deleted')!;
+    const afterDelete = getCtx().settings!.templates!.filter((t) => t.id !== 't-deleted');
+    await act(async () => { await getCtx().updateSettings({ templates: afterDelete }); });
+
+    // A new template arrives before the undo toast expires.
+    await act(async () => {
+      await getCtx().updateSettings({
+        templates: [
+          ...getCtx().settings!.templates!,
+          { id: 't-new', title: 'New', timecodeId: 'tc-1', durationMinutes: 45, note: '' },
+        ],
+      });
+    });
+
+    await act(async () => { await getCtx().restoreTemplate(removed, 0); });
+
+    const ids = (await db.getSettings())!.templates!.map((t) => t.id);
+    // Replaying the pre-delete snapshot would have written 't-new' away.
+    expect(ids).toEqual(['t-deleted', 't-kept', 't-new']);
+  });
 });

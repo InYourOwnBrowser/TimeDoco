@@ -62,7 +62,7 @@ vi.mock('../context/TimeTrackerContext', () => ({
     timecodes: mockTimecodes,
     groups: mockGroups,
     settings: mockSettings,
-    updateSettings: vi.fn(),
+    updateSettings: vi.fn().mockResolvedValue(true),
   }),
 }));
 

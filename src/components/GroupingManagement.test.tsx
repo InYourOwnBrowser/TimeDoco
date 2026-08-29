@@ -4,10 +4,10 @@ import { GroupingManagement } from './GroupingManagement';
 import type { Group, Timecode, Entry } from '../types';
 
 const mockAddGroup = vi.fn().mockResolvedValue({ id: 'g3', name: 'New Client', color: '#3E7368' });
-const mockUpdateGroup = vi.fn().mockResolvedValue(undefined);
+const mockUpdateGroup = vi.fn().mockResolvedValue(true);
 const mockDeleteGroup = vi.fn().mockResolvedValue(undefined);
 const mockAddTimecode = vi.fn().mockResolvedValue({ id: 'tc4', name: 'New Task', groupId: 'g1' });
-const mockUpdateTimecode = vi.fn().mockResolvedValue(undefined);
+const mockUpdateTimecode = vi.fn().mockResolvedValue(true);
 const mockDeleteTimecode = vi.fn().mockResolvedValue(undefined);
 const mockMergeTimecodes = vi.fn().mockResolvedValue(undefined);
 const mockAddToast = vi.fn();

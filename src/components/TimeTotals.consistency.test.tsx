@@ -53,6 +53,17 @@ const weekEntries: Entry[] = [
   { ...base, id: 'e3', startTime: local(8, 13, 30), endTime: null, duration: 0, isRunning: true, createdAt: local(8, 13, 30), updatedAt: local(8, 13, 30) },
 ];
 
+// Two 20-minute entries on two different days of the same week. At 15-minute
+// rounding the scope decides the answer and the two answers differ: rounded per
+// day it is 30 + 30 = 1.00h, pooled over the week it is 45 minutes = 0.75h. The
+// week-total tests above use lengths where both scopes happen to land on the
+// same hour, so they could not tell a grid that ignored the scope window from
+// one that honoured it.
+const scopeSensitiveWeek: Entry[] = [
+  { ...base, id: 's1', startTime: local(6, 9, 0), endTime: local(6, 9, 20), duration: 1200, isRunning: false, createdAt: local(6, 9, 0), updatedAt: local(6, 9, 20) },
+  { ...base, id: 's2', startTime: local(7, 9, 0), endTime: local(7, 9, 20), duration: 1200, isRunning: false, createdAt: local(7, 9, 0), updatedAt: local(7, 9, 20) },
+];
+
 // Two weeks earlier, so it is history the entry list shows but no week-scoped
 // surface does. 40 minutes: a length that rounds differently on its own day
 // than it does pooled with the week.
@@ -88,8 +99,8 @@ vi.mock('../context/TimeTrackerContext', () => ({
     get settings() { return settings; },
     deleteEntry: vi.fn(),
     bulkDeleteEntries: vi.fn(),
-    updateEntry: vi.fn(),
-    addManualEntry: vi.fn(),
+    updateEntry: vi.fn().mockResolvedValue(true),
+    addManualEntry: vi.fn().mockResolvedValue(true),
   }),
 }));
 
@@ -149,6 +160,28 @@ describe('every surface answers "how much time this week" with the same number',
       render(<WeeklySummary />);
       // The same week, the same window, the same hour.
       expect(screen.getByText('1.0')).toBeTruthy();
+    });
+  }
+
+  // The grid and the calendar are two tabs of the same Timesheet view. The grid
+  // named no scope window, so 'timecode' and 'invoice' silently degraded to
+  // 'day' there while the calendar honoured them — two tabs, two numbers for the
+  // same two entries.
+  for (const scope of ['timecode', 'invoice'] as const) {
+    it(`timesheet grid and calendar show the same per-day figure at ${scope} scope`, () => {
+      settings = { ...baseSettings, roundingScope: scope };
+      entries = scopeSensitiveWeek;
+
+      render(<TimesheetMatrixView />);
+      // 40 minutes pooled over the window rounds to 45, shared back as 22.5
+      // minutes a day. Rounded per day instead, each cell would read 0.50 and
+      // the week total 1.00.
+      expect(screen.getAllByDisplayValue('0.38')).toHaveLength(2);
+      expect(screen.getAllByText('0.75').length).toBeGreaterThan(0);
+      cleanup();
+
+      render(<TimesheetCalendarView />);
+      expect(screen.getAllByText('0.38h')).toHaveLength(2);
     });
   }
 

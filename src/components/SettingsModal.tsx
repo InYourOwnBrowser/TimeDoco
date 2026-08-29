@@ -7,7 +7,7 @@ import { Modal } from './ui/Modal';
 import { Panel } from './ui/Panel';
 import { HelpTooltip } from './ui/HelpTooltip';
 import { useToast } from '../context/ToastContext';
-import { validateBackupPayload, MAX_IMPORT_FILE_BYTES, MAX_IMPORT_ENTRIES, parseCSVDate } from '../utils/importValidation';
+import { validateBackupPayload, verifyBackupFile, MAX_IMPORT_FILE_BYTES, MAX_IMPORT_ENTRIES, parseCSVDate } from '../utils/importValidation';
 import { findOverlappingCandidates } from '../utils/timeUtils';
 import { formatErrorLogForClipboard } from '../utils/errorLog';
 
@@ -135,7 +135,10 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ onClose }) => {
   };
 
   const handleUpdateSettings = async (updates: any) => {
-    await updateSettings(updates);
+    // The "Saved" chip is a claim about storage, so it waits on storage. A
+    // failed write raises its own error toast; showing "Saved" beside it told
+    // the user their preference had been kept when it had not.
+    if (!(await updateSettings(updates))) return;
     setJustSaved(true);
     if (saveTimeoutRef.current) {
       window.clearTimeout(saveTimeoutRef.current);
@@ -160,7 +163,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ onClose }) => {
     }
   };
 
-  const [importPreview, setImportPreview] = useState<{ groups: number, timecodes: number, entries: number } | null>(null);
+  const [importPreview, setImportPreview] = useState<{ groups: number, timecodes: number, entries: number, skipped: number } | null>(null);
 
   // The preview is validated against the selected mode, so switching mode
   // invalidates it: a merge preview says nothing about whether a replace import
@@ -190,14 +193,10 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ onClose }) => {
         setIsProcessing(true);
         setStatusMsg(null);
 
-        const content = await new Promise<string>((resolve, reject) => {
-          const reader = new FileReader();
-          reader.onload = (e) => resolve(e.target?.result as string);
-          reader.onerror = () => reject(new Error('Failed to read file'));
-          reader.readAsText(file);
-        });
-
-        const parsed = JSON.parse(content);
+        // The same size, parse, checksum and schema-version checks importData
+        // runs. Skipping them here meant a hand-edited or future-format backup
+        // showed a clean green preview and then failed on the real import.
+        const parsed = await verifyBackupFile(file);
         // Validate exactly as importData will, or the preview passes a file the
         // import then rejects (and vice versa). Merge mode is the only one that
         // accepts a reference to a locally-stored timecode, and "locally stored"
@@ -224,10 +223,28 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ onClose }) => {
             : undefined
         );
 
+        // Merge mode drops incoming entries that overlap time already stored,
+        // so the raw file count is not the number that will be imported. The
+        // same `findOverlappingCandidates` pass importData uses gives the
+        // number the user will actually get.
+        let skipped = 0;
+        if (importMode === 'merge') {
+          const incoming: any[] = parsed.entries;
+          const incomingIds = new Set(incoming.map((e: any) => e?.id));
+          const untouchedLocal = entries.filter((e) => !incomingIds.has(e.id) && !e.deletedAt);
+          const liveIncoming = incoming.filter((e: any) => !e?.deletedAt);
+          skipped = findOverlappingCandidates(
+            liveIncoming,
+            untouchedLocal,
+            settings?.allowConcurrentTimers ?? false
+          ).size;
+        }
+
         setImportPreview({
           groups: parsed.groups.length,
           timecodes: parsed.timecodes.length,
-          entries: parsed.entries.length,
+          entries: parsed.entries.length - skipped,
+          skipped,
         });
 
       } catch (error: any) {
@@ -292,6 +309,38 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ onClose }) => {
         // them in the database with nothing referencing them, and every retry
         // would strand another set.
         const createdTimecodes: string[] = [];
+
+        /**
+         * Remove the timecodes this import created, for a run that imported
+         * nothing. They are new by construction — nothing outside this import
+         * can reference them yet — so hard-deleting them cannot orphan
+         * anything.
+         *
+         * `hardDeleteTimecode` is guarded: it reports its own failure and
+         * resolves either way, so the count comes from its return value.
+         * Incrementing on every call instead claimed a cleanup that may not
+         * have happened.
+         */
+        const rollbackCreatedTimecodes = async (): Promise<string> => {
+          let rolledBack = 0;
+          let failed = 0;
+          for (const id of createdTimecodes) {
+            if (await hardDeleteTimecode(id)) rolledBack++;
+            else failed++;
+          }
+          createdTimecodes.length = 0;
+          if (rolledBack === 0 && failed === 0) return '';
+          const removed = rolledBack > 0
+            ? ` No entries were imported; ${rolledBack} ${rolledBack === 1 ? 'timecode' : 'timecodes'} created by this import ${rolledBack === 1 ? 'was' : 'were'} removed.`
+            : ' No entries were imported.';
+          // A failed rollback leaves the timecode live and empty, not trashed:
+          // hardDeleteTimecode is a permanent delete, not a soft one.
+          const leftover = failed > 0
+            ? ` ${failed} could not be removed — delete ${failed === 1 ? 'it' : 'them'} from the timecode list.`
+            : '';
+          return removed + leftover;
+        };
+
         try {
           if (results.data.length > MAX_IMPORT_ENTRIES) {
             setStatusMsg({ type: 'error', text: `CSV contains ${results.data.length} rows, exceeding the limit of ${MAX_IMPORT_ENTRIES}.` });
@@ -388,9 +437,15 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ onClose }) => {
             return;
           }
 
-          // Use current local timecodes map to construct dummy entries for findOverlappingCandidates
+          // Every timecode in the database, trashed ones included — the same
+          // set the JSON import resolves against. Matching live timecodes only
+          // created a second, identically named timecode whenever the CSV
+          // referred to one that happened to be in the trash.
           const tcMapByName = new Map<string, string>();
-          timecodes.forEach(tc => tcMapByName.set(tc.name.toLowerCase(), tc.id));
+          [...timecodes, ...deletedTimecodes].forEach(tc => {
+            const key = tc.name.toLowerCase();
+            if (!tcMapByName.has(key)) tcMapByName.set(key, tc.id);
+          });
 
           // Assign temporary or existing timecode IDs for overlap check
           const candidateEntriesForCheck = candidates.map(c => {
@@ -428,8 +483,33 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ onClose }) => {
             return;
           }
 
+          // A CSV name that matches a trashed timecode reuses that record rather
+          // than silently creating a duplicate of it. Restoring one also brings
+          // back the entries trashed with it, so the user decides.
+          const neededNames = new Set(survivingCandidates.map(c => c.timecodeName.toLowerCase()));
+          const trashedMatches = deletedTimecodes.filter(tc => neededNames.has(tc.name.toLowerCase()));
+          let reuseTrashed = false;
+          if (trashedMatches.length > 0) {
+            reuseTrashed = window.confirm(
+              `${trashedMatches.length === 1 ? 'A timecode' : `${trashedMatches.length} timecodes`} in this CSV ` +
+              `${trashedMatches.length === 1 ? 'matches one' : 'match ones'} currently in the trash ` +
+              `(${trashedMatches.map(tc => tc.name).join(', ')}).\n\n` +
+              'OK restores them and files the imported rows against them — which also restores any entries ' +
+              'trashed alongside them.\nCancel creates new timecodes with the same names instead.'
+            );
+          }
+
+          const restoredTimecodes: string[] = [];
+          if (reuseTrashed) {
+            for (const tc of trashedMatches) {
+              if (await restoreTimecode(tc.id)) restoredTimecodes.push(tc.id);
+            }
+          }
+
           // Pass 2: Create required timecodes and add surviving entries
-          const localTimecodes = [...timecodes];
+          const localTimecodes = reuseTrashed
+            ? [...timecodes, ...trashedMatches.filter(tc => restoredTimecodes.includes(tc.id))]
+            : [...timecodes];
           const entriesToBulkAdd: { startTime: string; endTime: string; timecodeId: string; note: string; tags: string[]; manualAmount: number | null }[] = [];
 
           for (const item of survivingCandidates) {
@@ -460,25 +540,19 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ onClose }) => {
           } else if (importedCount > 0 && skippedCount > 0) {
             setStatusMsg({ type: 'error', text: `Imported ${importedCount} entries, skipped ${skippedCount} rows that were malformed or overlapped existing entries.` });
           } else {
-            setStatusMsg({ type: 'error', text: 'Failed to import any entries. Check the CSV format, and that its rows do not overlap entries you already have.' });
+            // Nothing was written, and `bulkAddManualEntries` resolves rather
+            // than throwing when its own overlap pass rejects every row — so
+            // the catch below never ran and the timecodes this import created
+            // were left behind, empty, with nothing referencing them.
+            const cleanup = await rollbackCreatedTimecodes();
+            setStatusMsg({
+              type: 'error',
+              text: 'Failed to import any entries. Check the CSV format, and that its rows do not overlap entries you already have.' + cleanup,
+            });
           }
         } catch (err: any) {
-          // Roll back the timecodes this import created. They are new by
-          // construction — nothing outside this failed import can reference
-          // them yet — so hard-deleting them cannot orphan anything.
-          let rolledBack = 0;
-          for (const id of createdTimecodes) {
-            try {
-              await hardDeleteTimecode(id);
-              rolledBack++;
-            } catch (cleanupError) {
-              console.warn('Could not roll back timecode created during a failed CSV import:', id, cleanupError);
-            }
-          }
-          const suffix = rolledBack > 0
-            ? ` No entries were imported; ${rolledBack} ${rolledBack === 1 ? 'timecode' : 'timecodes'} created by this import ${rolledBack === 1 ? 'was' : 'were'} removed.`
-            : '';
-          setStatusMsg({ type: 'error', text: `CSV Import Error: ${err.message || 'An unexpected error occurred.'}${suffix}` });
+          const cleanup = await rollbackCreatedTimecodes();
+          setStatusMsg({ type: 'error', text: `CSV Import Error: ${err.message || 'An unexpected error occurred.'}${cleanup}` });
         } finally {
           setIsProcessing(false);
           if (csvInputRef.current) csvInputRef.current.value = '';
@@ -973,12 +1047,18 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ onClose }) => {
                   <>
                     {importPreview && (
                       <div className="bg-stone dark:bg-gray-800/30 p-3 rounded-md border border-graphite/20 dark:border-white/20 mb-4 text-sm text-graphite dark:text-stone">
-                        <p className="font-medium mb-1">Backup valid! Found:</p>
+                        <p className="font-medium mb-1">Backup valid! Will import:</p>
                         <ul className="list-disc pl-5">
                           <li>{importPreview.groups} groups</li>
                           <li>{importPreview.timecodes} timecodes</li>
                           <li>{importPreview.entries} entries</li>
                         </ul>
+                        {importPreview.skipped > 0 && (
+                          <p className="mt-2 text-gray-600 dark:text-gray-400">
+                            {importPreview.skipped} {importPreview.skipped === 1 ? 'entry' : 'entries'} will be skipped
+                            because {importPreview.skipped === 1 ? 'it overlaps' : 'they overlap'} time you already have.
+                          </p>
+                        )}
                       </div>
                     )}
                     <button

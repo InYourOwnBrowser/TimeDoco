@@ -1,11 +1,17 @@
 import React, { createContext, useContext, useState, useEffect, useCallback, useRef, type ReactNode } from 'react';
-import type { Group, Timecode, Entry, Settings, PauseSegment, EditHistory } from '../types';
+import type { Group, Timecode, Entry, Settings, PauseSegment, EditHistory, EntryTemplate } from '../types';
 import * as db from '../db';
 import { differenceInSeconds, isSameDay } from 'date-fns';
 import { calculateDuration, findOverlappingCandidates } from '../utils/timeUtils';
 import { clearErrorLog, logError } from '../utils/errorLog';
 import { useToast } from './ToastContext';
-import { validateBackupPayload, MAX_IMPORT_FILE_BYTES, MAX_IMPORT_ENTRIES } from '../utils/importValidation';
+import {
+  validateBackupPayload,
+  verifyBackupFile,
+  assertSupportedSchemaVersion,
+  SUPPORTED_SCHEMA_VERSION,
+  MAX_IMPORT_ENTRIES,
+} from '../utils/importValidation';
 
 /** Which half of a split keeps a flat fee. A fee is not a rate, so it cannot be divided by time. */
 export type FeeAllocation = 'first' | 'second' | 'discard';
@@ -28,25 +34,38 @@ interface TimeTrackerContextType {
   pauseTimer: (entryId: string, pauseStartTime?: string) => Promise<void>;
   resumeTimer: (entryId: string) => Promise<void>;
   addGroup: (name: string, color: string) => Promise<Group>;
-  updateGroup: (id: string, updates: Partial<Group>) => Promise<void>;
-  deleteGroup: (id: string) => Promise<void>;
+  /** Resolves to whether the change was stored. Gate any success message on it. */
+  updateGroup: (id: string, updates: Partial<Group>) => Promise<boolean>;
+  deleteGroup: (id: string) => Promise<boolean>;
   addTimecode: (name: string, color?: string, groupId?: string, hourlyRate?: number, options?: { deferRefresh?: boolean }) => Promise<Timecode>;
-  updateTimecode: (id: string, updates: Partial<Timecode>) => Promise<void>;
-  deleteTimecode: (id: string) => Promise<void>;
+  /** Resolves to whether the change was stored. Gate any success message on it. */
+  updateTimecode: (id: string, updates: Partial<Timecode>) => Promise<boolean>;
+  deleteTimecode: (id: string) => Promise<boolean>;
   mergeTimecodes: (sourceId: string, destId: string) => Promise<void>;
-  updateActiveNote: (entryId: string, note: string, tags?: string[]) => Promise<void>;
+  updateActiveNote: (entryId: string, note: string, tags?: string[]) => Promise<boolean>;
   refreshData: (options?: { broadcast?: boolean }) => Promise<void>;
   entries: Entry[];
-  updateEntry: (id: string, updates: Partial<Entry>) => Promise<void>;
+  /** Resolves to whether the change was stored. Gate any success message on it. */
+  updateEntry: (id: string, updates: Partial<Entry>) => Promise<boolean>;
   deleteEntry: (id: string) => Promise<void>;
   bulkDeleteEntries: (ids: string[]) => Promise<void>;
   splitEntry: (entryId: string, splitTime: string, newTimecodeId?: string, options?: { feeAllocation?: FeeAllocation }) => Promise<SplitEntryResult>;
-  addManualEntry: (entryData: { startTime: string; endTime: string; timecodeId: string; note: string; tags?: string[]; pausedSegments?: PauseSegment[]; manualAmount?: number | null }) => Promise<void>;
+  /** Resolves to whether the entry was stored. Gate any success message on it. */
+  addManualEntry: (entryData: { startTime: string; endTime: string; timecodeId: string; note: string; tags?: string[]; pausedSegments?: PauseSegment[]; manualAmount?: number | null }) => Promise<boolean>;
   bulkAddManualEntries: (entriesData: { startTime: string, endTime: string, timecodeId: string, note: string, tags?: string[], manualAmount?: number | null }[]) => Promise<{ added: number; skipped: number }>;
   forgotToStopEntry: Entry | null;
   dismissForgotToStop: () => void;
   settings: Settings | null;
-  updateSettings: (updates: Partial<Settings>) => Promise<void>;
+  /** Resolves to whether the change was stored. Gate any success message on it. */
+  updateSettings: (updates: Partial<Settings>) => Promise<boolean>;
+  /**
+   * Put a deleted template back, merged against the templates as they stand now
+   * rather than a snapshot taken before the delete.
+   *
+   * @param index where it sat in the list before it was removed, so undo puts
+   *   it back where the user last saw it instead of at the end.
+   */
+  restoreTemplate: (template: EntryTemplate, index?: number) => Promise<boolean>;
   exportData: (customFilename?: string) => Promise<void>;
   getBackupBlob: () => Promise<Blob>;
   /** Stamp `lastBackupDate`. Call only once a backup has actually been saved. */
@@ -59,13 +78,13 @@ clearLastStoppedEntry: () => void;
   deletedGroups: Group[];
   deletedTimecodes: Timecode[];
   deletedEntries: Entry[];
-  restoreGroup: (id: string) => Promise<void>;
-  restoreTimecode: (id: string) => Promise<void>;
-  restoreEntry: (id: string) => Promise<void>;
-  hardDeleteGroup: (id: string) => Promise<void>;
-  hardDeleteTimecode: (id: string) => Promise<void>;
-  hardDeleteEntry: (id: string) => Promise<void>;
-  emptyTrash: () => Promise<void>;
+  restoreGroup: (id: string) => Promise<boolean>;
+  restoreTimecode: (id: string) => Promise<boolean>;
+  restoreEntry: (id: string) => Promise<boolean>;
+  hardDeleteGroup: (id: string) => Promise<boolean>;
+  hardDeleteTimecode: (id: string) => Promise<boolean>;
+  hardDeleteEntry: (id: string) => Promise<boolean>;
+  emptyTrash: () => Promise<boolean>;
 }
 
 // A timer must have run at least this long overnight before we suspect it was
@@ -123,7 +142,12 @@ export const TimeTrackerProvider: React.FC<{ children: ReactNode }> = ({ childre
     // Resurrecting the entry makes it running again, so it takes the timer
     // queue for the same reason startTimer does: checking for another running
     // timer and then writing this one has to be one indivisible step.
-    const restored = await runExclusive(async () => {
+    //
+    // Wrapped in `mutateValue` because this runs from a toast action, which
+    // cannot await it: a failed write here was an unhandled rejection, so the
+    // toast dismissed, the timer stayed stopped, and nothing told the user.
+    // `null` means the write failed; `false` means another timer is running.
+    const restored = await mutateValue('undo the stop', () => runExclusive(async () => {
       // Another timer may have been started inside the 5 second undo window.
       if (!(settings?.allowConcurrentTimers ?? false)) {
         const stillActive = await db.getActiveEntries();
@@ -141,11 +165,12 @@ export const TimeTrackerProvider: React.FC<{ children: ReactNode }> = ({ childre
 
       await db.putEntry(updatedEntry);
       return true;
-    });
+    }));
 
-    if (!restored) {
+    if (restored === false) {
       addToast('Cannot undo — another timer is already running', 'error');
     }
+    // `null` already raised its own storage error toast inside `mutateValue`.
     setLastStoppedEntry(null);
     await refreshData();
   };
@@ -278,12 +303,15 @@ export const TimeTrackerProvider: React.FC<{ children: ReactNode }> = ({ childre
    * through code whose shape is about the cascade, not about error handling.
    * A partial cascade is still partial — the toast says the change did not go
    * through, and the reload that follows shows what actually landed.
+   *
+   * Resolves to whether the whole sequence went through, so a caller that needs
+   * to know — the CSV import's timecode rollback, which reported a cleanup it
+   * had no way of confirming — can check instead of assuming.
    */
   const guarded = useCallback(
     <A extends unknown[]>(action: string, fn: (...args: A) => Promise<unknown>) =>
-      async (...args: A): Promise<void> => {
-        await mutate(action, async () => { await fn(...args); });
-      },
+      async (...args: A): Promise<boolean> =>
+        mutate(action, async () => { await fn(...args); }),
     [mutate]
   );
 
@@ -777,16 +805,17 @@ export const TimeTrackerProvider: React.FC<{ children: ReactNode }> = ({ childre
     return newGroup;
   };
 
-  const updateGroup = async (id: string, updates: Partial<Group>) => {
+  const updateGroup = async (id: string, updates: Partial<Group>): Promise<boolean> => {
     const groupToUpdate = await db.getGroup(id);
-    if (!groupToUpdate) return;
+    if (!groupToUpdate) return false;
     const updatedGroup = {
       ...groupToUpdate,
       ...updates,
       updatedAt: new Date().toISOString()
     };
-    if (!(await mutate('save the group', () => db.putGroup(updatedGroup).then(() => undefined)))) return;
+    if (!(await mutate('save the group', () => db.putGroup(updatedGroup).then(() => undefined)))) return false;
     await refreshData();
+    return true;
   };
 
   const deleteGroup = async (id: string) => {
@@ -945,16 +974,17 @@ export const TimeTrackerProvider: React.FC<{ children: ReactNode }> = ({ childre
     return newTimecode;
   };
 
-  const updateTimecode = async (id: string, updates: Partial<Timecode>) => {
+  const updateTimecode = async (id: string, updates: Partial<Timecode>): Promise<boolean> => {
     const tcToUpdate = await db.getTimecode(id);
-    if (!tcToUpdate) return;
+    if (!tcToUpdate) return false;
     const updatedTimecode = {
       ...tcToUpdate,
       ...updates,
       updatedAt: new Date().toISOString()
     };
-    if (!(await mutate('save the timecode', () => db.putTimecode(updatedTimecode).then(() => undefined)))) return;
+    if (!(await mutate('save the timecode', () => db.putTimecode(updatedTimecode).then(() => undefined)))) return false;
     await refreshData();
+    return true;
   };
 
   const dismissForgotToStop = () => {
@@ -967,66 +997,84 @@ export const TimeTrackerProvider: React.FC<{ children: ReactNode }> = ({ childre
     }
   };
 
-  const updateEntry = async (id: string, updates: Partial<Entry>) => {
-    const entryToUpdate = await db.getEntry(id);
-    if (!entryToUpdate) return;
+  /**
+   * Read-modify-write of a whole entry record, so it takes the timer queue.
+   *
+   * `ForgotToStopPrompt` and `EntryEditModal` both edit entries that may still
+   * be running. Without the queue a stop, or the one-second note autosave,
+   * landing between the read below and the write at the end of this function is
+   * silently overwritten by the pre-edit copy — the same lost-update race the
+   * queue was built to close for the other whole-record writers.
+   *
+   * Resolves to whether the change was stored; callers must gate their success
+   * message on it.
+   */
+  const updateEntry = async (id: string, updates: Partial<Entry>): Promise<boolean> => {
+    const applied = await mutateValue('save the entry', () => runExclusive(async () => {
+      const entryToUpdate = await db.getEntry(id);
+      if (!entryToUpdate) return false;
 
-    const now = new Date().toISOString();
-    const newEditHistory = [...entryToUpdate.editHistory];
+      const now = new Date().toISOString();
+      const newEditHistory = [...entryToUpdate.editHistory];
 
-    const fieldsToTrack: (keyof Entry)[] = ['startTime', 'endTime', 'timecodeId', 'note', 'tags'];
-    fieldsToTrack.forEach(field => {
-      if (updates[field] !== undefined && JSON.stringify(updates[field]) !== JSON.stringify(entryToUpdate[field])) {
-        newEditHistory.push({
-          field,
-          oldValue: entryToUpdate[field],
-          newValue: updates[field],
-          editedAt: now,
-        });
+      const fieldsToTrack: (keyof Entry)[] = ['startTime', 'endTime', 'timecodeId', 'note', 'tags'];
+      fieldsToTrack.forEach(field => {
+        if (updates[field] !== undefined && JSON.stringify(updates[field]) !== JSON.stringify(entryToUpdate[field])) {
+          newEditHistory.push({
+            field,
+            oldValue: entryToUpdate[field],
+            newValue: updates[field],
+            editedAt: now,
+          });
+        }
+      });
+
+      let newDuration = entryToUpdate.duration;
+      let newIsRunning = entryToUpdate.isRunning;
+      let newIsPaused = entryToUpdate.isPaused;
+      let newPausedSegments = updates.pausedSegments !== undefined
+        ? [...updates.pausedSegments]
+        : [...entryToUpdate.pausedSegments];
+
+      const finalStartTime = updates.startTime || entryToUpdate.startTime;
+      const finalEndTime = updates.endTime !== undefined ? updates.endTime : entryToUpdate.endTime;
+
+      if (finalEndTime) {
+        // It's being closed or updated
+        newIsRunning = false;
+        if (newIsPaused && newPausedSegments.length > 0) {
+          newPausedSegments[newPausedSegments.length - 1] = {
+            ...newPausedSegments[newPausedSegments.length - 1],
+            pauseEnd: finalEndTime,
+          };
+          newIsPaused = false;
+        }
+
+        const start = new Date(finalStartTime);
+        const end = new Date(finalEndTime);
+        newDuration = calculateDuration(start, end, newPausedSegments);
       }
-    });
 
-    let newDuration = entryToUpdate.duration;
-    let newIsRunning = entryToUpdate.isRunning;
-    let newIsPaused = entryToUpdate.isPaused;
-    let newPausedSegments = updates.pausedSegments !== undefined
-      ? [...updates.pausedSegments]
-      : [...entryToUpdate.pausedSegments];
+      const finalEntry: Entry = {
+        ...entryToUpdate,
+        ...updates,
+        duration: newDuration,
+        isRunning: newIsRunning,
+        isPaused: newIsPaused,
+        pausedSegments: newPausedSegments,
+        editHistory: newEditHistory,
+        updatedAt: now,
+      };
 
-    const finalStartTime = updates.startTime || entryToUpdate.startTime;
-    const finalEndTime = updates.endTime !== undefined ? updates.endTime : entryToUpdate.endTime;
-
-    if (finalEndTime) {
-      // It's being closed or updated
-      newIsRunning = false;
-      if (newIsPaused && newPausedSegments.length > 0) {
-        newPausedSegments[newPausedSegments.length - 1] = {
-          ...newPausedSegments[newPausedSegments.length - 1],
-          pauseEnd: finalEndTime,
-        };
-        newIsPaused = false;
-      }
-
-      const start = new Date(finalStartTime);
-      const end = new Date(finalEndTime);
-      newDuration = calculateDuration(start, end, newPausedSegments);
-    }
-
-    const finalEntry: Entry = {
-      ...entryToUpdate,
-      ...updates,
-      duration: newDuration,
-      isRunning: newIsRunning,
-      isPaused: newIsPaused,
-      pausedSegments: newPausedSegments,
-      editHistory: newEditHistory,
-      updatedAt: now,
-    };
+      await db.putEntry(finalEntry);
+      return true;
+    }));
 
     // Bail before the follow-on state changes: clearing the forgot-to-stop
     // banner for an edit that was never stored would hide a timer that is still
-    // wrong.
-    if (!(await mutate('save the entry', () => db.putEntry(finalEntry).then(() => undefined)))) return;
+    // wrong. `applied` is null when the write failed and false when the entry
+    // no longer exists; neither is something to report as saved.
+    if (applied !== true) return false;
 
     if (forgotToStopEntry && forgotToStopEntry.id === id && updates.endTime) {
       setForgotToStopEntry(null);
@@ -1041,9 +1089,11 @@ export const TimeTrackerProvider: React.FC<{ children: ReactNode }> = ({ childre
     }
 
     await refreshData();
+    return true;
   };
 
-  const addManualEntry = async (entryData: { startTime: string; endTime: string; timecodeId: string; note: string; tags?: string[]; pausedSegments?: PauseSegment[]; manualAmount?: number | null }) => {
+  /** Resolves to whether the entry was stored; gate any success message on it. */
+  const addManualEntry = async (entryData: { startTime: string; endTime: string; timecodeId: string; note: string; tags?: string[]; pausedSegments?: PauseSegment[]; manualAmount?: number | null }): Promise<boolean> => {
     const now = new Date().toISOString();
     const pausedSegments = entryData.pausedSegments || [];
     const duration = calculateDuration(new Date(entryData.startTime), new Date(entryData.endTime), pausedSegments);
@@ -1065,8 +1115,9 @@ export const TimeTrackerProvider: React.FC<{ children: ReactNode }> = ({ childre
       updatedAt: now,
     };
 
-    if (!(await mutate('save the entry', () => db.putEntry(newEntry).then(() => undefined)))) return;
+    if (!(await mutate('save the entry', () => db.putEntry(newEntry).then(() => undefined)))) return false;
     await refreshData();
+    return true;
   };
 
   const wipeAllData = async () => {
@@ -1325,8 +1376,9 @@ export const TimeTrackerProvider: React.FC<{ children: ReactNode }> = ({ childre
     await refreshData();
   };
 
-  const updateSettings = async (updates: Partial<Settings>) => {
-    if (!settings) return;
+  /** Resolves to whether the change was stored; gate any success message on it. */
+  const updateSettings = async (updates: Partial<Settings>): Promise<boolean> => {
+    if (!settings) return false;
     const previousSettings = settings;
     const newSettings = { ...settings, ...updates };
     setSettings(newSettings);
@@ -1341,9 +1393,31 @@ export const TimeTrackerProvider: React.FC<{ children: ReactNode }> = ({ childre
     // would carry on believing it had been saved.
     if (!(await mutate('save your settings', () => db.putSettings(toWrite).then(() => undefined)))) {
       setSettings(previousSettings);
-      return;
+      return false;
     }
     notifyOtherTabs();
+    return true;
+  };
+
+  const restoreTemplate = async (template: EntryTemplate, index?: number): Promise<boolean> => {
+    const stored = await mutateValue('restore the template', async () => {
+      // Re-read rather than replaying the caller's pre-delete snapshot: a
+      // template created inside the undo window is in the stored list and not
+      // in that snapshot, so writing the snapshot back would delete it.
+      const current = await db.getSettings();
+      if (!current) return false;
+      const existing = current.templates || [];
+      if (existing.some((t) => t.id === template.id)) return true;
+      const merged = [...existing];
+      const at = index == null ? merged.length : Math.max(0, Math.min(index, merged.length));
+      merged.splice(at, 0, template);
+      await db.putSettings({ ...current, templates: merged });
+      return true;
+    });
+    if (stored !== true) return false;
+    notifyOtherTabs();
+    await refreshData();
+    return true;
   };
 
 
@@ -1462,9 +1536,21 @@ export const TimeTrackerProvider: React.FC<{ children: ReactNode }> = ({ childre
       deletedAt: undefined,
     };
 
-    await db.putEntry(entry1);
-    await db.putEntry(entry2);
+    // Both halves in one transaction. Written separately, a failure on the
+    // second put would leave the original already truncated to the first half
+    // and the remainder — along with any fee allocated to it — gone with no way
+    // back. `mutateValue` reports the failure rather than letting it surface as
+    // an unhandled rejection behind a success message.
+    const stored = await mutateValue('split the entry', async () => {
+      await db.putEntries([entry1, entry2]);
+      return true as const;
+    });
+
     await refreshData();
+
+    if (!stored) {
+      return { ok: false, reason: 'The split could not be saved. The entry is unchanged.' };
+    }
 
     return {
       ok: true,
@@ -1587,7 +1673,7 @@ export const TimeTrackerProvider: React.FC<{ children: ReactNode }> = ({ childre
       : storedSettings;
 
     const dataToExport = {
-      schemaVersion: 1,
+      schemaVersion: SUPPORTED_SCHEMA_VERSION,
       groups: allGroups,
       timecodes: allTimecodes,
       entries: allEntries,
@@ -1660,9 +1746,7 @@ export const TimeTrackerProvider: React.FC<{ children: ReactNode }> = ({ childre
     //   fromVersion = 2;
     // }
 
-    if (fromVersion !== 1) {
-      throw new Error(`Unsupported schema version: ${fromVersion}. Cannot migrate.`);
-    }
+    assertSupportedSchemaVersion(fromVersion);
 
     return migratedData;
   };
@@ -1693,66 +1777,10 @@ export const TimeTrackerProvider: React.FC<{ children: ReactNode }> = ({ childre
   };
 
   const importData = async (file: File, mode: 'merge' | 'replace') => {
-    if (file.size > MAX_IMPORT_FILE_BYTES) {
-      throw new Error('Import failed: File size exceeds the 20MB limit.');
-    }
-
-    // file.text() rather than FileReader: a reader holds its own reference to
-    // the decoded string for as long as it is alive, so the file text could not
-    // be released after parsing. Here the local can be dropped, which matters
-    // when the text, the parsed object and the re-serialised payload would
-    // otherwise all be resident at once for a file up to 20MB.
-    let content: string = await file.text();
-    const parsed = JSON.parse(content);
-    content = '';
-
-    if (!parsed.checksum) {
-      throw new Error('No checksum found in backup file');
-    }
-
-    const { checksum, ...dataToVerify } = parsed;
-    let payloadString: string = JSON.stringify(dataToVerify);
-
-    // Prefer SHA-256 always, and only fall back to the weak 32-bit hash
-    // when the file actually declares it — a backup exported from a
-    // context without crypto.subtle (plain-http dev, some embedded
-    // browsers) legitimately carries one. Note the checksum is an
-    // integrity check, not a security boundary: anyone crafting a
-    // backup can compute a valid digest under either algorithm.
-    let verified = false;
-    let subtleAvailable = true;
-
-    try {
-      const msgUint8 = new TextEncoder().encode(payloadString);
-      const hashBuffer = await crypto.subtle.digest('SHA-256', msgUint8);
-      const hashArray = Array.from(new Uint8Array(hashBuffer));
-      verified = checksum === hashArray.map((b) => b.toString(16).padStart(2, '0')).join('');
-    } catch {
-      subtleAvailable = false;
-    }
-
-    if (!verified && dataToVerify.checksumAlgorithm === 'fallback') {
-      let hash = 0;
-      for (let i = 0; i < payloadString.length; i++) {
-        const char = payloadString.charCodeAt(i);
-        hash = (hash << 5) - hash + char;
-        hash = hash & hash;
-      }
-      verified = checksum === hash.toString(16);
-    }
-
-    if (!verified) {
-      if (!subtleAvailable && dataToVerify.checksumAlgorithm !== 'fallback') {
-        throw new Error('Cannot verify SHA-256 backup checksum in this environment. Ensure you are on HTTPS.');
-      }
-      throw new Error(
-        'Data corruption detected: Checksum mismatch. If you edited this backup by hand, re-export it from TimeDoco instead.'
-      );
-    }
-
-    // The re-serialised payload is only needed for the checksum; drop it before
-    // the write so it is not resident alongside the records being imported.
-    payloadString = '';
+    // Size, parse, checksum and schema version, all in the one helper the
+    // import preview calls — so a file the preview passes is a file this
+    // accepts, and vice versa.
+    const parsed = await verifyBackupFile(file);
 
     const migratedData = normalizeImportData(migrateImportData(parsed, parsed.schemaVersion));
 
@@ -1859,6 +1887,7 @@ export const TimeTrackerProvider: React.FC<{ children: ReactNode }> = ({ childre
       dismissForgotToStop,
       settings,
       updateSettings,
+      restoreTemplate,
       exportData,
       getBackupBlob,
       markBackupSaved,

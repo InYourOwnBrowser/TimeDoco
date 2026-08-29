@@ -880,8 +880,8 @@ interface RenderTimecodeRowProps {
   mergeDestId: string;
   setMergeDestId: (id: string) => void;
   handleMergeSave: (sourceId: string) => void;
-  updateTimecode: (id: string, updates: Partial<Timecode>) => Promise<void>;
-  deleteTimecode: (id: string) => Promise<void>;
+  updateTimecode: (id: string, updates: Partial<Timecode>) => Promise<boolean>;
+  deleteTimecode: (id: string) => Promise<boolean>;
   mobileMenuId: string | null;
   setMobileMenuId: (id: string | null) => void;
   groups: Group[];

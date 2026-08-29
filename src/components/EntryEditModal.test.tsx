@@ -3,7 +3,9 @@ import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { EntryEditModal } from './EntryEditModal';
 import type { Entry } from '../types';
 
-const mockUpdateEntry = vi.fn().mockResolvedValue(undefined);
+// updateEntry resolves to whether the write was stored; the modal gates its
+// success toast and its close on that, so the mock has to mirror it.
+const mockUpdateEntry = vi.fn().mockResolvedValue(true);
 
 vi.mock('../context/TimeTrackerContext', () => ({
   useTimeTracker: () => ({
@@ -13,8 +15,9 @@ vi.mock('../context/TimeTrackerContext', () => ({
   }),
 }));
 
+const mockAddToast = vi.fn();
 vi.mock('../context/ToastContext', () => ({
-  useToast: () => ({ addToast: vi.fn() }),
+  useToast: () => ({ addToast: mockAddToast }),
 }));
 
 vi.mock('./TimecodeSelector', () => ({
@@ -51,6 +54,9 @@ describe('EntryEditModal pause history', () => {
   beforeEach(() => {
     cleanup();
     vi.clearAllMocks();
+    // clearAllMocks keeps implementations, so a test that makes the write fail
+    // would otherwise leak that into every test after it.
+    mockUpdateEntry.mockResolvedValue(true);
   });
 
   afterEach(cleanup);
@@ -130,6 +136,9 @@ describe('EntryEditModal flat fee conversion', () => {
   beforeEach(() => {
     cleanup();
     vi.clearAllMocks();
+    // clearAllMocks keeps implementations, so a test that makes the write fail
+    // would otherwise leak that into every test after it.
+    mockUpdateEntry.mockResolvedValue(true);
   });
 
   afterEach(cleanup);
@@ -208,5 +217,96 @@ describe('EntryEditModal flat fee conversion', () => {
     // Nothing is being thrown away, so nothing to ask about.
     expect(confirmSpy).not.toHaveBeenCalled();
     confirmSpy.mockRestore();
+  });
+});
+
+describe('EntryEditModal re-syncs when it is pointed at another entry', () => {
+  beforeEach(() => {
+    cleanup();
+    vi.clearAllMocks();
+    mockUpdateEntry.mockResolvedValue(true);
+  });
+
+  afterEach(cleanup);
+
+  const running: Entry = {
+    ...entryWithPauses,
+    id: 'entry-running',
+    startTime: at(14, 0),
+    endTime: null,
+    duration: 0,
+    isRunning: true,
+    note: 'Running note',
+    pausedSegments: [],
+    manualAmount: null,
+  };
+
+  it('clears the end time when the new entry is a running timer', async () => {
+    const { rerender } = render(<EntryEditModal entry={entryWithPauses} onClose={() => {}} />);
+
+    // The finished entry's end time is on screen.
+    const endInput = () => document.querySelectorAll('input[type="datetime-local"]')[1] as HTMLInputElement;
+    expect(endInput().value).not.toBe('');
+
+    // Same component, different entry — no unmount, so the state initialisers
+    // do not run again. With no else branch on the reset, the end time stayed
+    // and saving closed a live timer at a time copied from another record.
+    rerender(<EntryEditModal entry={running} onClose={() => {}} />);
+    expect(endInput().value).toBe('');
+
+    fireEvent.click(screen.getByText('Save Changes'));
+    await waitFor(() => expect(mockUpdateEntry).toHaveBeenCalled());
+
+    const [id, updates] = mockUpdateEntry.mock.calls[0];
+    expect(id).toBe('entry-running');
+    expect(updates.endTime).toBeUndefined();
+  });
+
+  it('re-syncs the fields that were only useState initialisers', () => {
+    const { rerender } = render(<EntryEditModal entry={entryWithPauses} onClose={() => {}} />);
+    expect(screen.getByDisplayValue('Original note')).toBeTruthy();
+
+    rerender(<EntryEditModal entry={running} onClose={() => {}} />);
+    expect(screen.getByDisplayValue('Running note')).toBeTruthy();
+    expect(screen.queryByDisplayValue('Original note')).toBeNull();
+  });
+});
+
+describe('EntryEditModal only reports a save that happened', () => {
+  beforeEach(() => {
+    cleanup();
+    vi.clearAllMocks();
+    mockUpdateEntry.mockResolvedValue(true);
+  });
+
+  afterEach(cleanup);
+
+  it('keeps the form open and stays quiet when the write fails', async () => {
+    mockUpdateEntry.mockResolvedValue(false);
+    const onClose = vi.fn();
+    render(<EntryEditModal entry={entryWithPauses} onClose={onClose} />);
+
+    fireEvent.change(screen.getByDisplayValue('Original note'), { target: { value: 'Corrected note' } });
+    fireEvent.click(screen.getByText('Save Changes'));
+
+    await waitFor(() => expect(mockUpdateEntry).toHaveBeenCalled());
+
+    // A green "Changes saved" beside the storage error, and a close that threw
+    // the edit away, is exactly what a failed write must not produce.
+    expect(mockAddToast).not.toHaveBeenCalled();
+    expect(onClose).not.toHaveBeenCalled();
+    expect((screen.getByDisplayValue('Corrected note') as HTMLTextAreaElement).value).toBe('Corrected note');
+    expect(screen.getByText(/were not saved/i)).toBeTruthy();
+  });
+
+  it('reports and closes when the write lands', async () => {
+    const onClose = vi.fn();
+    render(<EntryEditModal entry={entryWithPauses} onClose={onClose} />);
+
+    fireEvent.change(screen.getByDisplayValue('Original note'), { target: { value: 'Corrected note' } });
+    fireEvent.click(screen.getByText('Save Changes'));
+
+    await waitFor(() => expect(onClose).toHaveBeenCalled());
+    expect(mockAddToast).toHaveBeenCalledWith('Changes saved', 'success');
   });
 });

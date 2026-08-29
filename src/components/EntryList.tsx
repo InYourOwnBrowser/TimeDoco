@@ -462,6 +462,7 @@ export const EntryList: React.FC = () => {
 
       {editingEntry && (
         <EntryEditModal
+          key={editingEntry.id}
           entry={editingEntry}
           onClose={() => setEditingEntry(null)}
         />

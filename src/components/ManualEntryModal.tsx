@@ -94,7 +94,10 @@ export const ManualEntryModal: React.FC<ManualEntryModalProps> = ({ onClose }) =
 
       const instant = new Date(`${fixedCostDate}T12:00:00`);
 
-      await addManualEntry({
+      // Report success only once the write has landed. On a storage failure the
+      // form stays open with everything the user typed still in it, rather than
+      // closing behind a green toast that contradicts the red one.
+      const savedFee = await addManualEntry({
         timecodeId,
         startTime: instant.toISOString(),
         endTime: instant.toISOString(),
@@ -103,6 +106,10 @@ export const ManualEntryModal: React.FC<ManualEntryModalProps> = ({ onClose }) =
         pausedSegments: [],
         manualAmount: parseFloat(manualAmount),
       });
+      if (!savedFee) {
+        setError('This entry was not saved. It is still here — try again.');
+        return;
+      }
 
       addToast('Entry added successfully', 'success');
       onClose();
@@ -139,7 +146,7 @@ export const ManualEntryModal: React.FC<ManualEntryModalProps> = ({ onClose }) =
 
     const tagsArray = tagsStr.split(',').map(t => t.trim()).filter(t => t !== '').slice(0, 20);
 
-    await addManualEntry({
+    const saved = await addManualEntry({
       timecodeId,
       startTime: start.toISOString(),
       endTime: end.toISOString(),
@@ -148,6 +155,10 @@ export const ManualEntryModal: React.FC<ManualEntryModalProps> = ({ onClose }) =
       pausedSegments,
       manualAmount: manualAmount && !isNaN(parseFloat(manualAmount)) ? parseFloat(manualAmount) : null,
     });
+    if (!saved) {
+      setError('This entry was not saved. It is still here — try again.');
+      return;
+    }
 
     addToast('Entry added successfully', 'success');
     onClose();
