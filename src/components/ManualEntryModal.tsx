@@ -125,7 +125,7 @@ export const ManualEntryModal: React.FC<ManualEntryModalProps> = ({ onClose }) =
       note,
       tags: tagsArray,
       pausedSegments,
-      manualAmount: manualAmount ? parseFloat(manualAmount) : null,
+      manualAmount: isFixedCost ? (manualAmount ? parseFloat(manualAmount) : null) : null,
     });
 
     addToast('Entry added successfully', 'success');

@@ -755,6 +755,62 @@ describe('TimeTrackerContext Reducer Logic', () => {
     });
   });
 
+  it('restoreEntry: restores soft-deleted timecode if restored entry timecode is trashed', async () => {
+    let ctx: ReturnType<typeof useTimeTracker> | undefined;
+
+    render(
+      <ToastProvider><TimeTrackerProvider>
+        <TestConsumer onReady={(c) => (ctx = c)} />
+      </TimeTrackerProvider></ToastProvider>
+    );
+
+    await waitFor(() => expect(ctx?.groups).toBeDefined());
+
+    let tcId = '';
+    await act(async () => {
+      const tc = await ctx!.addTimecode('Orphan TC');
+      tcId = tc.id;
+      await ctx!.bulkAddManualEntries([
+        { startTime: '2024-01-01T10:00:00Z', endTime: '2024-01-01T11:00:00Z', timecodeId: tcId, note: 'Orphan Entry' }
+      ]);
+    });
+
+    let entryId = '';
+    await waitFor(() => {
+      expect(ctx!.entries.length).toBe(1);
+      entryId = ctx!.entries[0].id;
+    });
+
+    // Soft delete the entry and timecode
+    await act(async () => {
+      await ctx!.deleteEntry(entryId);
+    });
+    vi.spyOn(window, 'confirm').mockImplementation(() => true);
+    await act(async () => {
+      await ctx!.deleteTimecode(tcId);
+    });
+
+    await waitFor(() => {
+      expect(ctx!.timecodes.find(t => t.id === tcId)).toBeUndefined();
+      expect(ctx!.entries.find(e => e.id === entryId)).toBeUndefined();
+      expect(ctx!.deletedTimecodes.find(t => t.id === tcId)).toBeDefined();
+      expect(ctx!.deletedEntries.find(e => e.id === entryId)).toBeDefined();
+    });
+
+    // Restoring the entry should automatically restore its soft-deleted timecode as well
+    await act(async () => {
+      await ctx!.restoreEntry(entryId);
+    });
+
+    await waitFor(() => {
+      expect(ctx!.entries.find(e => e.id === entryId)).toBeDefined();
+      expect(ctx!.timecodes.find(t => t.id === tcId)).toBeDefined();
+      expect(ctx!.deletedTimecodes.find(t => t.id === tcId)).toBeUndefined();
+    });
+
+    vi.restoreAllMocks();
+  });
+
   it('bulkAddManualEntries rejects reversed and unparseable rows instead of storing zero-length entries', async () => {
     let ctx: ReturnType<typeof useTimeTracker> | undefined;
 

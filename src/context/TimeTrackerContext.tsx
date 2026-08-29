@@ -1115,6 +1115,15 @@ export const TimeTrackerProvider: React.FC<{ children: ReactNode }> = ({ childre
     if (entry) {
       entry.deletedAt = undefined;
       await db.putEntry(entry);
+
+      if (entry.timecodeId) {
+        const tc = await db.getTimecode(entry.timecodeId);
+        if (tc && tc.deletedAt) {
+          tc.deletedAt = undefined;
+          await db.putTimecode(tc);
+        }
+      }
+
       await refreshData();
     }
   };
