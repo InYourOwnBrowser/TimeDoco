@@ -27,7 +27,7 @@ export const EntrySplitModal: React.FC<EntrySplitModalProps> = ({ entry, onClose
   useEffect(() => {
     if (!entry.endTime) return;
     setSplitTime(initialSplitTime);
-  }, [entry, initialSplitTime]);
+  }, [entry.id]);
 
   const handleSave = async () => {
     if (!entry.endTime) return;

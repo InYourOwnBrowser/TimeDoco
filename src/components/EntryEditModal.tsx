@@ -79,7 +79,7 @@ export const EntryEditModal: React.FC<EntryEditModalProps> = ({ entry, onClose }
     if (entry.endTime) {
       setEndTime(initialEndTime);
     }
-  }, [entry, initialStartTime, initialEndTime]);
+  }, [entry.id]);
 
   useEffect(() => {
     if (!startTime || !endTime) {
@@ -192,7 +192,7 @@ export const EntryEditModal: React.FC<EntryEditModalProps> = ({ entry, onClose }
       note,
       tags: tagsStr.split(',').map(t => t.trim()).filter(t => t !== '').slice(0, 20),
       startTime: start.toISOString(),
-      manualAmount: isFixedCost ? (manualAmount ? parseFloat(manualAmount) : null) : null,
+      manualAmount: manualAmount && !isNaN(parseFloat(manualAmount)) ? parseFloat(manualAmount) : null,
     };
 
     if (end) {
