@@ -685,33 +685,53 @@ export const TimeTrackerProvider: React.FC<{ children: ReactNode }> = ({ childre
   };
 
   const emptyTrash = async () => {
-    // Delete all soft-deleted groups, timecodes, and entries permanently
-    // Order matters to avoid re-inserting timecodes during group cascade
-    for (const group of deletedGroups) {
-      // Cascading: set groupId to null for all timecodes in this group
-      const timecodesToUpdate = [...timecodes, ...deletedTimecodes].filter((tc) => tc.groupId === group.id);
+    // Delete all soft-deleted groups, timecodes, and entries permanently.
+    // Read directly from the database rather than React state to avoid staleness across tabs.
+    const [allGroups, allTimecodes, allEntries, currentSettings] = await Promise.all([
+      db.getGroups(),
+      db.getTimecodes(),
+      db.getEntries(),
+      db.getSettings(),
+    ]);
+
+    const deletedGroupsInDb = allGroups.filter((g) => g.deletedAt);
+    for (const group of deletedGroupsInDb) {
+      const timecodesToUpdate = allTimecodes.filter((tc) => tc.groupId === group.id);
       if (timecodesToUpdate.length > 0) {
         await Promise.all(timecodesToUpdate.map((tc) => db.putTimecode(touch({ ...tc, groupId: null }))));
       }
       await db.deleteGroup(group.id);
     }
-    for (const tc of deletedTimecodes) {
-      // Hard deleting a timecode also requires hard deleting its associated entries
-      const entriesToDelete = [...entries, ...deletedEntries].filter((e) => e.timecodeId === tc.id);
+
+    const deletedTimecodesInDb = allTimecodes.filter((tc) => tc.deletedAt);
+    for (const tc of deletedTimecodesInDb) {
+      const entriesToDelete = allEntries.filter((e) => e.timecodeId === tc.id);
       if (entriesToDelete.length > 0) {
         await Promise.all(entriesToDelete.map((e) => db.deleteEntry(e.id)));
       }
       await db.deleteTimecode(tc.id);
+
+      if (currentSettings && currentSettings.templates) {
+        const updatedTemplates = currentSettings.templates.filter((t) => t.timecodeId !== tc.id);
+        if (updatedTemplates.length !== currentSettings.templates.length) {
+          await db.putSettings({ ...currentSettings, templates: updatedTemplates });
+        }
+      }
     }
-    if (deletedEntries.length > 0) {
-      await Promise.all(deletedEntries.map((entry) => db.deleteEntry(entry.id)));
+
+    const deletedEntriesInDb = allEntries.filter((e) => e.deletedAt);
+    if (deletedEntriesInDb.length > 0) {
+      await Promise.all(deletedEntriesInDb.map((entry) => db.deleteEntry(entry.id)));
     }
+
     await refreshData();
   };
 
   const hardDeleteGroup = async (id: string) => {
-    // Cascading: set groupId to null for all timecodes in this group
-    const timecodesToUpdate = [...timecodes, ...deletedTimecodes].filter((tc) => tc.groupId === id);
+    // Cascading: set groupId to null for all timecodes in this group.
+    // Read from the database rather than React snapshot to avoid staleness across tabs.
+    const allTimecodes = await db.getTimecodes();
+    const timecodesToUpdate = allTimecodes.filter((tc) => tc.groupId === id);
     if (timecodesToUpdate.length > 0) {
       await Promise.all(timecodesToUpdate.map((tc) => db.putTimecode(touch({ ...tc, groupId: null }))));
     }
@@ -958,22 +978,54 @@ export const TimeTrackerProvider: React.FC<{ children: ReactNode }> = ({ childre
 
 
   const mergeTimecodes = async (sourceId: string, destId: string) => {
-    const now = new Date().toISOString();
+    if (!sourceId || !destId || sourceId === destId) return;
+
+    const allEntries = await db.getEntries();
+    const currentActive = await db.getActiveEntries();
+
+    // Prevent merging if both source and destination have running timers
+    const activeOnSource = currentActive.filter((e) => e.timecodeId === sourceId && !e.deletedAt);
+    const activeOnDest = currentActive.filter((e) => e.timecodeId === destId && !e.deletedAt);
+    if (activeOnSource.length > 0 && activeOnDest.length > 0) {
+      throw new Error('Cannot merge timecodes: multiple running timers would exist on the same timecode');
+    }
+
+    // Collect all non-deleted entries that will end up on destId
+    const targetEntries = [
+      ...allEntries.filter((e) => (e.timecodeId === destId || e.timecodeId === sourceId) && !e.deletedAt),
+      ...currentActive.filter((e) => (e.timecodeId === destId || e.timecodeId === sourceId) && !e.deletedAt),
+    ];
+    const uniqueTargets = Array.from(new Map(targetEntries.map((e) => [e.id, e])).values());
+
+    const now = Date.now();
+    const intervals = uniqueTargets.map((e) => ({
+      id: e.id,
+      start: new Date(e.startTime).getTime(),
+      end: e.endTime ? new Date(e.endTime).getTime() : now,
+    })).filter((inv) => Number.isFinite(inv.start) && Number.isFinite(inv.end));
+
+    for (let i = 0; i < intervals.length; i++) {
+      for (let j = i + 1; j < intervals.length; j++) {
+        if (intervals[i].start < intervals[j].end && intervals[i].end > intervals[j].start) {
+          throw new Error('Cannot merge timecodes: resulting entries would overlap');
+        }
+      }
+    }
+
+    const isoNow = new Date().toISOString();
     // 1. Update all entries referencing sourceId to point to destId.
     // Read from the database, not component state: state excludes soft-deleted
     // entries, which would then be left pointing at a timecode this merge is
     // about to delete, and can be stale relative to another tab.
-    const allEntries = await db.getEntries();
     const entriesToUpdate = allEntries.filter((e) => e.timecodeId === sourceId);
     if (entriesToUpdate.length > 0) {
-      await Promise.all(entriesToUpdate.map((entry) => db.putEntry({ ...entry, timecodeId: destId, updatedAt: now })));
+      await Promise.all(entriesToUpdate.map((entry) => db.putEntry({ ...entry, timecodeId: destId, updatedAt: isoNow })));
     }
 
     // 2. Update active entries as well, if any are running on the source timecode
-    const currentActive = await db.getActiveEntries();
     const activeToUpdate = currentActive.filter((entry) => entry.timecodeId === sourceId);
     if (activeToUpdate.length > 0) {
-      await Promise.all(activeToUpdate.map((entry) => db.putEntry({ ...entry, timecodeId: destId, updatedAt: now })));
+      await Promise.all(activeToUpdate.map((entry) => db.putEntry({ ...entry, timecodeId: destId, updatedAt: isoNow })));
     }
 
     // 3. Update templates
@@ -1091,6 +1143,13 @@ export const TimeTrackerProvider: React.FC<{ children: ReactNode }> = ({ childre
       tc.deletedAt = undefined;
       await db.putTimecode(touch(tc));
 
+      if (tc.groupId) {
+        const group = await db.getGroup(tc.groupId);
+        if (group && group.deletedAt) {
+          await restoreGroupInternal(group.id);
+        }
+      }
+
       const allEntries = await db.getEntries();
       const entriesToRestore = allEntries.filter(e => e.timecodeId === id && e.deletedAt === deletedTime);
       for (const entry of entriesToRestore) {
@@ -1124,7 +1183,7 @@ export const TimeTrackerProvider: React.FC<{ children: ReactNode }> = ({ childre
 
   const splitEntry = async (entryId: string, splitTime: string, newTimecodeId?: string) => {
     const entry = await db.getEntry(entryId);
-    if (!entry || !entry.endTime) return; // Can only split completed entries
+    if (!entry || !entry.endTime || entry.deletedAt) return; // Can only split active, completed entries
 
     const splitDate = new Date(splitTime);
     const startDate = new Date(entry.startTime);
@@ -1133,21 +1192,27 @@ export const TimeTrackerProvider: React.FC<{ children: ReactNode }> = ({ childre
     if (splitDate <= startDate || splitDate >= endDate) return;
 
     // Filter paused segments for both halves
-    const pausedSegments1: any[] = [];
-    const pausedSegments2: any[] = [];
+    const pausedSegments1: PauseSegment[] = [];
+    const pausedSegments2: PauseSegment[] = [];
 
-    for (const seg of entry.pausedSegments) {
+    for (const seg of entry.pausedSegments || []) {
       const pStart = new Date(seg.pauseStart);
       const pEnd = seg.pauseEnd ? new Date(seg.pauseEnd) : endDate;
 
       if (pEnd <= splitDate) {
         pausedSegments1.push(seg);
       } else if (pStart >= splitDate) {
-        pausedSegments2.push(seg);
+        pausedSegments2.push({
+          pauseStart: seg.pauseStart,
+          pauseEnd: seg.pauseEnd || endDate.toISOString(),
+        });
       } else {
         // Segment crosses the split time
         pausedSegments1.push({ pauseStart: seg.pauseStart, pauseEnd: splitDate.toISOString() });
-        pausedSegments2.push({ pauseStart: splitDate.toISOString(), pauseEnd: seg.pauseEnd });
+        pausedSegments2.push({
+          pauseStart: splitDate.toISOString(),
+          pauseEnd: seg.pauseEnd || endDate.toISOString(),
+        });
       }
     }
 
@@ -1161,6 +1226,9 @@ export const TimeTrackerProvider: React.FC<{ children: ReactNode }> = ({ childre
       endTime: splitDate.toISOString(),
       duration: duration1,
       pausedSegments: pausedSegments1,
+      manualAmount: null,
+      expectedDurationMinutes: null,
+      deletedAt: undefined,
       updatedAt: now,
     };
 
@@ -1176,6 +1244,7 @@ export const TimeTrackerProvider: React.FC<{ children: ReactNode }> = ({ childre
       editHistory: [],
       manualAmount: null,
       expectedDurationMinutes: null,
+      deletedAt: undefined,
     };
 
     await db.putEntry(entry1);
@@ -1223,8 +1292,7 @@ export const TimeTrackerProvider: React.FC<{ children: ReactNode }> = ({ childre
       if (entry.timecodeId) {
         const tc = await db.getTimecode(entry.timecodeId);
         if (tc && tc.deletedAt) {
-          tc.deletedAt = undefined;
-          await db.putTimecode(touch(tc));
+          await restoreTimecodeInternal(tc.id);
         }
       }
     }

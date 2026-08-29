@@ -1001,8 +1001,9 @@ describe('TimeTrackerContext Reducer Logic', () => {
     const first = ctx!.entries.find((e) => e.id === original.id)!;
     const second = ctx!.entries.find((e) => e.id !== original.id)!;
 
-    // Copying manualAmount onto both halves billed a $500 fee twice.
-    expect(first.manualAmount).toBe(500);
+    // Splitting an entry nulls flat fee and estimate on both halves to avoid misattribution.
+    expect(first.manualAmount).toBeNull();
+    expect(first.expectedDurationMinutes).toBeNull();
     expect(second.manualAmount).toBeNull();
     expect(second.expectedDurationMinutes).toBeNull();
   });
@@ -1309,5 +1310,192 @@ describe('TimeTrackerContext Reducer Logic', () => {
     // ...without a full reload, which this path ran on every keystroke pause.
     expect(getEntriesSpy).not.toHaveBeenCalled();
     getEntriesSpy.mockRestore();
+  });
+
+  it('M5: splitEntry ignores trashed entries and sets explicit pauseEnd on crossing pause segments', async () => {
+    let ctx: ReturnType<typeof useTimeTracker> | undefined;
+
+    render(
+      <ToastProvider><TimeTrackerProvider>
+        <TestConsumer onReady={(c) => (ctx = c)} />
+      </TimeTrackerProvider></ToastProvider>
+    );
+
+    await waitFor(() => expect(ctx?.settings).not.toBeNull());
+
+    let tcId = '';
+    await act(async () => {
+      tcId = (await ctx!.addTimecode('Split TC')).id;
+      await ctx!.addManualEntry({
+        startTime: '2024-02-01T10:00:00Z',
+        endTime: '2024-02-01T12:00:00Z',
+        timecodeId: tcId,
+        note: 'Entry with crossing open pause',
+        pausedSegments: [{ pauseStart: '2024-02-01T10:30:00Z' } as any],
+      });
+    });
+
+    let entry: any;
+    await waitFor(() => {
+      entry = ctx!.entries.find((e) => e.note === 'Entry with crossing open pause');
+      expect(entry).toBeDefined();
+    });
+
+    // Splitting at 11:00 (crossing the pause starting at 10:30)
+    await act(async () => {
+      await ctx!.splitEntry(entry.id, '2024-02-01T11:00:00Z');
+    });
+
+    await waitFor(() => expect(ctx!.entries.length).toBe(2));
+
+    const e1 = ctx!.entries.find((e) => e.id === entry.id)!;
+    const e2 = ctx!.entries.find((e) => e.id !== entry.id)!;
+
+    // Both halves should have explicit pauseEnd values
+    expect(e1.pausedSegments[0].pauseEnd).toBe('2024-02-01T11:00:00.000Z');
+    expect(e2.pausedSegments[0].pauseEnd).toBe('2024-02-01T12:00:00.000Z');
+
+    // Attempting to split a soft-deleted entry should do nothing
+    await act(async () => {
+      await ctx!.deleteEntry(e1.id);
+      await ctx!.splitEntry(e1.id, '2024-02-01T10:30:00Z');
+    });
+
+    const refreshedE1 = await db.getEntry(e1.id);
+    expect(refreshedE1?.deletedAt).toBeDefined();
+  });
+
+  it('M6: mergeTimecodes guards against same-ID and throws on overlapping entries / multiple running timers', async () => {
+    let ctx: ReturnType<typeof useTimeTracker> | undefined;
+
+    render(
+      <ToastProvider><TimeTrackerProvider>
+        <TestConsumer onReady={(c) => (ctx = c)} />
+      </TimeTrackerProvider></ToastProvider>
+    );
+
+    await waitFor(() => expect(ctx?.settings).not.toBeNull());
+
+    let tc1 = '';
+    let tc2 = '';
+    await act(async () => {
+      tc1 = (await ctx!.addTimecode('TC 1')).id;
+      tc2 = (await ctx!.addTimecode('TC 2')).id;
+
+      await ctx!.addManualEntry({
+        startTime: '2024-02-01T10:00:00Z',
+        endTime: '2024-02-01T11:00:00Z',
+        timecodeId: tc1,
+        note: 'Entry 1',
+      });
+      await ctx!.addManualEntry({
+        startTime: '2024-02-01T10:30:00Z',
+        endTime: '2024-02-01T11:30:00Z',
+        timecodeId: tc2,
+        note: 'Entry 2',
+      });
+    });
+
+    // Guard against same-ID merge
+    await act(async () => {
+      await ctx!.mergeTimecodes(tc1, tc1);
+    });
+    expect(await db.getTimecode(tc1)).toBeDefined();
+
+    // Merging overlapping entries throws an error
+    await expect(ctx!.mergeTimecodes(tc1, tc2)).rejects.toThrow('resulting entries would overlap');
+  });
+
+  it('M7: emptyTrash and hardDeleteGroup read directly from DB ignoring stale state snapshot', async () => {
+    let ctx: ReturnType<typeof useTimeTracker> | undefined;
+
+    render(
+      <ToastProvider><TimeTrackerProvider>
+        <TestConsumer onReady={(c) => (ctx = c)} />
+      </TimeTrackerProvider></ToastProvider>
+    );
+
+    await waitFor(() => expect(ctx?.settings).not.toBeNull());
+
+    const now = new Date().toISOString();
+    const grp = await db.putGroup({ id: 'g-stale', name: 'Stale Group', color: '#123456', archived: false, deletedAt: now, updatedAt: now });
+    const tc = await db.putTimecode({ id: 'tc-stale', name: 'Stale TC', groupId: grp.id, archived: false, deletedAt: now, updatedAt: now });
+    await db.putEntry({
+      id: 'e-stale',
+      timecodeId: tc.id,
+      startTime: now,
+      endTime: now,
+      duration: 0,
+      note: 'stale entry',
+      tags: [],
+      isRunning: false,
+      isPaused: false,
+      pausedSegments: [],
+      editHistory: [],
+      deletedAt: now,
+      createdAt: now,
+      updatedAt: now,
+    });
+
+    // Empty trash should find items in DB even if not in current React state snapshot
+    await act(async () => {
+      await ctx!.emptyTrash();
+    });
+
+    expect(await db.getGroup('g-stale')).toBeUndefined();
+    expect(await db.getTimecode('tc-stale')).toBeUndefined();
+    expect(await db.getEntry('e-stale')).toBeUndefined();
+  });
+
+  it('M8: restoreEntryInternal restores parent timecode and all sibling entries deleted with it', async () => {
+    let ctx: ReturnType<typeof useTimeTracker> | undefined;
+
+    render(
+      <ToastProvider><TimeTrackerProvider>
+        <TestConsumer onReady={(c) => (ctx = c)} />
+      </TimeTrackerProvider></ToastProvider>
+    );
+
+    await waitFor(() => expect(ctx?.settings).not.toBeNull());
+
+    let tcId = '';
+    await act(async () => {
+      tcId = (await ctx!.addTimecode('Parent TC')).id;
+      await ctx!.addManualEntry({
+        startTime: '2024-02-01T10:00:00Z',
+        endTime: '2024-02-01T11:00:00Z',
+        timecodeId: tcId,
+        note: 'Entry A',
+      });
+      await ctx!.addManualEntry({
+        startTime: '2024-02-01T11:00:00Z',
+        endTime: '2024-02-01T12:00:00Z',
+        timecodeId: tcId,
+        note: 'Entry B',
+      });
+    });
+
+    // Delete timecode (which cascades delete to Entry A and Entry B)
+    await act(async () => {
+      await ctx!.deleteTimecode(tcId);
+    });
+
+    let entryA: any;
+    await waitFor(() => {
+      entryA = ctx!.deletedEntries.find((e) => e.note === 'Entry A');
+      expect(entryA).toBeDefined();
+    });
+
+    // Restoring Entry A should restore Parent TC AND Entry B
+    await act(async () => {
+      await ctx!.restoreEntry(entryA.id);
+    });
+
+    await waitFor(() => {
+      expect(ctx!.timecodes.some((t) => t.id === tcId)).toBe(true);
+      expect(ctx!.entries.some((e) => e.note === 'Entry A')).toBe(true);
+      expect(ctx!.entries.some((e) => e.note === 'Entry B')).toBe(true);
+      expect(ctx!.deletedEntries.length).toBe(0);
+    });
   });
 });
