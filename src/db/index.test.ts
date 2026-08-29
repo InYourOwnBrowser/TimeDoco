@@ -114,7 +114,7 @@ describe("db error fallback mode", () => {
     expect(await getGroups()).toHaveLength(0);
   });
 
-  it("getActiveEntry returns the longest-running timer, not an arbitrary one", async () => {
+  it("getActiveEntry returns the most recently started active timer", async () => {
     const entries = [
       { id: "late", isRunning: true, startTime: "2026-01-01T12:00:00.000Z" },
       { id: "early", isRunning: true, startTime: "2026-01-01T09:00:00.000Z" },
@@ -135,8 +135,8 @@ describe("db error fallback mode", () => {
 
     const { getActiveEntry, getActiveEntries } = await import("./index");
 
-    expect((await getActiveEntry())?.id).toBe("early");
-    expect((await getActiveEntries()).map((e) => e.id)).toEqual(["early", "late"]);
+    expect((await getActiveEntry())?.id).toBe("late");
+    expect((await getActiveEntries()).map((e) => e.id)).toEqual(["late", "early"]);
   });
 
   it("falls back to a full scan when the start-time index would drop records", async () => {

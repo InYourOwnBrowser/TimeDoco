@@ -80,9 +80,10 @@ export const TimesheetMatrixView: React.FC = () => {
 
   const commitCell = async (timecodeId: string, day: Date, newHours: number) => {
     const existingEntriesForCell = getCellEntries(timecodeId, day);
-    const trackedSeconds = existingEntriesForCell
+    const rawTrackedSeconds = existingEntriesForCell
       .filter(e => !e.tags?.includes(ADJUSTMENT_TAG))
       .reduce((sum, e) => sum + e.duration, 0);
+    const trackedSeconds = applyRounding(rawTrackedSeconds, settings?.roundingRule || 'none');
 
     const targetSeconds = Math.round(newHours * 3600);
     const delta = targetSeconds - trackedSeconds;

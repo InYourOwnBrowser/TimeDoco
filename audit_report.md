@@ -53,7 +53,7 @@ Everything below is a logic, consistency, or design issue that the type checker 
 - [x] **H5 — CSV import creates orphan timecodes from rows it then rejects**
   In `handleImportCSV`, `addTimecode(timecodeName)` runs *before* date validation. A row with a good name and an unparseable date leaves a permanent new timecode behind. If every row fails, the user gets "Failed to import any entries" plus a pile of junk timecodes and no rollback. Each `addTimecode` also triggers a full `refreshData()` — 50 new timecodes means 50 complete database reads.
 
-- [ ] **H6 — Timesheet cell edits fight their own rounding**
+- [x] **H6 — Timesheet cell edits fight their own rounding**
   `commitCell` compares the typed value against raw unrounded `e.duration`, but the cell *displays* a rounded value. Retyping the number already on screen (0.25 rounded up from 0.20) computes a positive delta and silently creates a phantom "Timesheet adjustment" entry. Those adjustments are written via `addManualEntry`, which performs no overlap check, so they land on top of real entries and are then flagged by AnalysisView's overlap detector.
 
 - [x] **H7 — `Notification` accessed unguarded inside a 1-second interval**
@@ -64,7 +64,7 @@ Everything below is a logic, consistency, or design issue that the type checker 
 ## Medium
 
 - [x] **M1 — Negative amounts print as `—`.** `amount > 0 ? amount.toFixed(2) : '-'` appears in the PDF summary, PDF detail table, and detailed CSV. Credits, discounts, and negative-rate adjustments are invisible on the invoice while still counting toward the total.
-- [ ] **M2 — Three definitions of "the primary timer."** `db.getActiveEntry` picks the longest-running (its comment claims this is what the global bar shows); `GlobalActiveTimerBar` and App's document title both pick the most recently started.
+- [x] **M2 — Three definitions of "the primary timer."** `db.getActiveEntry` picks the longest-running (its comment claims this is what the global bar shows); `GlobalActiveTimerBar` and App's document title both pick the most recently started.
 - [x] **M3 — `buildBillableLines` doc comment contradicts the code.** Rule 2 states "`amount` is derived from the same two-decimal `hours` value that gets printed, so a client checking `rate x hours = amount` finds it holds." Amounts are now allocated from a timecode-level total, so per-line `rate × hours ≠ amount`. `BillableLine.amount`'s doc has the same stale claim. A client reconciling a line item will find it doesn't.
 - [ ] **M4 — Overlap detection ignores the concurrency setting.** AnalysisView's `overlaps` memo compares across all timecodes regardless of `allowConcurrentTimers`, so users who deliberately run concurrent timers get a permanent red warning chip. It's also O(n²) with no dedup.
 - [ ] **M5 — Escape closes all stacked modals.** `Modal` binds its Escape handler at the document level with no stack awareness. The focus trap only fires when `activeElement` is exactly the first or last element, so focus that escapes the modal isn't recaptured, and focus is never restored to the trigger on close.
@@ -72,7 +72,7 @@ Everything below is a logic, consistency, or design issue that the type checker 
 - [x] **M7 — Timecodes in archived groups stay visible.** `TimecodeSelector` filters on `t.archived` only, never `group.archived`. Archiving a client leaves all its timecodes in the picker.
 - [x] **M8 — Download failures are silent.** `useNamedDownload.handleConfirm` catches to `console.error` with no toast. Only PDF export surfaces its own error; CSV, ICS, and JSON backup failures show the user nothing.
 - [x] **M9 — Empty weeks chart as 100% hit rate.** `estimatesTrend` returns `{ hitRate: 100 }` for weeks with no entries, drawing a flat perfect line through gaps in the data.
-- [ ] **M10 — Theme flash.** `app/index.html` hardcodes `class="dark"` on `<html>`; App.tsx corrects it after hydration. Light-theme users see a dark flash on every load.
+- [x] **M10 — Theme flash.** `app/index.html` hardcodes `class="dark"` on `<html>`; App.tsx corrects it after hydration. Light-theme users see a dark flash on every load.
 - [ ] **M11 — `by-start-time` index sorts lexicographically.** `getEntries` trusts the index order, but IndexedDB string-compares. ISO strings with mixed offsets (`+13:00` vs `Z`) — plausible from CSV import — sort wrong. The fallback path sorts by parsed `Date`, so the two paths disagree. The `getAllFromIndex`/`count` consistency check also runs as two separate transactions and can race.
 - [x] **M12 — Fixed-cost detection is inconsistent.** The UI infers it from `startTime === endTime`; billing infers it from `manualAmount != null`. Toggling Flat Fee back to Time Entry without clearing the amount produces an entry that bills as a fee while looking like a time entry.
 
