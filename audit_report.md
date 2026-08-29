@@ -12,7 +12,7 @@ Everything below is a logic, consistency, or design issue that the type checker 
 - [x] **C1 — Splitting a flat-fee entry duplicates the charge**
   `splitEntry` builds `entry2` as `{ ...entry, id: crypto.randomUUID(), ... }`. `manualAmount` is copied verbatim. Billing keys fixed costs off `entry.manualAmount != null`, so a $500 flat fee split in two bills **$1000**. `EntrySplitModal` offers no warning. `expectedDurationMinutes` is duplicated the same way, corrupting estimate stats.
 
-- [ ] **C2 — CSP `style-src 'self'` blocks every inline style**
+- [x] **C2 — CSP `style-src 'self'` blocks every inline style**
   `public/_headers` sets `style-src 'self'` with no `'unsafe-inline'`. Under CSP Level 3, `style-src` governs `style=""` attributes. The app uses them everywhere (`style={{ backgroundColor: tc.color }}` in ActiveTimer, GlobalActiveTimerBar, GroupingManagement, and all of Recharts' internals). In production this should strip every timecode colour dot and break chart rendering. Needs verifying against the deployed site immediately — either it's broken, or the header isn't actually being applied, and both are worth knowing.
 
 - [ ] **C3 — Four different answers for "how much time this week"**
@@ -34,17 +34,17 @@ Everything below is a logic, consistency, or design issue that the type checker 
 
 ## High
 
-- [ ] **H1 — `updateGroup` / `updateTimecode` never bump `updatedAt`**
+- [x] **H1 — `updateGroup` / `updateTimecode` never bump `updatedAt`**
   ```ts
   const updatedGroup = { ...groupToUpdate, ...updates };
   await db.putGroup(updatedGroup);
   ```
   Merge-mode import resolves conflicts by comparing `updatedAt`. A renamed group keeps its old stamp, so **importing an older backup silently reverts the rename**. Same for `restoreGroup`, `restoreTimecode`, `restoreEntry`, and `emptyTrash`'s `groupId: null` cascade. Both functions also read from React state rather than the DB, unlike every delete path on this branch, which was specifically changed to read from the DB for exactly this reason.
 
-- [ ] **H2 — Settings writes clobber across tabs**
+- [x] **H2 — Settings writes clobber across tabs**
   `updateSettings` spreads the whole React `settings` snapshot and writes it back, with no `notifyOtherTabs()` and no re-read. Two tabs open, each saving a different field, and the second write reverts the first. Templates live in `settings.templates`, so template edits are affected too. `getBackupBlob` calls `updateSettings` on every export, widening the window.
 
-- [ ] **H3 — Imported settings can vanish into a wrong key**
+- [x] **H3 — Imported settings can vanish into a wrong key**
   `validateBackupPayload` never checks `settings.id`. In replace mode `importBackup` does `settingsStore.put(data.settings)` against a `keyPath: 'id'` store. A backup whose settings carry any id other than `'user-settings'` is written under that key; `getSettings()` then returns `undefined` and the app silently resets to defaults. Merge mode has the same hole via the `...data.settings` spread.
 
 - [x] **H4 — Import preview is stricter than the import itself**
@@ -63,13 +63,13 @@ Everything below is a logic, consistency, or design issue that the type checker 
 
 ## Medium
 
-- [ ] **M1 — Negative amounts print as `—`.** `amount > 0 ? amount.toFixed(2) : '-'` appears in the PDF summary, PDF detail table, and detailed CSV. Credits, discounts, and negative-rate adjustments are invisible on the invoice while still counting toward the total.
+- [x] **M1 — Negative amounts print as `—`.** `amount > 0 ? amount.toFixed(2) : '-'` appears in the PDF summary, PDF detail table, and detailed CSV. Credits, discounts, and negative-rate adjustments are invisible on the invoice while still counting toward the total.
 - [ ] **M2 — Three definitions of "the primary timer."** `db.getActiveEntry` picks the longest-running (its comment claims this is what the global bar shows); `GlobalActiveTimerBar` and App's document title both pick the most recently started.
 - [ ] **M3 — `buildBillableLines` doc comment contradicts the code.** Rule 2 states "`amount` is derived from the same two-decimal `hours` value that gets printed, so a client checking `rate x hours = amount` finds it holds." Amounts are now allocated from a timecode-level total, so per-line `rate × hours ≠ amount`. `BillableLine.amount`'s doc has the same stale claim. A client reconciling a line item will find it doesn't.
 - [ ] **M4 — Overlap detection ignores the concurrency setting.** AnalysisView's `overlaps` memo compares across all timecodes regardless of `allowConcurrentTimers`, so users who deliberately run concurrent timers get a permanent red warning chip. It's also O(n²) with no dedup.
 - [ ] **M5 — Escape closes all stacked modals.** `Modal` binds its Escape handler at the document level with no stack awareness. The focus trap only fires when `activeElement` is exactly the first or last element, so focus that escapes the modal isn't recaptured, and focus is never restored to the trigger on close.
 - [ ] **M6 — Notification spam.** `OverrunDetector`'s 5-second interval re-fires `new Notification(...)` for the same overrun indefinitely; only `tag` dedup keeps it visually tolerable. It also fights App.tsx over `document.title` — App rewrites the title every 500ms while OverrunDetector flashes it every 1000ms.
-- [ ] **M7 — Timecodes in archived groups stay visible.** `TimecodeSelector` filters on `t.archived` only, never `group.archived`. Archiving a client leaves all its timecodes in the picker.
+- [x] **M7 — Timecodes in archived groups stay visible.** `TimecodeSelector` filters on `t.archived` only, never `group.archived`. Archiving a client leaves all its timecodes in the picker.
 - [ ] **M8 — Download failures are silent.** `useNamedDownload.handleConfirm` catches to `console.error` with no toast. Only PDF export surfaces its own error; CSV, ICS, and JSON backup failures show the user nothing.
 - [ ] **M9 — Empty weeks chart as 100% hit rate.** `estimatesTrend` returns `{ hitRate: 100 }` for weeks with no entries, drawing a flat perfect line through gaps in the data.
 - [ ] **M10 — Theme flash.** `app/index.html` hardcodes `class="dark"` on `<html>`; App.tsx corrects it after hydration. Light-theme users see a dark flash on every load.
