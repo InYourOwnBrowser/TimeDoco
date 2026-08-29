@@ -32,7 +32,7 @@ export interface BillableLine {
   seconds: number;
   /** Hours as printed on reports — always two decimals. */
   hours: number;
-  /** Line amount in whole cents, derived from the same `hours` value that is printed. */
+  /** Line amount, allocated from the timecode's total billable time to avoid compounding rounding errors. */
   amount: number;
   /** True when the entry has no end time and was measured up to `now`. */
   isRunning: boolean;
@@ -147,8 +147,8 @@ export interface BuildOptions {
  *  1. Duration is always recomputed from the entry's start/end clipped to the
  *     reporting window, never read from the stored `duration` field (which is
  *     unclipped, and is 0 while a timer is still running).
- *  2. `amount` is derived from the same two-decimal `hours` value that gets
- *     printed, so a client checking `rate x hours = amount` finds it holds.
+ *  2. `amount` is allocated from the timecode's total billable time, so the
+ *     sum of the line amounts exactly matches the timecode's total amount.
  *  3. A fixed cost belongs to the period containing the entry's start, so an
  *     entry straddling two invoices is not billed in full on both.
  */

@@ -1,5 +1,6 @@
 import React, { useState, useCallback, useRef } from 'react';
 import { SaveAsModal, sanitizeFilename } from '../components/ui/SaveAsModal';
+import { useToast } from '../context/ToastContext';
 
 export type DownloadSource = Blob | (() => Blob | Promise<Blob>);
 
@@ -19,6 +20,7 @@ export function useNamedDownload(): UseNamedDownloadReturn {
   const [defaultFilename, setDefaultFilename] = useState('');
   const [extension, setExtension] = useState('');
   const [onSuccessCallback, setOnSuccessCallback] = useState<(() => void) | null>(null);
+  const { addToast } = useToast();
 
   const triggerDownload = useCallback((
     src: DownloadSource,
@@ -58,11 +60,12 @@ export function useNamedDownload(): UseNamedDownloadReturn {
       }
     } catch (err) {
       console.error('Download failed:', err);
+      addToast('Download failed. Please try again.', 'error');
     } finally {
       setIsOpen(false);
       setSource(null);
     }
-  }, [source, defaultFilename, extension, onSuccessCallback]);
+  }, [source, defaultFilename, extension, onSuccessCallback, addToast]);
 
   const handleCancel = useCallback(() => {
     setIsOpen(false);

@@ -2,8 +2,9 @@ import React from 'react';
 import { render, fireEvent, screen, waitFor } from '@testing-library/react';
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { useNamedDownload } from './useNamedDownload';
+import { ToastProvider } from '../context/ToastContext';
 
-const TestComponent: React.FC<{
+const InnerComponent: React.FC<{
   source: Blob | (() => Blob | Promise<Blob>);
   defaultName: string;
   extension: string;
@@ -18,6 +19,19 @@ const TestComponent: React.FC<{
       </button>
       <SaveAsDialog />
     </div>
+  );
+};
+
+const TestComponent: React.FC<{
+  source: Blob | (() => Blob | Promise<Blob>);
+  defaultName: string;
+  extension: string;
+  onSuccess?: () => void;
+}> = (props) => {
+  return (
+    <ToastProvider>
+      <InnerComponent {...props} />
+    </ToastProvider>
   );
 };
 
