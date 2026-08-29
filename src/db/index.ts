@@ -31,6 +31,8 @@ const DB_VERSION = 3;
 let dbPromise: Promise<IDBPDatabase<TimeTrackerDB>> | null = null;
 let isFallbackMode = false;
 
+export const getIsFallbackMode = (): boolean => isFallbackMode;
+
 // In-memory fallback storage
 const fallbackMemoryDB = {
   groups: new Map<string, Group>(),

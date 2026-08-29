@@ -10,7 +10,7 @@ import { Modal } from './ui/Modal';
 import type { Entry } from '../types';
 import { applyRounding, getElapsedTimeMs, formatDurationShort } from '../utils/timeUtils';
 
-const LiveEntryDuration: React.FC<{ entry: Entry, settings: any, formatDuration: (s: number) => string }> = ({ entry, settings, formatDuration }) => {
+const LiveEntryDuration: React.FC<{ entry: Entry, formatDuration: (s: number) => string }> = ({ entry, formatDuration }) => {
   const [elapsed, setElapsed] = useState(0);
 
   useEffect(() => {
@@ -22,7 +22,7 @@ const LiveEntryDuration: React.FC<{ entry: Entry, settings: any, formatDuration:
     return () => clearInterval(interval);
   }, [entry.startTime, entry.pausedSegments]);
 
-  return <>{formatDuration(applyRounding(elapsed, settings?.roundingRule || 'none'))}</>;
+  return <>{formatDuration(elapsed)}</>;
 };
 
 // Live-updating "vs estimate" label for a currently-running entry.
@@ -352,7 +352,7 @@ export const EntryList: React.FC = () => {
                         <div className="flex flex-col items-end">
                           <span className="text-lg font-mono tabular font-medium text-graphite dark:text-stone">
                             {entry.isRunning
-                              ? <LiveEntryDuration entry={entry} settings={settings} formatDuration={formatDuration} />
+                              ? <LiveEntryDuration entry={entry} formatDuration={formatDuration} />
                               : formatDuration(applyRounding(entry.duration, settings?.roundingRule || 'none'))}
                           </span>
                           {entry.expectedDurationMinutes ? (

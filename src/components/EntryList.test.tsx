@@ -12,7 +12,8 @@ vi.mock('react-virtuoso', () => ({
           const groupHeader = groupContent(groupIndex);
           const items = [];
           for (let i = 0; i < count; i++) {
-            items.push(itemContent(globalIndex, groupIndex));
+            const itemKey = globalIndex;
+            items.push(<div key={itemKey}>{itemContent(globalIndex, groupIndex)}</div>);
             globalIndex++;
           }
           return (

@@ -84,11 +84,11 @@ Everything below is a logic, consistency, or design issue that the type checker 
 - [x] `TimesheetMatrixView.isVisible` is called from inside `.filter()` chains, re-walking 7 cells per timecode per render.
 - [x] `GlobalActiveTimerBar` ticks at 200ms to render a seconds-resolution display.
 - [x] `restoreTimecode` / `restoreGroup` call `restoreEntry` per record, each triggering its own full `refreshData()` — N complete database reads for one restore. `bulkDeleteEntries`' undo does the same.
-- [ ] `applyRounding` on a live ticking timer means a 15-minute rule shows "0s" for seven and a half minutes, then jumps.
-- [ ] Fallback mode is a silent data-loss path: writes go to memory only, and `closeDB` clears that memory unconditionally.
+- [x] `applyRounding` on a live ticking timer means a 15-minute rule shows "0s" for seven and a half minutes, then jumps.
+- [x] Fallback mode is a silent data-loss path: writes go to memory only, and `closeDB` clears that memory unconditionally.
 - [x] ICS export emits no `uid`, so re-importing duplicates every event.
 - [x] `escapeCSV` guards `= + - @` but not leading tab or CR.
-- [ ] `react-virtuoso` emits "Each child in a list should have a unique key" during tests (React 19 compat).
+- [x] `react-virtuoso` emits "Each child in a list should have a unique key" during tests (React 19 compat).
 - [x] Summary CSV omits the tax and total rows the PDF includes.
 - [x] `restoreEntry` doesn't check whether the entry's timecode is still trashed — restores into an orphan state.
 - [x] `SettingsModal`'s `saveTimeoutRef` isn't cleared on unmount.
