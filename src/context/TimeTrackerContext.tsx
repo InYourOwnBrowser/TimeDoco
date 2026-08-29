@@ -552,9 +552,13 @@ export const TimeTrackerProvider: React.FC<{ children: ReactNode }> = ({ childre
   };
 
   const updateGroup = async (id: string, updates: Partial<Group>) => {
-    const groupToUpdate = groups.find((g) => g.id === id);
+    const groupToUpdate = await db.getGroup(id);
     if (!groupToUpdate) return;
-    const updatedGroup = { ...groupToUpdate, ...updates };
+    const updatedGroup = {
+      ...groupToUpdate,
+      ...updates,
+      updatedAt: new Date().toISOString()
+    };
     await db.putGroup(updatedGroup);
     await refreshData();
   };
@@ -671,9 +675,13 @@ export const TimeTrackerProvider: React.FC<{ children: ReactNode }> = ({ childre
   };
 
   const updateTimecode = async (id: string, updates: Partial<Timecode>) => {
-    const tcToUpdate = timecodes.find((t) => t.id === id);
+    const tcToUpdate = await db.getTimecode(id);
     if (!tcToUpdate) return;
-    const updatedTimecode = { ...tcToUpdate, ...updates };
+    const updatedTimecode = {
+      ...tcToUpdate,
+      ...updates,
+      updatedAt: new Date().toISOString()
+    };
     await db.putTimecode(updatedTimecode);
     await refreshData();
   };

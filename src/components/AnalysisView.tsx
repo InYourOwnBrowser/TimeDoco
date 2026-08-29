@@ -716,7 +716,7 @@ export const AnalysisView: React.FC = () => {
             escapeCSV(format(parseISO(e.startTime), 'HH:mm:ss')),
             escapeCSV(e.endTime ? format(parseISO(e.endTime), 'HH:mm:ss') : ''),
             hrs.toFixed(2),
-            amount > 0 ? amount.toFixed(2) : '',
+            amount !== 0 ? amount.toFixed(2) : '',
             escapeCSV(e.note),
           ].join(',');
         });
@@ -882,7 +882,7 @@ export const AnalysisView: React.FC = () => {
             e.endTime ? format(parseISO(e.endTime), 'HH:mm') : 'Running',
             paused,
             hrs,
-            amount > 0 ? `${currencySymbol}${amount.toFixed(2)}` : '-',
+            amount !== 0 ? `${currencySymbol}${amount.toFixed(2)}` : '-',
             e.note || '—',
           ];
         });
