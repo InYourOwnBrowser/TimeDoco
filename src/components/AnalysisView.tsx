@@ -530,7 +530,7 @@ export const AnalysisView: React.FC = () => {
 
     return weeks.map(w => {
       if (w.entries.length === 0) {
-        return { label: w.label, bias: 0, hitRate: 100, count: 0 };
+        return { label: w.label, bias: 0, hitRate: null, count: 0 };
       }
       let onTime = 0;
       let totalBias = 0;
