@@ -26,7 +26,7 @@ export const GlobalActiveTimerBar: React.FC = () => {
     calculateElapsed();
 
     if (!primaryEntry.isPaused) {
-      const interval = setInterval(calculateElapsed, 200);
+      const interval = setInterval(calculateElapsed, 1000);
       return () => clearInterval(interval);
     }
   }, [primaryEntry]);

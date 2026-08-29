@@ -20,13 +20,13 @@ export const TimesheetMatrixView: React.FC = () => {
     setManuallyShownIds(new Set()); // reset when navigating to a different week
   }, [currentWeekStart]);
 
-  const weekDays = eachDayOfInterval({
+  const weekDays = useMemo(() => eachDayOfInterval({
     start: currentWeekStart,
     end: endOfWeek(currentWeekStart, { weekStartsOn: 1 })
-  });
+  }), [currentWeekStart]);
 
-  const activeTimecodes = timecodes.filter(t => !t.archived);
-  const activeGroups = groups.filter(g => !g.archived);
+  const activeTimecodes = useMemo(() => timecodes.filter(t => !t.archived), [timecodes]);
+  const activeGroups = useMemo(() => groups.filter(g => !g.archived), [groups]);
 
   const entriesByTimecodeAndDate = useMemo(() => {
     const map = new Map<string, typeof entries>();
@@ -40,18 +40,42 @@ export const TimesheetMatrixView: React.FC = () => {
     return map;
   }, [entries]);
 
+  const cellHoursMap = useMemo(() => {
+    const map = new Map<string, number>();
+    const roundingRule = settings?.roundingRule || 'none';
+    for (const tc of activeTimecodes) {
+      for (const day of weekDays) {
+        const dateStr = format(day, 'yyyy-MM-dd');
+        const key = `${tc.id}|${dateStr}`;
+        const cellEntries = entriesByTimecodeAndDate.get(key) || [];
+        const totalSeconds = cellEntries.reduce((sum, e) => sum + e.duration, 0);
+        map.set(key, applyRounding(totalSeconds, roundingRule) / 3600);
+      }
+    }
+    return map;
+  }, [activeTimecodes, weekDays, entriesByTimecodeAndDate, settings?.roundingRule]);
+
+  const rowTotalHoursMap = useMemo(() => {
+    const map = new Map<string, number>();
+    for (const tc of activeTimecodes) {
+      let sum = 0;
+      for (const day of weekDays) {
+        const dateStr = format(day, 'yyyy-MM-dd');
+        sum += cellHoursMap.get(`${tc.id}|${dateStr}`) || 0;
+      }
+      map.set(tc.id, sum);
+    }
+    return map;
+  }, [activeTimecodes, weekDays, cellHoursMap]);
+
   const getCellEntries = (timecodeId: string, date: Date) =>
     entriesByTimecodeAndDate.get(`${timecodeId}|${format(date, 'yyyy-MM-dd')}`) || [];
 
-  const getCellHours = (timecodeId: string, date: Date) => {
-    const cellEntries = getCellEntries(timecodeId, date);
-    const totalSeconds = cellEntries.reduce((sum, e) => sum + e.duration, 0);
-    return applyRounding(totalSeconds, settings?.roundingRule || 'none') / 3600;
-  };
+  const getCellHours = (timecodeId: string, date: Date) =>
+    cellHoursMap.get(`${timecodeId}|${format(date, 'yyyy-MM-dd')}`) || 0;
 
-  const getRowTotalHours = (timecodeId: string) => {
-    return weekDays.reduce((sum, day) => sum + getCellHours(timecodeId, day), 0);
-  };
+  const getRowTotalHours = (timecodeId: string) =>
+    rowTotalHoursMap.get(timecodeId) || 0;
 
   const isVisible = (tcId: string) => getRowTotalHours(tcId) > 0 || manuallyShownIds.has(tcId);
 
