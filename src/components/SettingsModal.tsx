@@ -176,7 +176,8 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ onClose }) => {
         });
 
         const parsed = JSON.parse(content);
-        validateBackupPayload(parsed);
+        const knownTimecodeIds = new Set(timecodes.map(t => t.id));
+        validateBackupPayload(parsed, knownTimecodeIds);
 
         setImportPreview({
           groups: parsed.groups.length,

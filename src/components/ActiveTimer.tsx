@@ -62,7 +62,7 @@ export const ActiveTimer: React.FC<{ activeEntry: Entry | null }> = ({ activeEnt
       if (settings?.targetAlertMinutes && !alertTriggeredRef.current) {
         if (seconds >= settings.targetAlertMinutes * 60) {
           addToast(`Target reached! ${settings.targetAlertMinutes} minutes elapsed.`, 'info', undefined, 10000);
-          if (Notification.permission === 'granted') {
+          if ('Notification' in window && Notification.permission === 'granted') {
             new Notification('TimeDoco Target Reached', {
                body: `You have tracked ${settings.targetAlertMinutes} minutes.`,
              });

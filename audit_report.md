@@ -9,7 +9,7 @@ Everything below is a logic, consistency, or design issue that the type checker 
 
 ## Critical
 
-- [ ] **C1 — Splitting a flat-fee entry duplicates the charge**
+- [x] **C1 — Splitting a flat-fee entry duplicates the charge**
   `splitEntry` builds `entry2` as `{ ...entry, id: crypto.randomUUID(), ... }`. `manualAmount` is copied verbatim. Billing keys fixed costs off `entry.manualAmount != null`, so a $500 flat fee split in two bills **$1000**. `EntrySplitModal` offers no warning. `expectedDurationMinutes` is duplicated the same way, corrupting estimate stats.
 
 - [ ] **C2 — CSP `style-src 'self'` blocks every inline style**
@@ -47,7 +47,7 @@ Everything below is a logic, consistency, or design issue that the type checker 
 - [ ] **H3 — Imported settings can vanish into a wrong key**
   `validateBackupPayload` never checks `settings.id`. In replace mode `importBackup` does `settingsStore.put(data.settings)` against a `keyPath: 'id'` store. A backup whose settings carry any id other than `'user-settings'` is written under that key; `getSettings()` then returns `undefined` and the app silently resets to defaults. Merge mode has the same hole via the `...data.settings` spread.
 
-- [ ] **H4 — Import preview is stricter than the import itself**
+- [x] **H4 — Import preview is stricter than the import itself**
   `SettingsModal.handleImport` calls `validateBackupPayload(parsed)` with no `knownTimecodeIds`. In merge mode the real import passes the locally-stored ids. So a valid merge backup whose entries reference existing local timecodes **fails at the preview step** with "refers to timecode X, which is not in this backup" — an import the app would have accepted.
 
 - [ ] **H5 — CSV import creates orphan timecodes from rows it then rejects**
@@ -56,7 +56,7 @@ Everything below is a logic, consistency, or design issue that the type checker 
 - [ ] **H6 — Timesheet cell edits fight their own rounding**
   `commitCell` compares the typed value against raw unrounded `e.duration`, but the cell *displays* a rounded value. Retyping the number already on screen (0.25 rounded up from 0.20) computes a positive delta and silently creates a phantom "Timesheet adjustment" entry. Those adjustments are written via `addManualEntry`, which performs no overlap check, so they land on top of real entries and are then flagged by AnalysisView's overlap detector.
 
-- [ ] **H7 — `Notification` accessed unguarded inside a 1-second interval**
+- [x] **H7 — `Notification` accessed unguarded inside a 1-second interval**
   `ActiveTimer`'s `calculateElapsed` does `if (Notification.permission === 'granted')` with no `'Notification' in window` check — the effect 20 lines below it guards correctly. On a browser without the API this throws every second, flooding the error log and freezing the elapsed display. Related: `alertTriggeredRef` is only reset when `activeEntry` becomes `null`, so switching directly between timers means the second one never fires its target alert.
 
 ---
