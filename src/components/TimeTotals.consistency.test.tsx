@@ -55,13 +55,22 @@ const weekEntries: Entry[] = [
 
 // Two 20-minute entries on two different days of the same week. At 15-minute
 // rounding the scope decides the answer and the two answers differ: rounded per
-// day it is 30 + 30 = 1.00h, pooled over the week it is 45 minutes = 0.75h. The
-// week-total tests above use lengths where both scopes happen to land on the
-// same hour, so they could not tell a grid that ignored the scope window from
-// one that honoured it.
+// day each falls to 15 minutes and the week is 0.50h, pooled over the week the
+// 40 minutes rise to 45 and the week is 0.75h. The week-total tests above use
+// lengths where both scopes happen to land on the same hour, so they could not
+// tell a grid that ignored the rounding scope from one that honoured it.
 const scopeSensitiveWeek: Entry[] = [
   { ...base, id: 's1', startTime: local(6, 9, 0), endTime: local(6, 9, 20), duration: 1200, isRunning: false, createdAt: local(6, 9, 0), updatedAt: local(6, 9, 20) },
   { ...base, id: 's2', startTime: local(7, 9, 0), endTime: local(7, 9, 20), duration: 1200, isRunning: false, createdAt: local(7, 9, 0), updatedAt: local(7, 9, 20) },
+];
+
+// The same 20 minutes on Monday, with its partner two weeks later — inside the
+// calendar's month but outside the grid's week. Any surface that pools a bucket
+// over its own visible span gives Monday a different figure here than the
+// surface beside it does.
+const scopeSensitiveMonth: Entry[] = [
+  { ...base, id: 'm1', startTime: local(6, 9, 0), endTime: local(6, 9, 20), duration: 1200, isRunning: false, createdAt: local(6, 9, 0), updatedAt: local(6, 9, 20) },
+  { ...base, id: 'm2', startTime: local(20, 9, 0), endTime: local(20, 9, 20), duration: 1200, isRunning: false, createdAt: local(20, 9, 0), updatedAt: local(20, 9, 20) },
 ];
 
 // Two weeks earlier, so it is history the entry list shows but no week-scoped
@@ -143,45 +152,68 @@ describe('every surface answers "how much time this week" with the same number',
     expect(screen.getByText('1.0')).toBeTruthy();
   });
 
-  // At 'timecode' and 'invoice' scope a bucket's total is the entry set it is
-  // built from, so before the scope window was named explicitly each surface
-  // rounded a different slice: the entry list all of history, the grid one
-  // week, the summary one week, the report its period.
+  // 'timecode' and 'invoice' scope are properties of a report: a bucket's total
+  // is the set of entries handed in, so a surface that pools over whatever it is
+  // showing lets its own extent decide an entry's billable minutes. Every
+  // surface but the report degrades them to 'day' instead.
   for (const scope of ['timecode', 'invoice'] as const) {
     it(`timesheet grid and weekly summary agree on the week at ${scope} scope`, () => {
       settings = { ...baseSettings, roundingScope: scope };
 
       render(<TimesheetMatrixView />);
-      // 24 minutes on Monday plus 30 running on Wednesday is 54 minutes, pooled
-      // into one weekly bucket and rounded to an hour.
+      // 24 minutes on Monday and 30 running on Wednesday, each day's total
+      // rounded on its own: half an hour apiece, an hour for the week.
       expect(screen.getAllByText('1.00').length).toBeGreaterThan(0);
       cleanup();
 
       render(<WeeklySummary />);
-      // The same week, the same window, the same hour.
+      // The same week, the same buckets, the same hour.
       expect(screen.getByText('1.0')).toBeTruthy();
     });
   }
 
-  // The grid and the calendar are two tabs of the same Timesheet view. The grid
-  // named no scope window, so 'timecode' and 'invoice' silently degraded to
-  // 'day' there while the calendar honoured them — two tabs, two numbers for the
-  // same two entries.
+  // The grid and the calendar are two tabs of the same Timesheet view, showing
+  // the same days over different spans — a week against a month. While each
+  // pooled a wide-scope bucket over its own span, the two tabs printed two
+  // different figures for one day.
   for (const scope of ['timecode', 'invoice'] as const) {
     it(`timesheet grid and calendar show the same per-day figure at ${scope} scope`, () => {
       settings = { ...baseSettings, roundingScope: scope };
       entries = scopeSensitiveWeek;
 
       render(<TimesheetMatrixView />);
-      // 40 minutes pooled over the window rounds to 45, shared back as 22.5
-      // minutes a day. Rounded per day instead, each cell would read 0.50 and
-      // the week total 1.00.
-      expect(screen.getAllByDisplayValue('0.38')).toHaveLength(2);
-      expect(screen.getAllByText('0.75').length).toBeGreaterThan(0);
+      // Each day rounds on its own: 20 minutes down to 15, and 0.50 for the
+      // week. Pooled over the visible span instead, each cell would read 0.38.
+      expect(screen.getAllByDisplayValue('0.25')).toHaveLength(2);
+      expect(screen.getAllByText('0.50').length).toBeGreaterThan(0);
       cleanup();
 
       render(<TimesheetCalendarView />);
-      expect(screen.getAllByText('0.38h')).toHaveLength(2);
+      expect(screen.getAllByText('0.25h')).toHaveLength(2);
+    });
+  }
+
+  // The case the fixture above could not catch: both entries sat in the grid's
+  // week *and* the calendar's month, so the two spans happened to hold the same
+  // entries. Put the second entry two weeks out and the spans differ — the grid
+  // sees one entry, the calendar sees two — and only a bucket that ignores the
+  // visible span gives Monday the same figure on both.
+  for (const scope of ['timecode', 'invoice'] as const) {
+    it(`grid and calendar agree on a day whose week and month hold different entries at ${scope} scope`, () => {
+      settings = { ...baseSettings, roundingScope: scope };
+      entries = scopeSensitiveMonth;
+
+      render(<TimesheetMatrixView />);
+      // Monday's 20 minutes, rounded on their own day: 0.25. The grid's week
+      // holds this entry alone, so pooling would have rounded it to 0.25 too —
+      // the disagreement is on the calendar's side.
+      expect(screen.getAllByDisplayValue('0.25')).toHaveLength(1);
+      cleanup();
+
+      render(<TimesheetCalendarView />);
+      // Both days are in the visible month. Pooled over it, 40 minutes would
+      // round to 45 and each day would read 0.38 — against the grid's 0.25.
+      expect(screen.getAllByText('0.25h')).toHaveLength(2);
     });
   }
 

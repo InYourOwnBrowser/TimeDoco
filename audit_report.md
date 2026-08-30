@@ -112,3 +112,64 @@ in one place and not in its sibling. These close that gap.
   rejects every row, so the `catch` never ran and the rollback never happened.
   Rollback now also runs on `added === 0`, and counts what `hardDeleteTimecode`
   actually reports rather than assuming a guarded call succeeded.
+
+---
+
+## Third audit — Critical and High severity
+
+Each of these is a case where a fix landed on one path and its sibling kept the
+old behaviour, or where a figure a client is invited to check did not add up.
+
+### Critical
+
+- [x] **C1 — deleting a group destroyed its timecodes' templates, and neither
+  Undo nor Trash brought them back.** `deleteGroup` stripped every template
+  belonging to the cascade, then offered an Undo that restored the group, its
+  timecodes and their entries and nothing else; restoring from the Trash a day
+  later was the same. `deleteTimecode` had the same hole one step out: its undo
+  handler reconstructed the templates, so they were recoverable for five seconds
+  and gone after that. Neither path deletes templates any more — a soft delete is
+  reversible, so nothing of the user's is destroyed by one. A template whose
+  timecode is in the trash is hidden in `TemplateList` (it has nothing to log
+  against) and comes back with the timecode. Templates are still purged for good
+  alongside the timecode in `hardDeleteTimecode`, `emptyTrash` and
+  `autoPurgeTrash`, which is where a permanent delete belongs.
+
+### High
+
+- [x] **H1 — a flat fee on an entry with tracked time made Rate × Hours ≠ Total.**
+  A "Fixed Amount" on an ordinary time entry billed as a fee *and* contributed
+  its hours to the row, so a $100/hr timecode with one hour plus a 40-minute
+  $150 fee printed Hours 1.75 · Rate $100.00/hr · Total $250.00 — the two columns
+  beside each other multiplying out to $175. A fixed cost now bills as a fee and
+  nothing else: `seconds` and `hours` are 0, its time on the clock stays in
+  `workedSeconds` for the worked-vs-billed disclosure, and `displaySecondsFor`
+  keeps the entry's own row showing the duration rather than `0s`. The summary
+  table, the on-screen breakdown and the summary CSV grow a Fees column when
+  there are fees, so `rate × hours + fees = total` is visible; a fee's detail row
+  prints a dash for Hours. The special `f:` rounding bucket is gone with it — it
+  had been rounding a fee at entry scope whatever scope was configured.
+
+- [x] **H2 — `timecode` and `invoice` scope still gave three answers for one
+  entry.** C3 had every surface name a scope window, but each named its own: the
+  entry list all of history, the grid its week, the calendar its month, the
+  report its period. Since a wide bucket *is* its window, the surfaces
+  necessarily disagreed — two 20-minute entries billed as 15 minutes in the list,
+  20 on the calendar and 22.5 on the grid tab beside it. The wide scopes are now
+  properties of the report: only `AnalysisView` names a window, and every other
+  surface passes `scopeWindow: null` and degrades to `day`, which is the one
+  bucket they can all build identically. The settings help text says so. The
+  consistency test grows a fixture whose two entries share a month but not a
+  week, so the grid's window and the calendar's genuinely differ — the earlier
+  fixture compared two surfaces over the same span and could not have caught it.
+
+- [x] **H3 — CSV import matched timecodes by name only, so rows could bill to the
+  wrong client.** Names are unique only within a group, so "Design" can sit under
+  both Acme and Globex; the import resolved globally and took the first match,
+  which is IndexedDB key order — arbitrary, and not the same on two devices. It
+  now resolves on group + name where the CSV has a `Group` column (the column
+  TimeDoco's own detailed export already writes) and on the name alone where it
+  does not, and stops before writing anything if a name a surviving row needs
+  matches more than one timecode, naming the groups it could have meant. A named
+  group that does not exist yet is created, so the row lands where the CSV says
+  and a second import of the same file resolves against it.

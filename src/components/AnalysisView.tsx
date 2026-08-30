@@ -209,7 +209,7 @@ export const AnalysisView: React.FC = () => {
   }, [periodEntries, dateRange, timecodeMap, settings]);
 
   // Calculations for Current Period
-  const { timecodeData, groupData, totalSeconds, totalHours, totalWorkedSeconds, totalEarnings, taxBreakdown } = useMemo(() => {
+  const { timecodeData, groupData, totalSeconds, totalHours, totalWorkedSeconds, totalEarnings, totalFees, taxBreakdown } = useMemo(() => {
     const tcMap = new Map<string, BillableLine[]>();
     const grpMap = new Map<string, number>();
     const includedLines: BillableLine[] = [];
@@ -243,6 +243,9 @@ export const AnalysisView: React.FC = () => {
         name: tc?.name || 'Unknown',
         durationHours: rowTotals.hours,
         earnings: rowTotals.amount,
+        // Kept apart from `earnings` so the row can print the arithmetic a
+        // client checks: rate x hours + fees = total.
+        fees: rowTotals.fees,
         color: tc?.color || (tc?.groupId ? groupMap.get(tc.groupId)?.color : undefined) || '#cbd5e1'
       };
     }).sort((a, b) => b.durationHours - a.durationHours);
@@ -268,6 +271,7 @@ export const AnalysisView: React.FC = () => {
       totalHours: totals.hours,
       totalWorkedSeconds: totals.workedSeconds,
       totalEarnings: totals.amount,
+      totalFees: totals.fees,
       taxBreakdown: calculatedTax
     };
   }, [filteredEntries, billableLines, timecodeMap, groupMap, settings?.taxEnabled, settings?.taxRate, settings?.taxInclusive]);
@@ -306,14 +310,22 @@ export const AnalysisView: React.FC = () => {
     };
   }, [prevPeriodEntries, prevFilteredEntries, prevDateRange, comparePrevious, totalSeconds, totalEarnings, timecodeMap, settings]);
 
-  // Billed-vs-worked, so the effect of rounding is visible rather than silent.
+  // Billed-vs-worked, so the gap between the clock and the invoice is visible
+  // rather than silent. Rounding is one cause; a fixed amount is the other,
+  // since it bills as a fee rather than by the hour and so adds no hours. With
+  // neither in play the two totals are equal and there is nothing to say.
   const roundingDelta = useMemo(() => {
-    if ((settings?.roundingRule ?? 'none') === 'none') return null;
     if (totalWorkedSeconds === totalSeconds) return null;
+    const worked = `worked ${formatDurationShort(totalWorkedSeconds)}`;
+    if (totalFees !== 0) {
+      // Naming the whole difference "rounding" would misattribute the part of
+      // it that is fee time.
+      return `${worked} · billed ${formatDurationShort(totalSeconds)} plus fees`;
+    }
     const diff = totalSeconds - totalWorkedSeconds;
     const sign = diff > 0 ? '+' : '-';
-    return `worked ${formatDurationShort(totalWorkedSeconds)} · rounding ${sign}${formatDurationShort(Math.abs(diff))}`;
-  }, [settings?.roundingRule, totalSeconds, totalWorkedSeconds]);
+    return `${worked} · rounding ${sign}${formatDurationShort(Math.abs(diff))}`;
+  }, [totalSeconds, totalWorkedSeconds, totalFees]);
 
   // Detect overlaps
   const overlaps = useMemo(() => {
@@ -643,6 +655,11 @@ export const AnalysisView: React.FC = () => {
 
   const showEarningsColumn = totalEarnings !== 0 || timecodeData.some(tc => tc.earnings !== 0);
 
+  // A fixed cost bills as a fee instead of by the hour, so it adds no hours to
+  // its row. Without the fee broken out, a row carrying one printed a Total
+  // that Rate x Hours did not reach and the reader had no way to see why.
+  const showFeesColumn = totalFees !== 0 || timecodeData.some(tc => tc.fees !== 0);
+
   /**
    * Money as it appears on a report. A zero is a dash; anything else prints,
    * negatives included — a credit, a discount or a negative-rate adjustment
@@ -666,7 +683,10 @@ export const AnalysisView: React.FC = () => {
     const defaultFilename = `time-report-${scopeSlug}-${safeFormatDate(dateRange.start, 'yyyy-MM-dd', 'custom-period')}`;
     triggerDownload(
       () => {
-        const headers = ['Timecode', 'Group', 'Duration (Hours)', 'Earnings'];
+        // Same shape as the PDF summary: fees are their own column when there
+        // are any, so Duration x rate + Fees reconciles with Earnings.
+        const feeCol = (value: string) => (showFeesColumn ? [value] : []);
+        const headers = ['Timecode', 'Group', 'Duration (Hours)', ...feeCol('Fees'), 'Earnings'];
         const rows = timecodeData.map(tc => {
           const timecode = timecodeMap.get(tc.id);
           const groupName = timecode?.groupId ? groupMap.get(timecode.groupId)?.name || 'Unknown' : 'Ungrouped';
@@ -674,6 +694,7 @@ export const AnalysisView: React.FC = () => {
             escapeCSV(tc.name),
             escapeCSV(groupName),
             tc.durationHours.toString(),
+            ...feeCol(tc.fees.toFixed(2)),
             tc.earnings.toFixed(2)
           ].join(',');
         });
@@ -683,18 +704,21 @@ export const AnalysisView: React.FC = () => {
             escapeCSV('Subtotal'),
             '',
             totalHours.toFixed(2),
+            ...feeCol(totalFees.toFixed(2)),
             taxBreakdown.subtotal.toFixed(2)
           ].join(','));
           rows.push([
             escapeCSV(`${settings?.taxLabel || 'Tax'} (${settings?.taxRate}%)`),
             '',
             '',
+            ...feeCol(''),
             taxBreakdown.tax.toFixed(2)
           ].join(','));
           rows.push([
             escapeCSV('Total'),
             '',
             totalHours.toFixed(2),
+            ...feeCol(totalFees.toFixed(2)),
             taxBreakdown.total.toFixed(2)
           ].join(','));
         } else {
@@ -702,6 +726,7 @@ export const AnalysisView: React.FC = () => {
             escapeCSV('Total'),
             '',
             totalHours.toFixed(2),
+            ...feeCol(totalFees.toFixed(2)),
             totalEarnings.toFixed(2)
           ].join(','));
         }
@@ -783,7 +808,9 @@ export const AnalysisView: React.FC = () => {
             escapeCSV(grp?.name ?? 'Ungrouped'),
             escapeCSV(format(parseISO(e.startTime), 'HH:mm:ss')),
             escapeCSV(e.endTime ? format(parseISO(e.endTime), 'HH:mm:ss') : ''),
-            hrs.toFixed(2),
+            // A fee bills no hours; an empty cell says so, where 0.00 would
+            // read as a duration that was measured and came out at zero.
+            line?.isFixedCost ? '' : hrs.toFixed(2),
             amount !== 0 ? amount.toFixed(2) : '',
             escapeCSV(e.note),
           ].join(',');
@@ -861,12 +888,22 @@ export const AnalysisView: React.FC = () => {
       // Disclose rounding on the document itself. Without this the client sees
       // a billed figure that does not match the itemised times and has no way
       // to tell why.
+      const workedHours = roundHours(totalWorkedSeconds / 3600);
       if ((settings?.roundingRule ?? 'none') !== 'none') {
-        const workedHours = roundHours(totalWorkedSeconds / 3600);
         addMeta(
           'Rounding:',
           `${ROUNDING_RULE_LABELS[settings!.roundingRule]}, ${ROUNDING_SCOPE_LABELS[settings?.roundingScope || 'day']} — ` +
           `worked ${workedHours.toFixed(2)} h, billed ${totalHours.toFixed(2)} h`
+        );
+      }
+      // The other reason the Hours column can be short of the time on the
+      // clock: a fixed amount bills as a fee, so its entry shows a dash for
+      // Hours and its minutes are in neither the row nor the total.
+      if (totalFees !== 0) {
+        addMeta(
+          'Fees:',
+          `${currencySymbol}${totalFees.toFixed(2)} billed as fixed amounts rather than by the hour — ` +
+          `worked ${workedHours.toFixed(2)} h in total, of which ${totalHours.toFixed(2)} h is billed at a rate.`
         );
       }
 
@@ -908,24 +945,37 @@ export const AnalysisView: React.FC = () => {
       doc.setFont('helvetica', 'bold');
       doc.text('Summary', 14, y);
 
+      // With a Fees column the row reads as arithmetic the client can check:
+      // Rate x Hours + Fees = Total. It only appears when there is a fee to
+      // show, so an ordinary hourly report keeps the four columns it had.
       const summaryRows = timecodeData.map(tc => {
         const timecode = timecodeMap.get(tc.id);
         const groupName = timecode?.groupId ? groupMap.get(timecode.groupId)?.name || 'Unknown' : 'Ungrouped';
         const rate = timecode?.hourlyRate ? `${currencySymbol}${timecode.hourlyRate.toFixed(2)}/hr` : '-';
-        return [tc.name, groupName, rate, tc.durationHours.toFixed(2), formatAmount(tc.earnings)];
+        const row = [tc.name, groupName, rate, tc.durationHours.toFixed(2)];
+        if (showFeesColumn) row.push(formatAmount(tc.fees));
+        row.push(formatAmount(tc.earnings));
+        return row;
       });
 
+      // A tax line labels itself in the column immediately before the money, so
+      // the leading blanks grow with the table rather than being counted out.
+      const feeCell = showFeesColumn ? [formatAmount(totalFees)] : [];
+      const labelledFootRow = (label: string, value: string) => {
+        const width = showFeesColumn ? 6 : 5;
+        return [...Array(width - 2).fill(''), label, value];
+      };
       const foot = taxBreakdown
         ? [
-            ['', '', '', 'Subtotal', `${currencySymbol}${taxBreakdown.subtotal.toFixed(2)}`],
-            ['', '', '', `${settings?.taxLabel || 'Tax'} (${settings?.taxRate}%)`, `${currencySymbol}${taxBreakdown.tax.toFixed(2)}`],
-            ['', 'Total', '', totalHours.toFixed(2), `${currencySymbol}${taxBreakdown.total.toFixed(2)}`],
+            labelledFootRow('Subtotal', `${currencySymbol}${taxBreakdown.subtotal.toFixed(2)}`),
+            labelledFootRow(`${settings?.taxLabel || 'Tax'} (${settings?.taxRate}%)`, `${currencySymbol}${taxBreakdown.tax.toFixed(2)}`),
+            ['', 'Total', '', totalHours.toFixed(2), ...feeCell, `${currencySymbol}${taxBreakdown.total.toFixed(2)}`],
           ]
-        : [['', 'Total', '', totalHours.toFixed(2), formatAmount(totalEarnings)]];
+        : [['', 'Total', '', totalHours.toFixed(2), ...feeCell, formatAmount(totalEarnings)]];
 
       autoTable(doc, {
         startY: y + 4,
-        head: [['Timecode', 'Group', 'Rate', 'Hours', 'Total']],
+        head: [['Timecode', 'Group', 'Rate', 'Hours', ...(showFeesColumn ? ['Fees'] : []), 'Total']],
         body: summaryRows,
         foot,
         footStyles: { fontStyle: 'bold', fillColor: [238, 240, 236], textColor: [16, 22, 28] },
@@ -938,7 +988,9 @@ export const AnalysisView: React.FC = () => {
         .map(e => {
           const tc = timecodeMap.get(e.timecodeId);
           const line = billableLines.get(e.id);
-          const hrs = (line?.hours ?? 0).toFixed(2);
+          // A fee bills no hours, so the Hours cell is a dash rather than a
+          // 0.00 that reads as a missing figure.
+          const hrs = line?.isFixedCost ? '—' : (line?.hours ?? 0).toFixed(2);
           const amount = line?.amount ?? 0;
           const paused = e.endTime
             ? formatDurationShort(calculateTotalPausedSeconds(parseISO(e.startTime), parseISO(e.endTime), e.pausedSegments))
@@ -1494,6 +1546,9 @@ export const AnalysisView: React.FC = () => {
                               {breakdownType === 'timecode' ? 'Timecode' : 'Group'}
                             </th>
                             <th className="px-4 py-2.5 text-right font-semibold text-gray-600 dark:text-gray-400 font-sans text-xs uppercase tracking-wide">Hours</th>
+                            {showFeesColumn && breakdownType === 'timecode' && (
+                              <th className="px-4 py-2.5 text-right font-semibold text-gray-600 dark:text-gray-400 font-sans text-xs uppercase tracking-wide">Fees</th>
+                            )}
                             {showEarningsColumn && breakdownType === 'timecode' && (
                               <th className="px-4 py-2.5 text-right font-semibold text-gray-600 dark:text-gray-400 font-sans text-xs uppercase tracking-wide">Earnings</th>
                             )}
@@ -1516,6 +1571,13 @@ export const AnalysisView: React.FC = () => {
                                   <span className="font-medium text-graphite dark:text-stone">{row.name}</span>
                                 </td>
                                 <td className="px-4 py-2 text-right text-graphite dark:text-stone font-mono tabular">{row.durationHours.toFixed(2)}</td>
+                                {showFeesColumn && breakdownType === 'timecode' && (
+                                  <td className="px-4 py-2 text-right text-graphite dark:text-stone font-mono tabular">
+                                    {'fees' in row && typeof (row as { fees?: number }).fees === 'number'
+                                      ? formatAmount((row as { fees: number }).fees)
+                                      : '-'}
+                                  </td>
+                                )}
                                 {showEarningsColumn && breakdownType === 'timecode' && (
                                   <td className="px-4 py-2 text-right text-graphite dark:text-stone font-mono tabular">
                                     {'earnings' in row && typeof (row as { earnings?: number }).earnings === 'number'

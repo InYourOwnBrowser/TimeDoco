@@ -28,9 +28,15 @@ export interface DateRange {
 export interface BillableLine {
   /** Actual time worked in the window, before any rounding. */
   workedSeconds: number;
-  /** Billable seconds after the rounding rule has been applied at its scope. */
+  /**
+   * Billable seconds after the rounding rule has been applied at its scope.
+   *
+   * Always 0 for a fixed cost: it is billed as a fee instead of by the hour, so
+   * it contributes no hours to any row or total. Its time on the clock is still
+   * in `workedSeconds` — use `displaySecondsFor` to show one entry's duration.
+   */
   seconds: number;
-  /** Hours as printed on reports — always two decimals. */
+  /** Hours as printed on reports — always two decimals. Always 0 for a fee. */
   hours: number;
   /** Line amount, allocated from the timecode's total billable time to avoid compounding rounding errors. */
   amount: number;
@@ -51,7 +57,8 @@ interface RawLine {
   isFixedCost: boolean;
   manualAmount: number | null;
   hourlyRate: number | null;
-  bucketKey: string;
+  /** null for a fixed cost, which has no billable time to round. */
+  bucketKey: string | null;
 }
 
 /** Time actually worked inside the reporting window, before rounding. */
@@ -93,14 +100,18 @@ const windowKeyFor = (scopeWindow: DateRange | null | undefined): string | null 
 /**
  * The scope actually applied, which is not always the one configured.
  *
- * 'timecode' and 'invoice' are defined relative to a reporting period — they
- * mean "this timecode's total on this report" and "this report's total". A
- * surface with no reporting window (the entry list, which shows all time) has
- * no such bucket to offer: taken literally, the bucket becomes the user's
- * entire history, so one entry's billable minutes shift every time an unrelated
- * entry is recorded months later, and the figure never matches the report's.
- * Falling back to 'day' gives that surface a bucket that is well defined,
- * stable, and identical however the list is filtered.
+ * 'timecode' and 'invoice' are properties of a report, not of a screen: they
+ * mean "this timecode's total on this report" and "this report's total". Only a
+ * surface that *is* a report — one covering a period the user chose, which is
+ * the analysis view — names a `scopeWindow`; every other surface passes null and
+ * lands on 'day' here.
+ *
+ * Letting each surface name its own window instead put the bucket in the hands
+ * of whatever happened to be on screen, and the surfaces necessarily disagreed:
+ * the same two entries billed as 20 minutes on the month calendar, 22.5 on the
+ * week grid beside it and 15 in the entry list. 'day' is a bucket every surface
+ * can build identically, whatever slice of time it is showing and however it is
+ * filtered.
  */
 export const effectiveRoundingScope = (
   scope: RoundingScope,
@@ -168,16 +179,15 @@ export interface BuildOptions {
   /**
    * The reporting window the wider rounding scopes are measured over.
    *
-   * At 'timecode' and 'invoice' scope a bucket's total *is* the set of entries
-   * handed in, so without this the window was whatever slice the caller
-   * happened to be rendering — and the entry list, the timesheet, the weekly
-   * summary and the report each rendered a different one, giving four different
-   * billable figures for the same entry. Naming the window makes the bucket a
-   * property of the report rather than of the caller's slice.
+   * Name it only from a report — a view of a period the user picked, whose
+   * totals are the ones an invoice is drawn from. At 'timecode' and 'invoice'
+   * scope a bucket's total *is* the set of entries handed in, so a window named
+   * by an ordinary screen makes that screen's own extent decide an entry's
+   * billable minutes, and two screens showing the same day then disagree.
    *
    * The caller must pass every entry in this window, not only the ones it
-   * displays, or the bucket total is short. Pass null (or omit) on a surface
-   * with no reporting window; see `effectiveRoundingScope`.
+   * displays, or the bucket total is short. Pass null (or omit) anywhere else,
+   * and the wide scopes degrade to 'day'; see `effectiveRoundingScope`.
    */
   scopeWindow?: DateRange | null;
   timecodeMap?: Map<string, Timecode>;
@@ -199,6 +209,8 @@ export interface BuildOptions {
  *     sum of the line amounts exactly matches the timecode's total amount.
  *  3. A fixed cost belongs to the period containing the entry's start, so an
  *     entry straddling two invoices is not billed in full on both.
+ *  4. A fixed cost bills as a fee and so contributes no hours. Rate x the row's
+ *     printed hours, plus its fees, is exactly the row's printed total.
  */
 export const buildBillableLines = (entries: Entry[], options: BuildOptions): Map<string, BillableLine> => {
   const {
@@ -227,16 +239,22 @@ export const buildBillableLines = (entries: Entry[], options: BuildOptions): Map
       isFixedCost: entry.manualAmount != null,
       manualAmount: entry.manualAmount ?? null,
       hourlyRate: timecode?.hourlyRate ?? null,
-      // A fixed cost is billed as a fee, so its time never joins a rounding
-      // bucket where it could shift another entry's billable minutes.
+      // A fixed cost bills as a fee rather than by the hour, so it has no
+      // billable time at all: `bucketKey` is null and its billable seconds stay
+      // 0. It joins no rounding bucket either, where its minutes would shift
+      // another entry's billable ones. It used to get a bucket of its own,
+      // which both billed its hours beside the fee — printing a summary row
+      // whose Rate x Hours did not equal its Total — and rounded it at entry
+      // scope whatever scope the user had configured.
       bucketKey: entry.manualAmount != null
-        ? `f:${entry.id}`
+        ? null
         : bucketKeyFor(scope, entry, entryStart, windowKey),
     };
   });
 
   const buckets = new Map<string, RawLine[]>();
   for (const raw of raws) {
+    if (raw.bucketKey === null) continue;
     const existing = buckets.get(raw.bucketKey);
     if (existing) existing.push(raw);
     else buckets.set(raw.bucketKey, [raw]);
@@ -363,6 +381,10 @@ export type BillingSettings = Pick<Settings, 'roundingRule' | 'roundingScope'> |
  * `dateRange` is the window the answer is about: a report clips to it, while a
  * view that files each entry under the day it started (the grid, the calendar,
  * the list) passes `null` and lets each entry count in full.
+ *
+ * `scopeWindow` is separate, and only a report names one — see
+ * `BuildOptions.scopeWindow`. A surface that clips to a window but is not a
+ * report (the weekly target bar) passes `scopeWindow: null` explicitly.
  */
 export const buildLinesFromSettings = (
   entries: Entry[],
@@ -388,6 +410,20 @@ export const buildLinesFromSettings = (
 export const secondsFor = (lines: Map<string, BillableLine>, entryId: string): number =>
   lines.get(entryId)?.seconds ?? 0;
 
+/**
+ * What one entry's own duration reads as on screen.
+ *
+ * A fixed cost has no billable time — it bills as a fee — but it can still have
+ * real times on the clock, and a row that reported those as `0s` would read as
+ * lost data. Totals use `secondsFor`, so a fee still adds no hours to any of
+ * them; only the entry's own duration falls back to the time it was worked.
+ */
+export const displaySecondsFor = (lines: Map<string, BillableLine>, entryId: string): number => {
+  const line = lines.get(entryId);
+  if (!line) return 0;
+  return line.isFixedCost ? line.workedSeconds : line.seconds;
+};
+
 /** Single-entry convenience wrapper; rounding necessarily applies at entry scope. */
 export const computeBillableLine = (
   entry: Entry,
@@ -407,20 +443,46 @@ export const computeBillableLine = (
   }).get(entry.id)!;
 };
 
+export interface BillableTotals {
+  /** Billable seconds. Fixed costs contribute none — they bill as a fee. */
+  seconds: number;
+  /** Time on the clock, fixed costs included, for the worked-vs-billed note. */
+  workedSeconds: number;
+  /** `seconds` as printed. Multiply by the rate and add `fees` for `amount`. */
+  hours: number;
+  /** Everything billed: rate x hours, plus the fees. */
+  amount: number;
+  /** The part of `amount` that came from fixed costs rather than from a rate. */
+  fees: number;
+}
+
 /**
  * Sum lines into a report row/total. Hours and amounts are summed from values
  * that are already rounded, so the printed lines add up to the printed total.
+ *
+ * `fees` is kept apart from `hours` because a reader checks an invoice by
+ * multiplying the two columns beside each other. A fixed cost contributes no
+ * hours, so `rate x hours + fees === amount` holds for any row — which is what
+ * lets the summary table print a Fees column that reconciles.
  */
-export const sumBillableLines = (lines: BillableLine[]): { seconds: number; workedSeconds: number; hours: number; amount: number } => {
+export const sumBillableLines = (lines: BillableLine[]): BillableTotals => {
   let seconds = 0;
   let workedSeconds = 0;
   let amount = 0;
+  let fees = 0;
   for (const line of lines) {
     seconds += line.seconds;
     workedSeconds += line.workedSeconds;
     amount += line.amount;
+    if (line.isFixedCost) fees += line.amount;
   }
   // Hours come from the summed seconds rather than the summed per-line hours,
   // which would drift upward across many short entries.
-  return { seconds, workedSeconds, hours: roundHours(seconds / 3600), amount: roundCurrency(amount) };
+  return {
+    seconds,
+    workedSeconds,
+    hours: roundHours(seconds / 3600),
+    amount: roundCurrency(amount),
+    fees: roundCurrency(fees),
+  };
 };

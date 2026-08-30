@@ -75,16 +75,17 @@ export const TimesheetMatrixView: React.FC = () => {
   // cell separately gave a grid that ignored the rounding scope and disagreed
   // with every other view; sharing out one scope-aware figure keeps the cells,
   // the row totals and the week total reconciling with each other.
-  // The visible week is the scope window, and `weekEntries` is every entry in
-  // it. Without naming it, 'timecode' and 'invoice' scope had no window to
-  // measure against and silently degraded to 'day', so this grid disagreed with
-  // the calendar beside it and with the report about the very same week.
+  // scopeWindow is null: the grid is not a report, so it names no reporting
+  // period. Naming the visible week made an entry's billable minutes depend on
+  // how much time the screen happened to be showing, and the calendar tab
+  // beside it — same days, a month-wide window — gave a different figure for
+  // the same day. 'timecode' and 'invoice' scope degrade to 'day' here.
   const billableLines = useMemo(
     () => buildLinesFromSettings(weekEntries, settings, {
-      scopeWindow: { start: currentWeekStart, end: currentWeekEnd },
+      scopeWindow: null,
       now: new Date(nowMs),
     }),
-    [weekEntries, settings, currentWeekStart, currentWeekEnd, nowMs]
+    [weekEntries, settings, nowMs]
   );
 
   const cellHoursMap = useMemo(() => {

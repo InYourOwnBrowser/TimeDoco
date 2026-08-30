@@ -844,15 +844,12 @@ export const TimeTrackerProvider: React.FC<{ children: ReactNode }> = ({ childre
     if (group) {
       await db.putGroup(touch({ ...group, deletedAt: now }, now));
 
-      // Update templates to remove timecodes that were deleted
-      const currentSettings = await db.getSettings();
-      if (currentSettings && currentSettings.templates) {
-        const deletedTimecodeIds = new Set(timecodesToDelete.map(t => t.id));
-        const updatedTemplates = currentSettings.templates.filter(t => !deletedTimecodeIds.has(t.timecodeId));
-        if (updatedTemplates.length !== currentSettings.templates.length) {
-          await db.putSettings({ ...currentSettings, templates: updatedTemplates });
-        }
-      }
+      // Templates belonging to these timecodes are deliberately left alone. A
+      // soft delete is reversible from the toast and from the Trash days later,
+      // and stripping the templates here made one class of the user's data
+      // unrecoverable on both paths. They are hidden while their timecode is in
+      // the trash — see TemplateList — and only purged for good alongside it in
+      // `hardDeleteTimecode`, `emptyTrash` and `autoPurgeTrash`.
 
       addToast('Group deleted', 'success', { label: 'Undo', onClick: async () => {
         await restoreGroup(id);
@@ -1279,16 +1276,12 @@ export const TimeTrackerProvider: React.FC<{ children: ReactNode }> = ({ childre
       await db.putTimecode(touch({ ...tc, deletedAt: now }, now));
     }
 
-    // Update templates
-    const currentSettings = await db.getSettings();
-    let originalTemplates: NonNullable<typeof currentSettings>['templates'] = [];
-    if (currentSettings && currentSettings.templates) {
-      originalTemplates = currentSettings.templates;
-      const updatedTemplates = currentSettings.templates.filter(t => t.timecodeId !== id);
-      if (updatedTemplates.length !== currentSettings.templates.length) {
-        await db.putSettings({ ...currentSettings, templates: updatedTemplates });
-      }
-    }
+    // Templates pointing at this timecode are left in place. A soft delete is
+    // reversible — from the toast now, or from the Trash days later — and
+    // deleting them here made them recoverable only inside the five second undo
+    // window. They stop appearing while the timecode is in the trash (see
+    // TemplateList) and are purged with it in `hardDeleteTimecode`,
+    // `emptyTrash` and `autoPurgeTrash`.
 
     if (tc) {
       addToast('Timecode deleted', 'success', {
@@ -1308,18 +1301,8 @@ export const TimeTrackerProvider: React.FC<{ children: ReactNode }> = ({ childre
              await db.putEntry(touch(restored as Entry));
            }));
 
-           if (originalTemplates.length > 0) {
-             const current = await db.getSettings();
-             if (current) {
-               // Merge rather than overwrite: a template added during the undo
-               // window would otherwise be discarded by the restore.
-               const merged = [...(current.templates || [])];
-               for (const template of originalTemplates) {
-                 if (!merged.some((t) => t.id === template.id)) merged.push(template);
-               }
-               await db.putSettings({ ...current, templates: merged });
-             }
-           }
+           // Nothing to do for templates: the delete left them in place, so
+           // restoring the timecode is enough to bring them back into view.
            await refreshData();
         }
       }, 5000);

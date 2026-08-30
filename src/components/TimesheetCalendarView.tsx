@@ -1,7 +1,7 @@
 import React, { useMemo, useState } from 'react';
 import { useTimeTracker } from '../context/TimeTrackerContext';
 import { format, startOfMonth, endOfMonth, eachDayOfInterval, startOfWeek, endOfWeek, addMonths, subMonths, isSameMonth, isToday, parseISO } from 'date-fns';
-import { buildLinesFromSettings, secondsFor } from '../utils/billing';
+import { buildLinesFromSettings, displaySecondsFor, secondsFor } from '../utils/billing';
 import { useNowTick } from '../hooks/useNowTick';
 import { ChevronLeft, ChevronRight } from 'lucide-react';
 import { Button } from './ui/Button';
@@ -36,9 +36,12 @@ export const TimesheetCalendarView: React.FC = () => {
       if (dayStr >= gridStartStr && dayStr <= gridEndStr) visible.push(e);
     }
 
-    // The visible grid is the scope window; `visible` is every entry in it.
+    // scopeWindow is null: the calendar is not a report, so it names no
+    // reporting period. Rounding a month-wide bucket here gave a different
+    // figure for a day than the week grid on the tab beside it. 'timecode' and
+    // 'invoice' scope degrade to 'day'.
     const lines = buildLinesFromSettings(visible, settings, {
-      scopeWindow: { start: startDate, end: endDate },
+      scopeWindow: null,
       now: new Date(nowMs),
     });
 
@@ -144,7 +147,7 @@ export const TimesheetCalendarView: React.FC = () => {
                         </span>
                       </div>
                       <span className="font-mono text-gray-600 dark:text-gray-300">
-                        {(secondsFor(billableLines, entry.id) / 3600).toFixed(2)}h
+                        {(displaySecondsFor(billableLines, entry.id) / 3600).toFixed(2)}h
                       </span>
                     </div>
                   );

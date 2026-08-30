@@ -9,7 +9,7 @@ import { ManualEntryModal } from './ManualEntryModal';
 import { Modal } from './ui/Modal';
 import type { Entry } from '../types';
 import { getElapsedTimeMs, formatDurationShort } from '../utils/timeUtils';
-import { buildLinesFromSettings, secondsFor } from '../utils/billing';
+import { buildLinesFromSettings, displaySecondsFor, secondsFor } from '../utils/billing';
 import { useNowTick } from '../hooks/useNowTick';
 
 const LiveEntryDuration: React.FC<{ entry: Entry, formatDuration: (s: number) => string }> = ({ entry, formatDuration }) => {
@@ -404,13 +404,13 @@ export const EntryList: React.FC = () => {
                           <span className="text-lg font-mono tabular font-medium text-graphite dark:text-stone">
                             {entry.isRunning
                               ? <LiveEntryDuration entry={entry} formatDuration={formatDuration} />
-                              : formatDuration(secondsFor(billableLines, entry.id))}
+                              : formatDuration(displaySecondsFor(billableLines, entry.id))}
                           </span>
                           {entry.expectedDurationMinutes ? (
                             <span className="text-xs font-mono tabular whitespace-nowrap">
                               {entry.isRunning
                                 ? <LiveEstimateComparison entry={entry} expectedSeconds={entry.expectedDurationMinutes * 60} />
-                                : <EstimateComparison entry={entry} expectedSeconds={entry.expectedDurationMinutes * 60} actualSeconds={secondsFor(billableLines, entry.id)} />}
+                                : <EstimateComparison entry={entry} expectedSeconds={entry.expectedDurationMinutes * 60} actualSeconds={displaySecondsFor(billableLines, entry.id)} />}
                             </span>
                           ) : null}
                         </div>

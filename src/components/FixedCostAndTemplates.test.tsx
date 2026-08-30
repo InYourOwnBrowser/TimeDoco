@@ -66,6 +66,16 @@ const mockSettings = {
       timecodeId: 'tc-1',
       durationMinutes: 15,
       note: 'Team sync',
+    },
+    // Its timecode is in the trash, so it is not in `mockTimecodes`. Deleting a
+    // timecode is reversible, so its templates are kept rather than destroyed —
+    // they are only hidden until it is restored.
+    {
+      id: 'template-trashed',
+      title: 'Archived Ritual',
+      timecodeId: 'tc-trashed',
+      durationMinutes: 30,
+      note: 'On a trashed timecode',
     }
   ]
 };
@@ -173,6 +183,15 @@ describe('Fixed Cost & Template Deletion', () => {
     });
   });
 
+  describe('TemplateList visibility', () => {
+    it('hides a template whose timecode is in the trash and shows the rest', () => {
+      render(<TemplateList />);
+
+      expect(screen.getByRole('button', { name: 'Log Daily Standup' })).not.toBeNull();
+      expect(screen.queryByRole('button', { name: 'Log Archived Ritual' })).toBeNull();
+    });
+  });
+
   describe('TemplateList Deletion Confirmation', () => {
     it('cancels deletion when window.confirm returns false', () => {
       const confirmSpy = vi.spyOn(window, 'confirm').mockReturnValue(false);
@@ -200,8 +219,12 @@ describe('Fixed Cost & Template Deletion', () => {
 
       expect(confirmSpy).toHaveBeenCalledWith('Delete template "Daily Standup"? This can be undone from the toast for a few seconds.');
       // Only the templates delta — passing the whole snapshot would make
-      // updateSettings' re-read-and-merge overwrite every other field.
-      expect(mockUpdateSettings).toHaveBeenCalledWith({ templates: [] });
+      // updateSettings' re-read-and-merge overwrite every other field. The
+      // template hidden behind a trashed timecode survives: the write is
+      // derived from the stored list, not from the filtered one on screen.
+      expect(mockUpdateSettings).toHaveBeenCalledWith({
+        templates: [expect.objectContaining({ id: 'template-trashed' })],
+      });
 
       confirmSpy.mockRestore();
     });

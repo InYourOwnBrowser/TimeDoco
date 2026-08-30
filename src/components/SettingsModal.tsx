@@ -11,12 +11,16 @@ import { validateBackupPayload, verifyBackupFile, MAX_IMPORT_FILE_BYTES, MAX_IMP
 import { findOverlappingCandidates } from '../utils/timeUtils';
 import { formatErrorLogForClipboard } from '../utils/errorLog';
 
+// A group the CSV named but the user does not have yet gets the app's default
+// group colour; they can recolour it from the grouping panel.
+const CSV_IMPORT_GROUP_COLOR = '#3E7368';
+
 interface SettingsModalProps {
   onClose: () => void;
 }
 
 export const SettingsModal: React.FC<SettingsModalProps> = ({ onClose }) => {
-  const { getBackupBlob, markBackupSaved, importData, wipeAllData, settings, updateSettings, bulkAddManualEntries, addTimecode, entries, timecodes, deletedEntries, restoreEntry, hardDeleteEntry, deletedTimecodes, restoreTimecode, hardDeleteTimecode, deletedGroups, restoreGroup, hardDeleteGroup, emptyTrash } = useTimeTracker();
+  const { getBackupBlob, markBackupSaved, importData, wipeAllData, settings, updateSettings, bulkAddManualEntries, addGroup, addTimecode, entries, timecodes, groups, deletedEntries, restoreEntry, hardDeleteEntry, deletedTimecodes, restoreTimecode, hardDeleteTimecode, deletedGroups, restoreGroup, hardDeleteGroup, emptyTrash } = useTimeTracker();
   const { triggerDownload, SaveAsDialog } = useNamedDownload();
   const { addToast } = useToast();
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -309,11 +313,12 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ onClose }) => {
         // them in the database with nothing referencing them, and every retry
         // would strand another set.
         const createdTimecodes: string[] = [];
+        const createdGroups: string[] = [];
 
         /**
-         * Remove the timecodes this import created, for a run that imported
-         * nothing. They are new by construction — nothing outside this import
-         * can reference them yet — so hard-deleting them cannot orphan
+         * Remove the timecodes and groups this import created, for a run that
+         * imported nothing. They are new by construction — nothing outside this
+         * import can reference them yet — so hard-deleting them cannot orphan
          * anything.
          *
          * `hardDeleteTimecode` is guarded: it reports its own failure and
@@ -329,6 +334,12 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ onClose }) => {
             else failed++;
           }
           createdTimecodes.length = 0;
+          // Groups go after the timecodes that were filed under them, so a
+          // failed timecode delete does not leave one stranded in no group.
+          for (const id of createdGroups) {
+            await hardDeleteGroup(id);
+          }
+          createdGroups.length = 0;
           if (rolledBack === 0 && failed === 0) return '';
           const removed = rolledBack > 0
             ? ` No entries were imported; ${rolledBack} ${rolledBack === 1 ? 'timecode' : 'timecodes'} created by this import ${rolledBack === 1 ? 'was' : 'were'} removed.`
@@ -354,6 +365,8 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ onClose }) => {
           type PreparedCandidate = {
             id: string;
             timecodeName: string;
+            /** From the optional Group column; '' when the CSV does not say. */
+            groupName: string;
             startTime: string;
             endTime: string;
             note: string;
@@ -368,6 +381,9 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ onClose }) => {
               const startTimeRaw = row['Start Time'] || row.startTime || row.start;
               const endTimeRaw = row['End Time'] || row.endTime || row.end;
               const timecodeName = (row['Timecode'] || row.timecode || row.name || '').trim();
+              // Optional, and the column TimeDoco's own detailed CSV export
+              // writes. It is what tells two identically named timecodes apart.
+              const groupName = (row['Group'] || row.group || '').trim();
               const note = (row['Note'] || row.note || '').trim();
               const tagsRaw = row['Tags'] || row.tags || '';
               const amountRaw = row['Amount'] || row.amount || row.manualAmount || row['Manual Amount'];
@@ -377,7 +393,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ onClose }) => {
                 continue;
               }
 
-              if (timecodeName.length > 100) {
+              if (timecodeName.length > 100 || groupName.length > 100) {
                 skippedCount++;
                 continue;
               }
@@ -420,6 +436,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ onClose }) => {
               candidates.push({
                 id: crypto.randomUUID(),
                 timecodeName,
+                groupName,
                 startTime: startObj.toISOString(),
                 endTime: endObj.toISOString(),
                 note,
@@ -437,22 +454,58 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ onClose }) => {
             return;
           }
 
-          // Every timecode in the database, trashed ones included — the same
-          // set the JSON import resolves against. Matching live timecodes only
-          // created a second, identically named timecode whenever the CSV
-          // referred to one that happened to be in the trash.
-          const tcMapByName = new Map<string, string>();
-          [...timecodes, ...deletedTimecodes].forEach(tc => {
-            const key = tc.name.toLowerCase();
-            if (!tcMapByName.has(key)) tcMapByName.set(key, tc.id);
-          });
+          // Timecode names are only unique within a group, so a name on its own
+          // does not identify one: "Design" can sit under both Acme and Globex.
+          // Resolving by name and taking the first match billed the imported
+          // hours to whichever of them IndexedDB happened to return first — an
+          // order that is arbitrary and differs between devices. So resolve on
+          // group + name where the CSV gives a group, and refuse to guess where
+          // a name it needs matches more than one timecode.
+          //
+          // Trashed timecodes are in the set, the same ones the JSON import
+          // resolves against: matching live timecodes only created a second,
+          // identically named timecode whenever the CSV referred to one that
+          // happened to be in the trash.
+          const UNGROUPED_KEY = 'ungrouped';
+          const groupNameById = new Map<string, string>();
+          [...groups, ...deletedGroups].forEach(g => groupNameById.set(g.id, g.name.trim().toLowerCase()));
+          const groupKeyOf = (groupId: string | null | undefined) =>
+            (groupId ? groupNameById.get(groupId) : null) || UNGROUPED_KEY;
+
+          const allTimecodes = [...timecodes, ...deletedTimecodes];
+          const byName = new Map<string, typeof allTimecodes>();
+          const byGroupAndName = new Map<string, typeof allTimecodes>();
+          const addTo = (map: Map<string, typeof allTimecodes>, key: string, tc: typeof allTimecodes[number]) => {
+            const existing = map.get(key);
+            if (existing) existing.push(tc);
+            else map.set(key, [tc]);
+          };
+          for (const tc of allTimecodes) {
+            const name = tc.name.trim().toLowerCase();
+            addTo(byName, name, tc);
+            addTo(byGroupAndName, `${groupKeyOf(tc.groupId)}|${name}`, tc);
+          }
+
+          /**
+           * The timecodes a row could mean. A row naming a group is matched on
+           * group + name; one that does not falls back to the name alone, which
+           * only identifies a timecode when the name is unique across groups.
+           */
+          const matchesFor = (candidate: PreparedCandidate) => {
+            const name = candidate.timecodeName.toLowerCase();
+            if (candidate.groupName) {
+              return byGroupAndName.get(`${candidate.groupName.toLowerCase()}|${name}`) || [];
+            }
+            return byName.get(name) || [];
+          };
 
           // Assign temporary or existing timecode IDs for overlap check
           const candidateEntriesForCheck = candidates.map(c => {
-            const existingId = tcMapByName.get(c.timecodeName.toLowerCase());
+            const matches = matchesFor(c);
+            const existingId = matches.length === 1 ? matches[0].id : undefined;
             return {
               id: c.id,
-              timecodeId: existingId || `temp-${c.timecodeName.toLowerCase()}`,
+              timecodeId: existingId || `temp-${c.groupName.toLowerCase()}|${c.timecodeName.toLowerCase()}`,
               startTime: c.startTime,
               endTime: c.endTime,
               duration: 0,
@@ -483,11 +536,46 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ onClose }) => {
             return;
           }
 
-          // A CSV name that matches a trashed timecode reuses that record rather
-          // than silently creating a duplicate of it. Restoring one also brings
-          // back the entries trashed with it, so the user decides.
-          const neededNames = new Set(survivingCandidates.map(c => c.timecodeName.toLowerCase()));
-          const trashedMatches = deletedTimecodes.filter(tc => neededNames.has(tc.name.toLowerCase()));
+          // Nothing has been written yet, and nothing is written past here if a
+          // name the CSV needs could mean more than one timecode. Guessing puts
+          // the hours on the wrong client's invoice with nothing on screen to
+          // say a choice was made, so stop and name what is ambiguous instead.
+          const groupLabelById = new Map<string, string>();
+          [...groups, ...deletedGroups].forEach(g => groupLabelById.set(g.id, g.name));
+          const ambiguous = new Map<string, string[]>();
+          for (const c of survivingCandidates) {
+            const matches = matchesFor(c);
+            if (matches.length < 2) continue;
+            const label = c.groupName ? `"${c.timecodeName}" in "${c.groupName}"` : `"${c.timecodeName}"`;
+            if (!ambiguous.has(label)) {
+              ambiguous.set(label, matches.map(tc => (tc.groupId && groupLabelById.get(tc.groupId)) || 'Ungrouped'));
+            }
+          }
+
+          if (ambiguous.size > 0) {
+            const detail = Array.from(ambiguous.entries())
+              .map(([label, groupNames]) => `${label} (${groupNames.join(', ')})`)
+              .join('; ');
+            setStatusMsg({
+              type: 'error',
+              text: `Import stopped: ${ambiguous.size === 1 ? 'a timecode name in' : `${ambiguous.size} timecode names in`} this CSV ` +
+                `${ambiguous.size === 1 ? 'matches' : 'match'} more than one of your timecodes, so ${ambiguous.size === 1 ? 'its' : 'their'} ` +
+                `rows could be billed against the wrong one — ${detail}. ` +
+                'Add a Group column naming the group each row belongs to, or rename the timecodes so they differ. ' +
+                'Nothing was imported.',
+            });
+            return;
+          }
+
+          // A CSV row that resolves to a trashed timecode reuses that record
+          // rather than silently creating a duplicate of it. Restoring one also
+          // brings back the entries trashed with it, so the user decides.
+          const resolved = new Map<string, typeof allTimecodes[number]>();
+          for (const c of survivingCandidates) {
+            const matches = matchesFor(c);
+            if (matches.length === 1) resolved.set(c.id, matches[0]);
+          }
+          const trashedMatches = Array.from(new Set(resolved.values())).filter(tc => tc.deletedAt);
           let reuseTrashed = false;
           if (trashedMatches.length > 0) {
             reuseTrashed = window.confirm(
@@ -506,23 +594,55 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ onClose }) => {
             }
           }
 
-          // Pass 2: Create required timecodes and add surviving entries
-          const localTimecodes = reuseTrashed
-            ? [...timecodes, ...trashedMatches.filter(tc => restoredTimecodes.includes(tc.id))]
-            : [...timecodes];
+          // Pass 2: Create required timecodes and add surviving entries. Each
+          // row uses the timecode it resolved to above, so a row is never
+          // re-matched by name here and never lands somewhere the ambiguity
+          // check did not vet.
+          const restoredIds = new Set(restoredTimecodes);
+          const groupIdByName = new Map<string, string>();
+          groups.forEach(g => groupIdByName.set(g.name.trim().toLowerCase(), g.id));
+          const createdTimecodeByKey = new Map<string, string>();
           const entriesToBulkAdd: { startTime: string; endTime: string; timecodeId: string; note: string; tags: string[]; manualAmount: number | null }[] = [];
 
           for (const item of survivingCandidates) {
-            let tc = localTimecodes.find(t => t.name.toLowerCase() === item.timecodeName.toLowerCase());
-            if (!tc) {
-              tc = await addTimecode(item.timecodeName, undefined, undefined, undefined, { deferRefresh: true });
-              localTimecodes.push(tc);
-              createdTimecodes.push(tc.id);
+            const match = resolved.get(item.id);
+            // A trashed match the user declined to restore is not usable, so
+            // the row gets a new timecode of the same name instead.
+            const usable = match && (!match.deletedAt || (reuseTrashed && restoredIds.has(match.id)));
+
+            let timecodeId: string;
+            if (usable) {
+              timecodeId = match!.id;
+            } else {
+              // Rows sharing a name (and a group, where the CSV names one) share
+              // the timecode created for them rather than getting one each.
+              const key = `${item.groupName.toLowerCase()}|${item.timecodeName.toLowerCase()}`;
+              const already = createdTimecodeByKey.get(key);
+              if (already) {
+                timecodeId = already;
+              } else {
+                let groupId: string | undefined;
+                const wantedGroup = item.groupName.trim().toLowerCase();
+                if (wantedGroup && wantedGroup !== UNGROUPED_KEY) {
+                  groupId = groupIdByName.get(wantedGroup);
+                  if (!groupId) {
+                    const group = await addGroup(item.groupName.trim(), CSV_IMPORT_GROUP_COLOR);
+                    groupId = group.id;
+                    groupIdByName.set(wantedGroup, group.id);
+                    createdGroups.push(group.id);
+                  }
+                }
+                const tc = await addTimecode(item.timecodeName, undefined, groupId, undefined, { deferRefresh: true });
+                createdTimecodeByKey.set(key, tc.id);
+                createdTimecodes.push(tc.id);
+                timecodeId = tc.id;
+              }
             }
+
             entriesToBulkAdd.push({
               startTime: item.startTime,
               endTime: item.endTime,
-              timecodeId: tc.id,
+              timecodeId,
               note: item.note,
               tags: item.tags,
               manualAmount: item.manualAmount,
@@ -915,9 +1035,11 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ onClose }) => {
               {(settings?.roundingRule ?? 'none') !== 'none' &&
                 (settings?.roundingScope === 'timecode' || settings?.roundingScope === 'invoice') && (
                   <p className="text-xs text-gray-600 dark:text-gray-400 -mt-1 mb-2">
-                    These two totals are measured over a reporting period, so they apply on reports, the
-                    timesheet and the weekly summary. The entry list covers all time and has no period,
-                    so it rounds each day's total there.
+                    These two totals are measured over a reporting period, so they apply on the report in
+                    Analysis &amp; Export. Every other view — the entry list, the timesheet and the weekly
+                    summary — covers whatever span happens to be on screen rather than a period you chose,
+                    so it rounds each day's total instead. That keeps them showing one figure for a day
+                    however far back you scroll.
                   </p>
                 )}
             </Panel>
@@ -1078,6 +1200,8 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ onClose }) => {
               <h3 className="text-md font-semibold text-graphite dark:text-stone mb-3">Import CSV Data</h3>
               <p className="text-sm text-gray-600 dark:text-gray-400 mb-4">
                 Import time entries from a generic CSV file. Ensure it has "Start Time", "End Time", and "Timecode" columns.
+                Add an optional "Group" column where a timecode name is used by more than one group — without it, a name
+                that matches two timecodes stops the import rather than guessing which client to bill.
               </p>
 
               <div className="space-y-4">

@@ -24,7 +24,20 @@ export const TemplateList: React.FC = () => {
   const [note, setNote] = useState('');
   const [tagsStr, setTagsStr] = useState('');
 
-  const templates = settings?.templates || [];
+  // The stored list, which every write below is derived from: writing a
+  // filtered copy back would delete the templates this component hides.
+  const templates = React.useMemo(() => settings?.templates || [], [settings?.templates]);
+
+  // Deleting a timecode (or the group above it) is a soft delete the user can
+  // undo from the toast or from the Trash, so its templates are kept rather
+  // than destroyed. They have nothing to log against while the timecode is in
+  // the trash, so they are hidden here and come back with it when it is
+  // restored.
+  const liveTimecodeIds = React.useMemo(() => new Set(timecodes.map(t => t.id)), [timecodes]);
+  const visibleTemplates = React.useMemo(
+    () => templates.filter(t => liveTimecodeIds.has(t.timecodeId)),
+    [templates, liveTimecodeIds]
+  );
 
   const isDirty = title !== '' || note !== '' || tagsStr !== '' || isFixedDuration || expectedDurationMinutes !== '';
 
@@ -168,11 +181,11 @@ export const TemplateList: React.FC = () => {
         </button>
       </div>
 
-      {templates.length === 0 ? (
+      {visibleTemplates.length === 0 ? (
         <p className="text-sm text-gray-600 dark:text-gray-400 italic">No templates created. Add one to quickly log recurring tasks (like Standup or Admin time).</p>
       ) : (
         <div className="flex flex-wrap gap-2">
-          {templates.map(template => {
+          {visibleTemplates.map(template => {
             const tc = timecodes.find(t => t.id === template.timecodeId);
             const tcColor = tc?.color || groups.find(g => g.id === tc?.groupId)?.color || '#94a3b8';
 

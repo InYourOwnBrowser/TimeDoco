@@ -1,5 +1,6 @@
 import { describe, it, expect } from 'vitest';
-import { buildBillableLines, buildLinesFromSettings, computeBillableLine, distributeAcrossBuckets, effectiveRoundingScope, sumBillableLines } from './billing';
+import { buildBillableLines, buildLinesFromSettings, computeBillableLine, displaySecondsFor, distributeAcrossBuckets, effectiveRoundingScope, sumBillableLines } from './billing';
+import type { RoundingRule } from './billing';
 import type { Entry, Timecode } from '../types';
 
 const tc = (over: Partial<Timecode> = {}): Timecode => ({
@@ -76,8 +77,11 @@ describe('computeBillableLine', () => {
     // Billed once, not once per invoice that the entry happens to touch.
     expect(feb.amount).toBe(0);
     expect(jan.amount + feb.amount).toBe(500);
-    // February still sees the hours worked, just none of the fee.
-    expect(feb.hours).toBe(1);
+    // A fixed cost bills as a fee, so neither invoice bills hours for it. The
+    // hour February holds is still visible as time worked.
+    expect(feb.hours).toBe(0);
+    expect(feb.workedSeconds).toBe(3600);
+    expect(jan.hours).toBe(0);
   });
 
   it('subtracts a pause recorded twice only once', () => {
@@ -226,6 +230,66 @@ describe('rounding scope', () => {
     // The fee is billed in full and its minutes do not shift the hourly line.
     expect(lines.get('fee')!.amount).toBe(300);
     expect(lines.get('time')!.seconds).toBe(15 * 60);
+  });
+
+  describe('a flat fee on an entry that also has tracked time', () => {
+    // $100/hr, one ordinary hour, plus 40 minutes carrying a $150 fee.
+    const rate100 = tc({ hourlyRate: 100 });
+    const feeWithTime = () => [
+      entry({ id: 'hourly', startTime: '2026-01-05T09:00:00.000Z', endTime: '2026-01-05T10:00:00.000Z' }),
+      entry({ id: 'fee', startTime: '2026-01-05T11:00:00.000Z', endTime: '2026-01-05T11:40:00.000Z', manualAmount: 150 }),
+    ];
+    const linesFor = (scope: 'entry' | 'day' | 'timecode' | 'invoice', rule: RoundingRule = 'none') =>
+      buildBillableLines(feeWithTime(), {
+        dateRange: january, roundingRule: rule, roundingScope: scope,
+        timecodeMap: new Map([['tc-1', rate100]]),
+      });
+
+    it('bills no hours for the fee, so rate x hours + fees is the total', () => {
+      const lines = linesFor('day');
+      const fee = lines.get('fee')!;
+      expect(fee.seconds).toBe(0);
+      expect(fee.hours).toBe(0);
+      // The time is not lost, it is just not billable time.
+      expect(fee.workedSeconds).toBe(40 * 60);
+
+      const row = sumBillableLines([...lines.values()]);
+      // The summary row a client checks: 1.00 h at $100/hr, plus a $150 fee.
+      expect(row.hours).toBe(1);
+      expect(row.fees).toBe(150);
+      expect(row.hours * 100 + row.fees).toBe(row.amount);
+      expect(row.amount).toBe(250);
+      // The worked-vs-billed disclosure still sees the full 100 minutes.
+      expect(row.workedSeconds).toBe(100 * 60);
+    });
+
+    it('shows the fee entry its own tracked duration rather than 0', () => {
+      const lines = linesFor('day');
+      expect(displaySecondsFor(lines, 'fee')).toBe(40 * 60);
+      expect(displaySecondsFor(lines, 'hourly')).toBe(3600);
+    });
+
+    it('does not round the fee at entry scope while the rest of the report is at day scope', () => {
+      // The fee used to get a bucket of its own, so 40 minutes printed as 0.75 h
+      // whatever scope was configured. It contributes no hours at any scope now.
+      for (const scope of ['entry', 'day', 'timecode', 'invoice'] as const) {
+        const lines = linesFor(scope, '15min');
+        expect(lines.get('fee')!.seconds).toBe(0);
+        // And its minutes never join the hourly line's bucket either.
+        expect(lines.get('hourly')!.seconds).toBe(3600);
+      }
+    });
+
+    it('bills only the fee when the fee entry is the only one on the timecode', () => {
+      const lines = buildBillableLines(
+        [entry({ id: 'fee', startTime: '2026-01-05T11:00:00.000Z', endTime: '2026-01-05T11:40:00.000Z', manualAmount: 150 })],
+        { dateRange: january, roundingRule: '15min', roundingScope: 'day', timecodeMap: new Map([['tc-1', rate100]]) },
+      );
+      const row = sumBillableLines([...lines.values()]);
+      expect(row.hours).toBe(0);
+      expect(row.amount).toBe(150);
+      expect(row.fees).toBe(150);
+    });
   });
 
   it('is a no-op when the rounding rule is none', () => {

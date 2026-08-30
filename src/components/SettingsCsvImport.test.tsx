@@ -1,8 +1,9 @@
 import { render, fireEvent, waitFor, screen, cleanup } from '@testing-library/react';
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { SettingsModal } from './SettingsModal';
-import type { Entry, Timecode } from '../types';
+import type { Entry, Group, Timecode } from '../types';
 
+const mockAddGroup = vi.fn();
 const mockAddTimecode = vi.fn();
 const mockBulkAddManualEntries = vi.fn();
 const mockHardDeleteTimecode = vi.fn();
@@ -11,6 +12,7 @@ const mockRestoreTimecode = vi.fn();
 let mockEntries: Entry[] = [];
 let mockTimecodes: Timecode[] = [];
 let mockDeletedTimecodes: Timecode[] = [];
+let mockGroups: Group[] = [];
 
 vi.mock('../context/TimeTrackerContext', () => ({
   useTimeTracker: () => ({
@@ -22,7 +24,9 @@ vi.mock('../context/TimeTrackerContext', () => ({
     settings: { userLogoBase64: null, theme: 'system', allowConcurrentTimers: false },
     updateSettings: vi.fn().mockResolvedValue(true),
     bulkAddManualEntries: mockBulkAddManualEntries,
+    addGroup: mockAddGroup,
     addTimecode: mockAddTimecode,
+    get groups() { return mockGroups; },
     get entries() { return mockEntries; },
     get timecodes() { return mockTimecodes; },
     deletedEntries: [],
@@ -70,6 +74,7 @@ describe('CSV import and timecodes in the trash', () => {
     mockEntries = [];
     mockTimecodes = [];
     mockDeletedTimecodes = [trashed];
+    mockGroups = [];
     mockAddTimecode.mockResolvedValue({ id: 'tc-new', name: 'Client Work' });
     mockBulkAddManualEntries.mockResolvedValue({ added: 1, skipped: 0 });
     mockHardDeleteTimecode.mockResolvedValue(true);
@@ -138,6 +143,7 @@ describe('CSV import rolls back the timecodes it created', () => {
     mockEntries = [];
     mockTimecodes = [];
     mockDeletedTimecodes = [];
+    mockGroups = [];
     mockAddTimecode.mockResolvedValue({ id: 'tc-new', name: 'Client Work' });
     mockHardDeleteTimecode.mockResolvedValue(true);
   });
@@ -187,5 +193,108 @@ describe('CSV import rolls back the timecodes it created', () => {
 
     await waitFor(() => expect(mockBulkAddManualEntries).toHaveBeenCalled());
     expect(mockHardDeleteTimecode).not.toHaveBeenCalled();
+  });
+});
+
+// Timecode names are only unique within a group, so "Design" can legitimately
+// sit under two clients. Resolving by name alone and taking the first match put
+// the imported hours on whichever one IndexedDB happened to return first — an
+// order that is arbitrary and not stable across devices — with nothing on
+// screen to say a choice had been made.
+describe('CSV import resolves timecodes by group as well as name', () => {
+  const group = (id: string, name: string): Group => ({
+    id, name, color: '#3b82f6', archived: false, updatedAt: '2025-01-01T00:00:00.000Z',
+  });
+  const timecode = (id: string, name: string, groupId: string | null): Timecode => ({
+    id, name, groupId, color: undefined, hourlyRate: null, archived: false,
+    updatedAt: '2025-01-01T00:00:00.000Z',
+  });
+
+  const withGroupColumn =
+    'Start Time,End Time,Timecode,Group,Note\n' +
+    '2024-01-01T12:00:00Z,2024-01-01T13:00:00Z,Design,Globex,Test\n';
+  const withoutGroupColumn =
+    'Start Time,End Time,Timecode,Note\n' +
+    '2024-01-01T12:00:00Z,2024-01-01T13:00:00Z,Design,Test\n';
+
+  beforeEach(() => {
+    cleanup();
+    vi.clearAllMocks();
+    mockEntries = [];
+    mockDeletedTimecodes = [];
+    mockGroups = [group('g-acme', 'Acme'), group('g-globex', 'Globex')];
+    mockTimecodes = [
+      timecode('tc-acme-design', 'Design', 'g-acme'),
+      timecode('tc-globex-design', 'Design', 'g-globex'),
+    ];
+    mockBulkAddManualEntries.mockResolvedValue({ added: 1, skipped: 0 });
+    mockHardDeleteTimecode.mockResolvedValue(true);
+  });
+
+  afterEach(() => {
+    cleanup();
+    vi.restoreAllMocks();
+  });
+
+  it('stops before writing when a name it needs could mean either timecode', async () => {
+    importCsv(withoutGroupColumn);
+
+    const message = await screen.findByText(/Import stopped/);
+    expect(message.textContent).toContain('"Design"');
+    // Named, so the user can see which two it could have been.
+    expect(message.textContent).toContain('Acme');
+    expect(message.textContent).toContain('Globex');
+    expect(message.textContent).toContain('Nothing was imported');
+
+    // Not a single write, so there is nothing to roll back either.
+    expect(mockBulkAddManualEntries).not.toHaveBeenCalled();
+    expect(mockAddTimecode).not.toHaveBeenCalled();
+    expect(mockRestoreTimecode).not.toHaveBeenCalled();
+  });
+
+  it('files the row against the named group when the CSV says which', async () => {
+    importCsv(withGroupColumn);
+
+    await waitFor(() => expect(mockBulkAddManualEntries).toHaveBeenCalled());
+    expect(mockAddTimecode).not.toHaveBeenCalled();
+    expect(mockBulkAddManualEntries.mock.calls[0][0]).toEqual([
+      expect.objectContaining({ timecodeId: 'tc-globex-design' }),
+    ]);
+  });
+
+  it('still resolves a name that is unique across groups without a Group column', async () => {
+    mockTimecodes = [timecode('tc-acme-design', 'Design', 'g-acme')];
+
+    importCsv(withoutGroupColumn);
+
+    await waitFor(() => expect(mockBulkAddManualEntries).toHaveBeenCalled());
+    expect(mockAddTimecode).not.toHaveBeenCalled();
+    expect(mockBulkAddManualEntries.mock.calls[0][0]).toEqual([
+      expect.objectContaining({ timecodeId: 'tc-acme-design' }),
+    ]);
+  });
+
+  it('creates the timecode under the group the CSV names, creating the group if it is new', async () => {
+    mockTimecodes = [];
+    mockGroups = [];
+    mockAddGroup.mockResolvedValue({ id: 'g-created', name: 'Globex' });
+    mockAddTimecode.mockResolvedValue({ id: 'tc-created', name: 'Design' });
+
+    importCsv(withGroupColumn);
+
+    await waitFor(() => expect(mockBulkAddManualEntries).toHaveBeenCalled());
+    expect(mockAddGroup).toHaveBeenCalledWith('Globex', expect.any(String));
+    // Filed under the new group, so the next import of the same CSV resolves
+    // against it rather than making a second, identically named timecode.
+    expect(mockAddTimecode).toHaveBeenCalledWith('Design', undefined, 'g-created', undefined, { deferRefresh: true });
+  });
+
+  it('does not treat a name that only collides in another group as ambiguous', async () => {
+    // Two "Design"s exist, but the row names one of them, so there is no guess
+    // to make and the import proceeds.
+    importCsv(withGroupColumn);
+
+    await waitFor(() => expect(mockBulkAddManualEntries).toHaveBeenCalled());
+    expect(screen.queryByText(/Import stopped/)).toBeNull();
   });
 });

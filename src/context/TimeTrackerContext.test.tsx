@@ -386,6 +386,91 @@ describe('TimeTrackerContext Reducer Logic', () => {
     vi.restoreAllMocks();
   });
 
+  it('C1: a soft-deleted group keeps its timecodes\' templates, and the Trash restores them', async () => {
+    let ctx: ReturnType<typeof useTimeTracker> | undefined;
+
+    render(
+      <ToastProvider><TimeTrackerProvider>
+        <TestConsumer onReady={(c) => (ctx = c)} />
+      </TimeTrackerProvider></ToastProvider>
+    );
+
+    await waitFor(() => expect(ctx?.settings).not.toBeNull());
+
+    let groupId = '';
+    let tcId = '';
+    await act(async () => {
+      const group = await ctx!.addGroup('Template Group', 'red');
+      groupId = group.id;
+      const tc = await ctx!.addTimecode('Template TC', undefined, groupId);
+      tcId = tc.id;
+    });
+
+    await act(async () => {
+      await ctx!.updateSettings({
+        templates: [{ id: 'tmpl-1', title: 'Standup', timecodeId: tcId, durationMinutes: 15, note: '' }],
+      });
+    });
+
+    await waitFor(() => expect(ctx!.settings?.templates?.length).toBe(1));
+
+    await act(async () => {
+      await ctx!.deleteGroup(groupId);
+    });
+
+    await waitFor(() => expect(ctx!.deletedGroups.length).toBe(1));
+    // The delete is reversible, so the template is still there — not stripped
+    // and left to an undo handler to reconstruct.
+    expect(ctx!.settings?.templates?.map(t => t.id)).toEqual(['tmpl-1']);
+
+    // Restored from the Trash long after the undo toast has gone.
+    await act(async () => {
+      await ctx!.restoreGroup(groupId);
+    });
+
+    await waitFor(() => expect(ctx!.timecodes.length).toBe(1));
+    expect(ctx!.settings?.templates?.map(t => t.id)).toEqual(['tmpl-1']);
+    expect(ctx!.settings?.templates?.[0].timecodeId).toBe(tcId);
+  });
+
+  it('C1: restoring a timecode from the Trash brings its templates back with it', async () => {
+    let ctx: ReturnType<typeof useTimeTracker> | undefined;
+
+    render(
+      <ToastProvider><TimeTrackerProvider>
+        <TestConsumer onReady={(c) => (ctx = c)} />
+      </TimeTrackerProvider></ToastProvider>
+    );
+
+    await waitFor(() => expect(ctx?.settings).not.toBeNull());
+
+    let tcId = '';
+    await act(async () => {
+      const tc = await ctx!.addTimecode('Solo TC');
+      tcId = tc.id;
+    });
+
+    await act(async () => {
+      await ctx!.updateSettings({
+        templates: [{ id: 'tmpl-2', title: 'Admin', timecodeId: tcId, durationMinutes: null, note: '' }],
+      });
+    });
+
+    await act(async () => {
+      await ctx!.deleteTimecode(tcId);
+    });
+
+    await waitFor(() => expect(ctx!.deletedTimecodes.length).toBe(1));
+    expect(ctx!.settings?.templates?.map(t => t.id)).toEqual(['tmpl-2']);
+
+    await act(async () => {
+      await ctx!.restoreTimecode(tcId);
+    });
+
+    await waitFor(() => expect(ctx!.timecodes.length).toBe(1));
+    expect(ctx!.settings?.templates?.map(t => t.id)).toEqual(['tmpl-2']);
+  });
+
   it('importData: merge resolves conflicts using updatedAt', async () => {
     let ctx: ReturnType<typeof useTimeTracker> | undefined;
 
