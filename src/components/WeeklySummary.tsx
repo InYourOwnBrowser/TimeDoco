@@ -1,6 +1,6 @@
 import React, { useMemo } from 'react';
 import { useTimeTracker } from '../context/TimeTrackerContext';
-import { startOfWeek, endOfWeek, parseISO } from 'date-fns';
+import { format, startOfWeek, endOfWeek, eachDayOfInterval, parseISO } from 'date-fns';
 import { Target, TrendingUp } from 'lucide-react';
 import { buildLinesFromSettings, sumBillableLines, workedVsBilledNote } from '../utils/billing';
 import { useNowTick } from '../hooks/useNowTick';
@@ -17,12 +17,12 @@ export const WeeklySummary: React.FC = () => {
     // Assuming week starts on Monday
     const start = startOfWeek(now, { weekStartsOn: 1 });
     const end = endOfWeek(now, { weekStartsOn: 1 });
+    const weekDays = eachDayOfInterval({ start, end });
+    const weekDateStrings = new Set(weekDays.map(d => format(d, 'yyyy-MM-dd')));
 
     const inWeek = entries.filter(entry => {
       if (entry.deletedAt) return false;
-      const entryStart = parseISO(entry.startTime);
-      const entryEnd = entry.endTime ? parseISO(entry.endTime) : now;
-      return entryEnd >= start && entryStart <= end;
+      return weekDateStrings.has(format(parseISO(entry.startTime), 'yyyy-MM-dd'));
     });
 
     // Shared with the report and the timesheet rather than re-derived here.
@@ -35,7 +35,7 @@ export const WeeklySummary: React.FC = () => {
     // belong to the report and degrade to 'day' here, which is the bucket the
     // timesheet grid and the entry list build too.
     const lines = buildLinesFromSettings(inWeek, settings, {
-      dateRange: { start, end },
+      dateRange: null,
       scopeWindow: null,
       now,
     });

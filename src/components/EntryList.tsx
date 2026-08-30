@@ -429,7 +429,7 @@ export const EntryList: React.FC = () => {
                             <span className="text-xs font-mono tabular whitespace-nowrap">
                               {entry.isRunning
                                 ? <LiveEstimateComparison entry={entry} expectedSeconds={entry.expectedDurationMinutes * 60} />
-                                : <EstimateComparison entry={entry} expectedSeconds={entry.expectedDurationMinutes * 60} actualSeconds={displaySecondsFor(billableLines, entry.id)} />}
+                                : <EstimateComparison entry={entry} expectedSeconds={entry.expectedDurationMinutes * 60} actualSeconds={workedSecondsFor(billableLines, entry.id)} />}
                             </span>
                           ) : null}
                         </div>

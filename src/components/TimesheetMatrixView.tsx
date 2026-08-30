@@ -1,8 +1,8 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { useTimeTracker } from '../context/TimeTrackerContext';
-import { format, startOfWeek, endOfWeek, addWeeks, subWeeks, eachDayOfInterval, parseISO, setHours, setMinutes, addSeconds } from 'date-fns';
-import { buildLinesFromSettings, secondsFor } from '../utils/billing';
-import { formatDurationShort, roundCurrency } from '../utils/timeUtils';
+import { format, startOfWeek, endOfWeek, addWeeks, subWeeks, eachDayOfInterval, parseISO } from 'date-fns';
+import { buildLinesFromSettings, secondsFor, workedSecondsFor } from '../utils/billing';
+import { checkOverlap, findFreeSlot, formatDurationShort, roundCurrency } from '../utils/timeUtils';
 import { useNowTick } from '../hooks/useNowTick';
 import { useToast } from '../context/ToastContext';
 import { ChevronLeft, ChevronRight } from 'lucide-react';
@@ -199,30 +199,39 @@ export const TimesheetMatrixView: React.FC = () => {
 
   const commitCell = async (timecodeId: string, day: Date, newHours: number) => {
     const existingEntriesForCell = getCellEntries(timecodeId, day);
-    // Measured from the same billable lines the cell displays, so the value the
-    // user sees and the value they are editing are the same number.
     const cellSeconds = existingEntriesForCell.reduce((sum, e) => sum + secondsFor(billableLines, e.id), 0);
     const trackedSeconds = existingEntriesForCell
       .filter(e => !e.tags?.includes(ADJUSTMENT_TAG))
-      .reduce((sum, e) => sum + secondsFor(billableLines, e.id), 0);
+      .reduce((sum, e) => sum + workedSecondsFor(billableLines, e.id), 0);
 
     const targetSeconds = Math.round(newHours * 3600);
     if (Math.abs(targetSeconds - cellSeconds) < CELL_DISPLAY_TOLERANCE_SECONDS) return;
 
-    const delta = targetSeconds - trackedSeconds;
-
     const existingAdjustment = existingEntriesForCell.find(e => e.tags?.includes(ADJUSTMENT_TAG));
 
+    if (targetSeconds < trackedSeconds) {
+      addToast("Can't reduce below tracked time — edit or delete the underlying entries instead.", 'error');
+      return;
+    }
+
+    const delta = targetSeconds - trackedSeconds;
+
     if (delta <= 0) {
-      if (existingAdjustment) await deleteEntry(existingAdjustment.id);
-      if (delta < 0) {
-        addToast("Can't reduce below tracked time — edit or delete the underlying entries instead.", 'error');
+      if (existingAdjustment) {
+        await deleteEntry(existingAdjustment.id);
+        addToast('Timesheet adjustment removed.', 'info');
       }
       return;
     }
 
-    const start = setHours(setMinutes(day, 0), 12); // fixed 12:00 local anchor
-    const end = addSeconds(start, delta);
+    const { start, end } = findFreeSlot(
+      day,
+      delta,
+      entries,
+      existingAdjustment?.id,
+      timecodeId,
+      settings?.allowConcurrentTimers
+    );
 
     if (existingAdjustment) {
       await updateEntry(existingAdjustment.id, { startTime: start.toISOString(), endTime: end.toISOString() });
@@ -344,6 +353,9 @@ export const TimesheetMatrixView: React.FC = () => {
           </tfoot>
         </table>
       </Panel>
+      <p className="mt-2 text-xs font-mono tabular text-gray-500 dark:text-gray-400 min-w-[800px]">
+        Note: Cells display billed time (reflecting any rounding rule). Cell edits are applied to worked time by creating or adjusting an entry.
+      </p>
       {hiddenTimecodes.length > 0 && (
         <div className="mt-3 min-w-[800px]">
           <select

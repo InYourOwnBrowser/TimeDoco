@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { checkOverlap, calculateDuration, applyRounding, calculateTaxBreakdown, calculateTotalPausedSeconds, formatDurationShort, getElapsedTimeMs, findOverlappingCandidates } from './timeUtils';
+import { checkOverlap, findFreeSlot, calculateDuration, applyRounding, calculateTaxBreakdown, calculateTotalPausedSeconds, formatDurationShort, getElapsedTimeMs, findOverlappingCandidates } from './timeUtils';
 import type { Entry, PauseSegment } from '../types';
 
 describe('timeUtils', () => {
@@ -77,6 +77,58 @@ describe('timeUtils', () => {
       const end = new Date('2023-10-27T11:00:00Z');
       // Overlaps with e1 in time, and timecodeId is the same
       expect(checkOverlap(start, end, entries, undefined, 'tc1', true)).toBe(true);
+    });
+  });
+
+  describe('findFreeSlot', () => {
+    const day = new Date(2025, 0, 8); // Wednesday Jan 8 2025
+    const createEntry = (id: string, startH: number, startM: number, endH: number, endM: number, timecodeId = 'tc1'): Entry => {
+      const startTime = new Date(2025, 0, 8, startH, startM, 0).toISOString();
+      const endTime = new Date(2025, 0, 8, endH, endM, 0).toISOString();
+      return {
+        id, timecodeId, startTime, endTime,
+        duration: ((endH * 60 + endM) - (startH * 60 + startM)) * 60,
+        note: '', isRunning: false, isPaused: false,
+        pausedSegments: [], editHistory: [],
+        createdAt: startTime, updatedAt: startTime,
+      };
+    };
+
+    it('returns 12:00 anchor if no entries overlap noon', () => {
+      const entries = [createEntry('e1', 9, 0, 11, 0)];
+      const slot = findFreeSlot(day, 1800, entries, undefined, 'tc1', false);
+      expect(slot.start.getHours()).toBe(12);
+      expect(slot.start.getMinutes()).toBe(0);
+      expect((slot.end.getTime() - slot.start.getTime()) / 1000).toBe(1800);
+    });
+
+    it('finds slot immediately after conflicting entry covering 12:00', () => {
+      const entries = [createEntry('e1', 11, 0, 13, 0)]; // 11:00 to 13:00
+      const slot = findFreeSlot(day, 1800, entries, undefined, 'tc1', false);
+      expect(slot.start.getHours()).toBe(13);
+      expect(slot.start.getMinutes()).toBe(0);
+    });
+
+    it('finds slot between two conflicting entries if wide enough', () => {
+      const entries = [
+        createEntry('e1', 11, 0, 13, 0), // 11:00 - 13:00
+        createEntry('e2', 14, 0, 16, 0), // 14:00 - 16:00
+      ];
+      // Looking for 30 min (1800s). Gap 13:00 - 14:00 is free.
+      const slot = findFreeSlot(day, 1800, entries, undefined, 'tc1', false);
+      expect(slot.start.getHours()).toBe(13);
+      expect(slot.start.getMinutes()).toBe(0);
+    });
+
+    it('skips tight gaps and lands after the last conflicting entry', () => {
+      const entries = [
+        createEntry('e1', 11, 0, 13, 0), // 11:00 - 13:00
+        createEntry('e2', 13, 0, 13, 15), // 13:00 - 13:15 (only 15m gap)
+      ];
+      // Looking for 30 min (1800s) slot.
+      const slot = findFreeSlot(day, 1800, entries, undefined, 'tc1', false);
+      expect(slot.start.getHours()).toBe(13);
+      expect(slot.start.getMinutes()).toBe(15);
     });
   });
 
