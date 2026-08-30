@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { buildBillableLines, buildLinesFromSettings, computeBillableLine, displaySecondsFor, distributeAcrossBuckets, effectiveRoundingScope, sumBillableLines } from './billing';
+import { buildBillableLines, buildLinesFromSettings, computeBillableLine, displaySecondsFor, distributeAcrossBuckets, effectiveRoundingScope, formatWorkedHours, sumBillableLines, workedSecondsFor, workedVsBilledNote } from './billing';
 import type { RoundingRule } from './billing';
 import type { Entry, Timecode } from '../types';
 
@@ -429,5 +429,53 @@ describe('distributeAcrossBuckets', () => {
 
     expect(lines.get('live')!.seconds).toBe(30 * 60);
     expect(perDay[0]).toBe(30 * 60);
+  });
+});
+
+describe('formatWorkedHours', () => {
+  it('recovers the exact second it was given', () => {
+    // The columns that promise a raw figure cannot go through roundHours: 50
+    // minutes has no two-decimal representation, and 0.83 is a different
+    // duration from the one that was worked.
+    for (const seconds of [1, 59, 3000, 3600, 2400, 4507, 12 * 3600 + 37]) {
+      expect(Math.round(parseFloat(formatWorkedHours(seconds)) * 3600)).toBe(seconds);
+    }
+  });
+
+  it('prints a whole hour as a whole number rather than a run of zeros', () => {
+    expect(formatWorkedHours(3600)).toBe('1');
+    expect(formatWorkedHours(2700)).toBe('0.75');
+    expect(formatWorkedHours(0)).toBe('0');
+    expect(formatWorkedHours(-5)).toBe('0');
+    expect(formatWorkedHours(NaN)).toBe('0');
+  });
+});
+
+describe('workedVsBilledNote', () => {
+  it('says nothing when the clock and the invoice agree', () => {
+    expect(workedVsBilledNote(3600, 3600, 0)).toBeNull();
+  });
+
+  it('names rounding when rounding is the whole of the difference', () => {
+    expect(workedVsBilledNote(3000, 2700, 0)).toBe('worked 50m · rounding -5m');
+    expect(workedVsBilledNote(3000, 3600, 0)).toBe('worked 50m · rounding +10m');
+  });
+
+  it('does not call fee time rounding', () => {
+    // 1h40m on the clock, 1h billed, the other 40 minutes billed as a fee.
+    // Calling that "rounding -40m" would misattribute it.
+    expect(workedVsBilledNote(6000, 3600, 150)).toBe('worked 1h 40m · billed 1h plus fees');
+  });
+});
+
+describe('workedSecondsFor', () => {
+  it('reports a fee entry\'s time on the clock, which its billable seconds do not', () => {
+    const fee = entry({ id: 'fee', manualAmount: 150, startTime: '2026-01-10T11:00:00.000Z', endTime: '2026-01-10T11:40:00.000Z' });
+    const lines = buildBillableLines([fee], { dateRange: null, timecodeMap: new Map([['tc-1', tc()]]) });
+
+    expect(lines.get('fee')!.seconds).toBe(0);
+    expect(workedSecondsFor(lines, 'fee')).toBe(40 * 60);
+    expect(displaySecondsFor(lines, 'fee')).toBe(40 * 60);
+    expect(workedSecondsFor(lines, 'not-here')).toBe(0);
   });
 });

@@ -2,7 +2,7 @@ import React, { useMemo } from 'react';
 import { useTimeTracker } from '../context/TimeTrackerContext';
 import { startOfWeek, endOfWeek, parseISO } from 'date-fns';
 import { Target, TrendingUp } from 'lucide-react';
-import { buildLinesFromSettings, sumBillableLines } from '../utils/billing';
+import { buildLinesFromSettings, sumBillableLines, workedVsBilledNote } from '../utils/billing';
 import { useNowTick } from '../hooks/useNowTick';
 
 export const WeeklySummary: React.FC = () => {
@@ -40,8 +40,19 @@ export const WeeklySummary: React.FC = () => {
       now,
     });
 
-    return sumBillableLines([...lines.values()]).seconds / 3600;
+    const totals = sumBillableLines([...lines.values()]);
+    return {
+      hours: totals.seconds / 3600,
+      // The bar measures billable hours, and a flat fee bills as a fee rather
+      // than by the hour, so its time on the clock moves the bar not at all.
+      // Without this the week's target could sit short of a full day and give
+      // no clue why. Rounding is disclosed the same way, in the same words the
+      // report uses.
+      note: workedVsBilledNote(totals.workedSeconds, totals.seconds, totals.fees),
+    };
   }, [entries, settings, nowMs]);
+
+  const { hours: weeklyHours, note: weeklyNote } = weeklyData;
 
   const targetHours = settings?.weeklyTargetHours;
 
@@ -53,7 +64,7 @@ export const WeeklySummary: React.FC = () => {
     );
   }
 
-  const progress = Math.min((weeklyData / targetHours) * 100, 100);
+  const progress = Math.min((weeklyHours / targetHours) * 100, 100);
 
   return (
     <div className="w-full max-w-md mx-auto mt-6 bg-white dark:bg-graphite p-5 rounded-panel shadow-sm border border-graphite/20 dark:border-white/20 transition-colors">
@@ -63,8 +74,8 @@ export const WeeklySummary: React.FC = () => {
           <h3 className="text-xs font-sans uppercase tracking-wide font-semibold text-gray-800 dark:text-gray-200">WEEKLY TARGET</h3>
         </div>
         <div className="text-sm font-mono tabular font-medium text-gray-600 dark:text-gray-400">
-          <span className={weeklyData >= targetHours ? "text-verdigris dark:text-emerald-400 font-bold" : "text-graphite dark:text-stone"}>
-            {weeklyData.toFixed(1)}
+          <span className={weeklyHours >= targetHours ? "text-verdigris dark:text-emerald-400 font-bold" : "text-graphite dark:text-stone"}>
+            {weeklyHours.toFixed(1)}
           </span> / {targetHours} hrs
         </div>
       </div>
@@ -72,13 +83,19 @@ export const WeeklySummary: React.FC = () => {
       <div className="w-full bg-stone dark:bg-gray-800 rounded-full h-2.5 overflow-hidden">
         <div
           className={`h-2.5 rounded-full transition-all duration-500 ease-out ${
-            weeklyData >= targetHours ? 'bg-verdigris' : 'bg-signal'
+            weeklyHours >= targetHours ? 'bg-verdigris' : 'bg-signal'
           }`}
           style={{ width: `${progress}%` }}
         ></div>
       </div>
 
-      {weeklyData >= targetHours && (
+      {weeklyNote && (
+        <p className="mt-2 text-xs font-mono tabular text-signal-dim dark:text-signal text-center">
+          {weeklyNote}
+        </p>
+      )}
+
+      {weeklyHours >= targetHours && (
         <p className="mt-3 text-xs text-verdigris dark:text-emerald-400 flex items-center gap-1 font-medium justify-center">
           <TrendingUp size={14} /> Target reached!
         </p>

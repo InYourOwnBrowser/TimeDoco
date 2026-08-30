@@ -37,6 +37,19 @@ export const ManualEntryModal: React.FC<ManualEntryModalProps> = ({ onClose }) =
   const typedBreakMinutes = Math.max(0, parseInt(breakMinutes, 10) || 0);
   const flatFeeDiscardsInput = typedSpanSeconds > 0 || typedBreakMinutes > 0;
 
+  // Time this entry would bill by the hour if no amount were entered, and
+  // whether an amount is in fact about to take it out of every hours total.
+  // Only in Time Entry mode: a Flat Fee saves no times at all, and the note
+  // beside its date field already says so.
+  const trackedSecondsIfHourly = Math.max(0, typedSpanSeconds - typedBreakMinutes * 60);
+  const parsedManualAmount = parseFloat(manualAmount);
+  const feeWillDropTrackedTime =
+    !isFixedCost &&
+    trackedSecondsIfHourly > 0 &&
+    manualAmount !== '' &&
+    !isNaN(parsedManualAmount) &&
+    parsedManualAmount !== 0;
+
   useEffect(() => {
     if (!startTime || !endTime) {
       setWarning(null);
@@ -258,7 +271,7 @@ export const ManualEntryModal: React.FC<ManualEntryModalProps> = ({ onClose }) =
           {timecodeId && (
             <div>
               <label className="block text-sm font-medium text-graphite dark:text-stone mb-1">
-                Fixed Amount ({settings?.currencySymbol || '$'}){isFixedCost ? ' *' : ' — optional'}
+                Flat fee instead of hourly ({settings?.currencySymbol || '$'}){isFixedCost ? ' *' : ' — optional'}
               </label>
               <input
                 type="number"
@@ -271,8 +284,21 @@ export const ManualEntryModal: React.FC<ManualEntryModalProps> = ({ onClose }) =
                 className="w-full px-3 py-2 border border-graphite/20 dark:border-white/20 rounded-md shadow-sm focus:outline-none focus-visible:ring-2 focus-visible:ring-signal sm:text-sm bg-white dark:bg-graphite text-graphite dark:text-stone"
               />
               <p className="text-xs text-gray-600 dark:text-gray-400 mt-1">
-                For non-time costs (e.g. materials, a flat fee). Overrides hourly-rate calculation on reports.
+                For non-time costs (e.g. materials, a flat fee). The entry bills this
+                amount instead of rate x hours, so its tracked time is not billed and
+                does not count toward any hours total.
               </p>
+              {/* The label calls the field optional, and on a Time Entry it is —
+                  but filling it in is not a small addition: it takes the entry's
+                  hours out of the report, the entry list, the timesheet grid, the
+                  calendar and the weekly target. Naming the exact duration that
+                  stops counting is the only warning that is checkable. */}
+              {feeWillDropTrackedTime && (
+                <p className="text-xs text-rust dark:text-orange-300 mt-1">
+                  This entry's {formatDurationShort(trackedSecondsIfHourly)} on the clock will not
+                  be billed and will not count toward any hours total.
+                </p>
+              )}
             </div>
           )}
 

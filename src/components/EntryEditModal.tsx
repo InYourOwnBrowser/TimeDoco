@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useTimeTracker } from '../context/TimeTrackerContext';
 import { format, parseISO, differenceInSeconds } from 'date-fns';
 import { X, AlertCircle } from 'lucide-react';
-import { calculateTotalPausedSeconds, checkOverlap, formatDurationShort } from '../utils/timeUtils';
+import { calculateDuration, calculateTotalPausedSeconds, checkOverlap, formatDurationShort } from '../utils/timeUtils';
 import type { Entry, PauseSegment } from '../types';
 import { Modal } from './ui/Modal';
 import { useToast } from '../context/ToastContext';
@@ -56,6 +56,27 @@ export const EntryEditModal: React.FC<EntryEditModalProps> = ({ entry, onClose }
   );
   const [error, setError] = useState<string | null>(null);
   const [warning, setWarning] = useState<string | null>(null);
+
+  // Time this entry would bill by the hour if no amount were entered. Read from
+  // the form rather than the stored entry, so the warning below describes what
+  // saving would actually do with the times currently typed in.
+  const trackedSecondsIfHourly = (() => {
+    if (!startTime) return 0;
+    const start = new Date(startTime);
+    const end = endTime ? new Date(endTime) : (entry.isRunning ? new Date() : null);
+    if (!end || isNaN(start.getTime()) || isNaN(end.getTime()) || end <= start) return 0;
+    return calculateDuration(start, end, entry.pausedSegments || []);
+  })();
+
+  // Only in Time Entry mode: a Flat Fee has no tracked time left to lose, and
+  // its own confirmation already spells out what saving discards.
+  const parsedManualAmount = parseFloat(manualAmount);
+  const feeWillDropTrackedTime =
+    !isFixedCost &&
+    trackedSecondsIfHourly > 0 &&
+    manualAmount !== '' &&
+    !isNaN(parsedManualAmount) &&
+    parsedManualAmount !== 0;
 
   const initialStartTime = format(parseISO(entry.startTime), "yyyy-MM-dd'T'HH:mm:ss");
   const initialEndTime = entry.endTime ? format(parseISO(entry.endTime), "yyyy-MM-dd'T'HH:mm:ss") : '';
@@ -375,7 +396,7 @@ export const EntryEditModal: React.FC<EntryEditModalProps> = ({ entry, onClose }
           {timecodeId && (
             <div>
               <label className="block text-sm font-medium text-graphite dark:text-stone mb-1">
-                Fixed Amount ({settings?.currencySymbol || '$'}){isFixedCost ? ' *' : ' — optional'}
+                Flat fee instead of hourly ({settings?.currencySymbol || '$'}){isFixedCost ? ' *' : ' — optional'}
               </label>
               <input
                 type="number"
@@ -388,8 +409,21 @@ export const EntryEditModal: React.FC<EntryEditModalProps> = ({ entry, onClose }
                 className="w-full px-3 py-2 border border-graphite/20 dark:border-white/20 rounded-md shadow-sm focus:outline-none focus-visible:ring-2 focus-visible:ring-signal sm:text-sm bg-white dark:bg-graphite text-graphite dark:text-stone"
               />
               <p className="text-xs text-gray-600 dark:text-gray-400 mt-1">
-                For non-time costs (e.g. materials, a flat fee). Overrides hourly-rate calculation on reports.
+                For non-time costs (e.g. materials, a flat fee). The entry bills this
+                amount instead of rate x hours, so its tracked time is not billed and
+                does not count toward any hours total.
               </p>
+              {/* The label calls the field optional, and on a Time Entry it is —
+                  but filling it in is not a small addition: it takes the entry's
+                  hours out of the report, the entry list, the timesheet grid, the
+                  calendar and the weekly target. Naming the exact duration that
+                  stops counting is the only warning that is checkable. */}
+              {feeWillDropTrackedTime && (
+                <p className="text-xs text-rust dark:text-orange-300 mt-1">
+                  This entry's {formatDurationShort(trackedSecondsIfHourly)} on the clock will not
+                  be billed and will not count toward any hours total.
+                </p>
+              )}
             </div>
           )}
 

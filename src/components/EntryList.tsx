@@ -9,7 +9,7 @@ import { ManualEntryModal } from './ManualEntryModal';
 import { Modal } from './ui/Modal';
 import type { Entry } from '../types';
 import { getElapsedTimeMs, formatDurationShort } from '../utils/timeUtils';
-import { buildLinesFromSettings, displaySecondsFor, secondsFor } from '../utils/billing';
+import { buildLinesFromSettings, displaySecondsFor, secondsFor, workedSecondsFor, workedVsBilledNote } from '../utils/billing';
 import { useNowTick } from '../hooks/useNowTick';
 
 const LiveEntryDuration: React.FC<{ entry: Entry, formatDuration: (s: number) => string }> = ({ entry, formatDuration }) => {
@@ -153,9 +153,28 @@ export const EntryList: React.FC = () => {
 
   const hasActiveFilters = searchTerm !== '' || selectedFilter !== 'all' || dateFrom !== '' || dateTo !== '';
 
-  const totalFilteredSeconds = React.useMemo(
-    () => filteredEntries.reduce((sum, e) => sum + secondsFor(billableLines, e.id), 0),
-    [filteredEntries, billableLines]
+  // Billable seconds and time on the clock, kept apart. The rows above print
+  // each entry's own duration with `displaySecondsFor`, which falls back to the
+  // worked time for a fee entry, so a total built from `secondsFor` alone can
+  // legitimately be smaller than the rows that make it up — a $150 fee carrying
+  // 40 minutes used to read "totaling 0m". `workedVsBilledNote` says which is
+  // which, in the same words the report uses.
+  const { totalFilteredSeconds, totalFilteredWorkedSeconds, totalFilteredFees } = React.useMemo(() => {
+    let billed = 0;
+    let worked = 0;
+    let fees = 0;
+    for (const e of filteredEntries) {
+      billed += secondsFor(billableLines, e.id);
+      worked += workedSecondsFor(billableLines, e.id);
+      const line = billableLines.get(e.id);
+      if (line?.isFixedCost) fees += line.amount;
+    }
+    return { totalFilteredSeconds: billed, totalFilteredWorkedSeconds: worked, totalFilteredFees: fees };
+  }, [filteredEntries, billableLines]);
+
+  const totalFilteredNote = React.useMemo(
+    () => workedVsBilledNote(totalFilteredWorkedSeconds, totalFilteredSeconds, totalFilteredFees),
+    [totalFilteredWorkedSeconds, totalFilteredSeconds, totalFilteredFees]
   );
 
   const formatTotalDurationShort = (seconds: number) => {
@@ -480,9 +499,19 @@ export const EntryList: React.FC = () => {
             <h3 className="text-lg font-semibold text-graphite dark:text-stone mb-2">
               Confirm Bulk Delete
             </h3>
+            {/* The headline figure stays the billable one, which is the number
+                the report, the timesheet grid and the calendar all print for
+                the same entries. The note beside it carries the time on the
+                clock, so a fee entry no longer reads as "totaling 0m" with
+                nothing to say where its two hours went. */}
             <p className="text-sm text-gray-700 dark:text-gray-300 mb-3">
-              Delete {filteredEntries.length} {filteredEntries.length === 1 ? 'entry' : 'entries'} totaling {formatTotalDurationShort(totalFilteredSeconds)}? They'll move to Trash and can be restored for 30 days.
+              Delete {filteredEntries.length} {filteredEntries.length === 1 ? 'entry' : 'entries'} totaling {formatTotalDurationShort(totalFilteredSeconds)} billable? They'll move to Trash and can be restored for 30 days.
             </p>
+            {totalFilteredNote && (
+              <p className="text-xs font-mono tabular text-signal-dim dark:text-signal mb-3">
+                {totalFilteredNote}
+              </p>
+            )}
             <div className="bg-stone dark:bg-gray-800/40 p-3 rounded-panel text-xs text-gray-600 dark:text-gray-300 space-y-1 mb-4">
               <div className="font-semibold text-graphite dark:text-stone">Applied Filters:</div>
               {selectedFilter.startsWith('group:') && (

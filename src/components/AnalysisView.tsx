@@ -14,7 +14,7 @@ import {
 } from 'lucide-react';
 import { useToast } from '../context/ToastContext';
 import { calculateTaxBreakdown, calculateTotalPausedSeconds, formatDurationShort, roundCurrency, roundHours } from '../utils/timeUtils';
-import { buildLinesFromSettings, distributeAcrossBuckets, sumBillableLines } from '../utils/billing';
+import { buildLinesFromSettings, distributeAcrossBuckets, formatWorkedHours, sumBillableLines, workedVsBilledNote } from '../utils/billing';
 import type { RoundingScope } from '../utils/billing';
 import type { BillableLine } from '../utils/billing';
 import { createEvents, type EventAttributes } from 'ics';
@@ -314,18 +314,10 @@ export const AnalysisView: React.FC = () => {
   // rather than silent. Rounding is one cause; a fixed amount is the other,
   // since it bills as a fee rather than by the hour and so adds no hours. With
   // neither in play the two totals are equal and there is nothing to say.
-  const roundingDelta = useMemo(() => {
-    if (totalWorkedSeconds === totalSeconds) return null;
-    const worked = `worked ${formatDurationShort(totalWorkedSeconds)}`;
-    if (totalFees !== 0) {
-      // Naming the whole difference "rounding" would misattribute the part of
-      // it that is fee time.
-      return `${worked} · billed ${formatDurationShort(totalSeconds)} plus fees`;
-    }
-    const diff = totalSeconds - totalWorkedSeconds;
-    const sign = diff > 0 ? '+' : '-';
-    return `${worked} · rounding ${sign}${formatDurationShort(Math.abs(diff))}`;
-  }, [totalSeconds, totalWorkedSeconds, totalFees]);
+  const roundingDelta = useMemo(
+    () => workedVsBilledNote(totalWorkedSeconds, totalSeconds, totalFees),
+    [totalSeconds, totalWorkedSeconds, totalFees],
+  );
 
   // Detect overlaps
   const overlaps = useMemo(() => {
@@ -791,11 +783,25 @@ export const AnalysisView: React.FC = () => {
   };
 
   // Export Detailed Raw CSV
+  //
+  // Two duration columns, because this export is the one a user is told to keep
+  // to check an invoice against, and a single column could only be one of the
+  // two things it needs to be. `worked` is the measurement: time on the clock
+  // inside the reporting window, unrounded, and present even for a fee entry
+  // whose hours are not billed. `billed` is what the invoice charged for, after
+  // the rounding rule has been applied at its scope and shared back across the
+  // bucket. Printing only `billed` under a header reading "raw" meant the
+  // ground-truth record silently agreed with the invoice it was meant to
+  // corroborate: a 50-minute entry at 15min/day rounding read 0.75.
   const downloadDetailedRawCSV = () => {
     const defaultFilename = `time-entries-${scopeSlug}-${safeFormatDate(dateRange.start, 'yyyy-MM-dd', 'custom-period')}`;
     triggerDownload(
       () => {
-        const headers = ['Date', 'Timecode', 'Group', 'Start', 'End', 'Duration (h)', 'Amount', 'Note'];
+        // Quoted like any other field: two of these names contain a comma, and
+        // an unquoted header would split into two columns and shift every
+        // heading after it out of line with the data beneath.
+        const headers = ['Date', 'Timecode', 'Group', 'Start', 'End', 'Duration (h, worked)', 'Duration (h, billed)', 'Amount', 'Note']
+          .map(escapeCSV);
         const rows = filteredEntries.map(e => {
           const tc = timecodeMap.get(e.timecodeId);
           const grp = tc?.groupId ? groupMap.get(tc.groupId) : undefined;
@@ -808,8 +814,10 @@ export const AnalysisView: React.FC = () => {
             escapeCSV(grp?.name ?? 'Ungrouped'),
             escapeCSV(format(parseISO(e.startTime), 'HH:mm:ss')),
             escapeCSV(e.endTime ? format(parseISO(e.endTime), 'HH:mm:ss') : ''),
+            formatWorkedHours(line?.workedSeconds ?? 0),
             // A fee bills no hours; an empty cell says so, where 0.00 would
-            // read as a duration that was measured and came out at zero.
+            // read as a duration that was measured and came out at zero. The
+            // worked column beside it still carries its time on the clock.
             line?.isFixedCost ? '' : hrs.toFixed(2),
             amount !== 0 ? amount.toFixed(2) : '',
             escapeCSV(e.note),

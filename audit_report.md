@@ -173,3 +173,40 @@ old behaviour, or where a figure a client is invited to check did not add up.
   matches more than one timecode, naming the groups it could have meant. A named
   group that does not exist yet is created, so the row lands where the CSV says
   and a second import of the same file resolves against it.
+
+- [x] **H4 — the "Detailed Raw CSV" exported rounded hours, not raw ones.** The
+  button, the landing page, the FAQ's JSON-LD, the README and
+  `why-client-side-privacy-matters.mdx` all promise an unrounded record to check
+  an invoice against; the file carried `line.hours`, which is post-rounding,
+  post-bucketing and — at `timecode` or `invoice` scope — a largest-remainder
+  share of a bucket total rather than a measurement of that entry at all. A
+  50-minute entry at 15min/day printed 0.75. The one export positioned as ground
+  truth silently agreed with the invoice instead of corroborating it. It now has
+  two duration columns, `Duration (h, worked)` and `Duration (h, billed)`: the
+  worked one comes from `BillableLine.workedSeconds` through the new
+  `formatWorkedHours`, which keeps enough precision to recover the exact second
+  and trims trailing zeros, and the billed one is unchanged. A fee entry's billed
+  cell stays blank while its worked cell carries its time on the clock — the only
+  record in the file that those minutes happened. The headers are quoted like any
+  other field, since two of the names contain a comma.
+
+- [x] **H5 — a "Fixed Amount" on a Time Entry deleted its hours from every
+  surface except the report.** H1 made a fixed cost bill as a fee and disclose
+  the gap, but only inside `AnalysisView`. Filling a field labelled *optional* on
+  an entry with real start and end times still zeroed its hours in the entry
+  list, the timesheet grid, the calendar and the weekly target, with nothing on
+  screen to say where they went: a row of two hours contributed nothing to the
+  total beneath it, a day of fee work left a blank cell, and the bulk-delete
+  confirmation read "Delete 1 entry totaling 0m". The disclosure now follows the
+  number. `workedVsBilledNote` is lifted out of `AnalysisView` into
+  `utils/billing.ts`, so the report, the entry list's bulk-delete confirmation
+  and the weekly target bar all print the same sentence in the same words; the
+  entry-list total keeps the billable figure as its headline, which is the number
+  the other surfaces agree on, and labels it. The grid and the calendar mark a
+  cell or square holding fee time with a dot whose title and `aria-label` name
+  the duration and the fee that replaced it, and a fee-only row no longer
+  disappears from the grid for totalling zero hours. Both entry modals rename the
+  field to "Flat fee instead of hourly", say the entry's tracked time is not
+  billed and does not count toward any hours total, and — once there is both a
+  span on the clock and an amount — name the exact duration about to stop
+  counting.

@@ -1,6 +1,6 @@
 import { format } from 'date-fns';
 import type { Entry, Settings, Timecode } from '../types';
-import { applyRounding, calculateDuration, roundCurrency, roundHours } from './timeUtils';
+import { applyRounding, calculateDuration, formatDurationShort, roundCurrency, roundHours } from './timeUtils';
 
 export type RoundingRule = 'none' | '5min' | '10min' | '15min';
 
@@ -422,6 +422,51 @@ export const displaySecondsFor = (lines: Map<string, BillableLine>, entryId: str
   const line = lines.get(entryId);
   if (!line) return 0;
   return line.isFixedCost ? line.workedSeconds : line.seconds;
+};
+
+/** Time on the clock for one entry, whether or not any of it is billable. */
+export const workedSecondsFor = (lines: Map<string, BillableLine>, entryId: string): number =>
+  lines.get(entryId)?.workedSeconds ?? 0;
+
+/**
+ * The one sentence every surface uses to explain a gap between the clock and
+ * the hours it bills, so the explanation cannot say one thing on the report and
+ * another beside the same numbers on the timesheet.
+ *
+ * Two causes, and they read differently because they are not the same claim: a
+ * rounding rule moved the billable minutes, or a fixed amount bills as a fee
+ * and so contributes no hours at all. Naming the whole difference "rounding"
+ * when a fee is in play would misattribute the part of it that is fee time.
+ *
+ * Returns null when the two totals agree and there is nothing to disclose.
+ */
+export const workedVsBilledNote = (
+  workedSeconds: number,
+  billedSeconds: number,
+  fees: number,
+): string | null => {
+  if (workedSeconds === billedSeconds) return null;
+  const worked = `worked ${formatDurationShort(workedSeconds)}`;
+  if (fees !== 0) return `${worked} · billed ${formatDurationShort(billedSeconds)} plus fees`;
+  const diff = billedSeconds - workedSeconds;
+  const sign = diff > 0 ? '+' : '-';
+  return `${worked} · rounding ${sign}${formatDurationShort(Math.abs(diff))}`;
+};
+
+/**
+ * Hours printed without being rounded, for the columns that promise raw values.
+ *
+ * Every other hours figure in the app goes through `roundHours` because it is a
+ * billing figure that has to reconcile with the line beside it. This one is the
+ * opposite: it is the measurement the billing figures are checked against, so
+ * it keeps enough precision to recover the exact second (six decimals resolve
+ * to under two milliseconds) and drops trailing zeros so a whole hour still
+ * reads as `1`.
+ */
+export const formatWorkedHours = (workedSeconds: number): string => {
+  if (!Number.isFinite(workedSeconds) || workedSeconds <= 0) return '0';
+  const text = (workedSeconds / 3600).toFixed(6);
+  return text.includes('.') ? text.replace(/0+$/, '').replace(/\.$/, '') : text;
 };
 
 /** Single-entry convenience wrapper; rounding necessarily applies at entry scope. */

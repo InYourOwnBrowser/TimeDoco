@@ -2,6 +2,7 @@ import React, { useState, useEffect, useMemo } from 'react';
 import { useTimeTracker } from '../context/TimeTrackerContext';
 import { format, startOfWeek, endOfWeek, addWeeks, subWeeks, eachDayOfInterval, parseISO, setHours, setMinutes, addSeconds } from 'date-fns';
 import { buildLinesFromSettings, secondsFor } from '../utils/billing';
+import { formatDurationShort, roundCurrency } from '../utils/timeUtils';
 import { useNowTick } from '../hooks/useNowTick';
 import { useToast } from '../context/ToastContext';
 import { ChevronLeft, ChevronRight } from 'lucide-react';
@@ -101,6 +102,48 @@ export const TimesheetMatrixView: React.FC = () => {
     return map;
   }, [gridTimecodes, weekDateStrings, entriesByTimecodeAndDate, billableLines]);
 
+  // A flat fee bills as a fee, so it contributes no hours and a cell holding
+  // only fee work reads as blank — the grid cannot print those hours without
+  // disagreeing with the report and every other total. It carries a marker
+  // instead, naming the time on the clock and the fee that replaced it, so the
+  // blank is disclosed rather than silent.
+  const cellFeesMap = useMemo(() => {
+    const map = new Map<string, { seconds: number; amount: number; count: number }>();
+    for (const tc of gridTimecodes) {
+      for (const dateStr of weekDateStrings) {
+        const key = `${tc.id}|${dateStr}`;
+        const cellEntries = entriesByTimecodeAndDate.get(key) || [];
+        let seconds = 0;
+        let amount = 0;
+        let count = 0;
+        for (const e of cellEntries) {
+          const line = billableLines.get(e.id);
+          if (!line?.isFixedCost) continue;
+          seconds += line.workedSeconds;
+          amount += line.amount;
+          count += 1;
+        }
+        if (count > 0) map.set(key, { seconds, amount, count });
+      }
+    }
+    return map;
+  }, [gridTimecodes, weekDateStrings, entriesByTimecodeAndDate, billableLines]);
+
+  const currencySymbol = settings?.currencySymbol || '$';
+
+  const getCellFeeNote = (timecodeId: string, date: Date): string | null => {
+    const fee = cellFeesMap.get(`${timecodeId}|${format(date, 'yyyy-MM-dd')}`);
+    if (!fee) return null;
+    const label = fee.count === 1 ? 'a flat fee' : `${fee.count} flat fees`;
+    const amount = `${currencySymbol}${roundCurrency(fee.amount).toFixed(2)}`;
+    return fee.seconds > 0
+      ? `${formatDurationShort(fee.seconds)} on the clock bills as ${label} of ${amount}, so it adds no hours to this cell.`
+      : `${label.charAt(0).toUpperCase()}${label.slice(1)} of ${amount} on this day. A fee bills no hours.`;
+  };
+
+  const hasFeeInWeek = (timecodeId: string) =>
+    weekDateStrings.some(dateStr => cellFeesMap.has(`${timecodeId}|${dateStr}`));
+
   const rowTotalHoursMap = useMemo(() => {
     const map = new Map<string, number>();
     for (const tc of gridTimecodes) {
@@ -123,7 +166,7 @@ export const TimesheetMatrixView: React.FC = () => {
   const getRowTotalHours = (timecodeId: string) =>
     rowTotalHoursMap.get(timecodeId) || 0;
 
-  const isVisible = (tcId: string) => getRowTotalHours(tcId) > 0 || manuallyShownIds.has(tcId);
+  const isVisible = (tcId: string) => getRowTotalHours(tcId) > 0 || hasFeeInWeek(tcId) || manuallyShownIds.has(tcId);
 
   // Group timecodes by group
   const groupedTimecodes = gridGroups.map(g => ({
@@ -242,27 +285,42 @@ export const TimesheetMatrixView: React.FC = () => {
                       {group.id === 'unassigned' && <div className="w-2 h-2 rounded-full mr-2" style={{ backgroundColor: tc.color || '#9ca3af' }}></div>}
                       {tc.name}
                     </td>
-                    {weekDays.map(day => (
-                      <td key={day.toISOString()} className="px-1 py-1 align-middle">
-                        <input
-                          key={`${tc.id}-${day.toISOString()}-${getCellHours(tc.id, day)}`}
-                          type="number"
-                          step="0.25"
-                          min="0"
-                          defaultValue={displayHours(getCellHours(tc.id, day))}
-                          onBlur={(e) => {
-                            const val = parseFloat(e.target.value);
-                            if (!isNaN(val)) {
-                              commitCell(tc.id, day, val);
-                            } else if (e.target.value === '') {
-                              commitCell(tc.id, day, 0);
-                            }
-                          }}
-                          className="w-full text-center p-1.5 bg-transparent border border-transparent hover:border-graphite/20 dark:hover:border-white/20 focus-visible:ring-2 focus-visible:ring-signal focus-visible:ring-offset-2 ring-offset-stone dark:ring-offset-graphite rounded tabular-nums focus:outline-none focus:bg-white dark:focus:bg-graphite transition-all text-graphite dark:text-stone"
-                          placeholder="-"
-                        />
-                      </td>
-                    ))}
+                    {weekDays.map(day => {
+                      const feeNote = getCellFeeNote(tc.id, day);
+                      return (
+                        <td key={day.toISOString()} className="px-1 py-1 align-middle">
+                          <div className="relative">
+                            <input
+                              key={`${tc.id}-${day.toISOString()}-${getCellHours(tc.id, day)}`}
+                              type="number"
+                              step="0.25"
+                              min="0"
+                              defaultValue={displayHours(getCellHours(tc.id, day))}
+                              onBlur={(e) => {
+                                const val = parseFloat(e.target.value);
+                                if (!isNaN(val)) {
+                                  commitCell(tc.id, day, val);
+                                } else if (e.target.value === '') {
+                                  commitCell(tc.id, day, 0);
+                                }
+                              }}
+                              className="w-full text-center p-1.5 bg-transparent border border-transparent hover:border-graphite/20 dark:hover:border-white/20 focus-visible:ring-2 focus-visible:ring-signal focus-visible:ring-offset-2 ring-offset-stone dark:ring-offset-graphite rounded tabular-nums focus:outline-none focus:bg-white dark:focus:bg-graphite transition-all text-graphite dark:text-stone"
+                              placeholder="-"
+                            />
+                            {feeNote && (
+                              <span
+                                role="img"
+                                className="pointer-events-none absolute top-0 right-0.5 text-xs font-bold leading-none text-rust dark:text-orange-300"
+                                title={feeNote}
+                                aria-label={feeNote}
+                              >
+                                &bull;
+                              </span>
+                            )}
+                          </div>
+                        </td>
+                      );
+                    })}
                     <td className="px-4 py-3 text-right font-semibold tabular-nums text-graphite dark:text-stone bg-stone/30 dark:bg-gray-800/20">
                       {getRowTotalHours(tc.id).toFixed(2)}
                     </td>
