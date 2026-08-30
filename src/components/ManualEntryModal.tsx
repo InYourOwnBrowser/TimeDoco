@@ -159,6 +159,7 @@ export const ManualEntryModal: React.FC<ManualEntryModalProps> = ({ onClose }) =
 
     const tagsArray = tagsStr.split(',').map(t => t.trim()).filter(t => t !== '').slice(0, 20);
 
+    const parsedAmount = parseFloat(manualAmount);
     const saved = await addManualEntry({
       timecodeId,
       startTime: start.toISOString(),
@@ -166,7 +167,7 @@ export const ManualEntryModal: React.FC<ManualEntryModalProps> = ({ onClose }) =
       note,
       tags: tagsArray,
       pausedSegments,
-      manualAmount: manualAmount && !isNaN(parseFloat(manualAmount)) ? parseFloat(manualAmount) : null,
+      manualAmount: manualAmount && !isNaN(parsedAmount) && parsedAmount !== 0 ? parsedAmount : null,
     });
     if (!saved) {
       setError('This entry was not saved. It is still here — try again.');

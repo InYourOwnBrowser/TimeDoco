@@ -2,7 +2,7 @@ import React, { useState, useEffect, useMemo } from 'react';
 import { useTimeTracker } from '../context/TimeTrackerContext';
 import { format, startOfWeek, endOfWeek, addWeeks, subWeeks, eachDayOfInterval, parseISO } from 'date-fns';
 import { buildLinesFromSettings, secondsFor, workedSecondsFor } from '../utils/billing';
-import { checkOverlap, findFreeSlot, formatDurationShort, roundCurrency } from '../utils/timeUtils';
+import { findFreeSlot, formatDurationShort, roundCurrency } from '../utils/timeUtils';
 import { useNowTick } from '../hooks/useNowTick';
 import { useToast } from '../context/ToastContext';
 import { ChevronLeft, ChevronRight } from 'lucide-react';
