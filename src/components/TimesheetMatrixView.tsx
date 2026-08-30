@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { useTimeTracker } from '../context/TimeTrackerContext';
 import { format, startOfWeek, endOfWeek, addWeeks, subWeeks, eachDayOfInterval, parseISO } from 'date-fns';
-import { buildLinesFromSettings, secondsFor, workedSecondsFor } from '../utils/billing';
+import { buildScreenLines, secondsFor, workedSecondsFor } from '../utils/billing';
 import { applyRounding, findFreeSlot, formatDurationShort, roundCurrency } from '../utils/timeUtils';
 import { useNowTick } from '../hooks/useNowTick';
 import { useToast } from '../context/ToastContext';
@@ -82,8 +82,7 @@ export const TimesheetMatrixView: React.FC = () => {
   // beside it — same days, a month-wide window — gave a different figure for
   // the same day. 'timecode' and 'invoice' scope degrade to 'day' here.
   const billableLines = useMemo(
-    () => buildLinesFromSettings(weekEntries, settings, {
-      scopeWindow: null,
+    () => buildScreenLines(weekEntries, settings, {
       now: new Date(nowMs),
     }),
     [weekEntries, settings, nowMs]
@@ -201,8 +200,7 @@ export const TimesheetMatrixView: React.FC = () => {
     const existingEntriesForCell = getCellEntries(timecodeId, day);
     const cellSeconds = existingEntriesForCell.reduce((sum, e) => sum + secondsFor(billableLines, e.id), 0);
     const rawEntries = existingEntriesForCell.filter(e => !e.tags?.includes(ADJUSTMENT_TAG));
-    const rawBillableLines = buildLinesFromSettings(rawEntries, settings, {
-      scopeWindow: null,
+    const rawBillableLines = buildScreenLines(rawEntries, settings, {
       now: new Date(nowMs),
     });
     const rawBilledSeconds = rawEntries.reduce((sum, e) => sum + secondsFor(rawBillableLines, e.id), 0);

@@ -14,7 +14,7 @@ import {
 } from 'lucide-react';
 import { useToast } from '../context/ToastContext';
 import { calculateDuration, calculateTaxBreakdown, calculateTotalPausedSeconds, formatDurationShort, roundCurrency, roundHours } from '../utils/timeUtils';
-import { buildLinesFromSettings, distributeAcrossBuckets, formatWorkedHours, sumBillableLines, workedSecondsFor, workedVsBilledNote } from '../utils/billing';
+import { allocateProportionally, buildReportLines, distributeAcrossBuckets, formatWorkedHours, sumBillableLines, workedSecondsFor, workedVsBilledNote } from '../utils/billing';
 import type { RoundingScope } from '../utils/billing';
 import type { BillableLine } from '../utils/billing';
 import { createEvents, type EventAttributes } from 'ics';
@@ -205,21 +205,26 @@ export const AnalysisView: React.FC = () => {
   // Built over the whole window — see `periodEntries` — and looked up per
   // displayed entry, which is what the scope window contract requires.
   const billableLines = useMemo(() => {
-    return buildLinesFromSettings(periodEntries, settings, { dateRange, timecodeMap, now: new Date() });
-  }, [periodEntries, dateRange, timecodeMap, settings]);
+    return buildReportLines(entries, settings, dateRange, { timecodeMap, now: new Date() });
+  }, [entries, dateRange, timecodeMap, settings]);
 
   // Calculations for Current Period
-  const { timecodeData, groupData, totalSeconds, totalHours, totalWorkedSeconds, totalEarnings, totalFees, taxBreakdown } = useMemo(() => {
+  const { timecodeData, groupData, totalSeconds, totalHours, totalWorkedSeconds, totalEarnings, totalFees, taxBreakdown, zeroLinesCount } = useMemo(() => {
     const tcMap = new Map<string, BillableLine[]>();
     const grpMap = new Map<string, number>();
     const includedLines: BillableLine[] = [];
+    let zeroLinesCounter = 0;
 
     filteredEntries.forEach(entry => {
       const line = billableLines.get(entry.id);
       if (!line) return;
-      if (line.seconds <= 0 && line.amount === 0) return;
 
       includedLines.push(line);
+
+      if (line.seconds <= 0 && line.amount === 0) {
+        zeroLinesCounter++;
+        return;
+      }
 
       const tc = timecodeMap.get(entry.timecodeId);
       const existing = tcMap.get(entry.timecodeId);
@@ -235,13 +240,17 @@ export const AnalysisView: React.FC = () => {
 
     const totals = sumBillableLines(includedLines);
 
-    const formattedTcData = Array.from(tcMap.entries()).map(([tcId, lines]) => {
+    const tcEntries = Array.from(tcMap.entries());
+    const tcRowSeconds = tcEntries.map(([, lines]) => lines.reduce((acc, l) => acc + l.seconds, 0));
+    const tcAllocated = allocateProportionally(tcRowSeconds, Math.round(totals.hours * 100));
+
+    const formattedTcData = tcEntries.map(([tcId, lines], index) => {
       const tc = timecodeMap.get(tcId);
       const rowTotals = sumBillableLines(lines);
       return {
         id: tcId,
         name: tc?.name || 'Unknown',
-        durationHours: rowTotals.hours,
+        durationHours: tcAllocated[index] / 100,
         earnings: rowTotals.amount,
         // Kept apart from `earnings` so the row can print the arithmetic a
         // client checks: rate x hours + fees = total.
@@ -250,12 +259,16 @@ export const AnalysisView: React.FC = () => {
       };
     }).sort((a, b) => b.durationHours - a.durationHours);
 
-    const formattedGrpData = Array.from(grpMap.entries()).map(([grpId, duration]) => {
+    const grpEntries = Array.from(grpMap.entries());
+    const grpRowSeconds = grpEntries.map(([, duration]) => duration);
+    const grpAllocated = allocateProportionally(grpRowSeconds, Math.round(totals.hours * 100));
+
+    const formattedGrpData = grpEntries.map(([grpId, ], index) => {
       const grp = groupMap.get(grpId);
       return {
         id: grpId,
         name: grpId === 'ungrouped' ? 'Ungrouped' : grp?.name || 'Unknown',
-        durationHours: roundHours(duration / 3600),
+        durationHours: grpAllocated[index] / 100,
         color: grp?.color || '#cbd5e1'
       };
     }).sort((a, b) => b.durationHours - a.durationHours);
@@ -272,7 +285,8 @@ export const AnalysisView: React.FC = () => {
       totalWorkedSeconds: totals.workedSeconds,
       totalEarnings: totals.amount,
       totalFees: totals.fees,
-      taxBreakdown: calculatedTax
+      taxBreakdown: calculatedTax,
+      zeroLinesCount: zeroLinesCounter
     };
   }, [filteredEntries, billableLines, timecodeMap, groupMap, settings?.taxEnabled, settings?.taxRate, settings?.taxInclusive]);
 
@@ -282,8 +296,7 @@ export const AnalysisView: React.FC = () => {
     let pSec = 0;
     let pEarn = 0;
 
-    const prevLines = buildLinesFromSettings(prevPeriodEntries, settings, {
-      dateRange: prevDateRange,
+    const prevLines = buildReportLines(entries, settings, prevDateRange, {
       timecodeMap,
       now: new Date(),
     });
@@ -314,10 +327,14 @@ export const AnalysisView: React.FC = () => {
   // rather than silent. Rounding is one cause; a fixed amount is the other,
   // since it bills as a fee rather than by the hour and so adds no hours. With
   // neither in play the two totals are equal and there is nothing to say.
-  const roundingDelta = useMemo(
-    () => workedVsBilledNote(totalWorkedSeconds, totalSeconds, totalFees),
-    [totalSeconds, totalWorkedSeconds, totalFees],
-  );
+  const roundingDelta = useMemo(() => {
+    const note = workedVsBilledNote(totalWorkedSeconds, totalSeconds, totalFees);
+    if (!note) return null;
+    if (zeroLinesCount > 0) {
+      return `${note} (${zeroLinesCount} entr${zeroLinesCount === 1 ? 'y' : 'ies'} rounded to 0.00 h)`;
+    }
+    return note;
+  }, [totalSeconds, totalWorkedSeconds, totalFees, zeroLinesCount]);
 
   // Detect overlaps
   const overlaps = useMemo(() => {

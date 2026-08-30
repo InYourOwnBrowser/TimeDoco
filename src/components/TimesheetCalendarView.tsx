@@ -1,7 +1,7 @@
 import React, { useMemo, useState } from 'react';
 import { useTimeTracker } from '../context/TimeTrackerContext';
 import { format, startOfMonth, endOfMonth, eachDayOfInterval, startOfWeek, endOfWeek, addMonths, subMonths, isSameMonth, isToday, parseISO } from 'date-fns';
-import { buildLinesFromSettings, displaySecondsFor, secondsFor } from '../utils/billing';
+import { buildScreenLines, displaySecondsFor, secondsFor } from '../utils/billing';
 import { formatDurationShort, roundCurrency } from '../utils/timeUtils';
 import { useNowTick } from '../hooks/useNowTick';
 import { ChevronLeft, ChevronRight } from 'lucide-react';
@@ -41,8 +41,7 @@ export const TimesheetCalendarView: React.FC = () => {
     // reporting period. Rounding a month-wide bucket here gave a different
     // figure for a day than the week grid on the tab beside it. 'timecode' and
     // 'invoice' scope degrade to 'day'.
-    const lines = buildLinesFromSettings(visible, settings, {
-      scopeWindow: null,
+    const lines = buildScreenLines(visible, settings, {
       now: new Date(nowMs),
     });
 
