@@ -246,4 +246,29 @@ describe('every surface answers "how much time this week" with the same number',
 
     expect(document.body.textContent).toContain('totaling 1h');
   });
+
+  it('agrees on week totals for an entry crossing the midnight/week boundary', () => {
+    // Sunday 2025-01-05 23:00 to Monday 2025-01-06 01:00 (2 hours).
+    // Week starts Monday 2025-01-06.
+    const crossBoundaryEntry: Entry = {
+      ...base,
+      id: 'cross-1',
+      startTime: local(5, 23, 0),
+      endTime: local(6, 1, 0),
+      duration: 7200,
+      isRunning: false,
+      createdAt: local(5, 23, 0),
+      updatedAt: local(6, 1, 0),
+    };
+    entries = [crossBoundaryEntry];
+
+    // Under start-day filing convention, entry starts on Sunday (prev week), so
+    // for the current week starting Monday, both grid and weekly summary show 0.0 hrs.
+    render(<TimesheetMatrixView />);
+    expect(screen.getAllByText('0.00').length).toBeGreaterThan(0);
+    cleanup();
+
+    render(<WeeklySummary />);
+    expect(screen.getByText('0.0')).toBeTruthy();
+  });
 });

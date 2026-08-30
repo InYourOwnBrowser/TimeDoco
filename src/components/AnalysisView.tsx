@@ -14,7 +14,7 @@ import {
 } from 'lucide-react';
 import { useToast } from '../context/ToastContext';
 import { calculateTaxBreakdown, calculateTotalPausedSeconds, formatDurationShort, roundCurrency, roundHours } from '../utils/timeUtils';
-import { buildLinesFromSettings, distributeAcrossBuckets, formatWorkedHours, sumBillableLines, workedVsBilledNote } from '../utils/billing';
+import { buildLinesFromSettings, distributeAcrossBuckets, formatWorkedHours, sumBillableLines, workedSecondsFor, workedVsBilledNote } from '../utils/billing';
 import type { RoundingScope } from '../utils/billing';
 import type { BillableLine } from '../utils/billing';
 import { createEvents, type EventAttributes } from 'ics';
@@ -411,16 +411,17 @@ export const AnalysisView: React.FC = () => {
 
     withEstimates.forEach((e) => {
       const expectedSec = e.expectedDurationMinutes! * 60;
+      const actualSec = workedSecondsFor(billableLines, e.id);
       totalExpectedSec += expectedSec;
-      totalActualSec += e.duration;
-      if (e.duration <= expectedSec) onTimeCount++;
+      totalActualSec += actualSec;
+      if (actualSec <= expectedSec) onTimeCount++;
 
-      const varPct = ((e.duration - expectedSec) / expectedSec) * 100;
+      const varPct = ((actualSec - expectedSec) / expectedSec) * 100;
       variances.push({
         entry: e,
         variancePct: varPct,
         absVariancePct: Math.abs(varPct),
-        diffSec: e.duration - expectedSec,
+        diffSec: actualSec - expectedSec,
       });
     });
 
@@ -482,8 +483,9 @@ export const AnalysisView: React.FC = () => {
 
       itemVars.forEach(v => {
         sumExp += v.entry.expectedDurationMinutes! * 60;
-        sumAct += v.entry.duration;
-        if (v.entry.duration <= v.entry.expectedDurationMinutes! * 60) tcOnTime++;
+        const actualSec = workedSecondsFor(billableLines, v.entry.id);
+        sumAct += actualSec;
+        if (actualSec <= v.entry.expectedDurationMinutes! * 60) tcOnTime++;
       });
 
       const avgExpMins = Math.round(sumExp / tcCount / 60);
@@ -569,8 +571,9 @@ export const AnalysisView: React.FC = () => {
 
       w.entries.forEach(e => {
         const expSec = e.expectedDurationMinutes! * 60;
-        if (e.duration <= expSec) onTime++;
-        totalBias += ((e.duration - expSec) / expSec) * 100;
+      const actualSec = workedSecondsFor(billableLines, e.id);
+      if (actualSec <= expSec) onTime++;
+      totalBias += ((actualSec - expSec) / expSec) * 100;
       });
 
       return {
@@ -1805,7 +1808,8 @@ export const AnalysisView: React.FC = () => {
                       {estimateDeepData.worstOffenders.map(({ entry, variancePct, diffSec }) => {
                         const tc = timecodeMap.get(entry.timecodeId);
                         const expMins = entry.expectedDurationMinutes!;
-                        const actMins = Math.round(entry.duration / 60);
+                        const actualSec = workedSecondsFor(billableLines, entry.id);
+                        const actMins = Math.round(actualSec / 60);
                         const diffMins = Math.round(diffSec / 60);
 
                         return (

@@ -108,6 +108,57 @@ const toInterval = (e: Entry, now: number): Interval | null => {
 const overlaps = (a: { start: number; end: number }, b: { start: number; end: number }): boolean =>
   a.start < b.end && a.end > b.start;
 
+export const findFreeSlot = (
+  day: Date,
+  deltaSeconds: number,
+  entries: Entry[],
+  excludeId?: string,
+  timecodeId?: string,
+  allowConcurrentTimers?: boolean
+): { start: Date; end: Date } => {
+  const initialStart = new Date(day);
+  initialStart.setHours(12, 0, 0, 0);
+  const initialEnd = new Date(initialStart.getTime() + deltaSeconds * 1000);
+
+  if (!checkOverlap(initialStart, initialEnd, entries, excludeId, timecodeId, allowConcurrentTimers)) {
+    return { start: initialStart, end: initialEnd };
+  }
+
+  const now = Date.now();
+  const conflictingEntries = entries.filter((e) => {
+    if (e.deletedAt) return false;
+    if (excludeId && e.id === excludeId) return false;
+    if (allowConcurrentTimers && timecodeId !== undefined && e.timecodeId !== timecodeId) return false;
+    return true;
+  });
+
+  const candidates: number[] = [initialStart.getTime()];
+  for (const e of conflictingEntries) {
+    const eEnd = e.endTime ? new Date(e.endTime).getTime() : now;
+    if (eEnd >= initialStart.getTime()) {
+      candidates.push(eEnd);
+    }
+  }
+
+  candidates.sort((a, b) => a - b);
+
+  for (const candMs of candidates) {
+    const candStart = new Date(candMs);
+    const candEnd = new Date(candMs + deltaSeconds * 1000);
+    if (!checkOverlap(candStart, candEnd, entries, excludeId, timecodeId, allowConcurrentTimers)) {
+      return { start: candStart, end: candEnd };
+    }
+  }
+
+  const maxEndMs = Math.max(
+    initialStart.getTime(),
+    ...conflictingEntries.map((e) => (e.endTime ? new Date(e.endTime).getTime() : now))
+  );
+  const fallbackStart = new Date(maxEndMs);
+  const fallbackEnd = new Date(maxEndMs + deltaSeconds * 1000);
+  return { start: fallbackStart, end: fallbackEnd };
+};
+
 export const checkOverlap = (start: Date, end: Date, entries: Entry[], excludeId?: string, timecodeId?: string, allowConcurrentTimers?: boolean): boolean => {
   const now = Date.now();
   const candidate = { start: start.getTime(), end: end.getTime() };
