@@ -65,7 +65,7 @@ describe('a flat fee on an entry that also has tracked time', () => {
     render(<AnalysisView />);
 
     // The Export tab's headline figures: the fee's 40 minutes are not hours.
-    expect(screen.getByText('1h 0m')).not.toBeNull();
+    expect(screen.getByText('1h')).not.toBeNull();
     expect(screen.getByText('$250.00')).not.toBeNull();
   });
 

@@ -74,14 +74,27 @@ export const calculateTotalPausedSeconds = (start: Date, end: Date, pausedSegmen
 };
 
 export const formatDurationShort = (totalSeconds: number): string => {
-  if (!Number.isFinite(totalSeconds) || totalSeconds <= 0) return '—';
+  if (!Number.isFinite(totalSeconds)) return '—';
+  if (totalSeconds === 0) return '—';
+
+  const isNegative = totalSeconds < 0;
+  const absSeconds = Math.abs(totalSeconds);
+
   // Round to whole minutes first, then decompose. Rounding the minute part on
   // its own produces impossible readings such as "1h 60m" at 7199 seconds.
-  const totalMinutes = Math.round(totalSeconds / 60);
+  const totalMinutes = Math.round(absSeconds / 60);
+
+  if (totalMinutes === 0) return '—';
+
   const hrs = Math.floor(totalMinutes / 60);
   const mins = totalMinutes % 60;
-  if (hrs > 0) return mins > 0 ? `${hrs}h ${mins}m` : `${hrs}h`;
-  return `${mins}m`;
+
+  let formatted = `${mins}m`;
+  if (hrs > 0) {
+    formatted = mins > 0 ? `${hrs}h ${mins}m` : `${hrs}h`;
+  }
+
+  return isNegative ? `-${formatted}` : formatted;
 };
 
 interface Interval {
@@ -115,7 +128,7 @@ export const findFreeSlot = (
   excludeId?: string,
   timecodeId?: string,
   allowConcurrentTimers?: boolean
-): { start: Date; end: Date } => {
+): { start: Date; end: Date } | null => {
   const initialStart = new Date(day);
   initialStart.setHours(12, 0, 0, 0);
   const initialEnd = new Date(initialStart.getTime() + deltaSeconds * 1000);
@@ -142,21 +155,20 @@ export const findFreeSlot = (
 
   candidates.sort((a, b) => a - b);
 
+  const dEndMs = new Date(day);
+  dEndMs.setHours(23, 59, 59, 999);
+
   for (const candMs of candidates) {
     const candStart = new Date(candMs);
     const candEnd = new Date(candMs + deltaSeconds * 1000);
+    if (candEnd.getTime() > dEndMs.getTime()) continue;
+
     if (!checkOverlap(candStart, candEnd, entries, excludeId, timecodeId, allowConcurrentTimers)) {
       return { start: candStart, end: candEnd };
     }
   }
 
-  const maxEndMs = Math.max(
-    initialStart.getTime(),
-    ...conflictingEntries.map((e) => (e.endTime ? new Date(e.endTime).getTime() : now))
-  );
-  const fallbackStart = new Date(maxEndMs);
-  const fallbackEnd = new Date(maxEndMs + deltaSeconds * 1000);
-  return { start: fallbackStart, end: fallbackEnd };
+  return null;
 };
 
 export const checkOverlap = (start: Date, end: Date, entries: Entry[], excludeId?: string, timecodeId?: string, allowConcurrentTimers?: boolean): boolean => {

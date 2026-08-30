@@ -973,8 +973,8 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ onClose }) => {
               </div>
               <div className="flex items-center justify-between mb-4">
                 <label className="text-sm font-medium text-graphite dark:text-stone flex items-center">
-                  Target Alert (Minutes)
-                  <HelpTooltip text="Notifies you this many minutes before you hit your weekly target." />
+                  Timer Alert (Minutes)
+                  <HelpTooltip text="Notifies you when any single timer has been running for this many minutes." />
                 </label>
                 <input
                   type="number"
@@ -1349,8 +1349,9 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ onClose }) => {
                     <button
                       onClick={async () => {
                         if (window.confirm('Are you sure you want to permanently empty all items in the trash? This action cannot be undone.')) {
-                          await emptyTrash();
-                          setStatusMsg({ type: 'success', text: 'Trash emptied successfully.' });
+                          if (await emptyTrash()) {
+                            setStatusMsg({ type: 'success', text: 'Trash emptied successfully.' });
+                          }
                         }
                       }}
                       className="text-xs font-medium text-rust dark:text-orange-300 hover:text-rust/80 transition-colors"

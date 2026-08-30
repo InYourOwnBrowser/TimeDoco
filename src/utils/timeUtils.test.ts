@@ -96,7 +96,7 @@ describe('timeUtils', () => {
 
     it('returns 12:00 anchor if no entries overlap noon', () => {
       const entries = [createEntry('e1', 9, 0, 11, 0)];
-      const slot = findFreeSlot(day, 1800, entries, undefined, 'tc1', false);
+      const slot = findFreeSlot(day, 1800, entries, undefined, 'tc1', false)!;
       expect(slot.start.getHours()).toBe(12);
       expect(slot.start.getMinutes()).toBe(0);
       expect((slot.end.getTime() - slot.start.getTime()) / 1000).toBe(1800);
@@ -104,7 +104,7 @@ describe('timeUtils', () => {
 
     it('finds slot immediately after conflicting entry covering 12:00', () => {
       const entries = [createEntry('e1', 11, 0, 13, 0)]; // 11:00 to 13:00
-      const slot = findFreeSlot(day, 1800, entries, undefined, 'tc1', false);
+      const slot = findFreeSlot(day, 1800, entries, undefined, 'tc1', false)!;
       expect(slot.start.getHours()).toBe(13);
       expect(slot.start.getMinutes()).toBe(0);
     });
@@ -115,7 +115,7 @@ describe('timeUtils', () => {
         createEntry('e2', 14, 0, 16, 0), // 14:00 - 16:00
       ];
       // Looking for 30 min (1800s). Gap 13:00 - 14:00 is free.
-      const slot = findFreeSlot(day, 1800, entries, undefined, 'tc1', false);
+      const slot = findFreeSlot(day, 1800, entries, undefined, 'tc1', false)!;
       expect(slot.start.getHours()).toBe(13);
       expect(slot.start.getMinutes()).toBe(0);
     });
@@ -126,7 +126,7 @@ describe('timeUtils', () => {
         createEntry('e2', 13, 0, 13, 15), // 13:00 - 13:15 (only 15m gap)
       ];
       // Looking for 30 min (1800s) slot.
-      const slot = findFreeSlot(day, 1800, entries, undefined, 'tc1', false);
+      const slot = findFreeSlot(day, 1800, entries, undefined, 'tc1', false)!;
       expect(slot.start.getHours()).toBe(13);
       expect(slot.start.getMinutes()).toBe(15);
     });
