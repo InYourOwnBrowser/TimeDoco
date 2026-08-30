@@ -3,6 +3,7 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { TimesheetMatrixView } from './TimesheetMatrixView';
 import { ToastProvider } from '../context/ToastContext';
 import { startOfWeek, format } from 'date-fns';
+import type { Entry } from '../types';
 
 const mockAddManualEntry = vi.fn().mockResolvedValue(true);
 const mockUpdateEntry = vi.fn().mockResolvedValue(true);
@@ -16,16 +17,31 @@ const mondayEndISO = format(currentWeekStart, "yyyy-MM-dd'T'09:12:00.000'Z'");
 const mondayNoonISO = format(currentWeekStart, "yyyy-MM-dd'T'11:30:00.000'Z'");
 const mondayNoonEndISO = format(currentWeekStart, "yyyy-MM-dd'T'12:30:00.000'Z'");
 
-let mockEntries = [
-  {
+const createTestEntry = (overrides: Partial<Entry>): Entry => ({
+  id: 'test-entry',
+  timecodeId: 'tc-1',
+  startTime: mondayISO,
+  endTime: mondayEndISO,
+  duration: 720,
+  note: '',
+  tags: [],
+  isRunning: false,
+  isPaused: false,
+  pausedSegments: [],
+  editHistory: [],
+  createdAt: mondayISO,
+  updatedAt: mondayISO,
+  ...overrides,
+});
+
+let mockEntries: Entry[] = [
+  createTestEntry({
     id: 'entry-1',
     timecodeId: 'tc-1',
     startTime: mondayISO,
     endTime: mondayEndISO, // 12 minutes = 720 seconds -> rounds to 15m (0.25h) under 15min rule
     duration: 720,
-    pausedSegments: [],
-    isRunning: false,
-  },
+  }),
 ];
 
 vi.mock('../context/TimeTrackerContext', () => ({
@@ -53,15 +69,13 @@ vi.mock('../context/ToastContext', () => ({
 describe('TimesheetMatrixView commitCell rounding behavior', () => {
   beforeEach(() => {
     mockEntries = [
-      {
+      createTestEntry({
         id: 'entry-1',
         timecodeId: 'tc-1',
         startTime: mondayISO,
         endTime: mondayEndISO,
         duration: 720,
-        pausedSegments: [],
-        isRunning: false,
-      },
+      }),
     ];
   });
   beforeEach(() => {
@@ -109,17 +123,16 @@ describe('TimesheetMatrixView commitCell rounding behavior', () => {
   it('deletes adjustment when targetSeconds equals trackedSeconds', async () => {
     // Tracked: 720s. Adjustment: 3600s. Cell displays (720+3600=4320s => 1.25h).
     mockEntries = [
-      {
+      createTestEntry({
         id: 'entry-1', timecodeId: 'tc-1',
         startTime: mondayISO, endTime: mondayEndISO, duration: 720,
-        pausedSegments: [], isRunning: false,
-      },
-      {
+      }),
+      createTestEntry({
         id: 'adj-1', timecodeId: 'tc-1',
         startTime: mondayISO, endTime: format(currentWeekStart, "yyyy-MM-dd'T'10:00:00.000'Z'"),
-        duration: 3600, pausedSegments: [], isRunning: false,
+        duration: 3600,
         tags: ['timesheet-adjustment'],
-      },
+      }),
     ];
 
     const { getByDisplayValue } = render(
@@ -141,11 +154,10 @@ describe('TimesheetMatrixView commitCell rounding behavior', () => {
   it('avoids overlaps by using findFreeSlot when entry spans noon', async () => {
     // Entry spanning 11:30 to 12:30.
     mockEntries = [
-      {
+      createTestEntry({
         id: 'entry-1', timecodeId: 'tc-1',
         startTime: mondayNoonISO, endTime: mondayNoonEndISO, duration: 3600,
-        pausedSegments: [], isRunning: false,
-      },
+      }),
     ];
 
     const { getByDisplayValue } = render(

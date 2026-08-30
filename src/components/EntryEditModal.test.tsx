@@ -181,6 +181,18 @@ describe('EntryEditModal flat fee conversion', () => {
     expect(updates.manualAmount).toBe(125.50);
   });
 
+  it('treats 0 as no fee on time entry path, setting manualAmount to null', async () => {
+    render(<EntryEditModal entry={entryWithPauses} onClose={() => {}} />);
+
+    fireEvent.change(screen.getByPlaceholderText('e.g. 150.00'), { target: { value: '0' } });
+    fireEvent.click(screen.getByText('Save Changes'));
+
+    await waitFor(() => expect(mockUpdateEntry).toHaveBeenCalled());
+
+    const [, updates] = mockUpdateEntry.mock.calls[0];
+    expect(updates.manualAmount).toBeNull();
+  });
+
   it('keeps the entry untouched when the flat fee confirmation is declined', async () => {
     const confirmSpy = vi.spyOn(window, 'confirm').mockReturnValue(false);
     render(<EntryEditModal entry={entryWithPauses} onClose={() => {}} />);

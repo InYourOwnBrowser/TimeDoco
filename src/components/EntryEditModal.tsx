@@ -234,12 +234,13 @@ export const EntryEditModal: React.FC<EntryEditModalProps> = ({ entry, onClose }
       }
     }
 
+    const parsedAmount = parseFloat(manualAmount);
     const updates: Partial<Entry> = {
       timecodeId,
       note,
       tags: tagsStr.split(',').map(t => t.trim()).filter(t => t !== '').slice(0, 20),
       startTime: start.toISOString(),
-      manualAmount: manualAmount && !isNaN(parseFloat(manualAmount)) ? parseFloat(manualAmount) : null,
+      manualAmount: manualAmount && !isNaN(parsedAmount) && parsedAmount !== 0 ? parsedAmount : null,
     };
 
     if (end) {

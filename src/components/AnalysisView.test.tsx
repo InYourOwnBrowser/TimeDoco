@@ -1,9 +1,11 @@
 import { render, screen, fireEvent } from '@testing-library/react';
 import { describe, it, expect, vi } from 'vitest';
-import { format } from 'date-fns';
+import { format, subWeeks } from 'date-fns';
 import { AnalysisView } from './AnalysisView';
 
-const today = format(new Date(), 'yyyy-MM-dd');
+const todayDate = new Date();
+const today = format(todayDate, 'yyyy-MM-dd');
+const twoWeeksAgoStr = format(subWeeks(todayDate, 2), 'yyyy-MM-dd');
 
 const mockEntries = [
   {
@@ -25,6 +27,17 @@ const mockEntries = [
     duration: 2700,
     note: 'Task 2',
     expectedDurationMinutes: 30, // overrun by 15m (+50%)
+    pausedSegments: [],
+    tags: [],
+  },
+  {
+    id: 'entry-est-old',
+    timecodeId: 'tc-1',
+    startTime: `${twoWeeksAgoStr}T10:00:00`,
+    endTime: `${twoWeeksAgoStr}T11:00:00`, // 60 mins actual
+    duration: 3600,
+    note: 'Past Task',
+    expectedDurationMinutes: 30, // overrun by 30m (+100%)
     pausedSegments: [],
     tags: [],
   },

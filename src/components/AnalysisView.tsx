@@ -13,7 +13,7 @@ import {
   CheckCircle2, Info, Plus, BarChart2, PieChart as PieIcon, ExternalLink
 } from 'lucide-react';
 import { useToast } from '../context/ToastContext';
-import { calculateTaxBreakdown, calculateTotalPausedSeconds, formatDurationShort, roundCurrency, roundHours } from '../utils/timeUtils';
+import { calculateDuration, calculateTaxBreakdown, calculateTotalPausedSeconds, formatDurationShort, roundCurrency, roundHours } from '../utils/timeUtils';
 import { buildLinesFromSettings, distributeAcrossBuckets, formatWorkedHours, sumBillableLines, workedSecondsFor, workedVsBilledNote } from '../utils/billing';
 import type { RoundingScope } from '../utils/billing';
 import type { BillableLine } from '../utils/billing';
@@ -532,7 +532,7 @@ export const AnalysisView: React.FC = () => {
       perTimecodeTable,
       worstOffenders: sortedWorst,
     };
-  }, [filteredEntries, timecodeMap, worstOffenderSort]);
+  }, [filteredEntries, billableLines, timecodeMap, worstOffenderSort]);
 
   // Estimates Trend Chart over time (Trailing periods)
   const estimatesTrend = useMemo(() => {
@@ -571,9 +571,9 @@ export const AnalysisView: React.FC = () => {
 
       w.entries.forEach(e => {
         const expSec = e.expectedDurationMinutes! * 60;
-      const actualSec = workedSecondsFor(billableLines, e.id);
-      if (actualSec <= expSec) onTime++;
-      totalBias += ((actualSec - expSec) / expSec) * 100;
+        const actualSec = calculateDuration(parseISO(e.startTime), parseISO(e.endTime!), e.pausedSegments || []);
+        if (actualSec <= expSec) onTime++;
+        totalBias += ((actualSec - expSec) / expSec) * 100;
       });
 
       return {
