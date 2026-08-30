@@ -176,19 +176,6 @@ export interface BuildOptions {
   dateRange: DateRange | null;
   roundingRule?: RoundingRule;
   roundingScope?: RoundingScope;
-  /**
-   * The reporting window the wider rounding scopes are measured over.
-   *
-   * Name it only from a report — a view of a period the user picked, whose
-   * totals are the ones an invoice is drawn from. At 'timecode' and 'invoice'
-   * scope a bucket's total *is* the set of entries handed in, so a window named
-   * by an ordinary screen makes that screen's own extent decide an entry's
-   * billable minutes, and two screens showing the same day then disagree.
-   *
-   * The caller must pass every entry in this window, not only the ones it
-   * displays, or the bucket total is short. Pass null (or omit) anywhere else,
-   * and the wide scopes degrade to 'day'; see `effectiveRoundingScope`.
-   */
   scopeWindow?: DateRange | null;
   timecodeMap?: Map<string, Timecode>;
   now?: Date;
@@ -371,39 +358,47 @@ export const distributeAcrossBuckets = (
 export type BillingSettings = Pick<Settings, 'roundingRule' | 'roundingScope'> | null | undefined;
 
 /**
- * Build billable lines straight from the user's settings.
- *
- * Every surface that answers "how much time" — the entry list, the timesheet
- * grid and calendar, the weekly target, the report — goes through this, so the
- * rounding rule and its scope are read once, in one place, and the surfaces
- * cannot drift into four different answers for the same week.
- *
- * `dateRange` is the window the answer is about: a report clips to it, while a
- * view that files each entry under the day it started (the grid, the calendar,
- * the list) passes `null` and lets each entry count in full.
- *
- * `scopeWindow` is separate, and only a report names one — see
- * `BuildOptions.scopeWindow`. A surface that clips to a window but is not a
- * report (the weekly target bar) passes `scopeWindow: null` explicitly.
+ * Takes the *entire* entry list and a required window.
+ * It windows internally so callers cannot accidentally pass a pre-filtered list.
  */
-export const buildLinesFromSettings = (
-  entries: Entry[],
+export const buildReportLines = (
+  allEntries: Entry[],
   settings: BillingSettings,
-  options: {
-    dateRange?: DateRange | null;
-    /** See `BuildOptions.scopeWindow`. Defaults to `dateRange`. */
-    scopeWindow?: DateRange | null;
-    timecodeMap?: Map<string, Timecode>;
-    now?: Date;
-  } = {},
-): Map<string, BillableLine> =>
-  buildBillableLines(entries, {
-    dateRange: options.dateRange ?? null,
+  window: DateRange,
+  opts: { timecodeMap?: Map<string, Timecode>; now?: Date } = {}
+): Map<string, BillableLine> => {
+  const periodEntries = allEntries.filter(entry => {
+    const start = new Date(entry.startTime);
+    const end = entry.endTime ? new Date(entry.endTime) : (opts.now ?? new Date());
+    return start <= window.end && end >= window.start;
+  });
+
+  return buildBillableLines(periodEntries, {
+    dateRange: window,
     roundingRule: settings?.roundingRule || 'none',
     roundingScope: settings?.roundingScope || DEFAULT_ROUNDING_SCOPE,
-    scopeWindow: options.scopeWindow !== undefined ? options.scopeWindow : (options.dateRange ?? null),
-    timecodeMap: options.timecodeMap,
-    now: options.now,
+    scopeWindow: window,
+    timecodeMap: opts.timecodeMap,
+    now: opts.now,
+  });
+};
+
+/**
+ * Takes entries and settings. It hardcodes dateRange: null and scopeWindow: null,
+ * degrading to 'day' scope for UI surfaces without a specific reporting period.
+ */
+export const buildScreenLines = (
+  entries: Entry[],
+  settings: BillingSettings,
+  opts: { timecodeMap?: Map<string, Timecode>; now?: Date } = {}
+): Map<string, BillableLine> =>
+  buildBillableLines(entries, {
+    dateRange: null,
+    roundingRule: settings?.roundingRule || 'none',
+    roundingScope: settings?.roundingScope || DEFAULT_ROUNDING_SCOPE,
+    scopeWindow: null,
+    timecodeMap: opts.timecodeMap,
+    now: opts.now,
   });
 
 /** Billable seconds for one entry, or 0 for an entry outside the built set. */

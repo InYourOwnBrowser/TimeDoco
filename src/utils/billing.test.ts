@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { buildBillableLines, buildLinesFromSettings, computeBillableLine, displaySecondsFor, distributeAcrossBuckets, effectiveRoundingScope, formatWorkedHours, sumBillableLines, workedSecondsFor, workedVsBilledNote } from './billing';
+import { buildBillableLines, buildScreenLines, buildReportLines, computeBillableLine, displaySecondsFor, distributeAcrossBuckets, effectiveRoundingScope, formatWorkedHours, sumBillableLines, workedSecondsFor, workedVsBilledNote } from './billing';
 import type { RoundingRule } from './billing';
 import type { Entry, Timecode } from '../types';
 
@@ -328,8 +328,8 @@ describe('rounding scope window', () => {
     // The entry list shows all time and has no reporting window. Its figure for
     // one entry must not move when an unrelated entry in another month is
     // recorded — which is what a single all-history 'invoice' bucket did.
-    const alone = buildLinesFromSettings([jan1], settings, { scopeWindow: null, timecodeMap });
-    const withHistory = buildLinesFromSettings([jan1, feb1], settings, { scopeWindow: null, timecodeMap });
+    const alone = buildScreenLines([jan1], settings, { timecodeMap });
+    const withHistory = buildScreenLines([jan1, feb1], settings, { timecodeMap });
 
     expect(alone.get('jan-1')!.seconds).toBe(withHistory.get('jan-1')!.seconds);
     // Degraded to day scope: 12 minutes alone on its day rounds to 15. Under a
@@ -345,8 +345,8 @@ describe('rounding scope window', () => {
 
     // One surface displays only part of the window but reports on all of it;
     // the other displays all of it. Same window, same entries, same answer.
-    const a = buildLinesFromSettings(monthEntries, settings, { scopeWindow: january, timecodeMap });
-    const b = buildLinesFromSettings(monthEntries, settings, { dateRange: january, timecodeMap });
+    const a = buildReportLines(monthEntries, settings, january, { timecodeMap });
+    const b = buildReportLines(monthEntries, settings, january, { timecodeMap });
 
     expect(a.get('jan-1')!.seconds).toBe(b.get('jan-1')!.seconds);
     expect(a.get('jan-2')!.seconds).toBe(b.get('jan-2')!.seconds);
@@ -424,7 +424,7 @@ describe('distributeAcrossBuckets', () => {
     const running = [
       entry({ id: 'live', startTime: '2026-01-05T10:00:00.000Z', endTime: null, duration: 0, isRunning: true }),
     ];
-    const lines = buildLinesFromSettings(running, { roundingRule: 'none', roundingScope: 'day' }, { now });
+    const lines = buildScreenLines(running, { roundingRule: 'none', roundingScope: 'day' }, { now });
     const perDay = distributeAcrossBuckets(running, lines, dayBuckets(['2026-01-05']), now);
 
     expect(lines.get('live')!.seconds).toBe(30 * 60);

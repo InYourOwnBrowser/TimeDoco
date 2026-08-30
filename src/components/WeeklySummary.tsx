@@ -2,7 +2,7 @@ import React, { useMemo } from 'react';
 import { useTimeTracker } from '../context/TimeTrackerContext';
 import { format, startOfWeek, endOfWeek, eachDayOfInterval, parseISO } from 'date-fns';
 import { Target, TrendingUp } from 'lucide-react';
-import { buildLinesFromSettings, sumBillableLines, workedVsBilledNote } from '../utils/billing';
+import { buildScreenLines, sumBillableLines, workedVsBilledNote } from '../utils/billing';
 import { useNowTick } from '../hooks/useNowTick';
 
 export const WeeklySummary: React.FC = () => {
@@ -34,9 +34,7 @@ export const WeeklySummary: React.FC = () => {
     // user picked, so it is not a scope window: 'timecode' and 'invoice' scope
     // belong to the report and degrade to 'day' here, which is the bucket the
     // timesheet grid and the entry list build too.
-    const lines = buildLinesFromSettings(inWeek, settings, {
-      dateRange: null,
-      scopeWindow: null,
+    const lines = buildScreenLines(inWeek, settings, {
       now,
     });
 
