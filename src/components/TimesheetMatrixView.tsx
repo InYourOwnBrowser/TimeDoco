@@ -2,7 +2,7 @@ import React, { useState, useEffect, useMemo } from 'react';
 import { useTimeTracker } from '../context/TimeTrackerContext';
 import { format, startOfWeek, endOfWeek, addWeeks, subWeeks, eachDayOfInterval, parseISO } from 'date-fns';
 import { buildLinesFromSettings, secondsFor, workedSecondsFor } from '../utils/billing';
-import { findFreeSlot, formatDurationShort, roundCurrency } from '../utils/timeUtils';
+import { applyRounding, findFreeSlot, formatDurationShort, roundCurrency } from '../utils/timeUtils';
 import { useNowTick } from '../hooks/useNowTick';
 import { useToast } from '../context/ToastContext';
 import { ChevronLeft, ChevronRight } from 'lucide-react';
@@ -200,21 +200,36 @@ export const TimesheetMatrixView: React.FC = () => {
   const commitCell = async (timecodeId: string, day: Date, newHours: number) => {
     const existingEntriesForCell = getCellEntries(timecodeId, day);
     const cellSeconds = existingEntriesForCell.reduce((sum, e) => sum + secondsFor(billableLines, e.id), 0);
-    const trackedSeconds = existingEntriesForCell
-      .filter(e => !e.tags?.includes(ADJUSTMENT_TAG))
-      .reduce((sum, e) => sum + workedSecondsFor(billableLines, e.id), 0);
+    const rawEntries = existingEntriesForCell.filter(e => !e.tags?.includes(ADJUSTMENT_TAG));
+    const rawBillableLines = buildLinesFromSettings(rawEntries, settings, {
+      scopeWindow: null,
+      now: new Date(nowMs),
+    });
+    const rawBilledSeconds = rawEntries.reduce((sum, e) => sum + secondsFor(rawBillableLines, e.id), 0);
+    const trackedSeconds = rawEntries.reduce((sum, e) => sum + workedSecondsFor(rawBillableLines, e.id), 0);
 
     const targetSeconds = Math.round(newHours * 3600);
     if (Math.abs(targetSeconds - cellSeconds) < CELL_DISPLAY_TOLERANCE_SECONDS) return;
 
     const existingAdjustment = existingEntriesForCell.find(e => e.tags?.includes(ADJUSTMENT_TAG));
 
-    if (targetSeconds < trackedSeconds) {
+    if (targetSeconds < rawBilledSeconds) {
       addToast("Can't reduce below tracked time — edit or delete the underlying entries instead.", 'error');
       return;
     }
 
-    const delta = targetSeconds - trackedSeconds;
+    const delta = targetSeconds - rawBilledSeconds;
+    const roundingRule = settings?.roundingRule || 'none';
+    if (delta > 0 && roundingRule !== 'none') {
+      const reroundedSeconds = applyRounding(trackedSeconds + delta, roundingRule);
+      if (reroundedSeconds === rawBilledSeconds) {
+        addToast('Due to rounding, this edit would not change the displayed hours.', 'info');
+        return;
+      }
+      if (Math.abs(reroundedSeconds - targetSeconds) >= CELL_DISPLAY_TOLERANCE_SECONDS) {
+        addToast(`Due to rounding (${roundingRule}), cell display will round to ${(reroundedSeconds / 3600).toFixed(2)}h.`, 'info');
+      }
+    }
 
     if (delta <= 0) {
       if (existingAdjustment) {
