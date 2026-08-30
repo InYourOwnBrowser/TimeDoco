@@ -160,7 +160,7 @@ export const TimesheetCalendarView: React.FC = () => {
       </div>
 
       {selectedDayEntries && (() => {
-        const dayEntries = entries.filter(e => format(parseISO(e.startTime), 'yyyy-MM-dd') === format(selectedDayEntries, 'yyyy-MM-dd'));
+        const dayEntries = entries.filter(e => !e.deletedAt && format(parseISO(e.startTime), 'yyyy-MM-dd') === format(selectedDayEntries, 'yyyy-MM-dd'));
         return (
           <div className="mt-6 p-4 bg-white dark:bg-graphite border border-graphite/20 dark:border-white/20 rounded-panel">
             <h3 className="text-lg font-semibold text-graphite dark:text-stone mb-4 flex justify-between items-center">

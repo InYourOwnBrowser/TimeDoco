@@ -378,8 +378,9 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ onClose }) => {
 
           for (const row of results.data as any[]) {
             try {
-              const startTimeRaw = row['Start Time'] || row.startTime || row.start;
-              const endTimeRaw = row['End Time'] || row.endTime || row.end;
+              let startTimeRaw = row['Start Time'] || row.startTime || row.start || row['Start'];
+              let endTimeRaw = row['End Time'] || row.endTime || row.end || row['End'];
+              const dateRaw = (row['Date'] || row.date || row.Date || '').trim();
               const timecodeName = (row['Timecode'] || row.timecode || row.name || '').trim();
               // Optional, and the column TimeDoco's own detailed CSV export
               // writes. It is what tells two identically named timecodes apart.
@@ -391,6 +392,13 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ onClose }) => {
               if (!startTimeRaw || !endTimeRaw || !timecodeName) {
                 skippedCount++;
                 continue;
+              }
+
+              if (dateRaw && startTimeRaw && !startTimeRaw.includes('-') && !startTimeRaw.includes('/')) {
+                startTimeRaw = `${dateRaw} ${startTimeRaw}`;
+              }
+              if (dateRaw && endTimeRaw && !endTimeRaw.includes('-') && !endTimeRaw.includes('/')) {
+                endTimeRaw = `${dateRaw} ${endTimeRaw}`;
               }
 
               if (timecodeName.length > 100 || groupName.length > 100) {
@@ -422,8 +430,11 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ onClose }) => {
                 continue;
               }
 
+              const durationRaw = row['Duration (h, billed)'] ?? row['Duration (h, worked)'] ?? row['Duration (h)'] ?? row.duration ?? row['Duration'];
+              const isDurationEmpty = durationRaw === undefined || durationRaw === null || String(durationRaw).trim() === '';
+
               let manualAmount: number | null = null;
-              if (amountRaw !== undefined && amountRaw !== null && String(amountRaw).trim() !== '') {
+              if (isDurationEmpty && amountRaw !== undefined && amountRaw !== null && String(amountRaw).trim() !== '') {
                 const parsedAmt = parseFloat(String(amountRaw));
                 if (!isNaN(parsedAmt) && isFinite(parsedAmt)) {
                   manualAmount = parsedAmt;

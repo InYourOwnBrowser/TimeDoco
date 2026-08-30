@@ -1494,8 +1494,11 @@ describe('TimeTrackerContext Reducer Logic', () => {
     });
     expect(await db.getTimecode(tc1)).toBeDefined();
 
-    // Merging overlapping entries throws an error
-    await expect(ctx!.mergeTimecodes(tc1, tc2)).rejects.toThrow('resulting entries would overlap');
+    // Merging overlapping entries returns false (guarded handles error)
+    await act(async () => {
+      const res = await ctx!.mergeTimecodes(tc1, tc2);
+      expect(res).toBe(false);
+    });
   });
 
   it('M7: emptyTrash and hardDeleteGroup read directly from DB ignoring stale state snapshot', async () => {
