@@ -1114,11 +1114,7 @@ export const AnalysisView: React.FC = () => {
     );
   };
 
-  const formatDuration = (seconds: number) => {
-    const hrs = Math.floor(seconds / 3600);
-    const mins = Math.floor((seconds % 3600) / 60);
-    return `${hrs}h ${mins}m`;
-  };
+  const formatDuration = formatDurationShort;
 
   const handleSortClick = (field: SortField) => {
     if (tcSortField === field) {

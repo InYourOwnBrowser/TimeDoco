@@ -1364,10 +1364,21 @@ export const TimeTrackerProvider: React.FC<{ children: ReactNode }> = ({ childre
     await refreshData();
   };
 
-  const restoreTimecodeInternal = async (id: string) => {
+  const restoreTimecodeInternal = async (id: string, skipOverlapCheck = false) => {
     const tc = await db.getTimecode(id);
     if (tc) {
       const deletedTime = tc.deletedAt;
+      const allEntries = await db.getEntries();
+      const entriesToRestore = allEntries.filter(e => e.timecodeId === id && e.deletedAt === deletedTime);
+
+      if (!skipOverlapCheck && entriesToRestore.length > 0) {
+        const liveEntries = allEntries.filter(e => !e.deletedAt);
+        const rejected = findOverlappingCandidates(entriesToRestore, liveEntries, settings?.allowConcurrentTimers);
+        if (rejected.size > 0) {
+          throw new Error('Cannot restore timecode: entries overlap with existing live entries.');
+        }
+      }
+
       tc.deletedAt = undefined;
       await db.putTimecode(touch(tc));
 
@@ -1378,17 +1389,19 @@ export const TimeTrackerProvider: React.FC<{ children: ReactNode }> = ({ childre
         }
       }
 
-      const allEntries = await db.getEntries();
-      const entriesToRestore = allEntries.filter(e => e.timecodeId === id && e.deletedAt === deletedTime);
       for (const entry of entriesToRestore) {
-        await restoreEntryInternal(entry.id);
+        await restoreEntryInternal(entry.id, true);
       }
     }
   };
 
   const restoreTimecode = async (id: string) => {
-    await restoreTimecodeInternal(id);
-    await refreshData();
+    try {
+      await restoreTimecodeInternal(id);
+      await refreshData();
+    } catch (error) {
+      addToast(error instanceof Error ? error.message : 'Failed to restore timecode', 'error');
+    }
   };
 
   /** Resolves to whether the change was stored; gate any success message on it. */
@@ -1632,9 +1645,16 @@ export const TimeTrackerProvider: React.FC<{ children: ReactNode }> = ({ childre
     await refreshData();
   };
 
-  const restoreEntryInternal = async (id: string) => {
+  const restoreEntryInternal = async (id: string, skipOverlapCheck = false) => {
     const entry = await db.getEntry(id);
     if (entry) {
+      if (!skipOverlapCheck) {
+        const liveEntries = await db.getEntries().then(res => res.filter(e => !e.deletedAt));
+        const rejected = findOverlappingCandidates([entry], liveEntries, settings?.allowConcurrentTimers);
+        if (rejected.size > 0) {
+          throw new Error('Cannot restore entry: overlaps with existing live entries.');
+        }
+      }
       entry.deletedAt = undefined;
       await db.putEntry(touch(entry));
 
@@ -1648,8 +1668,12 @@ export const TimeTrackerProvider: React.FC<{ children: ReactNode }> = ({ childre
   };
 
   const restoreEntry = async (id: string) => {
-    await restoreEntryInternal(id);
-    await refreshData();
+    try {
+      await restoreEntryInternal(id);
+      await refreshData();
+    } catch (error) {
+      addToast(error instanceof Error ? error.message : 'Failed to restore entry', 'error');
+    }
   };
 
   /**

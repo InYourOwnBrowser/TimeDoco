@@ -116,8 +116,9 @@ export const GroupingManagement: React.FC = () => {
       return;
     }
 
-    await updateGroup(id, { name: trimmedName, color: editingGroupData.color });
-    setEditingGroupId(null);
+    if (await updateGroup(id, { name: trimmedName, color: editingGroupData.color })) {
+      setEditingGroupId(null);
+    }
   };
 
   const handleCreateGroup = async () => {
@@ -174,13 +175,14 @@ export const GroupingManagement: React.FC = () => {
     }
 
     const parsedRate = parseFloat(editingTimecodeData.hourlyRate);
-    await updateTimecode(id, {
+    if (await updateTimecode(id, {
       name: trimmedName,
       color: editingTimecodeData.color || undefined,
       groupId: targetGroupId,
       hourlyRate: isNaN(parsedRate) || parsedRate <= 0 ? null : parsedRate,
-    });
-    setEditingTimecodeId(null);
+    })) {
+      setEditingTimecodeId(null);
+    }
   };
 
   const handleStartAddingTimecode = (groupId: string | null) => {
@@ -458,7 +460,7 @@ export const GroupingManagement: React.FC = () => {
                     <Edit2 size={16} />
                   </button>
                   <button
-                    onClick={() => updateGroup(group.id, { archived: true })}
+                    onClick={async () => await updateGroup(group.id, { archived: true })}
                     className="p-2 text-gray-600 dark:text-gray-400 hover:text-signal-dim dark:hover:text-signal hover:bg-signal/10 rounded-md transition-colors"
                     title="Archive Group"
                     aria-label="Archive Group"
@@ -466,13 +468,13 @@ export const GroupingManagement: React.FC = () => {
                     <Archive size={16} />
                   </button>
                   <button
-                    onClick={() => {
+                    onClick={async () => {
                       if (
                         window.confirm(
                           `Delete "${group.name}" and all its timecodes/entries? This can be undone from the toast or Trash.`
                         )
                       ) {
-                        deleteGroup(group.id);
+                        await deleteGroup(group.id);
                       }
                     }}
                     className="p-2 text-gray-600 dark:text-gray-400 hover:text-rust dark:hover:text-rust hover:bg-rust/10 rounded-md transition-colors"
@@ -501,23 +503,24 @@ export const GroupingManagement: React.FC = () => {
                         <Edit2 size={14} /> Edit
                       </button>
                       <button
-                        onClick={() => {
-                          updateGroup(group.id, { archived: true });
-                          setMobileMenuId(null);
+                        onClick={async () => {
+                          if (await updateGroup(group.id, { archived: true })) {
+                            setMobileMenuId(null);
+                          }
                         }}
                         className="w-full text-left px-2 py-1.5 text-graphite dark:text-stone hover:bg-stone/50 dark:hover:bg-ink/50 rounded flex items-center gap-2"
                       >
                         <Archive size={14} /> Archive
                       </button>
                       <button
-                        onClick={() => {
+                        onClick={async () => {
                           setMobileMenuId(null);
                           if (
                             window.confirm(
                               `Delete "${group.name}" and all its timecodes/entries? This can be undone from the toast or Trash.`
                             )
                           ) {
-                            deleteGroup(group.id);
+                            await deleteGroup(group.id);
                           }
                         }}
                         className="w-full text-left px-2 py-1.5 text-rust dark:text-rust hover:bg-rust/10 rounded flex items-center gap-2"
@@ -802,7 +805,7 @@ export const GroupingManagement: React.FC = () => {
 
                     <div className="flex items-center gap-1">
                       <button
-                        onClick={() => updateGroup(group.id, { archived: false })}
+                        onClick={async () => await updateGroup(group.id, { archived: false })}
                         className="p-2 text-verdigris dark:text-emerald-400 hover:bg-verdigris/10 rounded-md transition-colors"
                         title="Restore Group"
                         aria-label="Restore Group"
@@ -810,13 +813,13 @@ export const GroupingManagement: React.FC = () => {
                         <ArchiveRestore size={16} />
                       </button>
                       <button
-                        onClick={() => {
+                        onClick={async () => {
                           if (
                             window.confirm(
                               `Delete "${group.name}" and all its timecodes/entries? This can be undone from the toast or Trash.`
                             )
                           ) {
-                            deleteGroup(group.id);
+                            await deleteGroup(group.id);
                           }
                         }}
                         className="p-2 text-gray-600 dark:text-gray-400 hover:text-rust dark:hover:text-rust hover:bg-rust/10 rounded-md transition-colors"
@@ -994,7 +997,7 @@ function renderTimecodeRow({
                 <Merge size={15} />
               </button>
               <button
-                onClick={() => updateTimecode(tc.id, { archived: !tc.archived })}
+                onClick={async () => await updateTimecode(tc.id, { archived: !tc.archived })}
                 className={`p-1.5 rounded transition-colors ${
                   tc.archived
                     ? 'text-verdigris dark:text-emerald-400 hover:bg-verdigris/10'
@@ -1006,11 +1009,11 @@ function renderTimecodeRow({
                 {tc.archived ? <ArchiveRestore size={15} /> : <Archive size={15} />}
               </button>
               <button
-                onClick={() => {
+                onClick={async () => {
                   if (
                     window.confirm(`Delete "${tc.name}" and all its entries? This can be undone from the toast or Trash.`)
                   ) {
-                    deleteTimecode(tc.id);
+                    await deleteTimecode(tc.id);
                   }
                 }}
                 className="p-1.5 text-gray-600 dark:text-gray-400 hover:text-rust dark:hover:text-rust hover:bg-rust/10 rounded transition-colors"
@@ -1050,22 +1053,23 @@ function renderTimecodeRow({
                     <Merge size={14} /> Merge
                   </button>
                   <button
-                    onClick={() => {
-                      updateTimecode(tc.id, { archived: !tc.archived });
-                      setMobileMenuId(null);
-                    }}
+                    onClick={async () => {
+                        if (await updateTimecode(tc.id, { archived: !tc.archived })) {
+                          setMobileMenuId(null);
+                        }
+                      }}
                     className="w-full text-left px-2 py-1.5 text-graphite dark:text-stone hover:bg-stone/50 dark:hover:bg-ink/50 rounded flex items-center gap-2"
                   >
                     {tc.archived ? <ArchiveRestore size={14} /> : <Archive size={14} />}
                     {tc.archived ? 'Restore' : 'Archive'}
                   </button>
                   <button
-                    onClick={() => {
+                    onClick={async () => {
                       setMobileMenuId(null);
                       if (
                         window.confirm(`Delete "${tc.name}" and all its entries? This can be undone from the toast or Trash.`)
                       ) {
-                        deleteTimecode(tc.id);
+                        await deleteTimecode(tc.id);
                       }
                     }}
                     className="w-full text-left px-2 py-1.5 text-rust dark:text-rust hover:bg-rust/10 rounded flex items-center gap-2"

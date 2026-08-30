@@ -237,7 +237,7 @@ export const TimesheetMatrixView: React.FC = () => {
       return;
     }
 
-    const { start, end } = findFreeSlot(
+    const slot = findFreeSlot(
       day,
       delta,
       entries,
@@ -245,6 +245,12 @@ export const TimesheetMatrixView: React.FC = () => {
       timecodeId,
       settings?.allowConcurrentTimers
     );
+
+    if (!slot) {
+      addToast('No free time left on this day — edit the underlying entries instead.', 'error');
+      return;
+    }
+    const { start, end } = slot;
 
     if (existingAdjustment) {
       await updateEntry(existingAdjustment.id, { startTime: start.toISOString(), endTime: end.toISOString() });
