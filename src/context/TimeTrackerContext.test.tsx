@@ -590,6 +590,57 @@ describe('TimeTrackerContext Reducer Logic', () => {
     await expect(ctx!.importData(oversizedFile, 'merge')).rejects.toThrow('20MB limit');
   });
 
+  it('hardDeleteTimecode confirms before deleting a timecode with live entries', async () => {
+    let ctx: ReturnType<typeof useTimeTracker> | undefined;
+
+    render(
+      <ToastProvider><TimeTrackerProvider>
+        <TestConsumer onReady={(c) => (ctx = c)} />
+      </TimeTrackerProvider></ToastProvider>
+    );
+
+    await waitFor(() => expect(ctx?.groups).toBeDefined());
+
+    let tcId = '';
+    await act(async () => {
+      const tc = await ctx!.addTimecode('Live TC');
+      tcId = tc.id;
+      await ctx!.addManualEntry({
+        startTime: '2024-01-01T10:00:00Z',
+        endTime: '2024-01-01T11:00:00Z',
+        timecodeId: tcId,
+        note: 'Live entry on timecode',
+      });
+    });
+
+    await waitFor(() => expect(ctx!.entries.length).toBe(1));
+
+    // Confirm prompt returns false -> deletion is cancelled
+    const confirmSpy = vi.spyOn(window, 'confirm').mockReturnValue(false);
+
+    await act(async () => {
+      await ctx!.hardDeleteTimecode(tcId);
+    });
+
+    expect(confirmSpy).toHaveBeenCalledTimes(1);
+    expect(confirmSpy.mock.calls[0][0]).toContain('This timecode still has 1 entry that is not in the trash');
+    expect(await db.getTimecode(tcId)).toBeDefined();
+
+    // Confirm prompt returns true -> deletion proceeds
+    confirmSpy.mockReturnValue(true);
+
+    await act(async () => {
+      await ctx!.hardDeleteTimecode(tcId);
+    });
+
+    await waitFor(async () => {
+      expect(await db.getTimecode(tcId)).toBeUndefined();
+      expect((await db.getEntries()).length).toBe(0);
+    });
+
+    confirmSpy.mockRestore();
+  });
+
   it('performance benchmark: batch entry deletion speed', async () => {
     let ctx: ReturnType<typeof useTimeTracker> | undefined;
 
@@ -625,11 +676,16 @@ describe('TimeTrackerContext Reducer Logic', () => {
       expect(ctx!.entries.length).toBe(numEntries);
     });
 
+    // Mock confirm for hardDeleteTimecode since benchmark TC has live entries
+    const confirmSpy = vi.spyOn(window, 'confirm').mockReturnValue(true);
+
     const start = performance.now();
     await act(async () => {
       await ctx!.hardDeleteTimecode(tcId);
     });
     const duration = performance.now() - start;
+
+    confirmSpy.mockRestore();
 
     console.log(`[BENCHMARK] Deleting ${numEntries} entries baseline duration: ${duration.toFixed(2)} ms`);
 
@@ -1494,11 +1550,8 @@ describe('TimeTrackerContext Reducer Logic', () => {
     });
     expect(await db.getTimecode(tc1)).toBeDefined();
 
-    // Merging overlapping entries returns false (guarded handles error)
-    await act(async () => {
-      const res = await ctx!.mergeTimecodes(tc1, tc2);
-      expect(res).toBe(false);
-    });
+    // Merging overlapping entries throws domain error
+    await expect(ctx!.mergeTimecodes(tc1, tc2)).rejects.toThrow('Cannot merge timecodes: resulting entries would overlap');
   });
 
   it('M7: emptyTrash and hardDeleteGroup read directly from DB ignoring stale state snapshot', async () => {

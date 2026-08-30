@@ -91,6 +91,9 @@ clearLastStoppedEntry: () => void;
 // left running, so working past midnight does not prompt every night.
 const MIN_OVERNIGHT_FORGOT_HOURS = 5;
 
+const getLiveEntriesForTimecode = (timecodeId: string, entries: Entry[]): Entry[] =>
+  entries.filter((e) => e.timecodeId === timecodeId && !e.deletedAt);
+
 const TimeTrackerContext = createContext<TimeTrackerContextType | undefined>(undefined);
 
 export const TimeTrackerProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
@@ -230,6 +233,9 @@ export const TimeTrackerProvider: React.FC<{ children: ReactNode }> = ({ childre
     const message = error instanceof Error ? error.message : String(error ?? '');
     if (name === 'QuotaExceededError' || /quota/i.test(message)) {
       return `Could not ${action}: this browser is out of storage for TimeDoco. Export a backup from Settings, then clear the trash or remove old entries to free space.`;
+    }
+    if (error instanceof Error && !name?.includes('Database') && !name?.includes('IndexedDB') && !(error instanceof DOMException)) {
+      return message;
     }
     return `Could not ${action}. Your change was not saved.`;
   };
@@ -532,8 +538,7 @@ export const TimeTrackerProvider: React.FC<{ children: ReactNode }> = ({ childre
       }
 
       for (const tc of timecodesToDelete) {
-        const liveEntriesForTc = [...loadedEntries].filter((e) => e.timecodeId === tc.id && !e.deletedAt);
-        if (liveEntriesForTc.length > 0) {
+        if (getLiveEntriesForTimecode(tc.id, loadedEntries).length > 0) {
           continue;
         }
         const relatedDeletedEntries = [...loadedEntries].filter((e) => e.timecodeId === tc.id && e.deletedAt);
@@ -883,8 +888,7 @@ export const TimeTrackerProvider: React.FC<{ children: ReactNode }> = ({ childre
     for (const tc of deletedTimecodesInDb) {
       // Check if there are live (non-deleted) entries referencing this trashed timecode.
       // If a user restored an entry without restoring its timecode, purging the timecode would destroy live entries.
-      const liveEntriesForTc = allEntries.filter((e) => e.timecodeId === tc.id && !e.deletedAt);
-      if (liveEntriesForTc.length > 0) {
+      if (getLiveEntriesForTimecode(tc.id, allEntries).length > 0) {
         // Skip purging this timecode to protect live entries
         continue;
       }
@@ -1200,8 +1204,8 @@ export const TimeTrackerProvider: React.FC<{ children: ReactNode }> = ({ childre
   };
 
 
-  const mergeTimecodes = async (sourceId: string, destId: string) => {
-    if (!sourceId || !destId || sourceId === destId) return;
+  const mergeTimecodes = async (sourceId: string, destId: string): Promise<boolean> => {
+    if (!sourceId || !destId || sourceId === destId) return false;
 
     const allEntries = await db.getEntries();
     const currentActive = await db.getActiveEntries();
@@ -1273,6 +1277,7 @@ export const TimeTrackerProvider: React.FC<{ children: ReactNode }> = ({ childre
 
     // 4. Refresh everything
     await refreshData();
+    return true;
   };
 
   const deleteTimecode = async (id: string) => {
@@ -1331,7 +1336,17 @@ export const TimeTrackerProvider: React.FC<{ children: ReactNode }> = ({ childre
   const hardDeleteTimecode = async (id: string) => {
     // From the database: a permanent delete must not leave orphans behind
     // because the React snapshot was missing a record.
-    const entriesToDelete = (await db.getEntries()).filter((e) => e.timecodeId === id);
+    const allEntries = await db.getEntries();
+    const liveEntries = getLiveEntriesForTimecode(id, allEntries);
+    if (liveEntries.length > 0) {
+      const count = liveEntries.length;
+      const msg = `This timecode still has ${count} ${count === 1 ? 'entry' : 'entries'} that ${count === 1 ? 'is' : 'are'} not in the trash. Deleting it will destroy ${count === 1 ? 'it' : 'them'} permanently.`;
+      if (typeof window !== 'undefined' && window.confirm && !window.confirm(msg)) {
+        return false;
+      }
+    }
+
+    const entriesToDelete = allEntries.filter((e) => e.timecodeId === id);
     if (entriesToDelete.length > 0) {
       await Promise.all(entriesToDelete.map((entry) => db.deleteEntry(entry.id)));
     }
@@ -1873,7 +1888,7 @@ export const TimeTrackerProvider: React.FC<{ children: ReactNode }> = ({ childre
       addTimecode,
       updateTimecode,
       deleteTimecode: guarded('delete the timecode', deleteTimecode),
-      mergeTimecodes: guarded('merge the timecodes', mergeTimecodes),
+      mergeTimecodes,
       updateActiveNote: guarded('save the note', updateActiveNote),
       refreshData,
       entries,

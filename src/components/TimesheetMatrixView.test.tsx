@@ -142,8 +142,8 @@ describe('TimesheetMatrixView commitCell rounding behavior', () => {
     );
 
     const input = getByDisplayValue('1.25') as HTMLInputElement;
-    // Enter 0.20h (720 seconds = tracked seconds). Delta = 0.
-    fireEvent.blur(input, { target: { value: '0.20' } });
+    // Enter 0.25h (900 seconds = raw billed seconds). Delta = 0.
+    fireEvent.blur(input, { target: { value: '0.25' } });
 
     await waitFor(() => {
       expect(mockDeleteEntry).toHaveBeenCalledWith('adj-1');
