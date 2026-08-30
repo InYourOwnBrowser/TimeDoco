@@ -681,7 +681,10 @@ export const AnalysisView: React.FC = () => {
         // Same shape as the PDF summary: fees are their own column when there
         // are any, so Duration x rate + Fees reconciles with Earnings.
         const feeCol = (value: string) => (showFeesColumn ? [value] : []);
-        const headers = ['Timecode', 'Group', 'Duration (Hours)', ...feeCol('Fees'), 'Earnings'];
+        const earningsHeader = settings?.taxEnabled && settings?.taxInclusive
+          ? `Total (incl. ${settings?.taxLabel || 'Tax'})`
+          : 'Earnings';
+        const headers = ['Timecode', 'Group', 'Duration (Hours)', ...feeCol('Fees'), earningsHeader];
         const rows = timecodeData.map(tc => {
           const timecode = timecodeMap.get(tc.id);
           const groupName = timecode?.groupId ? groupMap.get(timecode.groupId)?.name || 'Unknown' : 'Ungrouped';
@@ -695,8 +698,11 @@ export const AnalysisView: React.FC = () => {
         });
 
         if (taxBreakdown) {
+          const subtotalLabel = settings?.taxInclusive
+            ? `Subtotal (excl. ${settings?.taxLabel || 'Tax'})`
+            : 'Subtotal';
           rows.push([
-            escapeCSV('Subtotal'),
+            escapeCSV(subtotalLabel),
             '',
             totalHours.toFixed(2),
             ...feeCol(totalFees.toFixed(2)),
@@ -917,6 +923,11 @@ export const AnalysisView: React.FC = () => {
           `worked ${workedHours.toFixed(2)} h in total, of which ${totalHours.toFixed(2)} h is billed at a rate.`
         );
       }
+      if (settings?.taxEnabled && settings?.taxRate) {
+        const taxLabel = settings.taxLabel || 'Tax';
+        const modeStr = settings.taxInclusive ? 'inclusive — line totals include tax' : 'exclusive';
+        addMeta('Tax:', `${settings.taxRate}% ${taxLabel}, ${modeStr}`);
+      }
 
       reportFields
         .filter(f => f.label.trim() && f.value.trim())
@@ -976,17 +987,24 @@ export const AnalysisView: React.FC = () => {
         const width = showFeesColumn ? 6 : 5;
         return [...Array(width - 2).fill(''), label, value];
       };
+      const subtotalLabel = settings?.taxInclusive
+        ? `Subtotal (excl. ${settings?.taxLabel || 'Tax'})`
+        : 'Subtotal';
       const foot = taxBreakdown
         ? [
-            labelledFootRow('Subtotal', `${currencySymbol}${taxBreakdown.subtotal.toFixed(2)}`),
+            labelledFootRow(subtotalLabel, `${currencySymbol}${taxBreakdown.subtotal.toFixed(2)}`),
             labelledFootRow(`${settings?.taxLabel || 'Tax'} (${settings?.taxRate}%)`, `${currencySymbol}${taxBreakdown.tax.toFixed(2)}`),
             ['', 'Total', '', totalHours.toFixed(2), ...feeCell, `${currencySymbol}${taxBreakdown.total.toFixed(2)}`],
           ]
         : [['', 'Total', '', totalHours.toFixed(2), ...feeCell, formatAmount(totalEarnings)]];
 
+      const pdfEarningsHeader = settings?.taxEnabled && settings?.taxInclusive
+        ? `Total (incl. ${settings?.taxLabel || 'Tax'})`
+        : 'Total';
+
       autoTable(doc, {
         startY: y + 4,
-        head: [['Timecode', 'Group', 'Rate', 'Hours', ...(showFeesColumn ? ['Fees'] : []), 'Total']],
+        head: [['Timecode', 'Group', 'Rate', 'Hours', ...(showFeesColumn ? ['Fees'] : []), pdfEarningsHeader]],
         body: summaryRows,
         foot,
         footStyles: { fontStyle: 'bold', fillColor: [238, 240, 236], textColor: [16, 22, 28] },

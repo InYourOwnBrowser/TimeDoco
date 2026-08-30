@@ -228,18 +228,33 @@ export const GroupingManagement: React.FC = () => {
 
   const handleMergeSave = async (sourceId: string) => {
     if (!mergeDestId || mergeDestId === sourceId) return;
-    if (
-      window.confirm(
-        'Are you sure you want to merge these timecodes? All entries from the source will be moved to the destination, and the source timecode will be deleted. This cannot be undone.'
-      )
-    ) {
+
+    const sourceTc = timecodes.find((t) => t.id === sourceId);
+    const destTc = timecodes.find((t) => t.id === mergeDestId);
+    const sourceRate = sourceTc?.hourlyRate ?? null;
+    const destRate = destTc?.hourlyRate ?? null;
+
+    const ratesDiffer = (sourceRate ?? 0) !== (destRate ?? 0);
+    const movedEntriesCount = entries.filter((e) => e.timecodeId === sourceId && !e.deletedAt).length;
+
+    const sourceRateStr = `${currencySymbol}${(sourceRate ?? 0).toFixed(2)}/hr`;
+    const destRateStr = `${currencySymbol}${(destRate ?? 0).toFixed(2)}/hr`;
+    const rateNotice = ratesDiffer
+      ? `${movedEntriesCount} ${movedEntriesCount === 1 ? 'entry' : 'entries'} currently billed at ${sourceRateStr} will move to a timecode billed at ${destRateStr}. `
+      : '';
+
+    const confirmMsg = `Are you sure you want to merge these timecodes? All entries from the source will be moved to the destination. ${rateNotice}The source timecode moves to the trash; restoring it will not bring the entries back.`;
+
+    if (window.confirm(confirmMsg)) {
       // mergeTimecodes rejects a merge that would leave two running timers or
       // produce overlapping entries. Unhandled, that reached the user as an
       // unhandled rejection and a panel stuck open, with nothing to say whether
       // the merge had happened. Its messages are already written for the user.
       try {
-        await mergeTimecodes(sourceId, mergeDestId);
-        addToast('Timecodes merged.', 'success');
+        const ok = await mergeTimecodes(sourceId, mergeDestId);
+        if (ok) {
+          addToast('Timecodes merged.', 'success');
+        }
       } catch (error) {
         addToast(error instanceof Error ? error.message : 'Merge failed.', 'error');
       } finally {

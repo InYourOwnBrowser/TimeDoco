@@ -41,7 +41,7 @@ interface TimeTrackerContextType {
   /** Resolves to whether the change was stored. Gate any success message on it. */
   updateTimecode: (id: string, updates: Partial<Timecode>) => Promise<boolean>;
   deleteTimecode: (id: string) => Promise<boolean>;
-  mergeTimecodes: (sourceId: string, destId: string) => Promise<void>;
+  mergeTimecodes: (sourceId: string, destId: string) => Promise<boolean>;
   updateActiveNote: (entryId: string, note: string, tags?: string[]) => Promise<boolean>;
   refreshData: (options?: { broadcast?: boolean }) => Promise<void>;
   entries: Entry[];
@@ -1181,9 +1181,22 @@ export const TimeTrackerProvider: React.FC<{ children: ReactNode }> = ({ childre
     const toInsert = wellFormed.filter((_, index) => !clashing.has(index));
     skipped += clashing.size;
 
-    await Promise.all(toInsert.map((entry) => db.putEntry(entry)));
+    const CHUNK_SIZE = 2000;
+    let totalAdded = 0;
+    for (let i = 0; i < toInsert.length; i += CHUNK_SIZE) {
+      const chunk = toInsert.slice(i, i + CHUNK_SIZE);
+      try {
+        await db.putEntries(chunk);
+        totalAdded += chunk.length;
+      } catch (error) {
+        if (totalAdded > 0) {
+          throw new Error(`Import failed after committing ${totalAdded} entries: ${error instanceof Error ? error.message : String(error)}`);
+        }
+        throw error;
+      }
+    }
     await refreshData();
-    return { added: toInsert.length, skipped };
+    return { added: totalAdded, skipped };
   };
 
 
@@ -1223,22 +1236,26 @@ export const TimeTrackerProvider: React.FC<{ children: ReactNode }> = ({ childre
     }
 
     const isoNow = new Date().toISOString();
-    // 1. Update all entries referencing sourceId to point to destId.
+    // 1. Update all entries referencing sourceId to point to destId in one transaction.
     // Read from the database, not component state: state excludes soft-deleted
     // entries, which would then be left pointing at a timecode this merge is
     // about to delete, and can be stale relative to another tab.
     const entriesToUpdate = allEntries.filter((e) => e.timecodeId === sourceId);
-    if (entriesToUpdate.length > 0) {
-      await Promise.all(entriesToUpdate.map((entry) => db.putEntry({ ...entry, timecodeId: destId, updatedAt: isoNow })));
-    }
-
-    // 2. Update active entries as well, if any are running on the source timecode
     const activeToUpdate = currentActive.filter((entry) => entry.timecodeId === sourceId);
-    if (activeToUpdate.length > 0) {
-      await Promise.all(activeToUpdate.map((entry) => db.putEntry({ ...entry, timecodeId: destId, updatedAt: isoNow })));
+
+    const combinedEntriesMap = new Map<string, Entry>();
+    for (const e of entriesToUpdate) {
+      combinedEntriesMap.set(e.id, { ...e, timecodeId: destId, updatedAt: isoNow });
+    }
+    for (const e of activeToUpdate) {
+      combinedEntriesMap.set(e.id, { ...e, timecodeId: destId, updatedAt: isoNow });
+    }
+    const entriesToPut = Array.from(combinedEntriesMap.values());
+    if (entriesToPut.length > 0) {
+      await db.putEntries(entriesToPut);
     }
 
-    // 3. Update templates
+    // 2. Update templates
     const currentSettings = await db.getSettings();
     if (currentSettings && currentSettings.templates) {
       const updatedTemplates = currentSettings.templates.map(t =>
@@ -1247,14 +1264,14 @@ export const TimeTrackerProvider: React.FC<{ children: ReactNode }> = ({ childre
       await db.putSettings({ ...currentSettings, templates: updatedTemplates });
     }
 
-    // 4. Soft delete the source timecode
+    // 3. Soft delete the source timecode
     const sourceTc = await db.getTimecode(sourceId);
     if (sourceTc) {
       const mergedAt = new Date().toISOString();
       await db.putTimecode(touch({ ...sourceTc, deletedAt: mergedAt }, mergedAt));
     }
 
-    // 5. Refresh everything
+    // 4. Refresh everything
     await refreshData();
   };
 
@@ -1856,7 +1873,7 @@ export const TimeTrackerProvider: React.FC<{ children: ReactNode }> = ({ childre
       addTimecode,
       updateTimecode,
       deleteTimecode: guarded('delete the timecode', deleteTimecode),
-      mergeTimecodes,
+      mergeTimecodes: guarded('merge the timecodes', mergeTimecodes),
       updateActiveNote: guarded('save the note', updateActiveNote),
       refreshData,
       entries,
