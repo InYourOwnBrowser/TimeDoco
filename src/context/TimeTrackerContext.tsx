@@ -5,6 +5,7 @@ import { differenceInSeconds, isSameDay } from 'date-fns';
 import { calculateDuration, findOverlappingCandidates } from '../utils/timeUtils';
 import { clearErrorLog, logError } from '../utils/errorLog';
 import { useToast } from './ToastContext';
+import { requestPersistence } from '../utils/storagePersistence';
 import {
   validateBackupPayload,
   verifyBackupFile,
@@ -463,6 +464,10 @@ export const TimeTrackerProvider: React.FC<{ children: ReactNode }> = ({ childre
   }, [addToast, notifyOtherTabs]);
 
   useEffect(() => {
+    // Re-request persistence on load if previously granted, to survive Safari session resets
+    if (typeof localStorage !== 'undefined' && localStorage.getItem('persistenceGranted') === 'true') {
+      requestPersistence().catch(() => {});
+    }
     refreshData();
   }, [refreshData]);
 
@@ -705,6 +710,11 @@ export const TimeTrackerProvider: React.FC<{ children: ReactNode }> = ({ childre
     // The pre-stop snapshot is read inside the queue, so it is the entry as it
     // actually stood when the stop ran: a note save queued ahead of this one has
     // already been applied and is part of what the undo would restore.
+    if (typeof localStorage !== 'undefined' && !localStorage.getItem('persistenceAttempted')) {
+      localStorage.setItem('persistenceAttempted', 'true');
+      requestPersistence().catch(() => {});
+    }
+
     const stopped = await mutateValue('stop the timer', () => runExclusive(async () => {
       const entry = await db.getEntry(entryId);
       const didStop = await performStop(entryId);
@@ -961,6 +971,10 @@ export const TimeTrackerProvider: React.FC<{ children: ReactNode }> = ({ childre
     hourlyRate?: number,
     options?: { deferRefresh?: boolean },
   ): Promise<Timecode> => {
+    if (typeof localStorage !== 'undefined' && !localStorage.getItem('persistenceAttempted')) {
+      localStorage.setItem('persistenceAttempted', 'true');
+      requestPersistence().catch(() => {});
+    }
     const newTimecode: Timecode = {
       id: crypto.randomUUID(),
       name,

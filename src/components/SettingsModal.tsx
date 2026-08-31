@@ -1,6 +1,9 @@
 import React, { useState, useRef } from 'react';
 import { useTimeTracker } from '../context/TimeTrackerContext';
 import { useNamedDownload } from '../hooks/useNamedDownload';
+import { checkPersistence, requestPersistence, storageEstimate, type PersistenceState } from '../utils/storagePersistence';
+import { useInstallPrompt } from '../hooks/useInstallPrompt';
+import { Shield, ShieldAlert, ShieldOff } from 'lucide-react';
 import { X, Upload, Download, AlertTriangle, CheckCircle2, Trash2 } from 'lucide-react';
 import Papa from 'papaparse';
 import { Modal } from './ui/Modal';
@@ -34,7 +37,18 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ onClose }) => {
   const [replaceConfirmText, setReplaceConfirmText] = useState('');
   const [activeTab, setActiveTab] = useState<'general' | 'data' | 'trash'>('general');
   const [justSaved, setJustSaved] = useState(false);
+  const [persistenceState, setPersistenceState] = useState<PersistenceState>('unsupported');
+  const [storageUsage, setStorageUsage] = useState<{ usage: number; quota: number } | null>(null);
+  const { needsManualInstall } = useInstallPrompt();
   const saveTimeoutRef = useRef<number | null>(null);
+
+  React.useEffect(() => {
+    const loadStorageInfo = async () => {
+      setPersistenceState(await checkPersistence());
+      setStorageUsage(await storageEstimate());
+    };
+    loadStorageInfo();
+  }, []);
 
   React.useEffect(() => {
     return () => {
@@ -1065,7 +1079,80 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ onClose }) => {
                 </h4>
                 <p className="text-xs text-yellow-700 dark:text-yellow-500">
                   While this app is local-only, your data is <strong>not encrypted at rest</strong> in your browser's local storage. Anyone with access to your device profile can read it.
+                  <br/><br/>
+                  Your data can be deleted by browser storage pressure, clearing site data manually, or (on Safari) a week of not opening the app. <a href="https://timedoco.com/faq" className="underline hover:text-yellow-800 dark:hover:text-yellow-300">Read more</a>
                 </p>
+              </div>
+
+
+              <div className="mb-6">
+                <h3 className="text-md font-semibold text-graphite dark:text-stone mb-2">Storage Protection</h3>
+
+                {persistenceState === 'persisted' && (
+                  <div className="flex items-start gap-3 bg-signal/10 dark:bg-signal/20 border border-signal/20 rounded-md p-3">
+                    <Shield className="text-signal-dim dark:text-signal mt-0.5 shrink-0" size={18} />
+                    <div>
+                      <h4 className="text-sm font-semibold text-graphite dark:text-stone">Protected</h4>
+                      <p className="text-xs text-gray-600 dark:text-gray-400 mt-1">
+                        Your browser has agreed to keep TimeDoco's data even when storage runs low.
+                      </p>
+                    </div>
+                  </div>
+                )}
+
+                {persistenceState === 'best-effort' && (
+                  <div className="flex items-start gap-3 bg-yellow-50 dark:bg-yellow-900/30 border border-yellow-200 dark:border-yellow-700 rounded-md p-3">
+                    <ShieldAlert className="text-yellow-800 dark:text-yellow-400 mt-0.5 shrink-0" size={18} />
+                    <div className="w-full">
+                      <h4 className="text-sm font-semibold text-yellow-800 dark:text-yellow-400">Best-effort</h4>
+                      <p className="text-xs text-yellow-700 dark:text-yellow-500 mt-1">
+                        Your browser may delete TimeDoco's data if the device runs low on space.
+                      </p>
+                      <div className="mt-3 flex gap-2 flex-wrap">
+                        <button
+                          onClick={async () => {
+                            const result = await requestPersistence();
+                            setPersistenceState(result);
+                          }}
+                          className="text-xs px-3 py-1.5 bg-yellow-200 dark:bg-yellow-800 text-yellow-900 dark:text-yellow-100 rounded hover:bg-yellow-300 dark:hover:bg-yellow-700 transition-colors"
+                        >
+                          Request protection
+                        </button>
+                        {needsManualInstall && (
+                          <button
+                            onClick={() => {
+                              // Trigger an event or state to show the install modal.
+                              // Actually, SettingsModal doesn't know about showIOSInstallModal in App.tsx.
+                              // Since we need to trigger it, maybe we dispatch an event.
+                              window.dispatchEvent(new CustomEvent('show-ios-install-modal'));
+                            }}
+                            className="text-xs px-3 py-1.5 bg-signal/10 dark:bg-signal/20 text-signal-dim dark:text-signal rounded hover:bg-signal/20 transition-colors"
+                          >
+                            Show iOS Install Guide
+                          </button>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+                )}
+
+                {persistenceState === 'unsupported' && (
+                  <div className="flex items-start gap-3 bg-gray-50 dark:bg-graphite border border-gray-200 dark:border-gray-700 rounded-md p-3">
+                    <ShieldOff className="text-gray-500 mt-0.5 shrink-0" size={18} />
+                    <div>
+                      <h4 className="text-sm font-semibold text-graphite dark:text-stone">Unsupported</h4>
+                      <p className="text-xs text-gray-600 dark:text-gray-400 mt-1">
+                        Your browser does not support checking storage protection. Rely on regular backups.
+                      </p>
+                    </div>
+                  </div>
+                )}
+
+                {storageUsage && (
+                  <p className="text-xs text-gray-500 dark:text-gray-400 mt-3">
+                    Using {(storageUsage.usage / 1024 / 1024).toFixed(2)} MB of ~{(storageUsage.quota / 1024 / 1024).toFixed(0)} MB available
+                  </p>
+                )}
               </div>
 
               <h3 className="text-md font-semibold text-graphite dark:text-stone mb-3">Export Data</h3>

@@ -34,6 +34,12 @@ import { logError } from './utils/errorLog';
 // Extracted inner component so we can use TimeTrackerContext
 const AppContent = () => {
   useEffect(() => {
+    const handleShowInstallModal = () => setShowIOSInstallModal(true);
+    window.addEventListener('show-ios-install-modal', handleShowInstallModal);
+    return () => window.removeEventListener('show-ios-install-modal', handleShowInstallModal);
+  }, []);
+
+  useEffect(() => {
     const onError = (e: ErrorEvent) => logError(e.error ?? new Error(e.message), 'window.onerror');
     const onRejection = (e: PromiseRejectionEvent) => logError(e.reason instanceof Error ? e.reason : new Error(String(e.reason)), 'unhandledrejection');
     window.addEventListener('error', onError);

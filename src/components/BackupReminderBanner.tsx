@@ -1,6 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import { useTimeTracker } from '../context/TimeTrackerContext';
 import { useNamedDownload } from '../hooks/useNamedDownload';
+import { checkPersistence, type PersistenceState } from '../utils/storagePersistence';
+import { useInstallPrompt } from '../hooks/useInstallPrompt';
 import { differenceInDays } from 'date-fns';
 import { X, AlertCircle } from 'lucide-react';
 
@@ -8,6 +10,13 @@ export const BackupReminderBanner: React.FC = () => {
   const { settings, getBackupBlob, markBackupSaved, entries, timecodes, groups } = useTimeTracker();
   const { triggerDownload, SaveAsDialog } = useNamedDownload();
   const [isVisible, setIsVisible] = useState(false);
+  const [persistenceState, setPersistenceState] = useState<PersistenceState>('persisted');
+  const { needsManualInstall, isIOS } = useInstallPrompt();
+  const [nagReason, setNagReason] = useState<string | null>(null);
+
+  useEffect(() => {
+    checkPersistence().then(setPersistenceState);
+  }, []);
 
   useEffect(() => {
     if (!settings) return;
@@ -23,7 +32,19 @@ export const BackupReminderBanner: React.FC = () => {
       shouldShow = true;
     } else {
       const daysSince = differenceInDays(new Date(), new Date(settings.lastBackupDate));
-      if (daysSince >= settings.reminderIntervalDays) {
+      let interval = settings.reminderIntervalDays;
+
+      if (persistenceState === 'best-effort') {
+        interval = Math.min(interval, 14); // Shorter interval
+        if (needsManualInstall || (isIOS && !(typeof window.matchMedia === 'function' && window.matchMedia('(display-mode: standalone)').matches))) {
+          interval = Math.min(interval, 7); // Safari not installed limit
+          setNagReason('Safari automatically deletes website data if the app is not opened for 7 days. Export now to be safe, or install to the home screen.');
+        } else {
+          setNagReason('Your browser may delete TimeDoco\'s data if the device runs low on space.');
+        }
+      }
+
+      if (daysSince >= interval) {
         shouldShow = true;
       }
     }
@@ -49,7 +70,7 @@ export const BackupReminderBanner: React.FC = () => {
     } else {
       setIsVisible(false);
     }
-  }, [settings, entries.length, timecodes.length, groups.length]);
+  }, [settings, entries.length, timecodes.length, groups.length, persistenceState, needsManualInstall, isIOS]);
 
   const handleDismiss = () => {
     localStorage.setItem('backupReminderDismissed', JSON.stringify({ timestamp: Date.now() }));
@@ -65,8 +86,12 @@ export const BackupReminderBanner: React.FC = () => {
           <span className="flex p-2 rounded-lg bg-signal/20 dark:bg-signal/30">
             <AlertCircle className="h-5 w-5 text-signal-dim dark:text-signal" aria-hidden="true" />
           </span>
-          <p className="ml-3 font-medium text-signal-dim dark:text-signal truncate">
-            <span>It has been a while since your last backup. We recommend exporting your data soon.</span>
+          <p className={`ml-3 font-medium text-signal-dim dark:text-signal ${nagReason ? '' : 'truncate'}`}>
+            {nagReason ? (
+              <span className="whitespace-normal block">{nagReason}</span>
+            ) : (
+              <span>It has been a while since your last backup. We recommend exporting your data soon.</span>
+            )}
           </p>
         </div>
         <div className="order-2 flex-shrink-0 sm:order-3 sm:ml-3 flex items-center gap-2">
