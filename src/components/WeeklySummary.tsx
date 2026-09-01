@@ -1,8 +1,9 @@
 import React, { useMemo } from 'react';
 import { useTimeTracker } from '../context/TimeTrackerContext';
-import { format, startOfWeek, endOfWeek, eachDayOfInterval, parseISO } from 'date-fns';
+import { startOfWeek, endOfWeek, eachDayOfInterval, parseISO } from 'date-fns';
 import { Target, TrendingUp } from 'lucide-react';
 import { buildScreenLines, sumBillableLines, workedVsBilledNote } from '../utils/billing';
+import { calendarDayKey } from '../utils/timeUtils';
 import { useNowTick } from '../hooks/useNowTick';
 
 export const WeeklySummary: React.FC = () => {
@@ -18,11 +19,11 @@ export const WeeklySummary: React.FC = () => {
     const start = startOfWeek(now, { weekStartsOn: 1 });
     const end = endOfWeek(now, { weekStartsOn: 1 });
     const weekDays = eachDayOfInterval({ start, end });
-    const weekDateStrings = new Set(weekDays.map(d => format(d, 'yyyy-MM-dd')));
+    const weekDateStrings = new Set(weekDays.map(calendarDayKey));
 
     const inWeek = entries.filter(entry => {
       if (entry.deletedAt) return false;
-      return weekDateStrings.has(format(parseISO(entry.startTime), 'yyyy-MM-dd'));
+      return weekDateStrings.has(calendarDayKey(parseISO(entry.startTime)));
     });
 
     // Shared with the report and the timesheet rather than re-derived here.

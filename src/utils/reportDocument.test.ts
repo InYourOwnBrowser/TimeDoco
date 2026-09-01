@@ -103,7 +103,20 @@ interface Fixture {
   timecodes?: Timecode[];
   window?: { start: Date; end: Date };
   now?: Date;
+  /**
+   * Set false for a fixture whose printed output legitimately differs between
+   * the timezones the suite runs under — a DST window is 23 or 25 hours long in
+   * Auckland and 24 in UTC. Their arithmetic is still asserted; only the
+   * snapshot, which is shared by both runs, is skipped.
+   */
+  snapshot?: boolean;
 }
+
+/** A Mon–Sun week ending on `endDay`, in local time. */
+const weekEndingOn = (y: number, mo: number, d: number) => ({
+  start: new Date(y, mo - 1, d - 6, 0, 0, 0, 0),
+  end: new Date(y, mo - 1, d, 23, 59, 59, 999),
+});
 
 const FIXTURES: Fixture[] = [
   {
@@ -186,6 +199,37 @@ const FIXTURES: Fixture[] = [
       entry('e-admin-1', 'tc-admin', at(2026, 1, 8, 9), at(2026, 1, 8, 10, 30), { note: 'Invoicing' }),
     ],
     settings: BASE_SETTINGS,
+  },
+  {
+    // Auckland springs forward on 27 September 2026: a 23-hour Sunday. The
+    // entries either side of the 2am jump are one calendar day's work and one
+    // rounding bucket, whatever the clock did in between.
+    name: 'a week ending on a spring-forward day',
+    entries: [
+      entry('e-sat', 'tc-dev', at(2026, 9, 26, 9), at(2026, 9, 26, 12), { note: 'Saturday' }),
+      entry('e-sun-early', 'tc-dev', at(2026, 9, 27, 1), at(2026, 9, 27, 1, 40), { note: 'Before the jump' }),
+      entry('e-sun-late', 'tc-dev', at(2026, 9, 27, 22), at(2026, 9, 27, 23, 20), { note: 'After the jump' }),
+      entry('e-design-dst', 'tc-design', at(2026, 9, 27, 14), at(2026, 9, 27, 15, 30), { note: 'Sunday design' }),
+    ],
+    settings: settingsWith({ roundingRule: '15min', roundingScope: 'day' }),
+    window: weekEndingOn(2026, 9, 27),
+    now: new Date(2026, 8, 28, 9, 0, 0),
+    snapshot: false,
+  },
+  {
+    // And back on 5 April 2026: a 25-hour Sunday, where an entry can sit in the
+    // repeated hour.
+    name: 'a week ending on a fall-back day',
+    entries: [
+      entry('e-sat', 'tc-dev', at(2026, 4, 4, 9), at(2026, 4, 4, 12), { note: 'Saturday' }),
+      entry('e-sun-repeat', 'tc-dev', at(2026, 4, 5, 2), at(2026, 4, 5, 3), { note: 'In the repeated hour' }),
+      entry('e-sun-late', 'tc-dev', at(2026, 4, 5, 20), at(2026, 4, 5, 21, 25), { note: 'Sunday evening' }),
+      entry('e-design-dst', 'tc-design', at(2026, 4, 5, 11), at(2026, 4, 5, 12, 45), { note: 'Sunday design' }),
+    ],
+    settings: settingsWith({ roundingRule: '15min', roundingScope: 'day' }),
+    window: weekEndingOn(2026, 4, 5),
+    now: new Date(2026, 3, 6, 9, 0, 0),
+    snapshot: false,
   },
   {
     name: 'an empty report',
@@ -311,7 +355,7 @@ describe('report documents', () => {
   describe.each(FIXTURES.map((f) => [f.name, f] as const))('%s', (_name, fixture) => {
     const out = render(fixture);
 
-    it('assembles the summary table, both CSVs and the disclosure block', () => {
+    it.runIf(fixture.snapshot !== false)('assembles the summary table, both CSVs and the disclosure block', () => {
       expect({
         head: out.summary.head,
         body: out.summary.body,

@@ -1,6 +1,5 @@
-import { format } from 'date-fns';
 import type { Entry, Settings, Timecode } from '../types';
-import { applyRounding, calculateDuration, formatDurationShort, roundCurrency, roundHours } from './timeUtils';
+import { applyRounding, calendarDayKey, calculateDuration, formatDurationShort, roundCurrency, roundHours } from './timeUtils';
 
 export type RoundingRule = 'none' | '5min' | '10min' | '15min';
 
@@ -130,7 +129,7 @@ const bucketKeyFor = (
       return `e:${entry.id}`;
     case 'day':
       // Per timecode per day, so a bucket never spans two summary rows.
-      return `d:${entry.timecodeId}:${format(entryStart, 'yyyy-MM-dd')}`;
+      return `d:${entry.timecodeId}:${calendarDayKey(entryStart)}`;
     case 'timecode':
       return `t:${entry.timecodeId}:${windowKey}`;
     case 'invoice':

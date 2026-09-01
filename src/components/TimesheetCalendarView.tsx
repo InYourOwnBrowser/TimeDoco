@@ -2,7 +2,7 @@ import React, { useMemo, useState } from 'react';
 import { useTimeTracker } from '../context/TimeTrackerContext';
 import { format, startOfMonth, endOfMonth, eachDayOfInterval, startOfWeek, endOfWeek, addMonths, subMonths, isSameMonth, isToday, parseISO } from 'date-fns';
 import { buildScreenLines, displaySecondsFor, secondsFor } from '../utils/billing';
-import { formatDurationShort, roundCurrency } from '../utils/timeUtils';
+import { calendarDayKey, formatDurationShort, roundCurrency } from '../utils/timeUtils';
 import { useNowTick } from '../hooks/useNowTick';
 import { ChevronLeft, ChevronRight } from 'lucide-react';
 import { Button } from './ui/Button';
@@ -23,8 +23,8 @@ export const TimesheetCalendarView: React.FC = () => {
   const hasRunningEntry = entries.some(e => !e.endTime && !e.deletedAt);
   const nowMs = useNowTick(hasRunningEntry);
 
-  const gridStartStr = format(startDate, 'yyyy-MM-dd');
-  const gridEndStr = format(endDate, 'yyyy-MM-dd');
+  const gridStartStr = calendarDayKey(startDate);
+  const gridEndStr = calendarDayKey(endDate);
 
   // Built once for the whole visible grid, from the same helper the report, the
   // entry list and the timesheet grid use, rather than re-rounding a sum of the
@@ -33,7 +33,7 @@ export const TimesheetCalendarView: React.FC = () => {
     const visible: typeof entries = [];
     for (const e of entries) {
       if (e.deletedAt) continue;
-      const dayStr = format(parseISO(e.startTime), 'yyyy-MM-dd');
+      const dayStr = calendarDayKey(parseISO(e.startTime));
       if (dayStr >= gridStartStr && dayStr <= gridEndStr) visible.push(e);
     }
 
@@ -52,7 +52,7 @@ export const TimesheetCalendarView: React.FC = () => {
     // marker instead, and the marker names the time and the fee behind it.
     const fees = new Map<string, { seconds: number; amount: number; count: number }>();
     for (const e of visible) {
-      const dayStr = format(parseISO(e.startTime), 'yyyy-MM-dd');
+      const dayStr = calendarDayKey(parseISO(e.startTime));
       byDay.set(dayStr, (byDay.get(dayStr) || 0) + secondsFor(lines, e.id));
 
       const line = lines.get(e.id);
@@ -67,12 +67,12 @@ export const TimesheetCalendarView: React.FC = () => {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [entries, settings, gridStartStr, gridEndStr, nowMs]);
 
-  const getDayTotalHours = (date: Date) => (hoursByDay.get(format(date, 'yyyy-MM-dd')) || 0) / 3600;
+  const getDayTotalHours = (date: Date) => (hoursByDay.get(calendarDayKey(date)) || 0) / 3600;
 
   const currencySymbol = settings?.currencySymbol || '$';
 
   const getDayFeeNote = (date: Date): string | null => {
-    const fee = feesByDay.get(format(date, 'yyyy-MM-dd'));
+    const fee = feesByDay.get(calendarDayKey(date));
     if (!fee) return null;
     const label = fee.count === 1 ? 'a flat fee' : `${fee.count} flat fees`;
     const amount = `${currencySymbol}${roundCurrency(fee.amount).toFixed(2)}`;
@@ -126,7 +126,7 @@ export const TimesheetCalendarView: React.FC = () => {
           const hours = getDayTotalHours(day);
           const feeNote = getDayFeeNote(day);
           const isCurrentMonth = isSameMonth(day, currentDate);
-          const isSelected = selectedDayEntries && format(day, 'yyyy-MM-dd') === format(selectedDayEntries, 'yyyy-MM-dd');
+          const isSelected = selectedDayEntries && calendarDayKey(day) === calendarDayKey(selectedDayEntries);
           return (
             <div
               key={day.toISOString()}
@@ -159,7 +159,7 @@ export const TimesheetCalendarView: React.FC = () => {
       </div>
 
       {selectedDayEntries && (() => {
-        const dayEntries = entries.filter(e => !e.deletedAt && format(parseISO(e.startTime), 'yyyy-MM-dd') === format(selectedDayEntries, 'yyyy-MM-dd'));
+        const dayEntries = entries.filter(e => !e.deletedAt && calendarDayKey(parseISO(e.startTime)) === calendarDayKey(selectedDayEntries));
         return (
           <div className="mt-6 p-4 bg-white dark:bg-graphite border border-graphite/20 dark:border-white/20 rounded-panel">
             <h3 className="text-lg font-semibold text-graphite dark:text-stone mb-4 flex justify-between items-center">

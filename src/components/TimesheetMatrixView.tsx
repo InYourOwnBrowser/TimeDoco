@@ -2,7 +2,7 @@ import React, { useState, useEffect, useMemo } from 'react';
 import { useTimeTracker } from '../context/TimeTrackerContext';
 import { format, startOfWeek, endOfWeek, addWeeks, subWeeks, eachDayOfInterval, parseISO } from 'date-fns';
 import { buildScreenLines, secondsFor, workedSecondsFor } from '../utils/billing';
-import { applyRounding, findFreeSlot, formatDurationShort, roundCurrency } from '../utils/timeUtils';
+import { applyRounding, calendarDayKey, findFreeSlot, formatDurationShort, roundCurrency } from '../utils/timeUtils';
 import { useNowTick } from '../hooks/useNowTick';
 import { useToast } from '../context/ToastContext';
 import { ChevronLeft, ChevronRight } from 'lucide-react';
@@ -33,7 +33,7 @@ export const TimesheetMatrixView: React.FC = () => {
     const map = new Map<string, typeof entries>();
     for (const e of entries) {
       if (e.deletedAt) continue;
-      const dateStr = format(parseISO(e.startTime), 'yyyy-MM-dd');
+      const dateStr = calendarDayKey(parseISO(e.startTime));
       const key = `${e.timecodeId}|${dateStr}`;
       if (!map.has(key)) map.set(key, []);
       map.get(key)!.push(e);
@@ -46,11 +46,11 @@ export const TimesheetMatrixView: React.FC = () => {
   const hasRunningEntry = entries.some(e => !e.endTime && !e.deletedAt);
   const nowMs = useNowTick(hasRunningEntry);
 
-  const weekDateStrings = useMemo(() => weekDays.map(day => format(day, 'yyyy-MM-dd')), [weekDays]);
+  const weekDateStrings = useMemo(() => weekDays.map(calendarDayKey), [weekDays]);
 
   const weekEntries = useMemo(() => {
     const inWeek = new Set(weekDateStrings);
-    return entries.filter(e => !e.deletedAt && inWeek.has(format(parseISO(e.startTime), 'yyyy-MM-dd')));
+    return entries.filter(e => !e.deletedAt && inWeek.has(calendarDayKey(parseISO(e.startTime))));
   }, [entries, weekDateStrings]);
 
   const weekTimecodeIdsWithEntries = useMemo(() => {
@@ -131,7 +131,7 @@ export const TimesheetMatrixView: React.FC = () => {
   const currencySymbol = settings?.currencySymbol || '$';
 
   const getCellFeeNote = (timecodeId: string, date: Date): string | null => {
-    const fee = cellFeesMap.get(`${timecodeId}|${format(date, 'yyyy-MM-dd')}`);
+    const fee = cellFeesMap.get(`${timecodeId}|${calendarDayKey(date)}`);
     if (!fee) return null;
     const label = fee.count === 1 ? 'a flat fee' : `${fee.count} flat fees`;
     const amount = `${currencySymbol}${roundCurrency(fee.amount).toFixed(2)}`;
@@ -148,7 +148,7 @@ export const TimesheetMatrixView: React.FC = () => {
     for (const tc of gridTimecodes) {
       let sum = 0;
       for (const day of weekDays) {
-        const dateStr = format(day, 'yyyy-MM-dd');
+        const dateStr = calendarDayKey(day);
         sum += cellHoursMap.get(`${tc.id}|${dateStr}`) || 0;
       }
       map.set(tc.id, sum);
@@ -157,10 +157,10 @@ export const TimesheetMatrixView: React.FC = () => {
   }, [gridTimecodes, weekDays, cellHoursMap]);
 
   const getCellEntries = (timecodeId: string, date: Date) =>
-    entriesByTimecodeAndDate.get(`${timecodeId}|${format(date, 'yyyy-MM-dd')}`) || [];
+    entriesByTimecodeAndDate.get(`${timecodeId}|${calendarDayKey(date)}`) || [];
 
   const getCellHours = (timecodeId: string, date: Date) =>
-    cellHoursMap.get(`${timecodeId}|${format(date, 'yyyy-MM-dd')}`) || 0;
+    cellHoursMap.get(`${timecodeId}|${calendarDayKey(date)}`) || 0;
 
   const getRowTotalHours = (timecodeId: string) =>
     rowTotalHoursMap.get(timecodeId) || 0;

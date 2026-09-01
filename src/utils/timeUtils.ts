@@ -184,6 +184,45 @@ const freeIntervalsOn = (
 };
 
 /**
+ * Which calendar day a moment falls on, in the viewer's own timezone.
+ *
+ * There is exactly one answer to that question in this codebase, and this is
+ * it. The day key is what the rounding bucket, the timesheet grid, the calendar
+ * and the timeline all group by, so any disagreement between them puts the same
+ * work on two different days and makes the consistency the billing module
+ * guarantees unprovable. Before this there were four spellings of it —
+ * `setHours(0,0,0,0)`, date-fns `startOfDay`, UTC component extraction, and
+ * `format(d, 'yyyy-MM-dd')` — and nothing forcing them to agree.
+ *
+ * Local, not UTC, deliberately: a user working 9pm–11pm in Auckland is working
+ * on that evening's date, not on the following morning's UTC one.
+ */
+export const calendarDayKey = (date: Date): string => {
+  if (Number.isNaN(date.getTime())) throw new RangeError('Invalid time value');
+  const year = String(date.getFullYear()).padStart(4, '0');
+  const month = String(date.getMonth() + 1).padStart(2, '0');
+  const day = String(date.getDate()).padStart(2, '0');
+  return `${year}-${month}-${day}`;
+};
+
+/**
+ * The half-open interval a calendar day occupies: [midnight, next midnight).
+ *
+ * The end is the *next* midnight rather than start + 24h, so the 23-hour and
+ * 25-hour days either side of a DST transition are exactly as long as the
+ * calendar says. Half-open so a day ends precisely where the next begins: an
+ * entry crossing midnight loses no second to an inclusive `23:59:59.999` end
+ * and is not counted on both sides of the boundary either.
+ */
+export const calendarDayBounds = (date: Date): { start: Date; end: Date } => {
+  const start = new Date(date);
+  start.setHours(0, 0, 0, 0);
+  const end = new Date(start);
+  end.setDate(end.getDate() + 1);
+  return { start, end };
+};
+
+/**
  * Somewhere on `day` to put `deltaSeconds` of adjustment without colliding with
  * what is already there, or null when the day has no room for it.
  *
@@ -201,12 +240,7 @@ export const findFreeSlot = (
   timecodeId?: string,
   allowConcurrentTimers?: boolean
 ): { start: Date; end: Date } | null => {
-  const dayStart = new Date(day);
-  dayStart.setHours(0, 0, 0, 0);
-  // The next midnight rather than +24h, so a DST day is 23 or 25 hours long
-  // exactly as the calendar has it.
-  const dayEnd = new Date(dayStart);
-  dayEnd.setDate(dayEnd.getDate() + 1);
+  const { start: dayStart, end: dayEnd } = calendarDayBounds(day);
 
   const dayStartMs = dayStart.getTime();
   const dayEndMs = dayEnd.getTime();

@@ -8,7 +8,7 @@ import { EntrySplitModal } from './EntrySplitModal';
 import { ManualEntryModal } from './ManualEntryModal';
 import { Modal } from './ui/Modal';
 import type { Entry } from '../types';
-import { getElapsedTimeMs, formatDurationShort } from '../utils/timeUtils';
+import { calendarDayKey, getElapsedTimeMs, formatDurationShort } from '../utils/timeUtils';
 import { buildScreenLines, displaySecondsFor, secondsFor, workedSecondsFor, workedVsBilledNote } from '../utils/billing';
 import { useNowTick } from '../hooks/useNowTick';
 
@@ -113,7 +113,7 @@ export const EntryList: React.FC = () => {
         matchesFilter = entry.timecodeId === timecodeId;
       }
 
-      const entryDate = format(parseISO(entry.startTime), 'yyyy-MM-dd');
+      const entryDate = calendarDayKey(parseISO(entry.startTime));
       const matchesFrom = !dateFrom || entryDate >= dateFrom;
       const matchesTo = !dateTo || entryDate <= dateTo;
 
@@ -193,7 +193,7 @@ export const EntryList: React.FC = () => {
   // running-timer tick alone would otherwise repeat it once a minute.
   const { groupedEntries, sortedDates, groupCounts, flatEntries } = React.useMemo(() => {
     const grouped = filteredEntries.reduce((acc, entry) => {
-      const dateStr = format(parseISO(entry.startTime), 'yyyy-MM-dd');
+      const dateStr = calendarDayKey(parseISO(entry.startTime));
       if (!acc[dateStr]) {
         acc[dateStr] = [];
       }
@@ -218,8 +218,8 @@ export const EntryList: React.FC = () => {
     const today = new Date();
     const yesterday = subDays(today, 1);
 
-    if (format(date, 'yyyy-MM-dd') === format(today, 'yyyy-MM-dd')) return 'Today';
-    if (format(date, 'yyyy-MM-dd') === format(yesterday, 'yyyy-MM-dd')) return 'Yesterday';
+    if (calendarDayKey(date) === calendarDayKey(today)) return 'Today';
+    if (calendarDayKey(date) === calendarDayKey(yesterday)) return 'Yesterday';
     return format(date, 'MMMM d, yyyy');
   };
 

@@ -13,7 +13,7 @@ import {
   CheckCircle2, Info, Plus, BarChart2, PieChart as PieIcon, ExternalLink
 } from 'lucide-react';
 import { useToast } from '../context/ToastContext';
-import { calculateDuration, formatDurationShort, roundCurrency } from '../utils/timeUtils';
+import { calculateDuration, calendarDayBounds, calendarDayKey, formatDurationShort, roundCurrency } from '../utils/timeUtils';
 import { buildReportLines, distributeAcrossBuckets, workedSecondsFor } from '../utils/billing';
 import {
   buildCalendarEvents, buildDetailTable, buildDetailedRawCSV, buildReportMeta, buildReportModel,
@@ -295,7 +295,7 @@ export const AnalysisView: React.FC = () => {
     filteredEntries.forEach(entry => {
       if (!entry.endTime) return;
       const start = new Date(entry.startTime);
-      const dateStr = format(start, 'yyyy-MM-dd');
+      const dateStr = calendarDayKey(start);
       if (!entriesByDay.has(dateStr)) {
         entriesByDay.set(dateStr, []);
       }
@@ -569,10 +569,13 @@ export const AnalysisView: React.FC = () => {
     // Half-open days: each ends where the next begins, so an entry crossing
     // midnight loses no second to `endOfDay`'s .999 and is not counted twice at
     // the boundary either.
-    const dayBounds = days.map(d => ({
-      start: Math.max(startOfDay(d).getTime(), dateRange.start.getTime()),
-      end: Math.min(addDays(startOfDay(d), 1).getTime(), dateRange.end.getTime()),
-    }));
+    const dayBounds = days.map(d => {
+      const { start, end } = calendarDayBounds(d);
+      return {
+        start: Math.max(start.getTime(), dateRange.start.getTime()),
+        end: Math.min(end.getTime(), dateRange.end.getTime()),
+      };
+    });
     const daySeconds = distributeAcrossBuckets(filteredEntries, billableLines, dayBounds);
 
     return days.map((d, i) => ({

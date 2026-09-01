@@ -10,6 +10,7 @@ import {
   type RoundingScope,
 } from './billing';
 import {
+  calendarDayKey,
   calculateTaxBreakdown,
   calculateTotalPausedSeconds,
   formatDurationShort,
@@ -436,7 +437,7 @@ export const buildDetailedRawCSV = (
     const line = lines.get(e.id);
     const amount = line?.amount ?? 0;
     return [
-      escapeCSV(format(parseISO(e.startTime), 'yyyy-MM-dd')),
+      escapeCSV(calendarDayKey(parseISO(e.startTime))),
       escapeCSV(tc?.name ?? 'Unknown'),
       escapeCSV(grp?.name ?? 'Ungrouped'),
       escapeCSV(format(parseISO(e.startTime), 'HH:mm:ss')),

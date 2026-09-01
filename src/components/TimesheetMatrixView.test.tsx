@@ -2,7 +2,7 @@ import { render, fireEvent, waitFor } from '@testing-library/react';
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { TimesheetMatrixView } from './TimesheetMatrixView';
 import { ToastProvider } from '../context/ToastContext';
-import { startOfWeek, format } from 'date-fns';
+import { startOfWeek } from 'date-fns';
 import type { Entry } from '../types';
 
 const mockAddManualEntry = vi.fn().mockResolvedValue(true);
@@ -11,11 +11,17 @@ const mockDeleteEntry = vi.fn().mockResolvedValue(undefined);
 const mockAddToast = vi.fn();
 
 const currentWeekStart = startOfWeek(new Date(), { weekStartsOn: 1 });
-const mondayISO = format(currentWeekStart, "yyyy-MM-dd'T'09:00:00.000'Z'");
-const mondayEndISO = format(currentWeekStart, "yyyy-MM-dd'T'09:12:00.000'Z'");
+// Local wall-clock times, not UTC instants. These fixtures describe a day as
+// the user sees it — 09:00 on Monday morning — and the assertions read local
+// hours back out, so pinning them to `Z` only lined up in a UTC-ish timezone.
+const atLocal = (day: Date, h: number, m = 0) =>
+  new Date(day.getFullYear(), day.getMonth(), day.getDate(), h, m, 0, 0).toISOString();
 
-const mondayNoonISO = format(currentWeekStart, "yyyy-MM-dd'T'11:30:00.000'Z'");
-const mondayNoonEndISO = format(currentWeekStart, "yyyy-MM-dd'T'12:30:00.000'Z'");
+const mondayISO = atLocal(currentWeekStart, 9);
+const mondayEndISO = atLocal(currentWeekStart, 9, 12);
+
+const mondayNoonISO = atLocal(currentWeekStart, 11, 30);
+const mondayNoonEndISO = atLocal(currentWeekStart, 12, 30);
 
 const createTestEntry = (overrides: Partial<Entry>): Entry => ({
   id: 'test-entry',
@@ -129,7 +135,7 @@ describe('TimesheetMatrixView commitCell rounding behavior', () => {
       }),
       createTestEntry({
         id: 'adj-1', timecodeId: 'tc-1',
-        startTime: mondayISO, endTime: format(currentWeekStart, "yyyy-MM-dd'T'10:00:00.000'Z'"),
+        startTime: mondayISO, endTime: atLocal(currentWeekStart, 10),
         duration: 3600,
         tags: ['timesheet-adjustment'],
       }),

@@ -232,11 +232,13 @@ describe('SettingsModal Logo Upload Validation', () => {
     fireEvent.change(csvFileInput, { target: { files: [csvFile] } });
     fireEvent.click(getByRole('button', { name: /import csv/i }));
 
+    // A CSV time is the wall clock the user wrote it at, so `parseCSVDate`
+     // reads it as local. The expectation has to be derived the same way.
     await waitFor(() => {
       expect(mockBulkAddManualEntries).toHaveBeenCalledWith([
         expect.objectContaining({
-          startTime: '2024-02-01T10:00:00.000Z',
-          endTime: '2024-02-01T11:00:00.000Z',
+          startTime: new Date(2024, 1, 1, 10, 0, 0).toISOString(),
+          endTime: new Date(2024, 1, 1, 11, 0, 0).toISOString(),
         }),
       ]);
     });

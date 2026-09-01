@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { checkOverlap, findFreeSlot, calculateDuration, applyRounding, calculateTaxBreakdown, calculateTotalPausedSeconds, formatDurationShort, getElapsedTimeMs, findOverlappingCandidates } from './timeUtils';
+import { checkOverlap, findFreeSlot, calculateDuration, applyRounding, calculateTaxBreakdown, calculateTotalPausedSeconds, formatDurationShort, getElapsedTimeMs, findOverlappingCandidates, calendarDayKey, calendarDayBounds } from './timeUtils';
 import type { Entry, PauseSegment } from '../types';
 
 describe('timeUtils', () => {
@@ -524,4 +524,95 @@ describe('timeUtils', () => {
       }
     });
   });
+
+  /**
+   * The calendar-day contract, which every day bucket in the app now shares.
+   *
+   * These run under both timezones the suite is configured for. The identities
+   * hold anywhere; the concrete 23- and 25-hour assertions only mean anything
+   * where there is a transition to observe, so they are gated on one.
+   */
+  describe('calendarDayKey / calendarDayBounds', () => {
+    const HOUR = 3600 * 1000;
+
+    // Auckland moves to NZDT on 27 September 2026 (a 23-hour day) and back on
+    // 5 April 2026 (a 25-hour day).
+    const SHORT_DAY = new Date(2026, 8, 27, 12, 0, 0);
+    const LONG_DAY = new Date(2026, 3, 5, 12, 0, 0);
+    const lengthOf = (d: Date) => {
+      const { start, end } = calendarDayBounds(d);
+      return (end.getTime() - start.getTime()) / HOUR;
+    };
+    const hasTransitions = lengthOf(SHORT_DAY) !== 24 || lengthOf(LONG_DAY) !== 24;
+
+    it('keys a moment by its local calendar date', () => {
+      expect(calendarDayKey(new Date(2026, 0, 5, 0, 0, 0))).toBe('2026-01-05');
+      expect(calendarDayKey(new Date(2026, 0, 5, 23, 59, 59))).toBe('2026-01-05');
+      expect(calendarDayKey(new Date(2026, 11, 31, 22, 0, 0))).toBe('2026-12-31');
+    });
+
+    it('pads every component, so keys sort lexicographically', () => {
+      const keys = [
+        calendarDayKey(new Date(2026, 8, 9, 12)),
+        calendarDayKey(new Date(2026, 8, 10, 12)),
+        calendarDayKey(new Date(2026, 9, 1, 12)),
+      ];
+      expect(keys).toEqual(['2026-09-09', '2026-09-10', '2026-10-01']);
+      expect([...keys].sort()).toEqual(keys);
+    });
+
+    it('refuses an invalid date rather than keying it as NaN', () => {
+      expect(() => calendarDayKey(new Date(NaN))).toThrow(RangeError);
+    });
+
+    it('bounds a day from its own midnight to the next one', () => {
+      const { start, end } = calendarDayBounds(new Date(2026, 8, 27, 17, 34, 12, 999));
+      expect(start.getHours()).toBe(0);
+      expect(start.getMinutes()).toBe(0);
+      expect(start.getSeconds()).toBe(0);
+      expect(start.getMilliseconds()).toBe(0);
+      expect(end.getHours()).toBe(0);
+      // Half-open: the day ends exactly where the next one begins.
+      expect(calendarDayKey(start)).toBe('2026-09-27');
+      expect(calendarDayKey(end)).toBe('2026-09-28');
+      expect(calendarDayBounds(end).start.getTime()).toBe(end.getTime());
+    });
+
+    it('is exactly as long as the local offset says, transition or not', () => {
+      for (const day of [SHORT_DAY, LONG_DAY, new Date(2026, 5, 15, 12)]) {
+        const { start, end } = calendarDayBounds(day);
+        // getTimezoneOffset is minutes *behind* UTC, so it grows as the clock
+        // goes back: a day that gains an hour has the larger offset at its end.
+        const offsetShiftMs = (end.getTimezoneOffset() - start.getTimezoneOffset()) * 60 * 1000;
+        expect(end.getTime() - start.getTime()).toBe(24 * HOUR + offsetShiftMs);
+      }
+    });
+
+    it.runIf(hasTransitions)('gives a spring-forward day 23 hours and an autumn day 25', () => {
+      expect(lengthOf(SHORT_DAY)).toBe(23);
+      expect(lengthOf(LONG_DAY)).toBe(25);
+    });
+
+    it.runIf(hasTransitions)('will not place an adjustment longer than the short day holds', () => {
+      // 24 hours does not fit in a 23-hour day, however empty it is.
+      expect(findFreeSlot(SHORT_DAY, 24 * 3600, [])).toBeNull();
+      expect(findFreeSlot(SHORT_DAY, 23 * 3600, [])).not.toBeNull();
+      // The long day has room for a full 24 hours, and for its extra one.
+      expect(findFreeSlot(LONG_DAY, 24 * 3600, [])).not.toBeNull();
+      expect(findFreeSlot(LONG_DAY, 25 * 3600, [])).not.toBeNull();
+      expect(findFreeSlot(LONG_DAY, 25 * 3600 + 1, [])).toBeNull();
+    });
+
+    it('never lets a slot spill onto the following day', () => {
+      for (const day of [SHORT_DAY, LONG_DAY]) {
+        const { start, end } = calendarDayBounds(day);
+        const slot = findFreeSlot(day, lengthOf(day) * 3600, []);
+        expect(slot).not.toBeNull();
+        expect(slot!.start.getTime()).toBeGreaterThanOrEqual(start.getTime());
+        expect(slot!.end.getTime()).toBeLessThanOrEqual(end.getTime());
+        expect(calendarDayKey(new Date(slot!.end.getTime() - 1))).toBe(calendarDayKey(day));
+      }
+    });
+  });
+
 });

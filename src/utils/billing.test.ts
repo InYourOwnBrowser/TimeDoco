@@ -518,3 +518,102 @@ describe('roundingNote', () => {
     expect(roundingNote(3600, 3600, 0, 1, '15min')).toBe('1 entry rounded to 0.00 h');
   });
 });
+
+/**
+ * The day rounding bucket, across a DST transition.
+ *
+ * `day` scope means "this timecode, on this calendar day", and a calendar day
+ * is what the viewer's clock says it is — 23 hours long in September in
+ * Auckland, 25 in April. Two entries on such a day belong to one bucket however
+ * long the day happened to be, and an entry on the following day belongs to
+ * another. Under UTC, where every day is 24 hours, the naive arithmetic that
+ * gets this wrong is indistinguishable from the correct version.
+ */
+describe('day-scope buckets across a DST transition', () => {
+  const localIso = (y: number, mo: number, d: number, h: number, mi = 0) =>
+    new Date(y, mo - 1, d, h, mi, 0, 0).toISOString();
+
+  // Auckland springs forward on 27 September 2026 and falls back on 5 April.
+  const transitionDays = [
+    { label: 'spring forward', y: 2026, mo: 9, d: 27 },
+    { label: 'fall back', y: 2026, mo: 4, d: 5 },
+  ];
+
+  transitionDays.forEach(({ label, y, mo, d }) => {
+    it(`buckets a whole ${label} day together, and the next day apart`, () => {
+      // 01:00 is before the transition, 22:00 after it; both are that same day.
+      const early = entry({ id: 'early', startTime: localIso(y, mo, d, 1), endTime: localIso(y, mo, d, 1, 7) });
+      const late = entry({ id: 'late', startTime: localIso(y, mo, d, 22), endTime: localIso(y, mo, d, 22, 7) });
+      const nextDay = entry({ id: 'next', startTime: localIso(y, mo, d + 1, 9), endTime: localIso(y, mo, d + 1, 9, 7) });
+
+      const lines = buildBillableLines([early, late, nextDay], {
+        dateRange: null,
+        roundingRule: '15min',
+        roundingScope: 'day',
+        timecodeMap: new Map([['tc-1', tc()]]),
+      });
+
+      // Two 7-minute entries in one bucket total 14 minutes and round to 15;
+      // the lone one on the next day rounds to zero. Split across two buckets
+      // the pair would round to nothing at all and bill 14 minutes as 0.
+      expect(lines.get('early')!.seconds + lines.get('late')!.seconds).toBe(15 * 60);
+      expect(lines.get('next')!.seconds).toBe(0);
+    });
+  });
+
+  it('shares a DST week across its days without losing or inventing a second', () => {
+    // The timeline's buckets, built the way the report builds them: every
+    // calendar day in the window, half-open from its own midnight to the next.
+    const week = [
+      entry({ id: 'sat', startTime: localIso(2026, 9, 26, 9), endTime: localIso(2026, 9, 26, 12) }),
+      entry({ id: 'sun-early', startTime: localIso(2026, 9, 27, 1), endTime: localIso(2026, 9, 27, 1, 40) }),
+      entry({ id: 'sun-late', startTime: localIso(2026, 9, 27, 22), endTime: localIso(2026, 9, 27, 23, 20) }),
+      // Straddles the transition itself: 01:30 to 03:30 is one hour of clock
+      // time in Auckland on this day, two everywhere else.
+      entry({ id: 'sun-across', startTime: localIso(2026, 9, 27, 1, 30), endTime: localIso(2026, 9, 27, 3, 30) }),
+      entry({ id: 'mon', startTime: localIso(2026, 9, 28, 9), endTime: localIso(2026, 9, 28, 10, 25) }),
+    ];
+
+    const lines = buildBillableLines(week, {
+      dateRange: null,
+      roundingRule: '15min',
+      roundingScope: 'day',
+      timecodeMap: new Map([['tc-1', tc()]]),
+      // Concurrency is irrelevant here; the entries overlap only by design.
+    });
+
+    const buckets = [26, 27, 28].map((day) => {
+      const start = new Date(2026, 8, day, 0, 0, 0, 0);
+      const end = new Date(2026, 8, day + 1, 0, 0, 0, 0);
+      return { start: start.getTime(), end: end.getTime() };
+    });
+
+    const perDay = distributeAcrossBuckets(week, lines, buckets);
+    const billed = week.reduce((sum, e) => sum + lines.get(e.id)!.seconds, 0);
+    // The bars and the total reconcile: nothing falls into the gap a
+    // transition opens, and nothing is counted on both sides of it.
+    expect(perDay.reduce((a, b) => a + b, 0)).toBe(billed);
+    // Each day's work stays on its own day.
+    expect(perDay[1]).toBe(
+      lines.get('sun-early')!.seconds + lines.get('sun-late')!.seconds + lines.get('sun-across')!.seconds,
+    );
+  });
+
+  it('bills a full transition day at the hours the clock actually ran', () => {
+    // Midnight to midnight: 23 hours in September in Auckland, 24 in UTC.
+    const start = new Date(2026, 8, 27, 0, 0, 0, 0);
+    const end = new Date(2026, 8, 28, 0, 0, 0, 0);
+    const expectedHours = (end.getTime() - start.getTime()) / 3600000;
+
+    const e = entry({ startTime: start.toISOString(), endTime: end.toISOString() });
+    const lines = buildBillableLines([e], {
+      dateRange: null,
+      roundingRule: 'none',
+      roundingScope: 'day',
+      timecodeMap: new Map([['tc-1', tc()]]),
+    });
+
+    expect(lines.get('e-1')!.hours).toBe(expectedHours);
+    expect(lines.get('e-1')!.amount).toBe(expectedHours * 150);
+  });
+});
