@@ -16,11 +16,11 @@ import { useToast } from '../context/ToastContext';
 import { calculateDuration, calendarDayBounds, calendarDayKey, formatDurationShort, roundCurrency } from '../utils/timeUtils';
 import { buildReportLines, distributeAcrossBuckets, workedSecondsFor } from '../utils/billing';
 import {
-  buildCalendarEvents, buildDetailTable, buildDetailedRawCSV, buildReportMeta, buildReportModel,
-  buildSummaryCSV, buildSummaryTable, formatAmount as formatMoney, safeFormatDate,
+  buildCalendarEvents, buildDetailedRawCSV, buildReportMeta, buildReportModel,
+  buildSummaryCSV, formatAmount as formatMoney, safeFormatDate,
 } from '../utils/reportDocument';
+import { renderReportPdf } from '../utils/reportPdf';
 import { createEvents } from 'ics';
-import { LOGO_PRINT_BASE64 } from '../assets/logoPrint';
 import { EntryEditModal } from './EntryEditModal';
 import { useNamedDownload } from '../hooks/useNamedDownload';
 import type { Entry } from '../types';
@@ -643,152 +643,26 @@ export const AnalysisView: React.FC = () => {
     try {
       const preparedFor = preparedForOverride || scopeLabel;
       const defaultPreparedBy = [settings?.preparerName, settings?.preparerCompany].filter(Boolean).join(' — ');
-      const preparedBy = preparedByOverride || defaultPreparedBy;
-      const { default: jsPDF } = await import('jspdf');
-      const { default: autoTable } = await import('jspdf-autotable');
-      const doc = new jsPDF();
-      const pageWidth = doc.internal.pageSize.getWidth();
 
-      const drawHeader = () => {
-        const userLogo = settings?.userLogoBase64;
-
-        if (userLogo) {
-          try {
-            const props = doc.getImageProperties(userLogo);
-            const maxW = 35, maxH = 12;
-            const ratio = props.width / props.height;
-            const w = ratio > maxW / maxH ? maxW : maxH * ratio;
-            const h = ratio > maxW / maxH ? maxW / ratio : maxH;
-            doc.addImage(userLogo, props.fileType, 14, 10, w, h, undefined, 'MEDIUM');
-          } catch (e) {
-            console.error('Failed to render user logo in PDF, falling back to TimeDoco logo only:', e);
-            doc.addImage(LOGO_PRINT_BASE64, 'PNG', 14, 10, 37.5, 10);
-          }
-          doc.addImage(LOGO_PRINT_BASE64, 'PNG', pageWidth - 14 - 25, 8, 25, 6.67);
-        } else {
-          doc.addImage(LOGO_PRINT_BASE64, 'PNG', 14, 10, 37.5, 10);
-        }
-
-        doc.setFontSize(9);
-        doc.setTextColor(140);
-        doc.text('Time & Activity Report', pageWidth - 14, userLogo ? 18 : 15, { align: 'right' });
-      };
-
-      let headerDrawnPage = 0;
-      const ensureHeader = (pageNumber: number) => {
-        if (pageNumber === headerDrawnPage) return;
-        headerDrawnPage = pageNumber;
-        drawHeader();
-      };
-
-      ensureHeader(1);
-
-      let y = 28;
-      // The labelled disclosure block, assembled in `reportDocument` from the
-      // same model the tables are built from: what a line claims about the
-      // numbers underneath it is asserted against those numbers.
-      const lines = buildReportMeta(reportModel, {
-        preparedFor,
-        preparedBy,
-        periodText: `${safeFormatDate(dateRange.start, 'MMM d, yyyy')} – ${safeFormatDate(dateRange.end, 'MMM d, yyyy')}`,
-        generatedText: format(new Date(), "MMM d, yyyy 'at' HH:mm"),
-        customFields: reportFields,
+      // Layout lives in `reportPdf`, which needs no component tree — so every
+      // fixture in the document matrix can be rendered and looked at, through
+      // the same function that produces the file a client receives.
+      return await renderReportPdf({
+        model: reportModel,
+        entries: filteredEntries,
+        lines: billableLines,
+        timecodeMap,
         settings,
+        meta: buildReportMeta(reportModel, {
+          preparedFor,
+          preparedBy: preparedByOverride || defaultPreparedBy,
+          periodText: `${safeFormatDate(dateRange.start, 'MMM d, yyyy')} – ${safeFormatDate(dateRange.end, 'MMM d, yyyy')}`,
+          generatedText: format(new Date(), "MMM d, yyyy 'at' HH:mm"),
+          customFields: reportFields,
+          settings,
+        }),
+        footerTextOverride,
       });
-
-      let labelColWidth = 0;
-      let valueX = 40;
-
-      if (lines.length > 0) {
-        doc.setFont('helvetica', 'bold');
-        doc.setFontSize(10);
-        const LABEL_COL_CAP = 65;
-        const labelWidths = lines.map(l => doc.getTextWidth(l.label));
-        labelColWidth = Math.min(Math.max(...labelWidths), LABEL_COL_CAP);
-        valueX = 14 + labelColWidth + 3;
-      }
-
-      doc.setFontSize(10);
-      doc.setTextColor(60);
-
-      const metaLine = (label: string, value: string) => {
-        if (!value) return;
-        const labelLines = doc.splitTextToSize(label, labelColWidth);
-        const valueLines = doc.splitTextToSize(value, pageWidth - 14 - valueX);
-        doc.setFont('helvetica', 'bold');
-        labelLines.forEach((l: string, i: number) => doc.text(l, 14, y + i * 5));
-        doc.setFont('helvetica', 'normal');
-        valueLines.forEach((l: string, i: number) => doc.text(l, valueX, y + i * 5));
-        y += Math.max(labelLines.length, valueLines.length) * 5;
-      };
-
-      lines.forEach(l => metaLine(l.label, l.value));
-
-      y += 3;
-      doc.setFontSize(12);
-      doc.setTextColor(20);
-      doc.setFont('helvetica', 'bold');
-      doc.text('Summary', 14, y);
-
-      // head/body/foot come out of `reportDocument`, so the numbers a client
-      // reads can be asserted without a PDF renderer. Everything here is layout.
-      const summaryTable = buildSummaryTable(reportModel, settings);
-
-      autoTable(doc, {
-        startY: y + 4,
-        head: summaryTable.head,
-        body: summaryTable.body,
-        foot: summaryTable.foot,
-        footStyles: { fontStyle: 'bold', fillColor: [238, 240, 236], textColor: [16, 22, 28] },
-        margin: { top: 25 },
-        didDrawPage: () => ensureHeader((doc.internal as any).getNumberOfPages()),
-      });
-
-      const detailTable = buildDetailTable(filteredEntries, billableLines, timecodeMap, settings);
-
-      autoTable(doc, {
-        startY: (doc as any).lastAutoTable.finalY + 10,
-        head: detailTable.head,
-        body: detailTable.body,
-        styles: { fontSize: 8, cellPadding: 2 },
-        columnStyles: { 7: { cellWidth: 60 } },
-        margin: { top: 25 },
-        didDrawPage: () => ensureHeader((doc.internal as any).getNumberOfPages()),
-      });
-
-      const footerText = footerTextOverride || settings?.reportFooterText;
-      if (footerText && footerText.trim()) {
-        doc.setFontSize(8.5);
-        doc.setFont('helvetica', 'normal');
-        const lines = doc.splitTextToSize(footerText.trim(), pageWidth - 36);
-        const lineHeight = 4;
-        const boxPadding = 4;
-        const blockHeight = lines.length * lineHeight + boxPadding * 2;
-        const pageHeight = doc.internal.pageSize.getHeight();
-
-        let currentY = (doc as any).lastAutoTable.finalY + 10;
-        if (currentY + blockHeight > pageHeight - 20) {
-          doc.addPage();
-          currentY = 28;
-          ensureHeader((doc.internal as any).getNumberOfPages());
-        }
-
-        doc.setFillColor(249, 245, 235);
-        doc.rect(14, currentY, pageWidth - 28, blockHeight, 'F');
-        doc.setTextColor(60);
-        doc.text(lines, 18, currentY + boxPadding + 3);
-      }
-
-      const pageCount = (doc.internal as any).getNumberOfPages();
-      for (let i = 1; i <= pageCount; i++) {
-        doc.setPage(i);
-        doc.setFontSize(8);
-        doc.setTextColor(160);
-        doc.text(`Page ${i} of ${pageCount}`, pageWidth - 14, doc.internal.pageSize.getHeight() - 8, { align: 'right' });
-        doc.text('Generated with TimeDoco', 14, doc.internal.pageSize.getHeight() - 8);
-      }
-
-      return doc.output('blob');
     } catch (err) {
       console.error('PDF generation failed:', err);
       addToast('Failed to generate PDF. Please try again.', 'error');
