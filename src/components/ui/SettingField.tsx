@@ -1,0 +1,106 @@
+import React, { useCallback, useEffect, useRef, useState } from 'react';
+
+/**
+ * A settings input that writes when the user stops typing, not on every
+ * keystroke.
+ *
+ * Each `handleUpdateSettings` call is a read of the stored record, a merge, an
+ * IndexedDB write and a cross-tab broadcast — and every other open tab answers
+ * that broadcast with a full four-store reload. Wired straight to `onChange`
+ * that is one of those per character typed. Beyond the cost, the writes are
+ * read-modify-write, so overlapping ones could drop characters.
+ *
+ * Holding the draft locally and flushing on idle, blur or Enter makes that
+ * impossible rather than fixing it a field at a time: a field written this way
+ * cannot issue a write per keystroke however it is used.
+ *
+ * The value is a string, as the DOM has it. Callers parse in `onCommit`,
+ * exactly as they used to in `onChange`.
+ */
+export interface SettingFieldProps
+  extends Omit<React.InputHTMLAttributes<HTMLInputElement>, 'value' | 'onChange'> {
+  /** The stored value. Re-seeds the draft, but never mid-edit. */
+  value: string;
+  /** Called with the draft once it settles. Never per keystroke. */
+  onCommit: (value: string) => void;
+  /** Render a textarea instead of an input. */
+  multiline?: boolean;
+  rows?: number;
+  debounceMs?: number;
+}
+
+export const SettingField: React.FC<SettingFieldProps> = ({
+  value,
+  onCommit,
+  multiline = false,
+  debounceMs = 500,
+  onBlur,
+  onKeyDown,
+  ...rest
+}) => {
+  const [draft, setDraft] = useState(value);
+  const draftRef = useRef(value);
+  // True from the first keystroke until the draft is written.
+  const dirtyRef = useRef(false);
+  const timerRef = useRef<number | null>(null);
+  // Read through a ref so a caller passing an inline arrow — which every one of
+  // them does — cannot restart the debounce on each render.
+  const onCommitRef = useRef(onCommit);
+  onCommitRef.current = onCommit;
+
+  useEffect(() => {
+    // A change from outside: another tab saved, or the panel reloaded. Take it,
+    // but never over something the user is part-way through typing.
+    if (dirtyRef.current) return;
+    setDraft(value);
+    draftRef.current = value;
+  }, [value]);
+
+  const flush = useCallback(() => {
+    if (timerRef.current !== null) {
+      window.clearTimeout(timerRef.current);
+      timerRef.current = null;
+    }
+    if (!dirtyRef.current) return;
+    dirtyRef.current = false;
+    onCommitRef.current(draftRef.current);
+  }, []);
+
+  // Closing the modal must not discard what was typed into it. A pending
+  // debounce is written on the way out.
+  useEffect(() => flush, [flush]);
+
+  const handleChange = (
+    event: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>,
+  ) => {
+    const next = event.target.value;
+    setDraft(next);
+    draftRef.current = next;
+    dirtyRef.current = true;
+    if (timerRef.current !== null) window.clearTimeout(timerRef.current);
+    timerRef.current = window.setTimeout(flush, debounceMs);
+  };
+
+  const shared = {
+    value: draft,
+    onChange: handleChange,
+    onBlur: (event: React.FocusEvent<HTMLInputElement & HTMLTextAreaElement>) => {
+      flush();
+      onBlur?.(event);
+    },
+    onKeyDown: (event: React.KeyboardEvent<HTMLInputElement & HTMLTextAreaElement>) => {
+      // Enter reads as "I am done with this field", so honour it rather than
+      // making the user wait out the debounce or click elsewhere.
+      if (event.key === 'Enter' && !multiline) flush();
+      onKeyDown?.(event);
+    },
+  };
+
+  if (multiline) {
+    const { type: _type, ...textareaProps } =
+      rest as React.TextareaHTMLAttributes<HTMLTextAreaElement> & { type?: string };
+    return <textarea {...textareaProps} {...shared} />;
+  }
+
+  return <input {...rest} {...shared} />;
+};

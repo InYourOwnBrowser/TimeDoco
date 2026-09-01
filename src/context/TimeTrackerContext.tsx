@@ -97,6 +97,21 @@ const getLiveEntriesForTimecode = (timecodeId: string, entries: Entry[]): Entry[
 
 const TimeTrackerContext = createContext<TimeTrackerContextType | undefined>(undefined);
 
+/**
+ * A serial queue. Each task runs after the one before it has settled, whether
+ * that resolved or threw — so one failed mutation cannot wedge every later one.
+ */
+const useSerialQueue = () => {
+  const queueRef = useRef<Promise<unknown>>(Promise.resolve());
+  return useCallback(<T,>(task: () => Promise<T>): Promise<T> => {
+    const result = queueRef.current.then(task, task);
+    // The queue itself must never hold a rejection, or the next `.then` would
+    // skip straight to its rejection handler and surface as unhandled.
+    queueRef.current = result.then(() => undefined, () => undefined);
+    return result;
+  }, []);
+};
+
 export const TimeTrackerProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
   const { addToast } = useToast();
   const [groups, setGroups] = useState<Group[]>([]);
@@ -210,17 +225,22 @@ export const TimeTrackerProvider: React.FC<{ children: ReactNode }> = ({ childre
    * the state the one before it left behind, so a note save can no longer write
    * a pre-stop copy of the entry back over a stop and resurrect the timer.
    */
-  const timerQueueRef = useRef<Promise<unknown>>(Promise.resolve());
+  const runExclusive = useSerialQueue();
 
-  const runExclusive = useCallback(<T,>(task: () => Promise<T>): Promise<T> => {
-    // Run after the queued work whether it settled or threw, so one failed
-    // mutation cannot wedge every later one.
-    const result = timerQueueRef.current.then(task, task);
-    // The queue itself must never hold a rejection, or the next `.then` would
-    // skip straight to its rejection handler and surface as unhandled.
-    timerQueueRef.current = result.then(() => undefined, () => undefined);
-    return result;
-  }, []);
+  /**
+   * A second queue, for settings.
+   *
+   * `updateSettings` is a read-modify-write: it re-reads the stored record so
+   * it cannot clobber a field another tab saved, merges its own change, and
+   * writes the whole thing back. Two of those overlapping interleave their read
+   * and write, and the later write carries a record read before the earlier one
+   * landed — so a change is silently lost.
+   *
+   * Its own queue rather than the timer's: a settings write has no reason to
+   * wait behind a start or a stop, and coupling them would make each slower for
+   * no benefit.
+   */
+  const runSettingsExclusive = useSerialQueue();
 
   /**
    * Turns a storage failure into something the user can act on.
@@ -1526,20 +1546,25 @@ export const TimeTrackerProvider: React.FC<{ children: ReactNode }> = ({ childre
     const newSettings = { ...settings, ...updates };
     setSettings(newSettings);
 
-    // Read the latest settings from the DB to prevent clobbering fields saved by other tabs
-    const currentSettings = await db.getSettings();
-    const toWrite = currentSettings ? { ...currentSettings, ...updates } : newSettings;
-    if (currentSettings) setSettings(toWrite);
+    // The read, the merge and the write are one step. Interleaved, the second
+    // writer's record was read before the first one's write, and the field the
+    // first had just saved went back to its old value.
+    return runSettingsExclusive(async () => {
+      // Read the latest settings from the DB to prevent clobbering fields saved by other tabs
+      const currentSettings = await db.getSettings();
+      const toWrite = currentSettings ? { ...currentSettings, ...updates } : newSettings;
+      if (currentSettings) setSettings(toWrite);
 
-    // The state above is optimistic. If the write fails, put it back rather than
-    // leaving the panel showing a preference that was never stored — the user
-    // would carry on believing it had been saved.
-    if (!(await mutate('save your settings', () => db.putSettings(toWrite).then(() => undefined)))) {
-      setSettings(previousSettings);
-      return false;
-    }
-    notifyOtherTabs();
-    return true;
+      // The state above is optimistic. If the write fails, put it back rather than
+      // leaving the panel showing a preference that was never stored — the user
+      // would carry on believing it had been saved.
+      if (!(await mutate('save your settings', () => db.putSettings(toWrite).then(() => undefined)))) {
+        setSettings(previousSettings);
+        return false;
+      }
+      notifyOtherTabs();
+      return true;
+    });
   };
 
   const restoreTemplate = async (template: EntryTemplate, index?: number): Promise<boolean> => {

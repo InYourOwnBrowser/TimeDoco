@@ -131,14 +131,20 @@ describe('SettingsModal Logo Upload Validation', () => {
     global.Image = originalImage;
   });
 
-  it('updates reportFooterText in settings when textarea changes', () => {
+  it('writes reportFooterText once the field settles, not on every keystroke', () => {
     const { getByPlaceholderText } = renderComponent();
 
     const textarea = getByPlaceholderText('Default report footer — payment details, terms, etc.') as HTMLTextAreaElement;
     expect(textarea).not.toBeNull();
 
+    // Typing alone writes nothing: each write is a read, a merge, an IndexedDB
+    // write and a reload in every other open tab.
+    fireEvent.change(textarea, { target: { value: 'Payment due' } });
     fireEvent.change(textarea, { target: { value: 'Payment due in 30 days.' } });
+    expect(mockUpdateSettings).not.toHaveBeenCalled();
 
+    fireEvent.blur(textarea);
+    expect(mockUpdateSettings).toHaveBeenCalledTimes(1);
     expect(mockUpdateSettings).toHaveBeenCalledWith({
       reportFooterText: 'Payment due in 30 days.',
     });

@@ -7,6 +7,7 @@ import { Shield, ShieldAlert, ShieldOff } from 'lucide-react';
 import { X, Upload, Download, AlertTriangle, CheckCircle2, Trash2 } from 'lucide-react';
 import Papa from 'papaparse';
 import { Modal } from './ui/Modal';
+import { SettingField } from './ui/SettingField';
 import { Panel } from './ui/Panel';
 import { HelpTooltip } from './ui/HelpTooltip';
 import { useToast } from '../context/ToastContext';
@@ -844,20 +845,20 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ onClose }) => {
                   Your Name
                   <HelpTooltip text="Shown as 'Prepared By' on PDF reports." />
                 </label>
-                <input
+                <SettingField
                   type="text"
                   value={settings?.preparerName ?? ''}
-                  onChange={(e) => handleUpdateSettings({ preparerName: e.target.value })}
+                  onCommit={(value) => void handleUpdateSettings({ preparerName: value })}
                   placeholder="Jane Smith"
                   className="w-48 px-3 py-1.5 border border-graphite/20 dark:border-white/20 rounded outline-none focus-visible:ring-2 focus-visible:ring-signal text-sm bg-white dark:bg-graphite text-graphite dark:text-stone"
                 />
               </div>
               <div className="flex items-center justify-between mb-4">
                 <label className="text-sm font-medium text-graphite dark:text-stone">Your Company</label>
-                <input
+                <SettingField
                   type="text"
                   value={settings?.preparerCompany ?? ''}
-                  onChange={(e) => handleUpdateSettings({ preparerCompany: e.target.value })}
+                  onCommit={(value) => void handleUpdateSettings({ preparerCompany: value })}
                   placeholder="Acme Freelancing LLC"
                   className="w-48 px-3 py-1.5 border border-graphite/20 dark:border-white/20 rounded outline-none focus-visible:ring-2 focus-visible:ring-signal text-sm bg-white dark:bg-graphite text-graphite dark:text-stone"
                 />
@@ -867,11 +868,11 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ onClose }) => {
                   Currency Symbol
                   <HelpTooltip text="Used wherever earnings/rates are shown, including PDF reports." />
                 </label>
-                <input
+                <SettingField
                   type="text"
                   maxLength={5}
                   value={settings?.currencySymbol ?? ''}
-                  onChange={(e) => handleUpdateSettings({ currencySymbol: e.target.value })}
+                  onCommit={(value) => void handleUpdateSettings({ currencySymbol: value })}
                   placeholder="$"
                   className="w-16 px-3 py-1.5 border border-graphite/20 dark:border-white/20 rounded outline-none focus-visible:ring-2 focus-visible:ring-signal text-sm bg-white dark:bg-graphite text-graphite dark:text-stone text-center"
                 />
@@ -902,20 +903,20 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ onClose }) => {
                 </label>
                 {(settings?.customFields || []).map((field, i) => (
                   <div key={field.id} className="flex gap-2 mb-2">
-                    <input
+                    <SettingField
                       type="text" value={field.label} placeholder="Label"
-                      onChange={(e) => {
+                      onCommit={(value) => {
                         const updated = [...(settings?.customFields || [])];
-                        updated[i] = { ...updated[i], label: e.target.value };
+                        updated[i] = { ...updated[i], label: value };
                         void handleUpdateSettings({ customFields: updated });
                       }}
                       className="w-32 px-2 py-1.5 text-sm border border-graphite/20 dark:border-white/20 rounded bg-white dark:bg-graphite text-graphite dark:text-stone"
                     />
-                    <input
+                    <SettingField
                       type="text" value={field.value} placeholder="Value"
-                      onChange={(e) => {
+                      onCommit={(next) => {
                         const updated = [...(settings?.customFields || [])];
-                        updated[i] = { ...updated[i], value: e.target.value };
+                        updated[i] = { ...updated[i], value: next };
                         void handleUpdateSettings({ customFields: updated });
                       }}
                       className="flex-1 px-2 py-1.5 text-sm border border-graphite/20 dark:border-white/20 rounded bg-white dark:bg-graphite text-graphite dark:text-stone"
@@ -937,9 +938,10 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ onClose }) => {
                   Default Report Footer
                   <HelpTooltip text="Appears at the bottom of generated PDF reports — payment details, terms, bank info, etc." />
                 </label>
-                <textarea
+                <SettingField
+                  multiline
                   value={settings?.reportFooterText ?? ''}
-                  onChange={(e) => handleUpdateSettings({ reportFooterText: e.target.value })}
+                  onCommit={(value) => void handleUpdateSettings({ reportFooterText: value })}
                   placeholder="Default report footer — payment details, terms, etc."
                   rows={3}
                   className="w-full px-3 py-1.5 border border-graphite/20 dark:border-white/20 rounded outline-none focus-visible:ring-2 focus-visible:ring-signal text-sm bg-white dark:bg-graphite text-graphite dark:text-stone resize-y"
@@ -965,22 +967,22 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ onClose }) => {
                 <>
                   <div className="flex items-center justify-between mb-4">
                     <label className="text-sm font-medium text-graphite dark:text-stone">Tax Label</label>
-                    <input
+                    <SettingField
                       type="text"
                       value={settings?.taxLabel ?? ''}
-                      onChange={(e) => handleUpdateSettings({ taxLabel: e.target.value })}
+                      onCommit={(value) => void handleUpdateSettings({ taxLabel: value })}
                       placeholder="Tax"
                       className="w-32 px-3 py-1.5 border border-graphite/20 dark:border-white/20 rounded outline-none focus-visible:ring-2 focus-visible:ring-signal text-sm bg-white dark:bg-graphite text-graphite dark:text-stone"
                     />
                   </div>
                   <div className="flex items-center justify-between mb-4">
                     <label className="text-sm font-medium text-graphite dark:text-stone">Tax Rate (%)</label>
-                    <input
+                    <SettingField
                       type="number"
                       min="0"
                       step="0.1"
-                      value={settings?.taxRate ?? ''}
-                      onChange={(e) => handleUpdateSettings({ taxRate: e.target.value === '' ? null : parseFloat(e.target.value) })}
+                      value={settings?.taxRate?.toString() ?? ''}
+                      onCommit={(value) => void handleUpdateSettings({ taxRate: value === '' ? null : parseFloat(value) })}
                       placeholder="15"
                       className="w-24 px-3 py-1.5 border border-graphite/20 dark:border-white/20 rounded outline-none focus-visible:ring-2 focus-visible:ring-signal text-sm bg-white dark:bg-graphite text-graphite dark:text-stone text-right"
                     />
@@ -1009,11 +1011,11 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ onClose }) => {
               <h3 className="text-md font-semibold text-graphite dark:text-stone mb-3">Weekly Target Hours</h3>
               <div className="flex items-center justify-between mb-4">
                 <label className="text-sm font-medium text-graphite dark:text-stone">Weekly Target Hours</label>
-                <input
+                <SettingField
                   type="number"
                   min="0"
-                  value={settings?.weeklyTargetHours ?? ''}
-                  onChange={(e) => handleUpdateSettings({ weeklyTargetHours: e.target.value ? Math.max(0, Number(e.target.value)) : null })}
+                  value={settings?.weeklyTargetHours?.toString() ?? ''}
+                  onCommit={(value) => void handleUpdateSettings({ weeklyTargetHours: value ? Math.max(0, Number(value)) : null })}
                   placeholder="e.g. 40"
                   className="w-24 px-3 py-1.5 border border-graphite/20 dark:border-white/20 rounded outline-none focus-visible:ring-2 focus-visible:ring-signal text-sm bg-white dark:bg-graphite text-graphite dark:text-stone"
                 />
@@ -1023,11 +1025,11 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ onClose }) => {
                   Timer Alert (Minutes)
                   <HelpTooltip text="Notifies you when any single timer has been running for this many minutes." />
                 </label>
-                <input
+                <SettingField
                   type="number"
                   min="0"
-                  value={settings?.targetAlertMinutes ?? ''}
-                  onChange={(e) => handleUpdateSettings({ targetAlertMinutes: e.target.value ? Math.max(0, Number(e.target.value)) : null })}
+                  value={settings?.targetAlertMinutes?.toString() ?? ''}
+                  onCommit={(value) => void handleUpdateSettings({ targetAlertMinutes: value ? Math.max(0, Number(value)) : null })}
                   placeholder="e.g. 25"
                   className="w-24 px-3 py-1.5 border border-graphite/20 dark:border-white/20 rounded outline-none focus-visible:ring-2 focus-visible:ring-signal text-sm bg-white dark:bg-graphite text-graphite dark:text-stone"
                 />
@@ -1037,22 +1039,22 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ onClose }) => {
                   Idle Threshold (Minutes)
                   <HelpTooltip text="If your mouse/keyboard is inactive longer than this, the app will prompt to discard the idle time from the running timer. Leave blank to disable." />
                 </label>
-                <input
+                <SettingField
                   type="number"
                   min="1"
-                  value={settings?.idleThresholdMinutes ?? ''}
-                  onChange={(e) => handleUpdateSettings({ idleThresholdMinutes: e.target.value ? Math.max(1, Number(e.target.value)) : null })}
+                  value={settings?.idleThresholdMinutes?.toString() ?? ''}
+                  onCommit={(value) => void handleUpdateSettings({ idleThresholdMinutes: value ? Math.max(1, Number(value)) : null })}
                   placeholder="Off"
                   className="w-24 px-3 py-1.5 border border-graphite/20 dark:border-white/20 rounded outline-none focus-visible:ring-2 focus-visible:ring-signal text-sm bg-white dark:bg-graphite text-graphite dark:text-stone"
                 />
               </div>
               <div className="flex items-center justify-between mb-4">
                 <label className="text-sm font-medium text-graphite dark:text-stone">Reminder Interval (Days)</label>
-                <input
+                <SettingField
                   type="number"
                   min="1"
-                  value={settings?.reminderIntervalDays ?? 7}
-                  onChange={(e) => handleUpdateSettings({ reminderIntervalDays: Math.max(1, Number(e.target.value)) })}
+                  value={(settings?.reminderIntervalDays ?? 7).toString()}
+                  onCommit={(value) => void handleUpdateSettings({ reminderIntervalDays: Math.max(1, Number(value)) })}
                   className="w-24 px-3 py-1.5 border border-graphite/20 dark:border-white/20 rounded outline-none focus-visible:ring-2 focus-visible:ring-signal text-sm bg-white dark:bg-graphite text-graphite dark:text-stone"
                 />
               </div>
