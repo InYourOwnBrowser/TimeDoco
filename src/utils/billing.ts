@@ -526,3 +526,116 @@ export const sumBillableLines = (lines: BillableLine[]): BillableTotals => {
     fees: roundCurrency(fees),
   };
 };
+
+/** One printed row of a report's summary table: a timecode, or a group. */
+export interface ReportRow {
+  /** Timecode id, or group id — `'ungrouped'` for timecodes with no group. */
+  id: string;
+  /** Billable seconds behind the row, before they are printed as hours. */
+  seconds: number;
+  /** Hours as printed on the row. `rate x hours + fees` is exactly `amount`. */
+  hours: number;
+  /** Everything billed on the row: rate x hours, plus the fees. */
+  amount: number;
+  /** The part of `amount` that came from fixed costs rather than from a rate. */
+  fees: number;
+}
+
+export interface ReportSummary {
+  /** One row per timecode with something to bill. */
+  timecodeRows: ReportRow[];
+  /** The same time rolled up by group, so the two tables cannot disagree. */
+  groupRows: ReportRow[];
+  /**
+   * Seconds, worked seconds, amount and fees for the whole report.
+   *
+   * Its `hours` is the total's own rounding of `seconds` and is *not* what a
+   * report prints — use `totalHours`, which is the sum of the printed rows.
+   */
+  totals: BillableTotals;
+  /** Hours on the total line: the sum of the printed rows, by construction. */
+  totalHours: number;
+  /** Entries inside the window whose billable time rounded away to nothing. */
+  zeroLinesCount: number;
+}
+
+/** Add two-decimal values without the drift of summing them as floats. */
+const sumHundredths = (values: number[]): number =>
+  values.reduce((sum, value) => sum + Math.round(value * 100), 0) / 100;
+
+/**
+ * Roll a report's lines up into the rows and totals a document prints.
+ *
+ * A row is the unit a reader checks, so each one keeps its own arithmetic:
+ * `rate x hours + fees` is exactly the row's `amount`. That holds because the
+ * only filters a report applies — group and timecode — select whole timecodes,
+ * so a row that appears at all carries every one of its lines in the window,
+ * which is the set `buildBillableLines` allocated its amount from.
+ *
+ * The printed total is then the sum of the printed rows, not a figure derived
+ * independently from the total seconds. Deriving it separately printed rows
+ * that did not add up to their own total; allocating that total back down into
+ * the rows fixed the column at the row's expense, giving a row an hours figure
+ * that no longer matched its own money. Only summing upward satisfies both. The
+ * total may then sit 0.01 h from `roundHours(totalSeconds / 3600)` — correctly,
+ * because what a report totals is what it printed.
+ */
+export const summarizeReport = (
+  entries: Entry[],
+  lines: Map<string, BillableLine>,
+  timecodeMap: Map<string, Timecode>,
+): ReportSummary => {
+  const byTimecode = new Map<string, BillableLine[]>();
+  const includedLines: BillableLine[] = [];
+  let zeroLinesCount = 0;
+
+  for (const entry of entries) {
+    const line = lines.get(entry.id);
+    if (!line) continue;
+    // In the totals — the time was worked — but given no row of its own.
+    includedLines.push(line);
+    if (line.seconds <= 0 && line.amount === 0) {
+      zeroLinesCount++;
+      continue;
+    }
+    const existing = byTimecode.get(entry.timecodeId);
+    if (existing) existing.push(line);
+    else byTimecode.set(entry.timecodeId, [line]);
+  }
+
+  const timecodeRows: ReportRow[] = [];
+  const groupRowsById = new Map<string, ReportRow>();
+
+  for (const [timecodeId, group] of byTimecode) {
+    const rowTotals = sumBillableLines(group);
+    const row: ReportRow = {
+      id: timecodeId,
+      seconds: rowTotals.seconds,
+      hours: rowTotals.hours,
+      amount: rowTotals.amount,
+      fees: rowTotals.fees,
+    };
+    timecodeRows.push(row);
+
+    // Groups roll up from the printed timecode rows rather than from the raw
+    // seconds, so the two tables report the same time for the same work.
+    const groupId = timecodeMap.get(timecodeId)?.groupId || 'ungrouped';
+    const existing = groupRowsById.get(groupId);
+    if (existing) {
+      existing.seconds += row.seconds;
+      existing.hours = sumHundredths([existing.hours, row.hours]);
+      existing.amount = roundCurrency(existing.amount + row.amount);
+      existing.fees = roundCurrency(existing.fees + row.fees);
+    } else {
+      groupRowsById.set(groupId, { ...row, id: groupId });
+    }
+  }
+
+  return {
+    timecodeRows,
+    groupRows: Array.from(groupRowsById.values()),
+    totals: sumBillableLines(includedLines),
+    totalHours: sumHundredths(timecodeRows.map((row) => row.hours)),
+    zeroLinesCount,
+  };
+};

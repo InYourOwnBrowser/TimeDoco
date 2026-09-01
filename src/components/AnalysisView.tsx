@@ -14,9 +14,8 @@ import {
 } from 'lucide-react';
 import { useToast } from '../context/ToastContext';
 import { calculateDuration, calculateTaxBreakdown, calculateTotalPausedSeconds, formatDurationShort, roundCurrency, roundHours } from '../utils/timeUtils';
-import { allocateProportionally, buildReportLines, distributeAcrossBuckets, formatWorkedHours, sumBillableLines, workedSecondsFor, workedVsBilledNote } from '../utils/billing';
+import { buildReportLines, distributeAcrossBuckets, formatWorkedHours, summarizeReport, workedSecondsFor, workedVsBilledNote } from '../utils/billing';
 import type { RoundingScope } from '../utils/billing';
-import type { BillableLine } from '../utils/billing';
 import { createEvents, type EventAttributes } from 'ics';
 import { LOGO_PRINT_BASE64 } from '../assets/logoPrint';
 import { EntryEditModal } from './EntryEditModal';
@@ -210,65 +209,31 @@ export const AnalysisView: React.FC = () => {
 
   // Calculations for Current Period
   const { timecodeData, groupData, totalSeconds, totalHours, totalWorkedSeconds, totalEarnings, totalFees, taxBreakdown, zeroLinesCount } = useMemo(() => {
-    const tcMap = new Map<string, BillableLine[]>();
-    const grpMap = new Map<string, number>();
-    const includedLines: BillableLine[] = [];
-    let zeroLinesCounter = 0;
+    // Rows, groups and totals all come from one roll-up so a generated document
+    // cannot print a row whose own arithmetic disagrees with its column.
+    const summary = summarizeReport(filteredEntries, billableLines, timecodeMap);
+    const { totals } = summary;
 
-    filteredEntries.forEach(entry => {
-      const line = billableLines.get(entry.id);
-      if (!line) return;
-
-      includedLines.push(line);
-
-      if (line.seconds <= 0 && line.amount === 0) {
-        zeroLinesCounter++;
-        return;
-      }
-
-      const tc = timecodeMap.get(entry.timecodeId);
-      const existing = tcMap.get(entry.timecodeId);
-      if (existing) {
-        existing.push(line);
-      } else {
-        tcMap.set(entry.timecodeId, [line]);
-      }
-
-      const groupId = tc?.groupId || 'ungrouped';
-      grpMap.set(groupId, (grpMap.get(groupId) || 0) + line.seconds);
-    });
-
-    const totals = sumBillableLines(includedLines);
-
-    const tcEntries = Array.from(tcMap.entries());
-    const tcRowSeconds = tcEntries.map(([, lines]) => lines.reduce((acc, l) => acc + l.seconds, 0));
-    const tcAllocated = allocateProportionally(tcRowSeconds, Math.round(totals.hours * 100));
-
-    const formattedTcData = tcEntries.map(([tcId, lines], index) => {
-      const tc = timecodeMap.get(tcId);
-      const rowTotals = sumBillableLines(lines);
+    const formattedTcData = summary.timecodeRows.map(row => {
+      const tc = timecodeMap.get(row.id);
       return {
-        id: tcId,
+        id: row.id,
         name: tc?.name || 'Unknown',
-        durationHours: tcAllocated[index] / 100,
-        earnings: rowTotals.amount,
+        durationHours: row.hours,
+        earnings: row.amount,
         // Kept apart from `earnings` so the row can print the arithmetic a
         // client checks: rate x hours + fees = total.
-        fees: rowTotals.fees,
+        fees: row.fees,
         color: tc?.color || (tc?.groupId ? groupMap.get(tc.groupId)?.color : undefined) || '#cbd5e1'
       };
     }).sort((a, b) => b.durationHours - a.durationHours);
 
-    const grpEntries = Array.from(grpMap.entries());
-    const grpRowSeconds = grpEntries.map(([, duration]) => duration);
-    const grpAllocated = allocateProportionally(grpRowSeconds, Math.round(totals.hours * 100));
-
-    const formattedGrpData = grpEntries.map(([grpId, ], index) => {
-      const grp = groupMap.get(grpId);
+    const formattedGrpData = summary.groupRows.map(row => {
+      const grp = groupMap.get(row.id);
       return {
-        id: grpId,
-        name: grpId === 'ungrouped' ? 'Ungrouped' : grp?.name || 'Unknown',
-        durationHours: grpAllocated[index] / 100,
+        id: row.id,
+        name: row.id === 'ungrouped' ? 'Ungrouped' : grp?.name || 'Unknown',
+        durationHours: row.hours,
         color: grp?.color || '#cbd5e1'
       };
     }).sort((a, b) => b.durationHours - a.durationHours);
@@ -281,12 +246,13 @@ export const AnalysisView: React.FC = () => {
       timecodeData: formattedTcData,
       groupData: formattedGrpData,
       totalSeconds: totals.seconds,
-      totalHours: totals.hours,
+      // The sum of the printed rows, so the Total line reconciles with them.
+      totalHours: summary.totalHours,
       totalWorkedSeconds: totals.workedSeconds,
       totalEarnings: totals.amount,
       totalFees: totals.fees,
       taxBreakdown: calculatedTax,
-      zeroLinesCount: zeroLinesCounter
+      zeroLinesCount: summary.zeroLinesCount
     };
   }, [filteredEntries, billableLines, timecodeMap, groupMap, settings?.taxEnabled, settings?.taxRate, settings?.taxInclusive]);
 
