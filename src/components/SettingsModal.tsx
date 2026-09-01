@@ -22,6 +22,23 @@ interface SettingsModalProps {
   onClose: () => void;
 }
 
+/**
+ * Skip counts as a sentence, commonest reason first.
+ *
+ * The point is that a user can act on it: a run of unreadable dates means the
+ * format dropdown is wrong, where "malformed" means nothing and leaves them
+ * with a file they believe is broken.
+ */
+const describeSkips = (reasons: Map<string, number>): string => {
+  const parts = [...reasons.entries()]
+    .filter(([, count]) => count > 0)
+    .sort((a, b) => b[1] - a[1])
+    .map(([reason, count]) => `${count} ${reason}`);
+  if (parts.length === 0) return 'no reason recorded';
+  if (parts.length === 1) return parts[0];
+  return `${parts.slice(0, -1).join(', ')} and ${parts[parts.length - 1]}`;
+};
+
 export const SettingsModal: React.FC<SettingsModalProps> = ({ onClose }) => {
   const { getBackupBlob, markBackupSaved, importData, wipeAllData, settings, updateSettings, bulkAddManualEntries, addGroup, addTimecode, entries, timecodes, groups, deletedEntries, restoreEntry, hardDeleteEntry, deletedTimecodes, restoreTimecode, hardDeleteTimecode, deletedGroups, restoreGroup, hardDeleteGroup, emptyTrash } = useTimeTracker();
   const { triggerDownload, SaveAsDialog } = useNamedDownload();
@@ -372,7 +389,17 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ onClose }) => {
             return;
           }
 
+          // Skips are tallied by reason, not just counted. "12 rows were
+          // malformed" tells a user nothing they can act on; "9 with an
+          // unreadable date or time" points straight at the date-format
+          // dropdown, which is the setting that most often causes it.
+          const skipReasons = new Map<string, number>();
           let skippedCount = 0;
+          const skip = (reason: string, count = 1) => {
+            if (count <= 0) return;
+            skipReasons.set(reason, (skipReasons.get(reason) ?? 0) + count);
+            skippedCount += count;
+          };
 
           // Two-pass approach:
           // Pass 1: Validate row fields, dates, amounts, tags, and check overlap in-memory BEFORE creating any timecodes or writing entries.
@@ -404,7 +431,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ onClose }) => {
               const amountRaw = row['Amount'] || row.amount || row.manualAmount || row['Manual Amount'];
 
               if (!startTimeRaw || !endTimeRaw || !timecodeName) {
-                skippedCount++;
+                skip('missing a start time, end time or timecode');
                 continue;
               }
 
@@ -416,20 +443,26 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ onClose }) => {
               }
 
               if (timecodeName.length > 100 || groupName.length > 100) {
-                skippedCount++;
+                skip('a timecode or group name over 100 characters');
                 continue;
               }
 
               if (note.length > 2000) {
-                skippedCount++;
+                skip('a note over 2,000 characters');
                 continue;
               }
 
               const startObj = parseCSVDate(startTimeRaw, csvDateFormat);
               const endObj = parseCSVDate(endTimeRaw, csvDateFormat);
 
-              if (isNaN(startObj.getTime()) || isNaN(endObj.getTime()) || endObj <= startObj) {
-                skippedCount++;
+              if (isNaN(startObj.getTime()) || isNaN(endObj.getTime())) {
+                // Almost always the date-format dropdown, so say which it is.
+                skip(`an unreadable date or time for the ${csvDateFormat.toUpperCase()} format`);
+                continue;
+              }
+
+              if (endObj <= startObj) {
+                skip('an end time at or before its start');
                 continue;
               }
 
@@ -440,7 +473,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ onClose }) => {
                 tags = tagsRaw.split(',').map(t => t.trim()).filter(Boolean);
               }
               if (tags.length > 20 || tags.join(', ').length > 500) {
-                skippedCount++;
+                skip('too many tags');
                 continue;
               }
 
@@ -453,7 +486,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ onClose }) => {
                 if (!isNaN(parsedAmt) && isFinite(parsedAmt)) {
                   manualAmount = parsedAmt;
                 } else {
-                  skippedCount++;
+                  skip('an unreadable amount');
                   continue;
                 }
               }
@@ -470,7 +503,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ onClose }) => {
               });
             } catch (error) {
               console.warn('Skipping malformed CSV row:', row, error);
-              skippedCount++;
+              skip('a malformed row');
             }
           }
 
@@ -554,7 +587,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ onClose }) => {
           );
 
           const survivingCandidates = candidates.filter((_, idx) => !rejectedIndices.has(idx));
-          skippedCount += rejectedIndices.size;
+          skip('overlapping an entry you already have', rejectedIndices.size);
 
           if (survivingCandidates.length === 0) {
             setStatusMsg({ type: 'error', text: 'Failed to import any entries. All rows overlapped existing entries.' });
@@ -677,13 +710,13 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ onClose }) => {
           const result = await bulkAddManualEntries(entriesToBulkAdd);
           let importedCount = result ? result.added : entriesToBulkAdd.length;
           if (result && result.skipped > 0) {
-            skippedCount += result.skipped;
+            skip('rejected on write as overlapping', result.skipped);
           }
 
           if (importedCount > 0 && skippedCount === 0) {
             setStatusMsg({ type: 'success', text: `Successfully imported all ${importedCount} entries from CSV.` });
           } else if (importedCount > 0 && skippedCount > 0) {
-            setStatusMsg({ type: 'error', text: `Imported ${importedCount} entries, skipped ${skippedCount} rows that were malformed or overlapped existing entries.` });
+            setStatusMsg({ type: 'error', text: `Imported ${importedCount} entries, skipped ${skippedCount} rows — ${describeSkips(skipReasons)}.` });
           } else {
             // Nothing was written, and `bulkAddManualEntries` resolves rather
             // than throwing when its own overlap pass rejects every row — so

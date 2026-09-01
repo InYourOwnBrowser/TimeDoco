@@ -125,6 +125,48 @@ const DATE_ONLY_RE = /^\d{4}-\d{2}-\d{2}$/;
  * - 'dmy': Day/Month/Year e.g., DD/MM/YYYY or DD-MM-YYYY (with optional time)
  * - 'mdy': Month/Day/Year e.g., MM/DD/YYYY or MM-DD-YYYY (with optional time)
  */
+/**
+ * A CSV time-of-day, in whatever shape a spreadsheet exported it, as `HH:MM:SS`.
+ *
+ * A locale that writes dates as `dd/mm/yyyy` generally writes times as
+ * `2:30 PM`, and those two go together in the same export. Pasting one straight
+ * into an ISO string produced `...T2:30 PM`, which every engine rejects, so the
+ * row failed to parse and disappeared into an undifferentiated skipped count —
+ * the user was told their file was malformed when it was their own tool's
+ * output. 24-hour times are normalised too: `9:05` is not valid ISO either.
+ *
+ * Returns null when the text is not a time at all, so the caller can say so
+ * rather than producing an Invalid Date.
+ */
+export function normalizeTimePart(raw: string): string | null {
+  const text = raw.trim();
+  if (!text) return '00:00:00';
+
+  const match = text.match(/^(\d{1,2})(?::(\d{1,2}))?(?::(\d{1,2}))?\s*(?:([ap])\.?\s*m\.?)?$/i);
+  if (!match) return null;
+
+  let hours = parseInt(match[1], 10);
+  const minutes = match[2] === undefined ? 0 : parseInt(match[2], 10);
+  const seconds = match[3] === undefined ? 0 : parseInt(match[3], 10);
+  const meridiem = match[4]?.toLowerCase();
+
+  if (Number.isNaN(hours) || Number.isNaN(minutes) || Number.isNaN(seconds)) return null;
+  if (minutes > 59 || seconds > 59) return null;
+
+  if (meridiem) {
+    // 12-hour clock: 12am is midnight and 12pm is noon, so 12 maps to 0 before
+    // the pm offset rather than after it.
+    if (hours < 1 || hours > 12) return null;
+    if (hours === 12) hours = 0;
+    if (meridiem === 'p') hours += 12;
+  } else if (hours > 23) {
+    return null;
+  }
+
+  const pad = (n: number) => String(n).padStart(2, '0');
+  return `${pad(hours)}:${pad(minutes)}:${pad(seconds)}`;
+}
+
 export function parseCSVDate(dateStr: string, format: 'iso' | 'dmy' | 'mdy' = 'iso'): Date {
   if (!dateStr || typeof dateStr !== 'string') {
     return new Date(NaN);
@@ -180,9 +222,10 @@ export function parseCSVDate(dateStr: string, format: 'iso' | 'dmy' | 'mdy' = 'i
 
   // Always carry a time component: see the note in the 'iso' branch above. A
   // date-only row must mean local midnight, not UTC midnight.
-  const isoStr = `${paddedYear}-${paddedMonth}-${paddedDay}T${timePart || '00:00:00'}`;
+  const normalizedTime = normalizeTimePart(timePart);
+  if (normalizedTime === null) return new Date(NaN);
 
-  return new Date(isoStr);
+  return new Date(`${paddedYear}-${paddedMonth}-${paddedDay}T${normalizedTime}`);
 }
 
 export interface BackupValidationOptions {

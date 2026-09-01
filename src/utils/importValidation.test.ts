@@ -413,3 +413,51 @@ describe('validateBackupPayload', () => {
     });
   });
 });
+
+describe('parseCSVDate time-of-day handling', () => {
+  const local = (y: number, mo: number, d: number, h: number, mi = 0, sec = 0) =>
+    new Date(y, mo - 1, d, h, mi, sec, 0).getTime();
+
+  it('reads a 12-hour time in dmy mode', () => {
+    // The shape a spreadsheet in a dd/mm/yyyy locale actually exports.
+    expect(parseCSVDate('01/02/2024 2:30 PM', 'dmy').getTime()).toBe(local(2024, 2, 1, 14, 30));
+    expect(parseCSVDate('01/02/2024 02:30:45 pm', 'dmy').getTime()).toBe(local(2024, 2, 1, 14, 30, 45));
+    expect(parseCSVDate('01/02/2024 9:05 AM', 'dmy').getTime()).toBe(local(2024, 2, 1, 9, 5));
+  });
+
+  it('reads a 12-hour time in mdy mode', () => {
+    expect(parseCSVDate('02/01/2024 2:30 PM', 'mdy').getTime()).toBe(local(2024, 2, 1, 14, 30));
+  });
+
+  it('puts noon and midnight on the right side of 12', () => {
+    expect(parseCSVDate('01/02/2024 12:00 AM', 'dmy').getTime()).toBe(local(2024, 2, 1, 0, 0));
+    expect(parseCSVDate('01/02/2024 12:30 AM', 'dmy').getTime()).toBe(local(2024, 2, 1, 0, 30));
+    expect(parseCSVDate('01/02/2024 12:00 PM', 'dmy').getTime()).toBe(local(2024, 2, 1, 12, 0));
+    expect(parseCSVDate('01/02/2024 12:45 PM', 'dmy').getTime()).toBe(local(2024, 2, 1, 12, 45));
+  });
+
+  it('accepts the punctuation and spacing exports vary on', () => {
+    for (const time of ['2:30PM', '2:30 pm', '2:30 p.m.', '2:30 P M']) {
+      expect(parseCSVDate(`01/02/2024 ${time}`, 'dmy').getTime()).toBe(local(2024, 2, 1, 14, 30));
+    }
+  });
+
+  it('pads an unpadded 24-hour time rather than failing on it', () => {
+    expect(parseCSVDate('01/02/2024 9:05', 'dmy').getTime()).toBe(local(2024, 2, 1, 9, 5));
+    expect(parseCSVDate('01/02/2024 9', 'dmy').getTime()).toBe(local(2024, 2, 1, 9, 0));
+  });
+
+  it('still reads a padded 24-hour time', () => {
+    expect(parseCSVDate('01/02/2024 14:30:00', 'dmy').getTime()).toBe(local(2024, 2, 1, 14, 30));
+  });
+
+  it('treats a date with no time as local midnight', () => {
+    expect(parseCSVDate('01/02/2024', 'dmy').getTime()).toBe(local(2024, 2, 1, 0, 0));
+  });
+
+  it('rejects a time that is not one', () => {
+    for (const time of ['25:00', '13:00 PM', '0:00 AM', '2:75', 'lunchtime', '2:30 XM']) {
+      expect(Number.isNaN(parseCSVDate(`01/02/2024 ${time}`, 'dmy').getTime())).toBe(true);
+    }
+  });
+});

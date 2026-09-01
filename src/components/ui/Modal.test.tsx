@@ -1,5 +1,5 @@
-import { render, fireEvent } from '@testing-library/react';
-import { describe, it, expect, vi } from 'vitest';
+import { render, fireEvent, cleanup } from '@testing-library/react';
+import { describe, it, expect, vi, afterEach } from 'vitest';
 import { Modal } from './Modal';
 
 describe('Modal stack escape handling', () => {
@@ -71,5 +71,56 @@ describe('Modal stack escape handling', () => {
     expect(document.activeElement).toBe(getByText('Inside'));
 
     outside.remove();
+  });
+});
+
+describe('Modal scroll lock', () => {
+  afterEach(() => {
+    cleanup();
+    document.body.style.removeProperty('overflow');
+  });
+
+  it('locks the body while a modal is open and restores it afterwards', () => {
+    const { unmount } = render(<Modal onClose={() => {}}><div>Only</div></Modal>);
+    expect(document.body.style.overflow).toBe('hidden');
+
+    unmount();
+    // No inline style before, none after.
+    expect(document.body.style.overflow).toBe('');
+    expect(document.body.getAttribute('style')).not.toContain('overflow');
+  });
+
+  it('keeps the lock when the outer modal closes before the inner one', () => {
+    // The order the audit found: an outer dialog dismissed while a dialog it
+    // opened is still on screen. Whichever closes first, the page behind must
+    // stay locked until both are gone.
+    const { rerender } = render(
+      <>
+        <Modal onClose={() => {}}><div>Outer</div></Modal>
+        <Modal onClose={() => {}}><div>Inner</div></Modal>
+      </>
+    );
+    expect(document.body.style.overflow).toBe('hidden');
+
+    rerender(
+      <>
+        {null}
+        <Modal onClose={() => {}}><div>Inner</div></Modal>
+      </>
+    );
+    expect(document.body.style.overflow).toBe('hidden');
+
+    rerender(<>{null}{null}</>);
+    expect(document.body.style.overflow).toBe('');
+  });
+
+  it('restores an overflow the page had set for itself', () => {
+    document.body.style.overflow = 'scroll';
+
+    const { unmount } = render(<Modal onClose={() => {}}><div>Only</div></Modal>);
+    expect(document.body.style.overflow).toBe('hidden');
+
+    unmount();
+    expect(document.body.style.overflow).toBe('scroll');
   });
 });

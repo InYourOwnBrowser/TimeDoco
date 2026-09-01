@@ -243,4 +243,34 @@ describe('SettingsModal Logo Upload Validation', () => {
       ]);
     });
   });
+  it('imports 12-hour times and names the reason for the rows it skips', async () => {
+    mockAddTimecode.mockResolvedValue({ id: 'tc-ampm', name: 'AmPmCode' });
+    const { getByRole, container, findByText } = renderComponent();
+    fireEvent.click(getByRole('button', { name: 'Data' }));
+
+    const select = container.querySelector('select[class*="border"]') as HTMLSelectElement;
+    fireEvent.change(select, { target: { value: 'dmy' } });
+
+    const csvFileInput = container.querySelector('input[type="file"][accept=".csv"]') as HTMLInputElement;
+    // One good row in the 12-hour form a dd/mm/yyyy spreadsheet exports, and
+    // one whose time is not a time at all.
+    const csv =
+      'Start Time,End Time,Timecode,Note\n' +
+      '01/02/2024 2:30 PM,01/02/2024 4:00 PM,AmPmCode,Afternoon\n' +
+      '01/02/2024 lunchtime,01/02/2024 4:00 PM,AmPmCode,Bad\n';
+    fireEvent.change(csvFileInput, { target: { files: [new File([csv], 'ampm.csv', { type: 'text/csv' })] } });
+    fireEvent.click(getByRole('button', { name: /import csv/i }));
+
+    await waitFor(() => {
+      expect(mockBulkAddManualEntries).toHaveBeenCalledWith([
+        expect.objectContaining({
+          startTime: new Date(2024, 1, 1, 14, 30, 0).toISOString(),
+          endTime: new Date(2024, 1, 1, 16, 0, 0).toISOString(),
+        }),
+      ]);
+    });
+
+    // Not "malformed": the message points at the setting that explains it.
+    expect(await findByText(/unreadable date or time for the DMY format/i)).toBeTruthy();
+  });
 });

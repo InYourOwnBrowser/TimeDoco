@@ -9,6 +9,35 @@ interface ModalProps {
 
 const modalStack: string[] = [];
 
+/**
+ * The body's inline overflow from before any modal opened, held while the lock
+ * is in force.
+ *
+ * The lock has to be refcounted against `modalStack`, not owned by each modal.
+ * Every modal used to capture the current overflow on mount and put it back on
+ * unmount, so closing an *outer* dialog while an inner one was still open
+ * restored the pre-modal value and unlocked scrolling behind a modal that was
+ * still on screen. Locking when the stack fills and restoring only when it
+ * empties makes the order the dialogs close in irrelevant.
+ */
+let overflowBeforeLock: string | null = null;
+
+const lockBodyScroll = () => {
+  // Only the first modal locks; the rest are already covered by it.
+  if (modalStack.length !== 1) return;
+  // The inline value, not the computed one. Writing back a computed 'visible'
+  // left an inline style on the body where there had been none.
+  overflowBeforeLock = document.body.style.overflow;
+  document.body.style.overflow = 'hidden';
+};
+
+const unlockBodyScroll = () => {
+  if (modalStack.length !== 0) return;
+  if (overflowBeforeLock) document.body.style.overflow = overflowBeforeLock;
+  else document.body.style.removeProperty('overflow');
+  overflowBeforeLock = null;
+};
+
 export const Modal: React.FC<ModalProps> = ({ onClose, children, className = '', isDirty = false }) => {
   const modalRef = useRef<HTMLDivElement>(null);
   const idRef = useRef<string>('');
@@ -18,23 +47,18 @@ export const Modal: React.FC<ModalProps> = ({ onClose, children, className = '',
   }
 
   useEffect(() => {
+    // Registration and the scroll lock move together: the lock is a property of
+    // the stack being non-empty, so it cannot be decided by a separate effect
+    // whose ordering against this one is not guaranteed.
     modalStack.push(idRef.current);
+    lockBodyScroll();
 
     return () => {
       const index = modalStack.indexOf(idRef.current);
       if (index !== -1) {
         modalStack.splice(index, 1);
       }
-    };
-  }, []);
-
-  useEffect(() => {
-    // Scroll lock
-    const originalStyle = window.getComputedStyle(document.body).overflow;
-    document.body.style.overflow = 'hidden';
-
-    return () => {
-      document.body.style.overflow = originalStyle;
+      unlockBodyScroll();
     };
   }, []);
 
