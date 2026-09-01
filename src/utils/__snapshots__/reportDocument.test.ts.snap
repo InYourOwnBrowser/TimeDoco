@@ -1,0 +1,1681 @@
+// Vitest Snapshot v1, https://vitest.dev/guide/snapshot.html
+
+exports[`report documents > a fee-only report > assembles the summary table, both CSVs and the disclosure block 1`] = `
+{
+  "body": [
+    [
+      "Retainer",
+      "Internal",
+      "$150.00/hr",
+      "0.00",
+      "$500.00",
+      "$500.00",
+    ],
+  ],
+  "detailBody": [
+    [
+      "Jan 7",
+      "Retainer",
+      "09:00",
+      "10:00",
+      "—",
+      "—",
+      "$500.00",
+      "Monthly retainer",
+    ],
+  ],
+  "detailHead": [
+    [
+      "Date",
+      "Timecode",
+      "Start",
+      "End",
+      "Paused",
+      "Hours",
+      "Amount",
+      "Note",
+    ],
+  ],
+  "detailedCsv": ""Date","Timecode","Group","Start","End","Duration (h, worked)","Duration (h, billed)","Amount","Note"
+"2026-01-07","Retainer","Internal","09:00:00","10:00:00",1,,500.00,"Monthly retainer"",
+  "foot": [
+    [
+      "",
+      "Total",
+      "",
+      "0.00",
+      "$500.00",
+      "$500.00",
+    ],
+  ],
+  "head": [
+    [
+      "Timecode",
+      "Group",
+      "Rate",
+      "Hours",
+      "Fees",
+      "Total",
+    ],
+  ],
+  "meta": [
+    {
+      "label": "Prepared for:",
+      "value": "Acme Corp",
+    },
+    {
+      "label": "Prepared by:",
+      "value": "A Freelancer",
+    },
+    {
+      "label": "Period:",
+      "value": "Jan 5, 2026 – Jan 11, 2026",
+    },
+    {
+      "label": "Generated:",
+      "value": "Jan 12, 2026 at 09:00",
+    },
+    {
+      "label": "Fees:",
+      "value": "$500.00 billed as fixed amounts rather than by the hour — worked 1.00 h in total, of which 0.00 h is billed at a rate.",
+    },
+    {
+      "label": "PO:",
+      "value": "12345",
+    },
+  ],
+  "summaryCsv": "Timecode,Group,Duration (Hours),Fees,Earnings
+"Retainer","Internal",0.00,500.00,500.00
+"Total",,0.00,500.00,500.00",
+}
+`;
+
+exports[`report documents > a running timer > assembles the summary table, both CSVs and the disclosure block 1`] = `
+{
+  "body": [
+    [
+      "Development",
+      "Acme Corp",
+      "$120.00/hr",
+      "8.25",
+      "$990.00",
+    ],
+    [
+      "Design",
+      "Acme Corp",
+      "$85.00/hr",
+      "2.00",
+      "$170.00",
+    ],
+  ],
+  "detailBody": [
+    [
+      "Jan 5",
+      "Development",
+      "09:00",
+      "12:30",
+      "—",
+      "3.50",
+      "$420.00",
+      "Auth flow",
+    ],
+    [
+      "Jan 6",
+      "Design",
+      "09:00",
+      "11:00",
+      "—",
+      "2.00",
+      "$170.00",
+      "Wireframes",
+    ],
+    [
+      "Jan 6",
+      "Development",
+      "13:00",
+      "15:45",
+      "—",
+      "2.75",
+      "$330.00",
+      "Review",
+    ],
+    [
+      "Jan 8",
+      "Development",
+      "15:00",
+      "Running",
+      "—",
+      "2.00",
+      "$240.00",
+      "Still going",
+    ],
+  ],
+  "detailHead": [
+    [
+      "Date",
+      "Timecode",
+      "Start",
+      "End",
+      "Paused",
+      "Hours",
+      "Amount",
+      "Note",
+    ],
+  ],
+  "detailedCsv": ""Date","Timecode","Group","Start","End","Duration (h, worked)","Duration (h, billed)","Amount","Note"
+"2026-01-05","Development","Acme Corp","09:00:00","12:30:00",3.5,3.50,420.00,"Auth flow"
+"2026-01-06","Design","Acme Corp","09:00:00","11:00:00",2,2.00,170.00,"Wireframes"
+"2026-01-06","Development","Acme Corp","13:00:00","15:45:00",2.75,2.75,330.00,"Review"
+"2026-01-08","Development","Acme Corp","15:00:00","",2,2.00,240.00,"Still going"",
+  "foot": [
+    [
+      "",
+      "Total",
+      "",
+      "10.25",
+      "$1160.00",
+    ],
+  ],
+  "head": [
+    [
+      "Timecode",
+      "Group",
+      "Rate",
+      "Hours",
+      "Total",
+    ],
+  ],
+  "meta": [
+    {
+      "label": "Prepared for:",
+      "value": "Acme Corp",
+    },
+    {
+      "label": "Prepared by:",
+      "value": "A Freelancer",
+    },
+    {
+      "label": "Period:",
+      "value": "Jan 5, 2026 – Jan 11, 2026",
+    },
+    {
+      "label": "Generated:",
+      "value": "Jan 12, 2026 at 09:00",
+    },
+    {
+      "label": "PO:",
+      "value": "12345",
+    },
+  ],
+  "summaryCsv": "Timecode,Group,Duration (Hours),Earnings
+"Development","Acme Corp",8.25,990.00
+"Design","Acme Corp",2.00,170.00
+"Total",,10.25,1160.00",
+}
+`;
+
+exports[`report documents > a timecode with no rate > assembles the summary table, both CSVs and the disclosure block 1`] = `
+{
+  "body": [
+    [
+      "Development",
+      "Acme Corp",
+      "$120.00/hr",
+      "6.25",
+      "$750.00",
+    ],
+    [
+      "Design",
+      "Acme Corp",
+      "$85.00/hr",
+      "2.00",
+      "$170.00",
+    ],
+    [
+      "Admin",
+      "Ungrouped",
+      "-",
+      "1.50",
+      "-",
+    ],
+  ],
+  "detailBody": [
+    [
+      "Jan 5",
+      "Development",
+      "09:00",
+      "12:30",
+      "—",
+      "3.50",
+      "$420.00",
+      "Auth flow",
+    ],
+    [
+      "Jan 6",
+      "Design",
+      "09:00",
+      "11:00",
+      "—",
+      "2.00",
+      "$170.00",
+      "Wireframes",
+    ],
+    [
+      "Jan 6",
+      "Development",
+      "13:00",
+      "15:45",
+      "—",
+      "2.75",
+      "$330.00",
+      "Review",
+    ],
+    [
+      "Jan 8",
+      "Admin",
+      "09:00",
+      "10:30",
+      "—",
+      "1.50",
+      "-",
+      "Invoicing",
+    ],
+  ],
+  "detailHead": [
+    [
+      "Date",
+      "Timecode",
+      "Start",
+      "End",
+      "Paused",
+      "Hours",
+      "Amount",
+      "Note",
+    ],
+  ],
+  "detailedCsv": ""Date","Timecode","Group","Start","End","Duration (h, worked)","Duration (h, billed)","Amount","Note"
+"2026-01-05","Development","Acme Corp","09:00:00","12:30:00",3.5,3.50,420.00,"Auth flow"
+"2026-01-06","Design","Acme Corp","09:00:00","11:00:00",2,2.00,170.00,"Wireframes"
+"2026-01-06","Development","Acme Corp","13:00:00","15:45:00",2.75,2.75,330.00,"Review"
+"2026-01-08","Admin","Ungrouped","09:00:00","10:30:00",1.5,1.50,,"Invoicing"",
+  "foot": [
+    [
+      "",
+      "Total",
+      "",
+      "9.75",
+      "$920.00",
+    ],
+  ],
+  "head": [
+    [
+      "Timecode",
+      "Group",
+      "Rate",
+      "Hours",
+      "Total",
+    ],
+  ],
+  "meta": [
+    {
+      "label": "Prepared for:",
+      "value": "Acme Corp",
+    },
+    {
+      "label": "Prepared by:",
+      "value": "A Freelancer",
+    },
+    {
+      "label": "Period:",
+      "value": "Jan 5, 2026 – Jan 11, 2026",
+    },
+    {
+      "label": "Generated:",
+      "value": "Jan 12, 2026 at 09:00",
+    },
+    {
+      "label": "PO:",
+      "value": "12345",
+    },
+  ],
+  "summaryCsv": "Timecode,Group,Duration (Hours),Earnings
+"Development","Acme Corp",6.25,750.00
+"Design","Acme Corp",2.00,170.00
+"Admin","Ungrouped",1.50,0.00
+"Total",,9.75,920.00",
+}
+`;
+
+exports[`report documents > an empty report > assembles the summary table, both CSVs and the disclosure block 1`] = `
+{
+  "body": [],
+  "detailBody": [],
+  "detailHead": [
+    [
+      "Date",
+      "Timecode",
+      "Start",
+      "End",
+      "Paused",
+      "Hours",
+      "Amount",
+      "Note",
+    ],
+  ],
+  "detailedCsv": ""Date","Timecode","Group","Start","End","Duration (h, worked)","Duration (h, billed)","Amount","Note"",
+  "foot": [
+    [
+      "",
+      "Total",
+      "",
+      "0.00",
+      "-",
+    ],
+  ],
+  "head": [
+    [
+      "Timecode",
+      "Group",
+      "Rate",
+      "Hours",
+      "Total",
+    ],
+  ],
+  "meta": [
+    {
+      "label": "Prepared for:",
+      "value": "Acme Corp",
+    },
+    {
+      "label": "Prepared by:",
+      "value": "A Freelancer",
+    },
+    {
+      "label": "Period:",
+      "value": "Jan 5, 2026 – Jan 11, 2026",
+    },
+    {
+      "label": "Generated:",
+      "value": "Jan 12, 2026 at 09:00",
+    },
+    {
+      "label": "PO:",
+      "value": "12345",
+    },
+  ],
+  "summaryCsv": "Timecode,Group,Duration (Hours),Earnings
+"Total",,0.00,0.00",
+}
+`;
+
+exports[`report documents > an entry rounded away to nothing > assembles the summary table, both CSVs and the disclosure block 1`] = `
+{
+  "body": [
+    [
+      "Development",
+      "Acme Corp",
+      "$120.00/hr",
+      "6.25",
+      "$750.00",
+    ],
+    [
+      "Design",
+      "Acme Corp",
+      "$85.00/hr",
+      "2.00",
+      "$170.00",
+    ],
+  ],
+  "detailBody": [
+    [
+      "Jan 5",
+      "Development",
+      "09:00",
+      "12:30",
+      "—",
+      "3.50",
+      "$420.00",
+      "Auth flow",
+    ],
+    [
+      "Jan 6",
+      "Design",
+      "09:00",
+      "11:00",
+      "—",
+      "2.00",
+      "$170.00",
+      "Wireframes",
+    ],
+    [
+      "Jan 6",
+      "Development",
+      "13:00",
+      "15:45",
+      "—",
+      "2.75",
+      "$330.00",
+      "Review",
+    ],
+    [
+      "Jan 9",
+      "Design",
+      "09:00",
+      "09:03",
+      "—",
+      "0.00",
+      "-",
+      "Three minutes",
+    ],
+  ],
+  "detailHead": [
+    [
+      "Date",
+      "Timecode",
+      "Start",
+      "End",
+      "Paused",
+      "Hours",
+      "Amount",
+      "Note",
+    ],
+  ],
+  "detailedCsv": ""Date","Timecode","Group","Start","End","Duration (h, worked)","Duration (h, billed)","Amount","Note"
+"2026-01-05","Development","Acme Corp","09:00:00","12:30:00",3.5,3.50,420.00,"Auth flow"
+"2026-01-06","Design","Acme Corp","09:00:00","11:00:00",2,2.00,170.00,"Wireframes"
+"2026-01-06","Development","Acme Corp","13:00:00","15:45:00",2.75,2.75,330.00,"Review"
+"2026-01-09","Design","Acme Corp","09:00:00","09:03:00",0.05,0.00,,"Three minutes"",
+  "foot": [
+    [
+      "",
+      "Total",
+      "",
+      "8.25",
+      "$920.00",
+    ],
+  ],
+  "head": [
+    [
+      "Timecode",
+      "Group",
+      "Rate",
+      "Hours",
+      "Total",
+    ],
+  ],
+  "meta": [
+    {
+      "label": "Prepared for:",
+      "value": "Acme Corp",
+    },
+    {
+      "label": "Prepared by:",
+      "value": "A Freelancer",
+    },
+    {
+      "label": "Period:",
+      "value": "Jan 5, 2026 – Jan 11, 2026",
+    },
+    {
+      "label": "Generated:",
+      "value": "Jan 12, 2026 at 09:00",
+    },
+    {
+      "label": "Rounding:",
+      "value": "Nearest 15 minutes, applied to each entry — worked 8.30 h, billed 8.25 h (1 entry rounded to 0.00 h)",
+    },
+    {
+      "label": "PO:",
+      "value": "12345",
+    },
+  ],
+  "summaryCsv": "Timecode,Group,Duration (Hours),Earnings
+"Development","Acme Corp",6.25,750.00
+"Design","Acme Corp",2.00,170.00
+"Total",,8.25,920.00
+"Rounding","Nearest 15 minutes, applied to each entry — worked 8.30 h, billed 8.25 h",,
+"Not billed","1 entry rounded to 0.00 h",,",
+}
+`;
+
+exports[`report documents > entries clipped by the window > assembles the summary table, both CSVs and the disclosure block 1`] = `
+{
+  "body": [
+    [
+      "Development",
+      "Acme Corp",
+      "$120.00/hr",
+      "8.25",
+      "$990.00",
+    ],
+    [
+      "Design",
+      "Acme Corp",
+      "$85.00/hr",
+      "4.00",
+      "$340.00",
+    ],
+  ],
+  "detailBody": [
+    [
+      "Jan 4",
+      "Development",
+      "22:00",
+      "02:00",
+      "—",
+      "2.00",
+      "$240.00",
+      "Overnight into the window",
+    ],
+    [
+      "Jan 5",
+      "Development",
+      "09:00",
+      "12:30",
+      "—",
+      "3.50",
+      "$420.00",
+      "Auth flow",
+    ],
+    [
+      "Jan 6",
+      "Design",
+      "09:00",
+      "11:00",
+      "—",
+      "2.00",
+      "$170.01",
+      "Wireframes",
+    ],
+    [
+      "Jan 6",
+      "Development",
+      "13:00",
+      "15:45",
+      "—",
+      "2.75",
+      "$330.00",
+      "Review",
+    ],
+    [
+      "Jan 11",
+      "Design",
+      "22:00",
+      "03:00",
+      "—",
+      "2.00",
+      "$169.99",
+      "Overnight out of the window",
+    ],
+  ],
+  "detailHead": [
+    [
+      "Date",
+      "Timecode",
+      "Start",
+      "End",
+      "Paused",
+      "Hours",
+      "Amount",
+      "Note",
+    ],
+  ],
+  "detailedCsv": ""Date","Timecode","Group","Start","End","Duration (h, worked)","Duration (h, billed)","Amount","Note"
+"2026-01-04","Development","Acme Corp","22:00:00","02:00:00",2,2.00,240.00,"Overnight into the window"
+"2026-01-05","Development","Acme Corp","09:00:00","12:30:00",3.5,3.50,420.00,"Auth flow"
+"2026-01-06","Design","Acme Corp","09:00:00","11:00:00",2,2.00,170.01,"Wireframes"
+"2026-01-06","Development","Acme Corp","13:00:00","15:45:00",2.75,2.75,330.00,"Review"
+"2026-01-11","Design","Acme Corp","22:00:00","03:00:00",1.999722,2.00,169.99,"Overnight out of the window"",
+  "foot": [
+    [
+      "",
+      "Total",
+      "",
+      "12.25",
+      "$1330.00",
+    ],
+  ],
+  "head": [
+    [
+      "Timecode",
+      "Group",
+      "Rate",
+      "Hours",
+      "Total",
+    ],
+  ],
+  "meta": [
+    {
+      "label": "Prepared for:",
+      "value": "Acme Corp",
+    },
+    {
+      "label": "Prepared by:",
+      "value": "A Freelancer",
+    },
+    {
+      "label": "Period:",
+      "value": "Jan 5, 2026 – Jan 11, 2026",
+    },
+    {
+      "label": "Generated:",
+      "value": "Jan 12, 2026 at 09:00",
+    },
+    {
+      "label": "PO:",
+      "value": "12345",
+    },
+  ],
+  "summaryCsv": "Timecode,Group,Duration (Hours),Earnings
+"Development","Acme Corp",8.25,990.00
+"Design","Acme Corp",4.00,340.00
+"Total",,12.25,1330.00",
+}
+`;
+
+exports[`report documents > fees alongside hourly work > assembles the summary table, both CSVs and the disclosure block 1`] = `
+{
+  "body": [
+    [
+      "Development",
+      "Acme Corp",
+      "$120.00/hr",
+      "6.25",
+      "-",
+      "$750.00",
+    ],
+    [
+      "Design",
+      "Acme Corp",
+      "$85.00/hr",
+      "2.00",
+      "-",
+      "$170.00",
+    ],
+    [
+      "Retainer",
+      "Internal",
+      "$150.00/hr",
+      "0.00",
+      "$500.00",
+      "$500.00",
+    ],
+  ],
+  "detailBody": [
+    [
+      "Jan 5",
+      "Development",
+      "09:00",
+      "12:30",
+      "—",
+      "3.50",
+      "$420.00",
+      "Auth flow",
+    ],
+    [
+      "Jan 6",
+      "Design",
+      "09:00",
+      "11:00",
+      "—",
+      "2.00",
+      "$170.00",
+      "Wireframes",
+    ],
+    [
+      "Jan 6",
+      "Development",
+      "13:00",
+      "15:45",
+      "—",
+      "2.75",
+      "$330.00",
+      "Review",
+    ],
+    [
+      "Jan 7",
+      "Retainer",
+      "09:00",
+      "10:00",
+      "—",
+      "—",
+      "$500.00",
+      "Monthly retainer",
+    ],
+  ],
+  "detailHead": [
+    [
+      "Date",
+      "Timecode",
+      "Start",
+      "End",
+      "Paused",
+      "Hours",
+      "Amount",
+      "Note",
+    ],
+  ],
+  "detailedCsv": ""Date","Timecode","Group","Start","End","Duration (h, worked)","Duration (h, billed)","Amount","Note"
+"2026-01-05","Development","Acme Corp","09:00:00","12:30:00",3.5,3.50,420.00,"Auth flow"
+"2026-01-06","Design","Acme Corp","09:00:00","11:00:00",2,2.00,170.00,"Wireframes"
+"2026-01-06","Development","Acme Corp","13:00:00","15:45:00",2.75,2.75,330.00,"Review"
+"2026-01-07","Retainer","Internal","09:00:00","10:00:00",1,,500.00,"Monthly retainer"",
+  "foot": [
+    [
+      "",
+      "Total",
+      "",
+      "8.25",
+      "$500.00",
+      "$1420.00",
+    ],
+  ],
+  "head": [
+    [
+      "Timecode",
+      "Group",
+      "Rate",
+      "Hours",
+      "Fees",
+      "Total",
+    ],
+  ],
+  "meta": [
+    {
+      "label": "Prepared for:",
+      "value": "Acme Corp",
+    },
+    {
+      "label": "Prepared by:",
+      "value": "A Freelancer",
+    },
+    {
+      "label": "Period:",
+      "value": "Jan 5, 2026 – Jan 11, 2026",
+    },
+    {
+      "label": "Generated:",
+      "value": "Jan 12, 2026 at 09:00",
+    },
+    {
+      "label": "Fees:",
+      "value": "$500.00 billed as fixed amounts rather than by the hour — worked 9.25 h in total, of which 8.25 h is billed at a rate.",
+    },
+    {
+      "label": "PO:",
+      "value": "12345",
+    },
+  ],
+  "summaryCsv": "Timecode,Group,Duration (Hours),Fees,Earnings
+"Development","Acme Corp",6.25,0.00,750.00
+"Design","Acme Corp",2.00,0.00,170.00
+"Retainer","Internal",0.00,500.00,500.00
+"Total",,8.25,500.00,1420.00",
+}
+`;
+
+exports[`report documents > names and notes that need escaping > assembles the summary table, both CSVs and the disclosure block 1`] = `
+{
+  "body": [
+    [
+      "Development",
+      "Acme Corp",
+      "$120.00/hr",
+      "6.25",
+      "$750.00",
+    ],
+    [
+      "-Ops, Support & "Misc"",
+      "Internal",
+      "$40.00/hr",
+      "2.00",
+      "$80.00",
+    ],
+    [
+      "Design",
+      "Acme Corp",
+      "$85.00/hr",
+      "2.00",
+      "$170.00",
+    ],
+  ],
+  "detailBody": [
+    [
+      "Jan 5",
+      "Development",
+      "09:00",
+      "12:30",
+      "—",
+      "3.50",
+      "$420.00",
+      "Auth flow",
+    ],
+    [
+      "Jan 6",
+      "Design",
+      "09:00",
+      "11:00",
+      "—",
+      "2.00",
+      "$170.00",
+      "Wireframes",
+    ],
+    [
+      "Jan 6",
+      "Development",
+      "13:00",
+      "15:45",
+      "—",
+      "2.75",
+      "$330.00",
+      "Review",
+    ],
+    [
+      "Jan 7",
+      "-Ops, Support & "Misc"",
+      "09:00",
+      "11:00",
+      "—",
+      "2.00",
+      "$80.00",
+      "=SUM(A1:A2), "quoted", and a very long remark that runs on past any sensible column width to see how it lands",
+    ],
+  ],
+  "detailHead": [
+    [
+      "Date",
+      "Timecode",
+      "Start",
+      "End",
+      "Paused",
+      "Hours",
+      "Amount",
+      "Note",
+    ],
+  ],
+  "detailedCsv": ""Date","Timecode","Group","Start","End","Duration (h, worked)","Duration (h, billed)","Amount","Note"
+"2026-01-05","Development","Acme Corp","09:00:00","12:30:00",3.5,3.50,420.00,"Auth flow"
+"2026-01-06","Design","Acme Corp","09:00:00","11:00:00",2,2.00,170.00,"Wireframes"
+"2026-01-06","Development","Acme Corp","13:00:00","15:45:00",2.75,2.75,330.00,"Review"
+"2026-01-07","'-Ops, Support & ""Misc""","Internal","09:00:00","11:00:00",2,2.00,80.00,"'=SUM(A1:A2), ""quoted"", and a very long remark that runs on past any sensible column width to see how it lands"",
+  "foot": [
+    [
+      "",
+      "Total",
+      "",
+      "10.25",
+      "$1000.00",
+    ],
+  ],
+  "head": [
+    [
+      "Timecode",
+      "Group",
+      "Rate",
+      "Hours",
+      "Total",
+    ],
+  ],
+  "meta": [
+    {
+      "label": "Prepared for:",
+      "value": "Acme Corp",
+    },
+    {
+      "label": "Prepared by:",
+      "value": "A Freelancer",
+    },
+    {
+      "label": "Period:",
+      "value": "Jan 5, 2026 – Jan 11, 2026",
+    },
+    {
+      "label": "Generated:",
+      "value": "Jan 12, 2026 at 09:00",
+    },
+    {
+      "label": "PO:",
+      "value": "12345",
+    },
+  ],
+  "summaryCsv": "Timecode,Group,Duration (Hours),Earnings
+"Development","Acme Corp",6.25,750.00
+"'-Ops, Support & ""Misc""","Internal",2.00,80.00
+"Design","Acme Corp",2.00,170.00
+"Total",,10.25,1000.00",
+}
+`;
+
+exports[`report documents > plain hourly report > assembles the summary table, both CSVs and the disclosure block 1`] = `
+{
+  "body": [
+    [
+      "Development",
+      "Acme Corp",
+      "$120.00/hr",
+      "6.25",
+      "$750.00",
+    ],
+    [
+      "Design",
+      "Acme Corp",
+      "$85.00/hr",
+      "2.00",
+      "$170.00",
+    ],
+  ],
+  "detailBody": [
+    [
+      "Jan 5",
+      "Development",
+      "09:00",
+      "12:30",
+      "—",
+      "3.50",
+      "$420.00",
+      "Auth flow",
+    ],
+    [
+      "Jan 6",
+      "Design",
+      "09:00",
+      "11:00",
+      "—",
+      "2.00",
+      "$170.00",
+      "Wireframes",
+    ],
+    [
+      "Jan 6",
+      "Development",
+      "13:00",
+      "15:45",
+      "—",
+      "2.75",
+      "$330.00",
+      "Review",
+    ],
+  ],
+  "detailHead": [
+    [
+      "Date",
+      "Timecode",
+      "Start",
+      "End",
+      "Paused",
+      "Hours",
+      "Amount",
+      "Note",
+    ],
+  ],
+  "detailedCsv": ""Date","Timecode","Group","Start","End","Duration (h, worked)","Duration (h, billed)","Amount","Note"
+"2026-01-05","Development","Acme Corp","09:00:00","12:30:00",3.5,3.50,420.00,"Auth flow"
+"2026-01-06","Design","Acme Corp","09:00:00","11:00:00",2,2.00,170.00,"Wireframes"
+"2026-01-06","Development","Acme Corp","13:00:00","15:45:00",2.75,2.75,330.00,"Review"",
+  "foot": [
+    [
+      "",
+      "Total",
+      "",
+      "8.25",
+      "$920.00",
+    ],
+  ],
+  "head": [
+    [
+      "Timecode",
+      "Group",
+      "Rate",
+      "Hours",
+      "Total",
+    ],
+  ],
+  "meta": [
+    {
+      "label": "Prepared for:",
+      "value": "Acme Corp",
+    },
+    {
+      "label": "Prepared by:",
+      "value": "A Freelancer",
+    },
+    {
+      "label": "Period:",
+      "value": "Jan 5, 2026 – Jan 11, 2026",
+    },
+    {
+      "label": "Generated:",
+      "value": "Jan 12, 2026 at 09:00",
+    },
+    {
+      "label": "PO:",
+      "value": "12345",
+    },
+  ],
+  "summaryCsv": "Timecode,Group,Duration (Hours),Earnings
+"Development","Acme Corp",6.25,750.00
+"Design","Acme Corp",2.00,170.00
+"Total",,8.25,920.00",
+}
+`;
+
+exports[`report documents > rounding at day scope > assembles the summary table, both CSVs and the disclosure block 1`] = `
+{
+  "body": [
+    [
+      "Development",
+      "Acme Corp",
+      "$120.00/hr",
+      "6.75",
+      "$810.00",
+    ],
+    [
+      "Design",
+      "Acme Corp",
+      "$85.00/hr",
+      "2.00",
+      "$170.00",
+    ],
+  ],
+  "detailBody": [
+    [
+      "Jan 5",
+      "Development",
+      "09:00",
+      "12:30",
+      "—",
+      "3.50",
+      "$420.00",
+      "Auth flow",
+    ],
+    [
+      "Jan 5",
+      "Development",
+      "14:00",
+      "14:22",
+      "—",
+      "0.37",
+      "$44.00",
+      "—",
+    ],
+    [
+      "Jan 5",
+      "Development",
+      "15:00",
+      "15:08",
+      "—",
+      "0.13",
+      "$16.00",
+      "—",
+    ],
+    [
+      "Jan 6",
+      "Design",
+      "09:00",
+      "11:00",
+      "—",
+      "2.00",
+      "$170.00",
+      "Wireframes",
+    ],
+    [
+      "Jan 6",
+      "Development",
+      "13:00",
+      "15:45",
+      "—",
+      "2.75",
+      "$330.00",
+      "Review",
+    ],
+  ],
+  "detailHead": [
+    [
+      "Date",
+      "Timecode",
+      "Start",
+      "End",
+      "Paused",
+      "Hours",
+      "Amount",
+      "Note",
+    ],
+  ],
+  "detailedCsv": ""Date","Timecode","Group","Start","End","Duration (h, worked)","Duration (h, billed)","Amount","Note"
+"2026-01-05","Development","Acme Corp","09:00:00","12:30:00",3.5,3.50,420.00,"Auth flow"
+"2026-01-05","Development","Acme Corp","14:00:00","14:22:00",0.366667,0.37,44.00,""
+"2026-01-05","Development","Acme Corp","15:00:00","15:08:00",0.133333,0.13,16.00,""
+"2026-01-06","Design","Acme Corp","09:00:00","11:00:00",2,2.00,170.00,"Wireframes"
+"2026-01-06","Development","Acme Corp","13:00:00","15:45:00",2.75,2.75,330.00,"Review"",
+  "foot": [
+    [
+      "",
+      "Total",
+      "",
+      "8.75",
+      "$980.00",
+    ],
+  ],
+  "head": [
+    [
+      "Timecode",
+      "Group",
+      "Rate",
+      "Hours",
+      "Total",
+    ],
+  ],
+  "meta": [
+    {
+      "label": "Prepared for:",
+      "value": "Acme Corp",
+    },
+    {
+      "label": "Prepared by:",
+      "value": "A Freelancer",
+    },
+    {
+      "label": "Period:",
+      "value": "Jan 5, 2026 – Jan 11, 2026",
+    },
+    {
+      "label": "Generated:",
+      "value": "Jan 12, 2026 at 09:00",
+    },
+    {
+      "label": "Rounding:",
+      "value": "Nearest 15 minutes, applied per timecode per day — worked 8.75 h, billed 8.75 h",
+    },
+    {
+      "label": "PO:",
+      "value": "12345",
+    },
+  ],
+  "summaryCsv": "Timecode,Group,Duration (Hours),Earnings
+"Development","Acme Corp",6.75,810.00
+"Design","Acme Corp",2.00,170.00
+"Total",,8.75,980.00
+"Rounding","Nearest 15 minutes, applied per timecode per day — worked 8.75 h, billed 8.75 h",,",
+}
+`;
+
+exports[`report documents > rows that round up where their own total would not > assembles the summary table, both CSVs and the disclosure block 1`] = `
+{
+  "body": [
+    [
+      "Development",
+      "Acme Corp",
+      "$120.00/hr",
+      "1.01",
+      "$121.20",
+    ],
+    [
+      "Design",
+      "Acme Corp",
+      "$85.00/hr",
+      "1.01",
+      "$85.85",
+    ],
+  ],
+  "detailBody": [
+    [
+      "Jan 5",
+      "Development",
+      "09:00",
+      "10:00",
+      "—",
+      "1.01",
+      "$121.20",
+      "—",
+    ],
+    [
+      "Jan 6",
+      "Design",
+      "09:00",
+      "10:00",
+      "—",
+      "1.01",
+      "$85.85",
+      "—",
+    ],
+  ],
+  "detailHead": [
+    [
+      "Date",
+      "Timecode",
+      "Start",
+      "End",
+      "Paused",
+      "Hours",
+      "Amount",
+      "Note",
+    ],
+  ],
+  "detailedCsv": ""Date","Timecode","Group","Start","End","Duration (h, worked)","Duration (h, billed)","Amount","Note"
+"2026-01-05","Development","Acme Corp","09:00:00","10:00:18",1.005,1.01,121.20,""
+"2026-01-06","Design","Acme Corp","09:00:00","10:00:18",1.005,1.01,85.85,""",
+  "foot": [
+    [
+      "",
+      "Total",
+      "",
+      "2.02",
+      "$207.05",
+    ],
+  ],
+  "head": [
+    [
+      "Timecode",
+      "Group",
+      "Rate",
+      "Hours",
+      "Total",
+    ],
+  ],
+  "meta": [
+    {
+      "label": "Prepared for:",
+      "value": "Acme Corp",
+    },
+    {
+      "label": "Prepared by:",
+      "value": "A Freelancer",
+    },
+    {
+      "label": "Period:",
+      "value": "Jan 5, 2026 – Jan 11, 2026",
+    },
+    {
+      "label": "Generated:",
+      "value": "Jan 12, 2026 at 09:00",
+    },
+    {
+      "label": "PO:",
+      "value": "12345",
+    },
+  ],
+  "summaryCsv": "Timecode,Group,Duration (Hours),Earnings
+"Development","Acme Corp",1.01,121.20
+"Design","Acme Corp",1.01,85.85
+"Total",,2.02,207.05",
+}
+`;
+
+exports[`report documents > tax enabled at a zero rate, so there is no breakdown > assembles the summary table, both CSVs and the disclosure block 1`] = `
+{
+  "body": [
+    [
+      "Development",
+      "Acme Corp",
+      "$120.00/hr",
+      "6.25",
+      "$750.00",
+    ],
+    [
+      "Design",
+      "Acme Corp",
+      "$85.00/hr",
+      "2.00",
+      "$170.00",
+    ],
+  ],
+  "detailBody": [
+    [
+      "Jan 5",
+      "Development",
+      "09:00",
+      "12:30",
+      "—",
+      "3.50",
+      "$420.00",
+      "Auth flow",
+    ],
+    [
+      "Jan 6",
+      "Design",
+      "09:00",
+      "11:00",
+      "—",
+      "2.00",
+      "$170.00",
+      "Wireframes",
+    ],
+    [
+      "Jan 6",
+      "Development",
+      "13:00",
+      "15:45",
+      "—",
+      "2.75",
+      "$330.00",
+      "Review",
+    ],
+  ],
+  "detailHead": [
+    [
+      "Date",
+      "Timecode",
+      "Start",
+      "End",
+      "Paused",
+      "Hours",
+      "Amount",
+      "Note",
+    ],
+  ],
+  "detailedCsv": ""Date","Timecode","Group","Start","End","Duration (h, worked)","Duration (h, billed)","Amount","Note"
+"2026-01-05","Development","Acme Corp","09:00:00","12:30:00",3.5,3.50,420.00,"Auth flow"
+"2026-01-06","Design","Acme Corp","09:00:00","11:00:00",2,2.00,170.00,"Wireframes"
+"2026-01-06","Development","Acme Corp","13:00:00","15:45:00",2.75,2.75,330.00,"Review"",
+  "foot": [
+    [
+      "",
+      "Total",
+      "",
+      "8.25",
+      "$920.00",
+    ],
+  ],
+  "head": [
+    [
+      "Timecode",
+      "Group",
+      "Rate",
+      "Hours",
+      "Total",
+    ],
+  ],
+  "meta": [
+    {
+      "label": "Prepared for:",
+      "value": "Acme Corp",
+    },
+    {
+      "label": "Prepared by:",
+      "value": "A Freelancer",
+    },
+    {
+      "label": "Period:",
+      "value": "Jan 5, 2026 – Jan 11, 2026",
+    },
+    {
+      "label": "Generated:",
+      "value": "Jan 12, 2026 at 09:00",
+    },
+    {
+      "label": "PO:",
+      "value": "12345",
+    },
+  ],
+  "summaryCsv": "Timecode,Group,Duration (Hours),Earnings
+"Development","Acme Corp",6.25,750.00
+"Design","Acme Corp",2.00,170.00
+"Total",,8.25,920.00",
+}
+`;
+
+exports[`report documents > tax, exclusive > assembles the summary table, both CSVs and the disclosure block 1`] = `
+{
+  "body": [
+    [
+      "Development",
+      "Acme Corp",
+      "$120.00/hr",
+      "6.25",
+      "$750.00",
+    ],
+    [
+      "Design",
+      "Acme Corp",
+      "$85.00/hr",
+      "2.00",
+      "$170.00",
+    ],
+  ],
+  "detailBody": [
+    [
+      "Jan 5",
+      "Development",
+      "09:00",
+      "12:30",
+      "—",
+      "3.50",
+      "$420.00",
+      "Auth flow",
+    ],
+    [
+      "Jan 6",
+      "Design",
+      "09:00",
+      "11:00",
+      "—",
+      "2.00",
+      "$170.00",
+      "Wireframes",
+    ],
+    [
+      "Jan 6",
+      "Development",
+      "13:00",
+      "15:45",
+      "—",
+      "2.75",
+      "$330.00",
+      "Review",
+    ],
+  ],
+  "detailHead": [
+    [
+      "Date",
+      "Timecode",
+      "Start",
+      "End",
+      "Paused",
+      "Hours",
+      "Amount",
+      "Note",
+    ],
+  ],
+  "detailedCsv": ""Date","Timecode","Group","Start","End","Duration (h, worked)","Duration (h, billed)","Amount","Note"
+"2026-01-05","Development","Acme Corp","09:00:00","12:30:00",3.5,3.50,420.00,"Auth flow"
+"2026-01-06","Design","Acme Corp","09:00:00","11:00:00",2,2.00,170.00,"Wireframes"
+"2026-01-06","Development","Acme Corp","13:00:00","15:45:00",2.75,2.75,330.00,"Review"",
+  "foot": [
+    [
+      "",
+      "",
+      "",
+      "Subtotal",
+      "$920.00",
+    ],
+    [
+      "",
+      "",
+      "",
+      "GST (15%)",
+      "$138.00",
+    ],
+    [
+      "",
+      "Total",
+      "",
+      "8.25",
+      "$1058.00",
+    ],
+  ],
+  "head": [
+    [
+      "Timecode",
+      "Group",
+      "Rate",
+      "Hours",
+      "Total",
+    ],
+  ],
+  "meta": [
+    {
+      "label": "Prepared for:",
+      "value": "Acme Corp",
+    },
+    {
+      "label": "Prepared by:",
+      "value": "A Freelancer",
+    },
+    {
+      "label": "Period:",
+      "value": "Jan 5, 2026 – Jan 11, 2026",
+    },
+    {
+      "label": "Generated:",
+      "value": "Jan 12, 2026 at 09:00",
+    },
+    {
+      "label": "Tax:",
+      "value": "15% GST, exclusive",
+    },
+    {
+      "label": "PO:",
+      "value": "12345",
+    },
+  ],
+  "summaryCsv": "Timecode,Group,Duration (Hours),Earnings
+"Development","Acme Corp",6.25,750.00
+"Design","Acme Corp",2.00,170.00
+"Subtotal",,8.25,920.00
+"GST (15%)",,,138.00
+"Total",,8.25,1058.00",
+}
+`;
+
+exports[`report documents > tax, inclusive > assembles the summary table, both CSVs and the disclosure block 1`] = `
+{
+  "body": [
+    [
+      "Development",
+      "Acme Corp",
+      "$120.00/hr",
+      "6.25",
+      "$750.00",
+    ],
+    [
+      "Design",
+      "Acme Corp",
+      "$85.00/hr",
+      "2.00",
+      "$170.00",
+    ],
+  ],
+  "detailBody": [
+    [
+      "Jan 5",
+      "Development",
+      "09:00",
+      "12:30",
+      "—",
+      "3.50",
+      "$420.00",
+      "Auth flow",
+    ],
+    [
+      "Jan 6",
+      "Design",
+      "09:00",
+      "11:00",
+      "—",
+      "2.00",
+      "$170.00",
+      "Wireframes",
+    ],
+    [
+      "Jan 6",
+      "Development",
+      "13:00",
+      "15:45",
+      "—",
+      "2.75",
+      "$330.00",
+      "Review",
+    ],
+  ],
+  "detailHead": [
+    [
+      "Date",
+      "Timecode",
+      "Start",
+      "End",
+      "Paused",
+      "Hours",
+      "Amount",
+      "Note",
+    ],
+  ],
+  "detailedCsv": ""Date","Timecode","Group","Start","End","Duration (h, worked)","Duration (h, billed)","Amount","Note"
+"2026-01-05","Development","Acme Corp","09:00:00","12:30:00",3.5,3.50,420.00,"Auth flow"
+"2026-01-06","Design","Acme Corp","09:00:00","11:00:00",2,2.00,170.00,"Wireframes"
+"2026-01-06","Development","Acme Corp","13:00:00","15:45:00",2.75,2.75,330.00,"Review"",
+  "foot": [
+    [
+      "",
+      "",
+      "",
+      "Subtotal (excl. GST)",
+      "$800.00",
+    ],
+    [
+      "",
+      "",
+      "",
+      "GST (15%)",
+      "$120.00",
+    ],
+    [
+      "",
+      "Total",
+      "",
+      "8.25",
+      "$920.00",
+    ],
+  ],
+  "head": [
+    [
+      "Timecode",
+      "Group",
+      "Rate",
+      "Hours",
+      "Total (incl. GST)",
+    ],
+  ],
+  "meta": [
+    {
+      "label": "Prepared for:",
+      "value": "Acme Corp",
+    },
+    {
+      "label": "Prepared by:",
+      "value": "A Freelancer",
+    },
+    {
+      "label": "Period:",
+      "value": "Jan 5, 2026 – Jan 11, 2026",
+    },
+    {
+      "label": "Generated:",
+      "value": "Jan 12, 2026 at 09:00",
+    },
+    {
+      "label": "Tax:",
+      "value": "15% GST, inclusive — line totals include tax",
+    },
+    {
+      "label": "PO:",
+      "value": "12345",
+    },
+  ],
+  "summaryCsv": "Timecode,Group,Duration (Hours),Total (incl. GST)
+"Development","Acme Corp",6.25,750.00
+"Design","Acme Corp",2.00,170.00
+"Subtotal (excl. GST)",,8.25,800.00
+"GST (15%)",,,120.00
+"Total",,8.25,920.00",
+}
+`;

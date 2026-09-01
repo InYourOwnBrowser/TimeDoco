@@ -13,10 +13,13 @@ import {
   CheckCircle2, Info, Plus, BarChart2, PieChart as PieIcon, ExternalLink
 } from 'lucide-react';
 import { useToast } from '../context/ToastContext';
-import { calculateDuration, calculateTaxBreakdown, calculateTotalPausedSeconds, formatDurationShort, roundCurrency, roundHours } from '../utils/timeUtils';
-import { buildReportLines, distributeAcrossBuckets, formatWorkedHours, roundingNote, summarizeReport, workedSecondsFor, zeroBilledNote } from '../utils/billing';
-import type { RoundingScope } from '../utils/billing';
-import { createEvents, type EventAttributes } from 'ics';
+import { calculateDuration, formatDurationShort, roundCurrency } from '../utils/timeUtils';
+import { buildReportLines, distributeAcrossBuckets, workedSecondsFor } from '../utils/billing';
+import {
+  buildCalendarEvents, buildDetailTable, buildDetailedRawCSV, buildReportMeta, buildReportModel,
+  buildSummaryCSV, buildSummaryTable, formatAmount as formatMoney, safeFormatDate,
+} from '../utils/reportDocument';
+import { createEvents } from 'ics';
 import { LOGO_PRINT_BASE64 } from '../assets/logoPrint';
 import { EntryEditModal } from './EntryEditModal';
 import { useNamedDownload } from '../hooks/useNamedDownload';
@@ -27,20 +30,6 @@ type TabType = 'overview' | 'estimates' | 'timeline' | 'export';
 type BreakdownType = 'timecode' | 'group';
 type ChartType = 'bar' | 'pie';
 type SortField = 'bias' | 'typicalMiss' | 'hitRate' | 'count' | 'name';
-
-const ROUNDING_RULE_LABELS: Record<string, string> = {
-  none: 'None',
-  '5min': 'Nearest 5 minutes',
-  '10min': 'Nearest 10 minutes',
-  '15min': 'Nearest 15 minutes',
-};
-
-const ROUNDING_SCOPE_LABELS: Record<RoundingScope, string> = {
-  entry: 'applied to each entry',
-  day: 'applied per timecode per day',
-  timecode: 'applied per timecode for the period',
-  invoice: 'applied once to the report total',
-};
 
 export const AnalysisView: React.FC = () => {
   const { entries, timecodes, groups, settings, updateSettings } = useTimeTracker();
@@ -208,53 +197,29 @@ export const AnalysisView: React.FC = () => {
   }, [entries, dateRange, timecodeMap, settings]);
 
   // Calculations for Current Period
-  const { timecodeData, groupData, totalSeconds, totalHours, totalWorkedSeconds, totalEarnings, totalFees, taxBreakdown, zeroLinesCount } = useMemo(() => {
-    // Rows, groups and totals all come from one roll-up so a generated document
-    // cannot print a row whose own arithmetic disagrees with its column.
-    const summary = summarizeReport(filteredEntries, billableLines, timecodeMap);
-    const { totals } = summary;
+  //
+  // One roll-up, in one place, consumed by the screen and by every document
+  // built from it. `reportDocument` owns everything downstream of
+  // `summarizeReport` so the assembly can be asserted without a PDF renderer.
+  const {
+    timecodeData, groupData, totalSeconds, totalHours, totalWorkedSeconds, totalEarnings,
+    totalFees, taxBreakdown, zeroLinesCount, zeroLinesNote, roundingDelta,
+    showFeesColumn, showEarningsColumn,
+  } = useMemo(
+    () => buildReportModel({ entries: filteredEntries, lines: billableLines, timecodeMap, groupMap, settings }),
+    [filteredEntries, billableLines, timecodeMap, groupMap, settings],
+  );
 
-    const formattedTcData = summary.timecodeRows.map(row => {
-      const tc = timecodeMap.get(row.id);
-      return {
-        id: row.id,
-        name: tc?.name || 'Unknown',
-        durationHours: row.hours,
-        earnings: row.amount,
-        // Kept apart from `earnings` so the row can print the arithmetic a
-        // client checks: rate x hours + fees = total.
-        fees: row.fees,
-        color: tc?.color || (tc?.groupId ? groupMap.get(tc.groupId)?.color : undefined) || '#cbd5e1'
-      };
-    }).sort((a, b) => b.durationHours - a.durationHours);
-
-    const formattedGrpData = summary.groupRows.map(row => {
-      const grp = groupMap.get(row.id);
-      return {
-        id: row.id,
-        name: row.id === 'ungrouped' ? 'Ungrouped' : grp?.name || 'Unknown',
-        durationHours: row.hours,
-        color: grp?.color || '#cbd5e1'
-      };
-    }).sort((a, b) => b.durationHours - a.durationHours);
-
-    const calculatedTax = settings?.taxEnabled && settings?.taxRate
-      ? calculateTaxBreakdown(totals.amount, settings.taxRate, !!settings.taxInclusive)
-      : null;
-
-    return {
-      timecodeData: formattedTcData,
-      groupData: formattedGrpData,
-      totalSeconds: totals.seconds,
-      // The sum of the printed rows, so the Total line reconciles with them.
-      totalHours: summary.totalHours,
-      totalWorkedSeconds: totals.workedSeconds,
-      totalEarnings: totals.amount,
-      totalFees: totals.fees,
-      taxBreakdown: calculatedTax,
-      zeroLinesCount: summary.zeroLinesCount
-    };
-  }, [filteredEntries, billableLines, timecodeMap, groupMap, settings?.taxEnabled, settings?.taxRate, settings?.taxInclusive]);
+  const reportModel = useMemo(
+    () => ({
+      timecodeData, groupData, totalSeconds, totalHours, totalWorkedSeconds, totalEarnings,
+      totalFees, taxBreakdown, zeroLinesCount, zeroLinesNote, roundingDelta,
+      showFeesColumn, showEarningsColumn,
+    }),
+    [timecodeData, groupData, totalSeconds, totalHours, totalWorkedSeconds, totalEarnings,
+      totalFees, taxBreakdown, zeroLinesCount, zeroLinesNote, roundingDelta,
+      showFeesColumn, showEarningsColumn],
+  );
 
   // Calculations for Previous Period (for comparisons)
   const prevStats = useMemo(() => {
@@ -288,22 +253,6 @@ export const AnalysisView: React.FC = () => {
       pctEarnings
     };
   }, [prevPeriodEntries, prevFilteredEntries, prevDateRange, comparePrevious, totalSeconds, totalEarnings, timecodeMap, settings]);
-
-  // Billed-vs-worked, so the gap between the clock and the invoice is visible
-  // rather than silent. Rounding is one cause; a fixed amount is the other,
-  // since it bills as a fee rather than by the hour and so adds no hours. With
-  // neither in play the two totals are equal and there is nothing to say.
-  // Which entries dropped out of the report, worded once for the screen, the
-  // PDF and the CSV.
-  const zeroLinesNote = useMemo(
-    () => zeroBilledNote(zeroLinesCount, settings?.roundingRule ?? 'none'),
-    [zeroLinesCount, settings?.roundingRule]
-  );
-
-  const roundingDelta = useMemo(
-    () => roundingNote(totalWorkedSeconds, totalSeconds, totalFees, zeroLinesCount, settings?.roundingRule ?? 'none'),
-    [totalSeconds, totalWorkedSeconds, totalFees, zeroLinesCount, settings?.roundingRule]
-  );
 
   // Detect overlaps
   const overlaps = useMemo(() => {
@@ -634,115 +583,13 @@ export const AnalysisView: React.FC = () => {
     }));
   }, [dateRange, filteredEntries, billableLines]);
 
-  const showEarningsColumn = totalEarnings !== 0 || timecodeData.some(tc => tc.earnings !== 0);
-
-  // A fixed cost bills as a fee instead of by the hour, so it adds no hours to
-  // its row. Without the fee broken out, a row carrying one printed a Total
-  // that Rate x Hours did not reach and the reader had no way to see why.
-  const showFeesColumn = totalFees !== 0 || timecodeData.some(tc => tc.fees !== 0);
-
-  /**
-   * Money as it appears on a report. A zero is a dash; anything else prints,
-   * negatives included — a credit, a discount or a negative-rate adjustment
-   * counts toward the total, so hiding it makes the total unreconcilable.
-   */
-  const formatAmount = (amount: number) =>
-    amount === 0 ? '-' : `${currencySymbol}${amount.toFixed(2)}`;
-
-  const escapeCSV = (str: string) => {
-    let escaped = str.replace(/"/g, '""');
-    if (/^[=+\-@\t\r]/.test(escaped)) {
-      escaped = "'" + escaped;
-    }
-    return `"${escaped}"`;
-  };
-
-  const safeFormatDate = (d: Date, fmt: string, fallback = '') => (isValid(d) ? format(d, fmt) : fallback);
+  const formatAmount = (amount: number) => formatMoney(amount, currencySymbol);
 
   // Export CSV
   const handleExportCSV = () => {
     const defaultFilename = `time-report-${scopeSlug}-${safeFormatDate(dateRange.start, 'yyyy-MM-dd', 'custom-period')}`;
     triggerDownload(
-      () => {
-        // Same shape as the PDF summary: fees are their own column when there
-        // are any, so Duration x rate + Fees reconciles with Earnings.
-        const feeCol = (value: string) => (showFeesColumn ? [value] : []);
-        const earningsHeader = settings?.taxEnabled && settings?.taxInclusive
-          ? `Total (incl. ${settings?.taxLabel || 'Tax'})`
-          : 'Earnings';
-        const headers = ['Timecode', 'Group', 'Duration (Hours)', ...feeCol('Fees'), earningsHeader];
-        const rows = timecodeData.map(tc => {
-          const timecode = timecodeMap.get(tc.id);
-          const groupName = timecode?.groupId ? groupMap.get(timecode.groupId)?.name || 'Unknown' : 'Ungrouped';
-          return [
-            escapeCSV(tc.name),
-            escapeCSV(groupName),
-            tc.durationHours.toString(),
-            ...feeCol(tc.fees.toFixed(2)),
-            tc.earnings.toFixed(2)
-          ].join(',');
-        });
-
-        if (taxBreakdown) {
-          const subtotalLabel = settings?.taxInclusive
-            ? `Subtotal (excl. ${settings?.taxLabel || 'Tax'})`
-            : 'Subtotal';
-          rows.push([
-            escapeCSV(subtotalLabel),
-            '',
-            totalHours.toFixed(2),
-            ...feeCol(totalFees.toFixed(2)),
-            taxBreakdown.subtotal.toFixed(2)
-          ].join(','));
-          rows.push([
-            escapeCSV(`${settings?.taxLabel || 'Tax'} (${settings?.taxRate}%)`),
-            '',
-            '',
-            ...feeCol(''),
-            taxBreakdown.tax.toFixed(2)
-          ].join(','));
-          rows.push([
-            escapeCSV('Total'),
-            '',
-            totalHours.toFixed(2),
-            ...feeCol(totalFees.toFixed(2)),
-            taxBreakdown.total.toFixed(2)
-          ].join(','));
-        } else {
-          rows.push([
-            escapeCSV('Total'),
-            '',
-            totalHours.toFixed(2),
-            ...feeCol(totalFees.toFixed(2)),
-            totalEarnings.toFixed(2)
-          ].join(','));
-        }
-
-        // The same disclosure the PDF carries. A spreadsheet handed to a client
-        // is the document they reconcile against; it cannot be the one copy of
-        // the report that does not say the hours were rounded, or that entries
-        // are missing from it. Appended as labelled rows, like the totals above,
-        // so the column layout still parses.
-        const roundingRule = settings?.roundingRule ?? 'none';
-        if (roundingRule !== 'none') {
-          rows.push([
-            escapeCSV('Rounding'),
-            escapeCSV(
-              `${ROUNDING_RULE_LABELS[roundingRule]}, ${ROUNDING_SCOPE_LABELS[settings?.roundingScope || 'day']} — ` +
-              `worked ${roundHours(totalWorkedSeconds / 3600).toFixed(2)} h, billed ${totalHours.toFixed(2)} h`
-            ),
-            '',
-            ...feeCol(''),
-            ''
-          ].join(','));
-        }
-        if (zeroLinesNote) {
-          rows.push([escapeCSV('Not billed'), escapeCSV(zeroLinesNote), '', ...feeCol(''), ''].join(','));
-        }
-
-        const csvContent = [headers.join(','), ...rows].join('\n');
-        return new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
-      },
+      () => new Blob([buildSummaryCSV(reportModel, settings)], { type: 'text/csv;charset=utf-8;' }),
       defaultFilename,
       'csv'
     );
@@ -750,36 +597,7 @@ export const AnalysisView: React.FC = () => {
 
   // Export ICS
   const handleExportICS = () => {
-    const events: EventAttributes[] = filteredEntries.map(e => {
-      const tc = timecodeMap.get(e.timecodeId);
-      const start = parseISO(e.startTime);
-      const end = e.endTime ? parseISO(e.endTime) : new Date();
-
-      return {
-        uid: e.id,
-        start: [
-          start.getUTCFullYear(),
-          start.getUTCMonth() + 1,
-          start.getUTCDate(),
-          start.getUTCHours(),
-          start.getUTCMinutes()
-        ],
-        end: [
-          end.getUTCFullYear(),
-          end.getUTCMonth() + 1,
-          end.getUTCDate(),
-          end.getUTCHours(),
-          end.getUTCMinutes()
-        ],
-        startInputType: 'utc',
-        startOutputType: 'utc',
-        endInputType: 'utc',
-        endOutputType: 'utc',
-        title: tc?.name ?? 'Unknown',
-        description: e.note ?? '',
-      };
-    });
-
+    const events = buildCalendarEvents(filteredEntries, timecodeMap);
     if (events.length === 0) return;
 
     const defaultFilename = `time-entries-${scopeSlug}-${safeFormatDate(dateRange.start, 'yyyy-MM-dd', 'custom-period')}`;
@@ -799,51 +617,16 @@ export const AnalysisView: React.FC = () => {
     );
   };
 
-  // Export Detailed Raw CSV
-  //
-  // Two duration columns, because this export is the one a user is told to keep
-  // to check an invoice against, and a single column could only be one of the
-  // two things it needs to be. `worked` is the measurement: time on the clock
-  // inside the reporting window, unrounded, and present even for a fee entry
-  // whose hours are not billed. `billed` is what the invoice charged for, after
-  // the rounding rule has been applied at its scope and shared back across the
-  // bucket. Printing only `billed` under a header reading "raw" meant the
-  // ground-truth record silently agreed with the invoice it was meant to
-  // corroborate: a 50-minute entry at 15min/day rounding read 0.75.
+  // Export Detailed Raw CSV. Assembled in `reportDocument` alongside the PDF's
+  // itemised table, from the same rows in the same order, so the spreadsheet a
+  // client reconciles the invoice against cannot list different work.
   const downloadDetailedRawCSV = () => {
     const defaultFilename = `time-entries-${scopeSlug}-${safeFormatDate(dateRange.start, 'yyyy-MM-dd', 'custom-period')}`;
     triggerDownload(
-      () => {
-        // Quoted like any other field: two of these names contain a comma, and
-        // an unquoted header would split into two columns and shift every
-        // heading after it out of line with the data beneath.
-        const headers = ['Date', 'Timecode', 'Group', 'Start', 'End', 'Duration (h, worked)', 'Duration (h, billed)', 'Amount', 'Note']
-          .map(escapeCSV);
-        const rows = filteredEntries.map(e => {
-          const tc = timecodeMap.get(e.timecodeId);
-          const grp = tc?.groupId ? groupMap.get(tc.groupId) : undefined;
-          const line = billableLines.get(e.id);
-          const hrs = line?.hours ?? 0;
-          const amount = line?.amount ?? 0;
-          return [
-            escapeCSV(format(parseISO(e.startTime), 'yyyy-MM-dd')),
-            escapeCSV(tc?.name ?? 'Unknown'),
-            escapeCSV(grp?.name ?? 'Ungrouped'),
-            escapeCSV(format(parseISO(e.startTime), 'HH:mm:ss')),
-            escapeCSV(e.endTime ? format(parseISO(e.endTime), 'HH:mm:ss') : ''),
-            formatWorkedHours(line?.workedSeconds ?? 0),
-            // A fee bills no hours; an empty cell says so, where 0.00 would
-            // read as a duration that was measured and came out at zero. The
-            // worked column beside it still carries its time on the clock.
-            line?.isFixedCost ? '' : hrs.toFixed(2),
-            amount !== 0 ? amount.toFixed(2) : '',
-            escapeCSV(e.note),
-          ].join(',');
-        });
-
-        const csvContent = [headers.join(','), ...rows].join('\n');
-        return new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
-      },
+      () => new Blob(
+        [buildDetailedRawCSV(filteredEntries, billableLines, timecodeMap, groupMap)],
+        { type: 'text/csv;charset=utf-8;' },
+      ),
       defaultFilename,
       'csv'
     );
@@ -898,53 +681,17 @@ export const AnalysisView: React.FC = () => {
       ensureHeader(1);
 
       let y = 28;
-      const lines: { label: string; value: string }[] = [];
-      const addMeta = (label: string, value: string) => {
-        if (value) {
-          lines.push({ label, value });
-        }
-      };
-
-      addMeta('Prepared for:', preparedFor);
-      addMeta('Prepared by:', preparedBy);
-      addMeta('Period:', `${safeFormatDate(dateRange.start, 'MMM d, yyyy')} – ${safeFormatDate(dateRange.end, 'MMM d, yyyy')}`);
-      addMeta('Generated:', format(new Date(), "MMM d, yyyy 'at' HH:mm"));
-
-      // Disclose rounding on the document itself. Without this the client sees
-      // a billed figure that does not match the itemised times and has no way
-      // to tell why.
-      const workedHours = roundHours(totalWorkedSeconds / 3600);
-      if ((settings?.roundingRule ?? 'none') !== 'none') {
-        addMeta(
-          'Rounding:',
-          `${ROUNDING_RULE_LABELS[settings!.roundingRule]}, ${ROUNDING_SCOPE_LABELS[settings?.roundingScope || 'day']} — ` +
-          `worked ${workedHours.toFixed(2)} h, billed ${totalHours.toFixed(2)} h` +
-          // Which entries went missing, not just how much time did. The billed
-          // figure alone cannot tell a reader that a line is absent entirely.
-          (zeroLinesNote ? ` (${zeroLinesNote})` : '')
-        );
-      } else if (zeroLinesNote) {
-        addMeta('Not billed:', `${zeroLinesNote}.`);
-      }
-      // The other reason the Hours column can be short of the time on the
-      // clock: a fixed amount bills as a fee, so its entry shows a dash for
-      // Hours and its minutes are in neither the row nor the total.
-      if (totalFees !== 0) {
-        addMeta(
-          'Fees:',
-          `${currencySymbol}${totalFees.toFixed(2)} billed as fixed amounts rather than by the hour — ` +
-          `worked ${workedHours.toFixed(2)} h in total, of which ${totalHours.toFixed(2)} h is billed at a rate.`
-        );
-      }
-      if (settings?.taxEnabled && settings?.taxRate) {
-        const taxLabel = settings.taxLabel || 'Tax';
-        const modeStr = settings.taxInclusive ? 'inclusive — line totals include tax' : 'exclusive';
-        addMeta('Tax:', `${settings.taxRate}% ${taxLabel}, ${modeStr}`);
-      }
-
-      reportFields
-        .filter(f => f.label.trim() && f.value.trim())
-        .forEach(f => addMeta(`${f.label}:`, f.value));
+      // The labelled disclosure block, assembled in `reportDocument` from the
+      // same model the tables are built from: what a line claims about the
+      // numbers underneath it is asserted against those numbers.
+      const lines = buildReportMeta(reportModel, {
+        preparedFor,
+        preparedBy,
+        periodText: `${safeFormatDate(dateRange.start, 'MMM d, yyyy')} – ${safeFormatDate(dateRange.end, 'MMM d, yyyy')}`,
+        generatedText: format(new Date(), "MMM d, yyyy 'at' HH:mm"),
+        customFields: reportFields,
+        settings,
+      });
 
       let labelColWidth = 0;
       let valueX = 40;
@@ -980,79 +727,26 @@ export const AnalysisView: React.FC = () => {
       doc.setFont('helvetica', 'bold');
       doc.text('Summary', 14, y);
 
-      // With a Fees column the row reads as arithmetic the client can check:
-      // Rate x Hours + Fees = Total. It only appears when there is a fee to
-      // show, so an ordinary hourly report keeps the four columns it had.
-      const summaryRows = timecodeData.map(tc => {
-        const timecode = timecodeMap.get(tc.id);
-        const groupName = timecode?.groupId ? groupMap.get(timecode.groupId)?.name || 'Unknown' : 'Ungrouped';
-        const rate = timecode?.hourlyRate ? `${currencySymbol}${timecode.hourlyRate.toFixed(2)}/hr` : '-';
-        const row = [tc.name, groupName, rate, tc.durationHours.toFixed(2)];
-        if (showFeesColumn) row.push(formatAmount(tc.fees));
-        row.push(formatAmount(tc.earnings));
-        return row;
-      });
-
-      // A tax line labels itself in the column immediately before the money, so
-      // the leading blanks grow with the table rather than being counted out.
-      const feeCell = showFeesColumn ? [formatAmount(totalFees)] : [];
-      const labelledFootRow = (label: string, value: string) => {
-        const width = showFeesColumn ? 6 : 5;
-        return [...Array(width - 2).fill(''), label, value];
-      };
-      const subtotalLabel = settings?.taxInclusive
-        ? `Subtotal (excl. ${settings?.taxLabel || 'Tax'})`
-        : 'Subtotal';
-      const foot = taxBreakdown
-        ? [
-            labelledFootRow(subtotalLabel, `${currencySymbol}${taxBreakdown.subtotal.toFixed(2)}`),
-            labelledFootRow(`${settings?.taxLabel || 'Tax'} (${settings?.taxRate}%)`, `${currencySymbol}${taxBreakdown.tax.toFixed(2)}`),
-            ['', 'Total', '', totalHours.toFixed(2), ...feeCell, `${currencySymbol}${taxBreakdown.total.toFixed(2)}`],
-          ]
-        : [['', 'Total', '', totalHours.toFixed(2), ...feeCell, formatAmount(totalEarnings)]];
-
-      const pdfEarningsHeader = settings?.taxEnabled && settings?.taxInclusive
-        ? `Total (incl. ${settings?.taxLabel || 'Tax'})`
-        : 'Total';
+      // head/body/foot come out of `reportDocument`, so the numbers a client
+      // reads can be asserted without a PDF renderer. Everything here is layout.
+      const summaryTable = buildSummaryTable(reportModel, settings);
 
       autoTable(doc, {
         startY: y + 4,
-        head: [['Timecode', 'Group', 'Rate', 'Hours', ...(showFeesColumn ? ['Fees'] : []), pdfEarningsHeader]],
-        body: summaryRows,
-        foot,
+        head: summaryTable.head,
+        body: summaryTable.body,
+        foot: summaryTable.foot,
         footStyles: { fontStyle: 'bold', fillColor: [238, 240, 236], textColor: [16, 22, 28] },
         margin: { top: 25 },
         didDrawPage: () => ensureHeader((doc.internal as any).getNumberOfPages()),
       });
 
-      const detailRows = [...filteredEntries]
-        .sort((a, b) => new Date(a.startTime).getTime() - new Date(b.startTime).getTime())
-        .map(e => {
-          const tc = timecodeMap.get(e.timecodeId);
-          const line = billableLines.get(e.id);
-          // A fee bills no hours, so the Hours cell is a dash rather than a
-          // 0.00 that reads as a missing figure.
-          const hrs = line?.isFixedCost ? '—' : (line?.hours ?? 0).toFixed(2);
-          const amount = line?.amount ?? 0;
-          const paused = e.endTime
-            ? formatDurationShort(calculateTotalPausedSeconds(parseISO(e.startTime), parseISO(e.endTime), e.pausedSegments))
-            : '—';
-          return [
-            format(parseISO(e.startTime), 'MMM d'),
-            tc?.name ?? 'Unknown',
-            format(parseISO(e.startTime), 'HH:mm'),
-            e.endTime ? format(parseISO(e.endTime), 'HH:mm') : 'Running',
-            paused,
-            hrs,
-            formatAmount(amount),
-            e.note || '—',
-          ];
-        });
+      const detailTable = buildDetailTable(filteredEntries, billableLines, timecodeMap, settings);
 
       autoTable(doc, {
         startY: (doc as any).lastAutoTable.finalY + 10,
-        head: [['Date', 'Timecode', 'Start', 'End', 'Paused', 'Hours', 'Amount', 'Note']],
-        body: detailRows,
+        head: detailTable.head,
+        body: detailTable.body,
         styles: { fontSize: 8, cellPadding: 2 },
         columnStyles: { 7: { cellWidth: 60 } },
         margin: { top: 25 },
