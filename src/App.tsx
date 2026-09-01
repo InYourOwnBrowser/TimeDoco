@@ -284,26 +284,26 @@ const AppContent = () => {
           <p className="text-gray-600 dark:text-gray-400 mb-6">Track time. Bill clients. Own your data.</p>
 
           <div className="flex justify-center mb-4 w-full px-4 sm:px-0">
-            <div className="bg-white dark:bg-graphite p-1 rounded-panel flex w-full sm:w-auto overflow-x-auto hide-scrollbar border border-graphite/20 dark:border-white/20 shadow-sm gap-1">
+            <div className="bg-white/80 dark:bg-graphite/90 backdrop-blur-md p-1.5 rounded-panel flex w-full sm:w-auto overflow-x-auto hide-scrollbar border border-graphite/20 dark:border-white/15 shadow-sm gap-1">
               <button
                 onClick={() => setActiveTab('tracker')}
-                className={`flex-1 sm:flex-none flex items-center justify-center sm:justify-start px-3.5 sm:px-4 py-2 text-sm font-medium transition-colors rounded-panel focus-visible:ring-2 focus-visible:ring-signal focus-visible:ring-offset-2 ring-offset-stone dark:ring-offset-ink ${
+                className={`flex-1 sm:flex-none flex items-center justify-center sm:justify-start px-4 py-2 text-sm font-medium transition-all rounded-panel focus-visible:ring-2 focus-visible:ring-signal focus-visible:ring-offset-2 ring-offset-stone dark:ring-offset-ink ${
                   activeTab === 'tracker'
-                    ? 'bg-signal/10 text-signal-dim dark:text-signal border border-signal/30 font-semibold'
-                    : 'text-graphite/80 dark:text-stone/80 hover:text-gray-900 dark:hover:text-white hover:bg-gray-100 dark:hover:bg-gray-800/50'
+                    ? 'bg-signal/15 text-signal-dim dark:text-signal border border-signal/40 font-semibold shadow-xs'
+                    : 'border border-transparent text-graphite/70 dark:text-stone/70 hover:text-graphite dark:hover:text-stone hover:bg-stone/50 dark:hover:bg-gray-800/50'
                 }`}
                 aria-label="Tracker"
                 title="Tracker"
               >
-                <Clock size={16} className="sm:mr-2" />
+                <Clock size={16} className="sm:mr-2 text-signal" />
                 <span className="hidden sm:inline">Tracker</span>
               </button>
               <button
                 onClick={() => setActiveTab('timesheet')}
-                className={`flex-1 sm:flex-none flex items-center justify-center sm:justify-start px-3.5 sm:px-4 py-2 text-sm font-medium transition-colors rounded-panel focus-visible:ring-2 focus-visible:ring-signal focus-visible:ring-offset-2 ring-offset-stone dark:ring-offset-ink ${
+                className={`flex-1 sm:flex-none flex items-center justify-center sm:justify-start px-4 py-2 text-sm font-medium transition-all rounded-panel focus-visible:ring-2 focus-visible:ring-signal focus-visible:ring-offset-2 ring-offset-stone dark:ring-offset-ink ${
                   activeTab === 'timesheet'
-                    ? 'bg-signal/10 text-signal-dim dark:text-signal border border-signal/30 font-semibold'
-                    : 'text-graphite/80 dark:text-stone/80 hover:text-gray-900 dark:hover:text-white hover:bg-gray-100 dark:hover:bg-gray-800/50'
+                    ? 'bg-signal/15 text-signal-dim dark:text-signal border border-signal/40 font-semibold shadow-xs'
+                    : 'border border-transparent text-graphite/70 dark:text-stone/70 hover:text-graphite dark:hover:text-stone hover:bg-stone/50 dark:hover:bg-gray-800/50'
                 }`}
                 aria-label="Timesheet"
                 title="Timesheet"
@@ -313,10 +313,10 @@ const AppContent = () => {
               </button>
               <button
                 onClick={() => setActiveTab('analysis')}
-                className={`flex-1 sm:flex-none flex items-center justify-center sm:justify-start px-3.5 sm:px-4 py-2 text-sm font-medium transition-colors rounded-panel focus-visible:ring-2 focus-visible:ring-signal focus-visible:ring-offset-2 ring-offset-stone dark:ring-offset-ink ${
+                className={`flex-1 sm:flex-none flex items-center justify-center sm:justify-start px-4 py-2 text-sm font-medium transition-all rounded-panel focus-visible:ring-2 focus-visible:ring-signal focus-visible:ring-offset-2 ring-offset-stone dark:ring-offset-ink ${
                   activeTab === 'analysis'
-                    ? 'bg-signal/10 text-signal-dim dark:text-signal border border-signal/30 font-semibold'
-                    : 'text-graphite/80 dark:text-stone/80 hover:text-gray-900 dark:hover:text-white hover:bg-gray-100 dark:hover:bg-gray-800/50'
+                    ? 'bg-signal/15 text-signal-dim dark:text-signal border border-signal/40 font-semibold shadow-xs'
+                    : 'border border-transparent text-graphite/70 dark:text-stone/70 hover:text-graphite dark:hover:text-stone hover:bg-stone/50 dark:hover:bg-gray-800/50'
                 }`}
                 aria-label="Analysis"
                 title="Analysis"
@@ -326,10 +326,10 @@ const AppContent = () => {
               </button>
               <button
                 onClick={() => setActiveTab('management')}
-                className={`flex-1 sm:flex-none flex items-center justify-center sm:justify-start px-3.5 sm:px-4 py-2 text-sm font-medium transition-colors rounded-panel focus-visible:ring-2 focus-visible:ring-signal focus-visible:ring-offset-2 ring-offset-stone dark:ring-offset-ink ${
+                className={`flex-1 sm:flex-none flex items-center justify-center sm:justify-start px-4 py-2 text-sm font-medium transition-all rounded-panel focus-visible:ring-2 focus-visible:ring-signal focus-visible:ring-offset-2 ring-offset-stone dark:ring-offset-ink ${
                   activeTab === 'management'
-                    ? 'bg-signal/10 text-signal-dim dark:text-signal border border-signal/30 font-semibold'
-                    : 'text-graphite/80 dark:text-stone/80 hover:text-gray-900 dark:hover:text-white hover:bg-gray-100 dark:hover:bg-gray-800/50'
+                    ? 'bg-signal/15 text-signal-dim dark:text-signal border border-signal/40 font-semibold shadow-xs'
+                    : 'border border-transparent text-graphite/70 dark:text-stone/70 hover:text-graphite dark:hover:text-stone hover:bg-stone/50 dark:hover:bg-gray-800/50'
                 }`}
                 aria-label="Management"
                 title="Management"
@@ -339,10 +339,10 @@ const AppContent = () => {
               </button>
               <button
                 onClick={() => setActiveTab('resources')}
-                className={`flex-1 sm:flex-none flex items-center justify-center sm:justify-start px-3.5 sm:px-4 py-2 text-sm font-medium transition-colors rounded-panel focus-visible:ring-2 focus-visible:ring-signal focus-visible:ring-offset-2 ring-offset-stone dark:ring-offset-ink ${
+                className={`flex-1 sm:flex-none flex items-center justify-center sm:justify-start px-4 py-2 text-sm font-medium transition-all rounded-panel focus-visible:ring-2 focus-visible:ring-signal focus-visible:ring-offset-2 ring-offset-stone dark:ring-offset-ink ${
                   activeTab === 'resources'
-                    ? 'bg-signal/10 text-signal-dim dark:text-signal border border-signal/30 font-semibold'
-                    : 'text-graphite/80 dark:text-stone/80 hover:text-gray-900 dark:hover:text-white hover:bg-gray-100 dark:hover:bg-gray-800/50'
+                    ? 'bg-signal/15 text-signal-dim dark:text-signal border border-signal/40 font-semibold shadow-xs'
+                    : 'border border-transparent text-graphite/70 dark:text-stone/70 hover:text-graphite dark:hover:text-stone hover:bg-stone/50 dark:hover:bg-gray-800/50'
                 }`}
                 aria-label="Resources"
                 title="Resources"
