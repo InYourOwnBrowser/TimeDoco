@@ -16,7 +16,9 @@ function getAudioContext(): AudioContext | null {
 // session — otherwise the first automatic playback later (which has no
 // user gesture behind it) may be silently blocked by the browser.
 export function unlockAudioAlert() {
-  getAudioContext()?.resume();
+  // resume() rejects when there is no output device, which is not worth
+  // telling anyone about — but it must not surface as an unhandled rejection.
+  getAudioContext()?.resume().catch(() => {});
 }
 
 export function playOverrunChime() {

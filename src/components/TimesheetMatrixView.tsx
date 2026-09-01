@@ -327,9 +327,9 @@ export const TimesheetMatrixView: React.FC = () => {
                               onBlur={(e) => {
                                 const val = parseFloat(e.target.value);
                                 if (!isNaN(val)) {
-                                  commitCell(tc.id, day, val);
+                                  void commitCell(tc.id, day, val);
                                 } else if (e.target.value === '') {
-                                  commitCell(tc.id, day, 0);
+                                  void commitCell(tc.id, day, 0);
                                 }
                               }}
                               className="w-full text-center p-1.5 bg-transparent border border-transparent hover:border-graphite/20 dark:hover:border-white/20 focus-visible:ring-2 focus-visible:ring-signal focus-visible:ring-offset-2 ring-offset-stone dark:ring-offset-graphite rounded tabular-nums focus:outline-none focus:bg-white dark:focus:bg-graphite transition-all text-graphite dark:text-stone"

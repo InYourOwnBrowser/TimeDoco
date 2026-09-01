@@ -9,13 +9,14 @@ interface Props {
 interface State {
   hasError: boolean;
   error?: Error;
-  copied?: boolean;
+  /** null while idle, then whether the clipboard write actually landed. */
+  copyResult?: 'copied' | 'failed' | null;
 }
 
 export class ErrorBoundary extends Component<Props, State> {
   public state: State = {
     hasError: false,
-    copied: false,
+    copyResult: null,
   };
 
   public static getDerivedStateFromError(error: Error): State {
@@ -54,15 +55,29 @@ export class ErrorBoundary extends Component<Props, State> {
               </button>
               <button
                 onClick={() => {
+                  // Say "Copied!" only once it is. The write is rejected when
+                  // the document is not focused or permission is refused, and
+                  // reporting success regardless is worst here of anywhere:
+                  // the user pastes nothing into a bug report and has no idea
+                  // the copy failed.
                   const logText = formatErrorLogForClipboard();
-                  navigator.clipboard.writeText(logText);
-                  this.setState({ copied: true });
-                  setTimeout(() => this.setState({ copied: false }), 2000);
+                  const settle = (copyResult: 'copied' | 'failed') => {
+                    this.setState({ copyResult });
+                    setTimeout(() => this.setState({ copyResult: null }), 2000);
+                  };
+                  navigator.clipboard.writeText(logText).then(
+                    () => settle('copied'),
+                    () => settle('failed'),
+                  );
                 }}
                 className="inline-flex items-center gap-2 px-5 py-2.5 border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg font-medium transition-colors flex-1 justify-center text-sm"
               >
                 <Copy size={16} />
-                {this.state.copied ? 'Copied!' : 'Copy error details'}
+                {this.state.copyResult === 'copied'
+                  ? 'Copied!'
+                  : this.state.copyResult === 'failed'
+                    ? 'Copy blocked — select the text above'
+                    : 'Copy error details'}
               </button>
             </div>
           </div>

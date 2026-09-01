@@ -456,7 +456,7 @@ export const EntryList: React.FC = () => {
                         <button
                           onClick={() => {
                             if (window.confirm('Delete this entry? This can be undone from the toast or Trash.')) {
-                              deleteEntry(entry.id);
+                              void deleteEntry(entry.id);
                             }
                           }}
                           className="text-gray-500 dark:text-gray-400 hover:text-rust dark:hover:text-rust focus:outline-none focus-visible:ring-2 focus-visible:ring-signal focus-visible:ring-offset-2 ring-offset-stone dark:ring-offset-graphite rounded transition-colors"

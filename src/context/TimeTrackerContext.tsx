@@ -328,6 +328,13 @@ export const TimeTrackerProvider: React.FC<{ children: ReactNode }> = ({ childre
    * `guarded` resolves to true whenever nothing threw, which is the wrong answer
    * for an operation that can decline in its return value — a restore refused
    * for overlapping live entries would have reported success.
+   *
+   * The rule these helpers exist to enforce — a caller must not claim success
+   * for a write it did not wait for — is checked by
+   * `typescript/no-floating-promises`, which the lint script runs type-aware.
+   * A dropped result is now a build failure rather than a paragraph of prose
+   * the compiler cannot see; a caller that genuinely has nothing to do with
+   * the outcome says so with `void`.
    */
   const guardedResult = useCallback(
     <A extends unknown[]>(action: string, fn: (...args: A) => Promise<boolean>) =>
@@ -482,7 +489,7 @@ export const TimeTrackerProvider: React.FC<{ children: ReactNode }> = ({ childre
     // and re-requests a grant that was previously held but has since been
     // dropped — Safari does that on a session reset.
     resumePersistence().catch(() => {});
-    refreshData();
+    void refreshData();
   }, [refreshData]);
 
   // A running timer keeps accruing after the tab closes, and the elapsed time
@@ -501,7 +508,7 @@ export const TimeTrackerProvider: React.FC<{ children: ReactNode }> = ({ childre
   // Cross-tab sync: re-read on another tab's mutation, and whenever this tab
   // becomes visible again (covers browsers without BroadcastChannel).
   useEffect(() => {
-    const reload = () => { refreshData({ broadcast: false }); };
+    const reload = () => { void refreshData({ broadcast: false }); };
 
     let channel: BroadcastChannel | null = null;
     if (typeof BroadcastChannel !== 'undefined') {

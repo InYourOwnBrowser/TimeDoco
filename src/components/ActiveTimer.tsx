@@ -38,7 +38,7 @@ export const ActiveTimer: React.FC<{ activeEntry: Entry | null }> = ({ activeEnt
       const tagsArray = localTags.split(',').map(t => t.trim()).filter(t => t !== '').slice(0, 20);
       const tagsChanged = JSON.stringify(tagsArray) !== JSON.stringify(activeEntry.tags || []);
       if (localNote !== activeEntry.note || tagsChanged) {
-        updateActiveNote(activeEntry.id, localNote, tagsArray);
+        void updateActiveNote(activeEntry.id, localNote, tagsArray);
       }
     }, 1000);
     return () => clearTimeout(handler);
@@ -69,7 +69,7 @@ export const ActiveTimer: React.FC<{ activeEntry: Entry | null }> = ({ activeEnt
       if (settings?.targetAlertMinutes && alertedForRef.current !== alertKey) {
         if (seconds >= settings.targetAlertMinutes * 60) {
           addToast(`Target reached! ${settings.targetAlertMinutes} minutes elapsed.`, 'info', undefined, 10000);
-          sendNotification('TimeDoco Target Reached', {
+          void sendNotification('TimeDoco Target Reached', {
             body: `You have tracked ${settings.targetAlertMinutes} minutes.`,
           });
           alertedForRef.current = alertKey;
@@ -152,10 +152,10 @@ export const ActiveTimer: React.FC<{ activeEntry: Entry | null }> = ({ activeEnt
             onClick={() => {
               if (!selectedTimecodeId) return;
               unlockAudioAlert();
-              requestNotificationPermission();
+              void requestNotificationPermission();
               const tagsArray = preStartTags.split(',').map(t => t.trim()).filter(Boolean).slice(0, 20);
               const expected = preStartExpectedMinutes ? Math.max(1, Number(preStartExpectedMinutes)) : null;
-              startTimer(selectedTimecodeId, preStartNote, tagsArray, expected);
+              void startTimer(selectedTimecodeId, preStartNote, tagsArray, expected);
               setPreStartNote('');
               setPreStartTags('');
               setPreStartExpectedMinutes('');

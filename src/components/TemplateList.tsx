@@ -129,7 +129,7 @@ export const TemplateList: React.FC = () => {
           // `restoreTemplate` merges against the stored list. Writing the
           // pre-delete snapshot back instead deleted any template created
           // during the five second undo window.
-          restoreTemplate(templateToDelete, originalIndex);
+          void restoreTemplate(templateToDelete, originalIndex);
         }
       }, 5000);
     }
@@ -197,7 +197,7 @@ export const TemplateList: React.FC = () => {
                 onKeyDown={(e) => {
                   if (e.key === 'Enter' || e.key === ' ') {
                     e.preventDefault();
-                    handleLogTemplate(template);
+                    void handleLogTemplate(template);
                   }
                 }}
                 role="button"

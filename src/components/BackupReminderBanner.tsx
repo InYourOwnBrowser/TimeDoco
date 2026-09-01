@@ -15,7 +15,7 @@ export const BackupReminderBanner: React.FC = () => {
   const [nagReason, setNagReason] = useState<string | null>(null);
 
   useEffect(() => {
-    checkPersistence().then(setPersistenceState);
+    void checkPersistence().then(setPersistenceState);
   }, []);
 
   useEffect(() => {
@@ -105,7 +105,7 @@ export const BackupReminderBanner: React.FC = () => {
                 () => {
                   // Both only once the file is actually saved: the banner has
                   // to stay up if the download failed.
-                  markBackupSaved();
+                  void markBackupSaved();
                   handleDismiss();
                 }
               );

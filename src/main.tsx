@@ -5,7 +5,10 @@ import App from './App.tsx'
 import { ErrorBoundary } from './components/ErrorBoundary.tsx'
 
 if ('serviceWorker' in navigator) {
-  navigator.serviceWorker.register('/sw.js', { scope: '/app/' });
+  // Offline support is a bonus, not a requirement — but a rejection here is
+  // worth a line in the console rather than an unhandled one.
+  navigator.serviceWorker.register('/sw.js', { scope: '/app/' })
+    .catch((error) => console.error('Service worker registration failed', error));
 }
 
 createRoot(document.getElementById('root')!).render(

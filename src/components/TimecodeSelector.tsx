@@ -276,7 +276,7 @@ export const TimecodeSelector: React.FC<TimecodeSelectorProps> = ({ onSelect, se
                       autoFocus
                       value={newGroupName}
                       onChange={(e) => setNewGroupName(e.target.value)}
-                      onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); handleCreateGroupInline(); } }}
+                      onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); void handleCreateGroupInline(); } }}
                       placeholder="New group name"
                       className="flex-1 text-sm p-1.5 border border-graphite/20 dark:border-white/20 rounded bg-white dark:bg-graphite text-graphite dark:text-stone focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-signal"
                     />

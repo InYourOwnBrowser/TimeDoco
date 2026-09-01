@@ -35,7 +35,7 @@ export const OverrunDetector: React.FC<OverrunDetectorProps> = ({ onPromptStateC
             document.hidden
           ) {
             const tc = timecodes.find((t) => t.id === entry.timecodeId);
-            sendNotification('Past your estimate', {
+            void sendNotification('Past your estimate', {
               body: `${tc?.name || 'This task'} has passed its ${entry.expectedDurationMinutes} min estimate.`,
               tag: `overrun-${entry.id}`,
             });

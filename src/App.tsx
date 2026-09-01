@@ -62,7 +62,7 @@ const AppContent = () => {
     if (needsManualInstall) {
       setShowIOSInstallModal(true);
     } else {
-      promptInstall();
+      void promptInstall();
     }
   }, [needsManualInstall, promptInstall]);
 
@@ -195,7 +195,7 @@ const AppContent = () => {
 
         if (activeEntries && activeEntries.length > 0) {
           const mostRecentActive = [...activeEntries].sort((a, b) => new Date(b.startTime).getTime() - new Date(a.startTime).getTime())[0];
-          stopTimer(mostRecentActive.id);
+          void stopTimer(mostRecentActive.id);
         } else {
           // Find most recent timecode used
           const sortedEntries = [...entries].sort((a, b) => new Date(b.startTime).getTime() - new Date(a.startTime).getTime());
@@ -205,7 +205,7 @@ const AppContent = () => {
             // Make sure it's not archived
             const tc = timecodes.find(t => t.id === recentTimecodeId);
             if (tc && !tc.archived) {
-              startTimer(recentTimecodeId);
+              void startTimer(recentTimecodeId);
               return;
             }
           }
@@ -213,7 +213,7 @@ const AppContent = () => {
           // Fallback to the first available non-archived timecode
           const unarchived = timecodes.filter(t => !t.archived);
           if (unarchived.length > 0) {
-            startTimer(unarchived[0].id);
+            void startTimer(unarchived[0].id);
           }
         }
       }

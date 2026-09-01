@@ -64,7 +64,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ onClose }) => {
       setPersistenceState(await checkPersistence());
       setStorageUsage(await storageEstimate());
     };
-    loadStorageInfo();
+    void loadStorageInfo();
   }, []);
 
   React.useEffect(() => {
@@ -142,7 +142,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ onClose }) => {
           // No canvas available to resize with. The file already passed the
           // MIME allowlist and decoded successfully, so storing it unresized
           // is safe — it is a real raster image jsPDF can embed.
-          handleUpdateSettings({ userLogoBase64: dataUrl });
+          void handleUpdateSettings({ userLogoBase64: dataUrl });
           return;
         }
 
@@ -153,7 +153,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ onClose }) => {
           ? canvas.toDataURL('image/jpeg', 0.85)
           : canvas.toDataURL('image/png');
 
-        handleUpdateSettings({ userLogoBase64: resizedDataUrl });
+        void handleUpdateSettings({ userLogoBase64: resizedDataUrl });
       };
       img.onerror = () => {
         // Storing the un-rasterised source here would later make
@@ -189,7 +189,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ onClose }) => {
         `timedoco-backup-${dateStr}`,
         'json',
         () => {
-          markBackupSaved();
+          void markBackupSaved();
           setStatusMsg({ type: 'success', text: 'Data exported successfully!' });
         }
       );
@@ -907,7 +907,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ onClose }) => {
                       onChange={(e) => {
                         const updated = [...(settings?.customFields || [])];
                         updated[i] = { ...updated[i], label: e.target.value };
-                        handleUpdateSettings({ customFields: updated });
+                        void handleUpdateSettings({ customFields: updated });
                       }}
                       className="w-32 px-2 py-1.5 text-sm border border-graphite/20 dark:border-white/20 rounded bg-white dark:bg-graphite text-graphite dark:text-stone"
                     />
@@ -916,7 +916,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ onClose }) => {
                       onChange={(e) => {
                         const updated = [...(settings?.customFields || [])];
                         updated[i] = { ...updated[i], value: e.target.value };
-                        handleUpdateSettings({ customFields: updated });
+                        void handleUpdateSettings({ customFields: updated });
                       }}
                       className="flex-1 px-2 py-1.5 text-sm border border-graphite/20 dark:border-white/20 rounded bg-white dark:bg-graphite text-graphite dark:text-stone"
                     />
@@ -1458,8 +1458,14 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ onClose }) => {
                         addToast('Error log is empty.', 'info');
                         return;
                       }
-                      navigator.clipboard.writeText(logText);
-                      addToast('Error log copied to clipboard.', 'success');
+                      // The success toast has to wait for the write. The
+                      // clipboard rejects when the document is not focused or
+                      // permission is refused, and a user told the log was
+                      // copied pastes an empty bug report.
+                      navigator.clipboard.writeText(logText).then(
+                        () => addToast('Error log copied to clipboard.', 'success'),
+                        () => addToast('Could not copy — your browser blocked clipboard access.', 'error'),
+                      );
                     }}
                     className="text-xs font-medium text-gray-600 dark:text-gray-400 hover:text-graphite dark:hover:text-stone transition-colors"
                   >
