@@ -2366,3 +2366,128 @@ describe('TimeTrackerContext Reducer Logic', () => {
     expect(ids).toEqual(['t-deleted', 't-kept', 't-new']);
   });
 });
+
+describe('restoring from the trash is all-or-nothing', () => {
+  beforeEach(async () => {
+    await clearDB();
+  });
+
+  // Recent, because the provider purges trash older than 30 days on mount.
+  const NOW = Date.now();
+  const AT = new Date(NOW - 120_000).toISOString();
+  const TRASHED_WITH_PARENT = new Date(NOW - 60_000).toISOString();
+
+  /** A time on yesterday's calendar day, so nothing is still running. */
+  const yesterdayAt = (hour: number, minute = 0) => {
+    const d = new Date(NOW - 86_400_000);
+    d.setHours(hour, minute, 0, 0);
+    return d.toISOString();
+  };
+
+  const tc = (id: string, over: Partial<import('../types').Timecode> = {}) => ({
+    id, name: id, groupId: null, hourlyRate: null, archived: false, updatedAt: AT, ...over,
+  });
+
+  const entry = (
+    id: string,
+    timecodeId: string,
+    startISO: string,
+    endISO: string,
+    over: Partial<import('../types').Entry> = {},
+  ) => ({
+    id, timecodeId, startTime: startISO, endTime: endISO,
+    duration: (new Date(endISO).getTime() - new Date(startISO).getTime()) / 1000,
+    note: id, isRunning: false, isPaused: false, pausedSegments: [], editHistory: [],
+    createdAt: AT, updatedAt: AT, ...over,
+  });
+
+  const mount = async () => {
+    let ctx: ReturnType<typeof useTimeTracker> | undefined;
+    render(
+      <ToastProvider><TimeTrackerProvider>
+        <TestConsumer onReady={(c) => (ctx = c)} />
+      </TimeTrackerProvider></ToastProvider>
+    );
+    await waitFor(() => expect(ctx?.settings).not.toBeNull());
+    return () => ctx!;
+  };
+
+  it('leaves a group entirely in the trash when one of its entries would overlap', async () => {
+    // The group and both timecodes went to the trash together; restoring the
+    // group used to write the group and the first timecode before the second
+    // one's entry hit the overlap check and threw, leaving a group half back.
+    await db.putGroup({ id: 'g-1', name: 'G', color: '#fff', archived: false, updatedAt: AT, deletedAt: TRASHED_WITH_PARENT });
+    await db.putTimecode(tc('tc-1', { groupId: 'g-1', deletedAt: TRASHED_WITH_PARENT }));
+    await db.putTimecode(tc('tc-2', { groupId: 'g-1', deletedAt: TRASHED_WITH_PARENT }));
+    await db.putTimecode(tc('tc-live'));
+    await db.putEntry(entry('e-clear', 'tc-1', yesterdayAt(14), yesterdayAt(15), { deletedAt: TRASHED_WITH_PARENT }));
+    await db.putEntry(entry('e-clash', 'tc-2', yesterdayAt(10, 30), yesterdayAt(10, 45), { deletedAt: TRASHED_WITH_PARENT }));
+    await db.putEntry(entry('e-live', 'tc-live', yesterdayAt(10), yesterdayAt(11)));
+
+    const getCtx = await mount();
+    let stored: boolean | undefined;
+    await act(async () => { stored = await getCtx().restoreGroup('g-1'); });
+
+    expect(stored).toBe(false);
+    expect((await db.getGroup('g-1'))!.deletedAt).toBe(TRASHED_WITH_PARENT);
+    expect((await db.getTimecode('tc-1'))!.deletedAt).toBe(TRASHED_WITH_PARENT);
+    expect((await db.getTimecode('tc-2'))!.deletedAt).toBe(TRASHED_WITH_PARENT);
+    // The entry that would not have clashed stays in the trash with the rest.
+    expect((await db.getEntry('e-clear'))!.deletedAt).toBe(TRASHED_WITH_PARENT);
+  });
+
+  it('does not write an entry whose parent timecode cannot be restored', async () => {
+    // The entry was trashed on its own, then its timecode was trashed later
+    // with a sibling. Restoring the entry brings the timecode back, which
+    // brings the sibling back — and the sibling clashes. The entry used to be
+    // written before any of that was checked.
+    await db.putTimecode(tc('tc-1', { deletedAt: TRASHED_WITH_PARENT }));
+    await db.putTimecode(tc('tc-live'));
+    await db.putEntry(entry('e-target', 'tc-1', yesterdayAt(14), yesterdayAt(15), { deletedAt: AT }));
+    await db.putEntry(entry('e-sibling', 'tc-1', yesterdayAt(10, 30), yesterdayAt(10, 45), { deletedAt: TRASHED_WITH_PARENT }));
+    await db.putEntry(entry('e-live', 'tc-live', yesterdayAt(10), yesterdayAt(11)));
+
+    const getCtx = await mount();
+    let stored: boolean | undefined;
+    await act(async () => { stored = await getCtx().restoreEntry('e-target'); });
+
+    expect(stored).toBe(false);
+    expect((await db.getEntry('e-target'))!.deletedAt).toBe(AT);
+    expect((await db.getTimecode('tc-1'))!.deletedAt).toBe(TRASHED_WITH_PARENT);
+  });
+
+  it('refuses a batch whose own members overlap each other', async () => {
+    // Neither clashes with anything live, so they were only ever checked
+    // against live entries — one timecode at a time — and both came back.
+    await db.putGroup({ id: 'g-1', name: 'G', color: '#fff', archived: false, updatedAt: AT, deletedAt: TRASHED_WITH_PARENT });
+    await db.putTimecode(tc('tc-1', { groupId: 'g-1', deletedAt: TRASHED_WITH_PARENT }));
+    await db.putTimecode(tc('tc-2', { groupId: 'g-1', deletedAt: TRASHED_WITH_PARENT }));
+    await db.putEntry(entry('e-a', 'tc-1', yesterdayAt(10), yesterdayAt(11), { deletedAt: TRASHED_WITH_PARENT }));
+    await db.putEntry(entry('e-b', 'tc-2', yesterdayAt(10, 30), yesterdayAt(11, 30), { deletedAt: TRASHED_WITH_PARENT }));
+
+    const getCtx = await mount();
+    let stored: boolean | undefined;
+    await act(async () => { stored = await getCtx().restoreGroup('g-1'); });
+
+    expect(stored).toBe(false);
+    expect((await db.getEntry('e-a'))!.deletedAt).toBe(TRASHED_WITH_PARENT);
+    expect((await db.getEntry('e-b'))!.deletedAt).toBe(TRASHED_WITH_PARENT);
+  });
+
+  it('restores the whole cascade when nothing clashes', async () => {
+    await db.putGroup({ id: 'g-1', name: 'G', color: '#fff', archived: false, updatedAt: AT, deletedAt: TRASHED_WITH_PARENT });
+    await db.putTimecode(tc('tc-1', { groupId: 'g-1', deletedAt: TRASHED_WITH_PARENT }));
+    await db.putEntry(entry('e-a', 'tc-1', yesterdayAt(10), yesterdayAt(11), { deletedAt: TRASHED_WITH_PARENT }));
+    await db.putEntry(entry('e-b', 'tc-1', yesterdayAt(12), yesterdayAt(13), { deletedAt: TRASHED_WITH_PARENT }));
+
+    const getCtx = await mount();
+    let stored: boolean | undefined;
+    await act(async () => { stored = await getCtx().restoreGroup('g-1'); });
+
+    expect(stored).toBe(true);
+    expect((await db.getGroup('g-1'))!.deletedAt).toBeUndefined();
+    expect((await db.getTimecode('tc-1'))!.deletedAt).toBeUndefined();
+    expect((await db.getEntry('e-a'))!.deletedAt).toBeUndefined();
+    expect((await db.getEntry('e-b'))!.deletedAt).toBeUndefined();
+  });
+});

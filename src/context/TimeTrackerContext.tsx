@@ -322,6 +322,20 @@ export const TimeTrackerProvider: React.FC<{ children: ReactNode }> = ({ childre
     [mutate]
   );
 
+  /**
+   * The same guard for a mutation that already reports its own refusals.
+   *
+   * `guarded` resolves to true whenever nothing threw, which is the wrong answer
+   * for an operation that can decline in its return value — a restore refused
+   * for overlapping live entries would have reported success.
+   */
+  const guardedResult = useCallback(
+    <A extends unknown[]>(action: string, fn: (...args: A) => Promise<boolean>) =>
+      async (...args: A): Promise<boolean> =>
+        (await mutateValue(action, () => fn(...args))) === true,
+    [mutateValue]
+  );
+
   const broadcastRef = useRef<BroadcastChannel | null>(null);
 
   /** Tell other open tabs that stored data changed and they should re-read. */
@@ -938,25 +952,140 @@ export const TimeTrackerProvider: React.FC<{ children: ReactNode }> = ({ childre
     await refreshData();
   };
 
-  const restoreGroupInternal = async (id: string) => {
-    const group = await db.getGroup(id);
-    if (group) {
-      const deletedTime = group.deletedAt;
-      group.deletedAt = undefined;
-      await db.putGroup(touch(group));
+  /** Everything one restore would put back, gathered before anything is written. */
+  interface RestorePlan {
+    groups: Group[];
+    timecodes: Timecode[];
+    entries: Entry[];
+  }
 
-      const allTimecodes = await db.getTimecodes();
-      const tcsToRestore = allTimecodes.filter(tc => tc.groupId === id && tc.deletedAt === deletedTime);
-      for (const tc of tcsToRestore) {
-        await restoreTimecodeInternal(tc.id);
+  /**
+   * Walk the restore cascade once, without writing.
+   *
+   * A restore brings back more than the record named: an entry brings back its
+   * trashed timecode, a timecode brings back the entries trashed *with* it (one
+   * trashed separately stays in the trash), and a group brings back its
+   * timecodes. Collecting all of that first is what lets the overlap check cover
+   * the whole operation, so a restore is refused before any of it is written
+   * rather than failing partway and leaving a group back with only some of its
+   * timecodes.
+   *
+   * Walking once also keeps the check and the writes from disagreeing about
+   * what the operation covers — a restore that checked one set and wrote
+   * another is how a partial restore got past the check in the first place.
+   */
+  const planRestore = async (seed: {
+    entryIds?: string[];
+    timecodeIds?: string[];
+    groupIds?: string[];
+  }): Promise<RestorePlan> => {
+    const [allGroups, allTimecodes, allEntries] = await Promise.all([
+      db.getGroups(),
+      db.getTimecodes(),
+      db.getEntries(),
+    ]);
+
+    const groups = new Map<string, Group>();
+    const timecodes = new Map<string, Timecode>();
+    const entries = new Map<string, Entry>();
+
+    const addGroup = (id: string) => {
+      if (groups.has(id)) return;
+      const group = allGroups.find(g => g.id === id);
+      if (!group?.deletedAt) return;
+      groups.set(id, group);
+      for (const tc of allTimecodes) {
+        if (tc.groupId === id && tc.deletedAt === group.deletedAt) addTimecode(tc.id);
+      }
+    };
+
+    const addTimecode = (id: string) => {
+      if (timecodes.has(id)) return;
+      const tc = allTimecodes.find(t => t.id === id);
+      if (!tc?.deletedAt) return;
+      timecodes.set(id, tc);
+      if (tc.groupId) addGroup(tc.groupId);
+      for (const entry of allEntries) {
+        if (entry.timecodeId === id && entry.deletedAt === tc.deletedAt) addEntry(entry.id);
+      }
+    };
+
+    const addEntry = (id: string) => {
+      if (entries.has(id)) return;
+      const entry = allEntries.find(e => e.id === id);
+      if (!entry) return;
+      entries.set(id, entry);
+      // The parent comes back whether or not it was trashed in the same sweep:
+      // an entry cannot be live under a trashed timecode.
+      if (entry.timecodeId) addTimecode(entry.timecodeId);
+    };
+
+    seed.groupIds?.forEach(addGroup);
+    seed.timecodeIds?.forEach(addTimecode);
+    seed.entryIds?.forEach(addEntry);
+
+    return {
+      groups: [...groups.values()],
+      timecodes: [...timecodes.values()],
+      entries: [...entries.values()],
+    };
+  };
+
+  /**
+   * Put a whole plan back, or none of it.
+   *
+   * Resolves to whether it went through, rather than throwing: every other
+   * mutation here reports a refusal in its return value, and a throw from this
+   * one reached three internal callers that had no catch — an undo that wrote
+   * some of its entries, reported nothing, and never reloaded.
+   */
+  const applyRestorePlan = async (plan: RestorePlan): Promise<boolean> => {
+    // Checked as they would be once live. A trashed entry can never block
+    // anything — `toInterval` drops it — so checking the stored records asked
+    // whether entries already in the trash overlap, which they never do, and
+    // the check passed unconditionally however badly the times collided.
+    const candidates = plan.entries.map(entry => ({ ...entry, deletedAt: undefined }));
+    if (candidates.length > 0) {
+      const planned = new Set(plan.entries.map(entry => entry.id));
+      const liveEntries = (await db.getEntries()).filter(e => !e.deletedAt && !planned.has(e.id));
+      // The batch is checked against itself as well as against what is live, so
+      // two trashed entries that overlap each other cannot both come back.
+      const rejected = findOverlappingCandidates(candidates, liveEntries, settings?.allowConcurrentTimers);
+      if (rejected.size > 0) {
+        addToast(
+          rejected.size === 1
+            ? 'Cannot restore: an entry would overlap one that is already live.'
+            : `Cannot restore: ${rejected.size} entries would overlap ones that are already live.`,
+          'error'
+        );
+        return false;
       }
     }
+
+    for (const group of plan.groups) {
+      await db.putGroup(touch({ ...group, deletedAt: undefined }));
+    }
+    for (const timecode of plan.timecodes) {
+      await db.putTimecode(touch({ ...timecode, deletedAt: undefined }));
+    }
+    for (const entry of plan.entries) {
+      await db.putEntry(touch({ ...entry, deletedAt: undefined }));
+    }
+    return true;
   };
 
-  const restoreGroup = async (id: string) => {
-    await restoreGroupInternal(id);
-    await refreshData();
+  /** Resolves to whether the restore was stored; gate any success message on it. */
+  const restoreFromTrash = async (seed: {
+    entryIds?: string[];
+    timecodeIds?: string[];
+    groupIds?: string[];
+  }): Promise<boolean> => {
+    const stored = await applyRestorePlan(await planRestore(seed));
+    if (stored) await refreshData();
+    return stored;
   };
+
+  const restoreGroup = (id: string): Promise<boolean> => restoreFromTrash({ groupIds: [id] });
 
   /**
    * @param options.deferRefresh skip the reload, for a caller creating several
@@ -1378,45 +1507,7 @@ export const TimeTrackerProvider: React.FC<{ children: ReactNode }> = ({ childre
     await refreshData();
   };
 
-  const restoreTimecodeInternal = async (id: string, skipOverlapCheck = false) => {
-    const tc = await db.getTimecode(id);
-    if (tc) {
-      const deletedTime = tc.deletedAt;
-      const allEntries = await db.getEntries();
-      const entriesToRestore = allEntries.filter(e => e.timecodeId === id && e.deletedAt === deletedTime);
-
-      if (!skipOverlapCheck && entriesToRestore.length > 0) {
-        const liveEntries = allEntries.filter(e => !e.deletedAt);
-        const rejected = findOverlappingCandidates(entriesToRestore, liveEntries, settings?.allowConcurrentTimers);
-        if (rejected.size > 0) {
-          throw new Error('Cannot restore timecode: entries overlap with existing live entries.');
-        }
-      }
-
-      tc.deletedAt = undefined;
-      await db.putTimecode(touch(tc));
-
-      if (tc.groupId) {
-        const group = await db.getGroup(tc.groupId);
-        if (group && group.deletedAt) {
-          await restoreGroupInternal(group.id);
-        }
-      }
-
-      for (const entry of entriesToRestore) {
-        await restoreEntryInternal(entry.id, true);
-      }
-    }
-  };
-
-  const restoreTimecode = async (id: string) => {
-    try {
-      await restoreTimecodeInternal(id);
-      await refreshData();
-    } catch (error) {
-      addToast(error instanceof Error ? error.message : 'Failed to restore timecode', 'error');
-    }
-  };
+  const restoreTimecode = (id: string): Promise<boolean> => restoreFromTrash({ timecodeIds: [id] });
 
   /** Resolves to whether the change was stored; gate any success message on it. */
   const updateSettings = async (updates: Partial<Settings>): Promise<boolean> => {
@@ -1647,7 +1738,10 @@ export const TimeTrackerProvider: React.FC<{ children: ReactNode }> = ({ childre
       addToast(
         `${deletedIds.length} ${deletedIds.length === 1 ? 'entry' : 'entries'} deleted`,
         'success',
-        { label: 'Undo', onClick: () => Promise.all(deletedIds.map((id) => restoreEntryInternal(id))).then(() => refreshData()) },
+        // One plan for the whole batch: restoring them one at a time raced each
+        // other's reads, so entries that overlapped within the batch were never
+        // noticed, and a refusal partway left some written and no reload.
+        { label: 'Undo', onClick: () => { void restoreFromTrash({ entryIds: deletedIds }); } },
         5000
       );
     }
@@ -1659,36 +1753,7 @@ export const TimeTrackerProvider: React.FC<{ children: ReactNode }> = ({ childre
     await refreshData();
   };
 
-  const restoreEntryInternal = async (id: string, skipOverlapCheck = false) => {
-    const entry = await db.getEntry(id);
-    if (entry) {
-      if (!skipOverlapCheck) {
-        const liveEntries = await db.getEntries().then(res => res.filter(e => !e.deletedAt));
-        const rejected = findOverlappingCandidates([entry], liveEntries, settings?.allowConcurrentTimers);
-        if (rejected.size > 0) {
-          throw new Error('Cannot restore entry: overlaps with existing live entries.');
-        }
-      }
-      entry.deletedAt = undefined;
-      await db.putEntry(touch(entry));
-
-      if (entry.timecodeId) {
-        const tc = await db.getTimecode(entry.timecodeId);
-        if (tc && tc.deletedAt) {
-          await restoreTimecodeInternal(tc.id);
-        }
-      }
-    }
-  };
-
-  const restoreEntry = async (id: string) => {
-    try {
-      await restoreEntryInternal(id);
-      await refreshData();
-    } catch (error) {
-      addToast(error instanceof Error ? error.message : 'Failed to restore entry', 'error');
-    }
-  };
+  const restoreEntry = (id: string): Promise<boolean> => restoreFromTrash({ entryIds: [id] });
 
   /**
    * Record that a backup actually reached the user's disk.
@@ -1952,9 +2017,9 @@ export const TimeTrackerProvider: React.FC<{ children: ReactNode }> = ({ childre
       deletedGroups,
       deletedTimecodes,
       deletedEntries,
-      restoreGroup: guarded('restore the group', restoreGroup),
-      restoreTimecode: guarded('restore the timecode', restoreTimecode),
-      restoreEntry: guarded('restore the entry', restoreEntry),
+      restoreGroup: guardedResult('restore the group', restoreGroup),
+      restoreTimecode: guardedResult('restore the timecode', restoreTimecode),
+      restoreEntry: guardedResult('restore the entry', restoreEntry),
       hardDeleteGroup: guarded('permanently delete the group', hardDeleteGroup),
       hardDeleteTimecode: guarded('permanently delete the timecode', hardDeleteTimecode),
       hardDeleteEntry: guarded('permanently delete the entry', hardDeleteEntry),
