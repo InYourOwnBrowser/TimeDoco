@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { buildBillableLines, buildScreenLines, buildReportLines, computeBillableLine, displaySecondsFor, distributeAcrossBuckets, effectiveRoundingScope, formatWorkedHours, sumBillableLines, workedSecondsFor, workedVsBilledNote } from './billing';
+import { buildBillableLines, buildScreenLines, buildReportLines, computeBillableLine, displaySecondsFor, distributeAcrossBuckets, effectiveRoundingScope, formatWorkedHours, roundingNote, sumBillableLines, workedSecondsFor, workedVsBilledNote, zeroBilledNote } from './billing';
 import type { RoundingRule } from './billing';
 import type { Entry, Timecode } from '../types';
 
@@ -477,5 +477,44 @@ describe('workedSecondsFor', () => {
     expect(workedSecondsFor(lines, 'fee')).toBe(40 * 60);
     expect(displaySecondsFor(lines, 'fee')).toBe(40 * 60);
     expect(workedSecondsFor(lines, 'not-here')).toBe(0);
+  });
+});
+
+describe('zeroBilledNote', () => {
+  it('says nothing when every entry bills something', () => {
+    expect(zeroBilledNote(0, '15min')).toBeNull();
+    expect(zeroBilledNote(-1, '15min')).toBeNull();
+  });
+
+  it('counts the entries that rounded away', () => {
+    expect(zeroBilledNote(1, '15min')).toBe('1 entry rounded to 0.00 h');
+    expect(zeroBilledNote(3, '5min')).toBe('3 entries rounded to 0.00 h');
+  });
+
+  it('does not call an empty entry rounded when no rule is in play', () => {
+    expect(zeroBilledNote(2, 'none')).toBe('2 entries with no billable time');
+  });
+});
+
+describe('roundingNote', () => {
+  it('says nothing when the clock agrees and nothing dropped out', () => {
+    expect(roundingNote(3600, 3600, 0, 0, '15min')).toBeNull();
+  });
+
+  it('reports the delta on its own', () => {
+    expect(roundingNote(3000, 2700, 0, 0, '5min')).toBe('worked 50m · rounding -5m');
+  });
+
+  it('reports both when there is a delta and an entry dropped out', () => {
+    expect(roundingNote(3000, 2700, 0, 1, '5min')).toBe(
+      'worked 50m · rounding -5m (1 entry rounded to 0.00 h)'
+    );
+  });
+
+  // The case the disclosure used to be lost in: one entry rounds down by
+  // exactly as much as another rounds up, so there is no net delta to report
+  // and the note is null — while an entry has still vanished from the report.
+  it('still reports a dropped entry when the rounding nets out to zero', () => {
+    expect(roundingNote(3600, 3600, 0, 1, '15min')).toBe('1 entry rounded to 0.00 h');
   });
 });

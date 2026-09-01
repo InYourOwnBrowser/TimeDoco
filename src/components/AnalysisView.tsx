@@ -14,7 +14,7 @@ import {
 } from 'lucide-react';
 import { useToast } from '../context/ToastContext';
 import { calculateDuration, calculateTaxBreakdown, calculateTotalPausedSeconds, formatDurationShort, roundCurrency, roundHours } from '../utils/timeUtils';
-import { buildReportLines, distributeAcrossBuckets, formatWorkedHours, summarizeReport, workedSecondsFor, workedVsBilledNote } from '../utils/billing';
+import { buildReportLines, distributeAcrossBuckets, formatWorkedHours, roundingNote, summarizeReport, workedSecondsFor, zeroBilledNote } from '../utils/billing';
 import type { RoundingScope } from '../utils/billing';
 import { createEvents, type EventAttributes } from 'ics';
 import { LOGO_PRINT_BASE64 } from '../assets/logoPrint';
@@ -293,14 +293,17 @@ export const AnalysisView: React.FC = () => {
   // rather than silent. Rounding is one cause; a fixed amount is the other,
   // since it bills as a fee rather than by the hour and so adds no hours. With
   // neither in play the two totals are equal and there is nothing to say.
-  const roundingDelta = useMemo(() => {
-    const note = workedVsBilledNote(totalWorkedSeconds, totalSeconds, totalFees);
-    if (!note) return null;
-    if (zeroLinesCount > 0) {
-      return `${note} (${zeroLinesCount} entr${zeroLinesCount === 1 ? 'y' : 'ies'} rounded to 0.00 h)`;
-    }
-    return note;
-  }, [totalSeconds, totalWorkedSeconds, totalFees, zeroLinesCount]);
+  // Which entries dropped out of the report, worded once for the screen, the
+  // PDF and the CSV.
+  const zeroLinesNote = useMemo(
+    () => zeroBilledNote(zeroLinesCount, settings?.roundingRule ?? 'none'),
+    [zeroLinesCount, settings?.roundingRule]
+  );
+
+  const roundingDelta = useMemo(
+    () => roundingNote(totalWorkedSeconds, totalSeconds, totalFees, zeroLinesCount, settings?.roundingRule ?? 'none'),
+    [totalSeconds, totalWorkedSeconds, totalFees, zeroLinesCount, settings?.roundingRule]
+  );
 
   // Detect overlaps
   const overlaps = useMemo(() => {
@@ -715,6 +718,28 @@ export const AnalysisView: React.FC = () => {
           ].join(','));
         }
 
+        // The same disclosure the PDF carries. A spreadsheet handed to a client
+        // is the document they reconcile against; it cannot be the one copy of
+        // the report that does not say the hours were rounded, or that entries
+        // are missing from it. Appended as labelled rows, like the totals above,
+        // so the column layout still parses.
+        const roundingRule = settings?.roundingRule ?? 'none';
+        if (roundingRule !== 'none') {
+          rows.push([
+            escapeCSV('Rounding'),
+            escapeCSV(
+              `${ROUNDING_RULE_LABELS[roundingRule]}, ${ROUNDING_SCOPE_LABELS[settings?.roundingScope || 'day']} — ` +
+              `worked ${roundHours(totalWorkedSeconds / 3600).toFixed(2)} h, billed ${totalHours.toFixed(2)} h`
+            ),
+            '',
+            ...feeCol(''),
+            ''
+          ].join(','));
+        }
+        if (zeroLinesNote) {
+          rows.push([escapeCSV('Not billed'), escapeCSV(zeroLinesNote), '', ...feeCol(''), ''].join(','));
+        }
+
         const csvContent = [headers.join(','), ...rows].join('\n');
         return new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
       },
@@ -893,8 +918,13 @@ export const AnalysisView: React.FC = () => {
         addMeta(
           'Rounding:',
           `${ROUNDING_RULE_LABELS[settings!.roundingRule]}, ${ROUNDING_SCOPE_LABELS[settings?.roundingScope || 'day']} — ` +
-          `worked ${workedHours.toFixed(2)} h, billed ${totalHours.toFixed(2)} h`
+          `worked ${workedHours.toFixed(2)} h, billed ${totalHours.toFixed(2)} h` +
+          // Which entries went missing, not just how much time did. The billed
+          // figure alone cannot tell a reader that a line is absent entirely.
+          (zeroLinesNote ? ` (${zeroLinesNote})` : '')
         );
+      } else if (zeroLinesNote) {
+        addMeta('Not billed:', `${zeroLinesNote}.`);
       }
       // The other reason the Hours column can be short of the time on the
       // clock: a fixed amount bills as a fee, so its entry shows a dash for

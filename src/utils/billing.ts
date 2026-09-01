@@ -367,9 +367,13 @@ export const buildReportLines = (
   window: DateRange,
   opts: { timecodeMap?: Map<string, Timecode>; now?: Date } = {}
 ): Map<string, BillableLine> => {
+  // One `now` for the whole pass. Evaluated inside the predicate it allocated a
+  // Date per running entry and, worse, let the window boundary move down the
+  // list, so which entries the report covered depended on where they sat in it.
+  const now = opts.now ?? new Date();
   const periodEntries = allEntries.filter(entry => {
     const start = new Date(entry.startTime);
-    const end = entry.endTime ? new Date(entry.endTime) : (opts.now ?? new Date());
+    const end = entry.endTime ? new Date(entry.endTime) : now;
     return start <= window.end && end >= window.start;
   });
 
@@ -379,7 +383,7 @@ export const buildReportLines = (
     roundingScope: settings?.roundingScope || DEFAULT_ROUNDING_SCOPE,
     scopeWindow: window,
     timecodeMap: opts.timecodeMap,
-    now: opts.now,
+    now,
   });
 };
 
@@ -446,6 +450,44 @@ export const workedVsBilledNote = (
   const diff = billedSeconds - workedSeconds;
   const sign = diff > 0 ? '+' : '-';
   return `${worked} · rounding ${sign}${formatDurationShort(Math.abs(diff))}`;
+};
+
+/**
+ * The disclosure for entries a report bills no time for at all.
+ *
+ * Separate from `workedVsBilledNote` because it answers a different question —
+ * that one says how much time moved, this one says a line is missing — and
+ * because the two do not appear together. A report where one entry rounds down
+ * by as much as another rounds up has no net delta at all, and an entry has
+ * still vanished from it.
+ */
+export const zeroBilledNote = (count: number, roundingRule: RoundingRule): string | null => {
+  if (count <= 0) return null;
+  const entries = `${count} entr${count === 1 ? 'y' : 'ies'}`;
+  // Without a rounding rule an empty line is a zero-length entry rather than a
+  // rounded-away one, and calling it "rounded" would misdescribe it.
+  return roundingRule === 'none' ? `${entries} with no billable time` : `${entries} rounded to 0.00 h`;
+};
+
+/**
+ * Everything a surface has to disclose about the gap between the clock and the
+ * hours billed: how much time moved, which entries dropped out, or both.
+ *
+ * One function so the screen, the PDF and the CSV cannot each decide for
+ * themselves — and so the zero-line count cannot ride on a note that is null
+ * exactly when the count matters most.
+ */
+export const roundingNote = (
+  workedSeconds: number,
+  billedSeconds: number,
+  fees: number,
+  zeroLinesCount: number,
+  roundingRule: RoundingRule,
+): string | null => {
+  const delta = workedVsBilledNote(workedSeconds, billedSeconds, fees);
+  const zero = zeroBilledNote(zeroLinesCount, roundingRule);
+  if (delta && zero) return `${delta} (${zero})`;
+  return delta ?? zero;
 };
 
 /**
