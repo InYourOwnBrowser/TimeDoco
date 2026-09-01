@@ -121,6 +121,78 @@ const toInterval = (e: Entry, now: number): Interval | null => {
 const overlaps = (a: { start: number; end: number }, b: { start: number; end: number }): boolean =>
   a.start < b.end && a.end > b.start;
 
+/**
+ * Whether an entry can block a candidate slot, before its times are looked at.
+ * `findFreeSlot` and `checkOverlap` share it so they cannot drift apart on what
+ * counts as a conflict — a slot found by one and rejected by the other reads to
+ * the user as the app refusing its own suggestion.
+ */
+const isBlocking = (
+  entry: Entry,
+  excludeId?: string,
+  timecodeId?: string,
+  allowConcurrentTimers?: boolean,
+): boolean => {
+  if (excludeId && entry.id === excludeId) return false;
+  // Only skip other timecodes when a timecode was actually supplied. Without
+  // the explicit check, an omitted `timecodeId` compares `entry.timecodeId`
+  // against `undefined`, matches nothing, and disables overlap detection.
+  if (allowConcurrentTimers && timecodeId !== undefined && entry.timecodeId !== timecodeId) return false;
+  return true;
+};
+
+/**
+ * The stretches of `day` with nothing in them, in order, clipped to the day.
+ *
+ * Working from the complement of what is occupied is what makes the whole day
+ * reachable. Probing a handful of candidate start times — noon, then the end of
+ * each conflicting entry — could only ever find room *after* something, so a
+ * morning left free by a 09:00 start was invisible and a day two-thirds empty
+ * reported itself full.
+ */
+const freeIntervalsOn = (
+  dayStartMs: number,
+  dayEndMs: number,
+  entries: Entry[],
+  excludeId?: string,
+  timecodeId?: string,
+  allowConcurrentTimers?: boolean,
+): Array<{ start: number; end: number }> => {
+  const now = Date.now();
+  const occupied: Array<{ start: number; end: number }> = [];
+
+  for (const entry of entries) {
+    if (!isBlocking(entry, excludeId, timecodeId, allowConcurrentTimers)) continue;
+    const interval = toInterval(entry, now);
+    if (!interval) continue;
+    const start = Math.max(interval.start, dayStartMs);
+    const end = Math.min(interval.end, dayEndMs);
+    if (end > start) occupied.push({ start, end });
+  }
+
+  occupied.sort((a, b) => a.start - b.start);
+
+  const free: Array<{ start: number; end: number }> = [];
+  let cursor = dayStartMs;
+  for (const { start, end } of occupied) {
+    if (start > cursor) free.push({ start: cursor, end: start });
+    if (end > cursor) cursor = end;
+  }
+  if (cursor < dayEndMs) free.push({ start: cursor, end: dayEndMs });
+
+  return free;
+};
+
+/**
+ * Somewhere on `day` to put `deltaSeconds` of adjustment without colliding with
+ * what is already there, or null when the day has no room for it.
+ *
+ * Midday is preferred, then anything later, then the earlier part of the day —
+ * an adjustment reads most naturally in working hours, but a day whose
+ * afternoon is full is not a day that is full. The slot never crosses midnight:
+ * it belongs to the day whose cell was edited, and time that spilled onto the
+ * next day landed in another rounding bucket and another week's total.
+ */
 export const findFreeSlot = (
   day: Date,
   deltaSeconds: number,
@@ -129,42 +201,31 @@ export const findFreeSlot = (
   timecodeId?: string,
   allowConcurrentTimers?: boolean
 ): { start: Date; end: Date } | null => {
-  const initialStart = new Date(day);
-  initialStart.setHours(12, 0, 0, 0);
-  const initialEnd = new Date(initialStart.getTime() + deltaSeconds * 1000);
+  const dayStart = new Date(day);
+  dayStart.setHours(0, 0, 0, 0);
+  // The next midnight rather than +24h, so a DST day is 23 or 25 hours long
+  // exactly as the calendar has it.
+  const dayEnd = new Date(dayStart);
+  dayEnd.setDate(dayEnd.getDate() + 1);
 
-  if (!checkOverlap(initialStart, initialEnd, entries, excludeId, timecodeId, allowConcurrentTimers)) {
-    return { start: initialStart, end: initialEnd };
-  }
+  const dayStartMs = dayStart.getTime();
+  const dayEndMs = dayEnd.getTime();
+  const lengthMs = deltaSeconds * 1000;
+  if (!(lengthMs > 0) || lengthMs > dayEndMs - dayStartMs) return null;
 
-  const now = Date.now();
-  const conflictingEntries = entries.filter((e) => {
-    if (e.deletedAt) return false;
-    if (excludeId && e.id === excludeId) return false;
-    if (allowConcurrentTimers && timecodeId !== undefined && e.timecodeId !== timecodeId) return false;
-    return true;
-  });
+  const free = freeIntervalsOn(dayStartMs, dayEndMs, entries, excludeId, timecodeId, allowConcurrentTimers);
 
-  const candidates: number[] = [initialStart.getTime()];
-  for (const e of conflictingEntries) {
-    const eEnd = e.endTime ? new Date(e.endTime).getTime() : now;
-    if (eEnd >= initialStart.getTime()) {
-      candidates.push(eEnd);
-    }
-  }
+  const noon = new Date(dayStart);
+  noon.setHours(12, 0, 0, 0);
 
-  candidates.sort((a, b) => a - b);
-
-  const dEndMs = new Date(day);
-  dEndMs.setHours(23, 59, 59, 999);
-
-  for (const candMs of candidates) {
-    const candStart = new Date(candMs);
-    const candEnd = new Date(candMs + deltaSeconds * 1000);
-    if (candEnd.getTime() > dEndMs.getTime()) continue;
-
-    if (!checkOverlap(candStart, candEnd, entries, excludeId, timecodeId, allowConcurrentTimers)) {
-      return { start: candStart, end: candEnd };
+  // Midday first, then the whole day from its start; the second pass can only
+  // return something the first could not, so the preference is never lost.
+  for (const earliest of [noon.getTime(), dayStartMs]) {
+    for (const gap of free) {
+      const start = Math.max(gap.start, earliest);
+      if (start + lengthMs <= gap.end) {
+        return { start: new Date(start), end: new Date(start + lengthMs) };
+      }
     }
   }
 
@@ -176,12 +237,7 @@ export const checkOverlap = (start: Date, end: Date, entries: Entry[], excludeId
   const candidate = { start: start.getTime(), end: end.getTime() };
 
   return entries.some(e => {
-    if (excludeId && e.id === excludeId) return false;
-    // Only skip other timecodes when a timecode was actually supplied. Without
-    // the explicit check, an omitted `timecodeId` compares `e.timecodeId` against
-    // `undefined`, matches nothing, and silently disables overlap detection.
-    if (allowConcurrentTimers && timecodeId !== undefined && e.timecodeId !== timecodeId) return false;
-
+    if (!isBlocking(e, excludeId, timecodeId, allowConcurrentTimers)) return false;
     const interval = toInterval(e, now);
     return interval ? overlaps(candidate, interval) : false;
   });

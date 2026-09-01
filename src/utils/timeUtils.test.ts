@@ -130,6 +130,64 @@ describe('timeUtils', () => {
       expect(slot.start.getHours()).toBe(13);
       expect(slot.start.getMinutes()).toBe(15);
     });
+
+    // A timesheet adjustment belongs to the day whose cell was edited. A slot
+    // that runs past midnight silently moves the time onto the next day, where
+    // it lands in a different rounding bucket and a different week's total.
+    it('never returns a slot that runs past midnight', () => {
+      const slot = findFreeSlot(day, 14 * 3600, [], undefined, 'tc1', false);
+      expect(slot).not.toBeNull();
+      expect(slot!.end.getDate()).toBe(day.getDate());
+      expect(slot!.start.getTime()).toBeGreaterThanOrEqual(day.getTime());
+    });
+
+    it('uses the free morning when nothing after noon is long enough', () => {
+      // Busy 09:00-17:00, so 00:00-09:00 is the only stretch that fits 8 hours.
+      const entries = [createEntry('e1', 9, 0, 17, 0)];
+      const slot = findFreeSlot(day, 8 * 3600, entries, undefined, 'tc1', false);
+      expect(slot).not.toBeNull();
+      expect(slot!.start.getHours()).toBe(0);
+      expect(slot!.end.getHours()).toBe(8);
+    });
+
+    it('can use the last hour of the day', () => {
+      // Busy 09:00-23:00; 23:00 to midnight is exactly the hour requested.
+      const entries = [createEntry('e1', 9, 0, 23, 0)];
+      const slot = findFreeSlot(day, 3600, entries, undefined, 'tc1', false);
+      expect(slot).not.toBeNull();
+      expect(slot!.start.getHours()).toBe(23);
+      expect(slot!.end.getTime()).toBe(new Date(2025, 0, 9).getTime());
+    });
+
+    it('returns null only when the day genuinely has no room', () => {
+      const entries = [createEntry('e1', 0, 0, 23, 30)];
+      expect(findFreeSlot(day, 3600, entries, undefined, 'tc1', false)).toBeNull();
+      // ...but the half hour that is left is still reachable.
+      const slot = findFreeSlot(day, 1800, entries, undefined, 'tc1', false);
+      expect(slot!.start.getHours()).toBe(23);
+      expect(slot!.start.getMinutes()).toBe(30);
+    });
+
+    it('never returns a slot that overlaps an existing entry', () => {
+      const entries = [
+        createEntry('e1', 8, 0, 10, 0),
+        createEntry('e2', 11, 30, 12, 30),
+        createEntry('e3', 15, 0, 21, 0),
+      ];
+      for (const minutes of [15, 30, 45, 60, 90, 120, 180]) {
+        const slot = findFreeSlot(day, minutes * 60, entries, undefined, 'tc1', false);
+        if (!slot) continue;
+        expect(checkOverlap(slot.start, slot.end, entries, undefined, 'tc1', false)).toBe(false);
+        expect(slot.end.getTime() - slot.start.getTime()).toBe(minutes * 60 * 1000);
+      }
+    });
+
+    it('ignores a trashed entry when looking for room', () => {
+      const trashed = { ...createEntry('e1', 0, 0, 23, 59), deletedAt: new Date().toISOString() };
+      const slot = findFreeSlot(day, 3600, [trashed], undefined, 'tc1', false);
+      expect(slot).not.toBeNull();
+      expect(slot!.start.getHours()).toBe(12);
+    });
   });
 
   describe('applyRounding', () => {
