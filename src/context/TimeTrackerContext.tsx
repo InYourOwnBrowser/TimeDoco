@@ -5,7 +5,7 @@ import { differenceInSeconds, isSameDay } from 'date-fns';
 import { calculateDuration, findOverlappingCandidates } from '../utils/timeUtils';
 import { clearErrorLog, logError } from '../utils/errorLog';
 import { useToast } from './ToastContext';
-import { requestPersistence } from '../utils/storagePersistence';
+import { requestPersistenceOnCommitment, resumePersistence } from '../utils/storagePersistence';
 import {
   validateBackupPayload,
   verifyBackupFile,
@@ -478,10 +478,10 @@ export const TimeTrackerProvider: React.FC<{ children: ReactNode }> = ({ childre
   }, [addToast, notifyOtherTabs]);
 
   useEffect(() => {
-    // Re-request persistence on load if previously granted, to survive Safari session resets
-    if (typeof localStorage !== 'undefined' && localStorage.getItem('persistenceGranted') === 'true') {
-      requestPersistence().catch(() => {});
-    }
+    // Reconciles the stored record against what the browser actually reports,
+    // and re-requests a grant that was previously held but has since been
+    // dropped — Safari does that on a session reset.
+    resumePersistence().catch(() => {});
     refreshData();
   }, [refreshData]);
 
@@ -724,10 +724,10 @@ export const TimeTrackerProvider: React.FC<{ children: ReactNode }> = ({ childre
     // The pre-stop snapshot is read inside the queue, so it is the entry as it
     // actually stood when the stop ran: a note save queued ahead of this one has
     // already been applied and is part of what the undo would restore.
-    if (typeof localStorage !== 'undefined' && !localStorage.getItem('persistenceAttempted')) {
-      localStorage.setItem('persistenceAttempted', 'true');
-      requestPersistence().catch(() => {});
-    }
+    // A commitment gesture. The policy asks at most once a day until granted,
+    // so an early denial — when there is barely any site engagement to weigh —
+    // is not permanent.
+    requestPersistenceOnCommitment().catch(() => {});
 
     const stopped = await mutateValue('stop the timer', () => runExclusive(async () => {
       const entry = await db.getEntry(entryId);
@@ -1100,10 +1100,10 @@ export const TimeTrackerProvider: React.FC<{ children: ReactNode }> = ({ childre
     hourlyRate?: number,
     options?: { deferRefresh?: boolean },
   ): Promise<Timecode> => {
-    if (typeof localStorage !== 'undefined' && !localStorage.getItem('persistenceAttempted')) {
-      localStorage.setItem('persistenceAttempted', 'true');
-      requestPersistence().catch(() => {});
-    }
+    // A commitment gesture. The policy asks at most once a day until granted,
+    // so an early denial — when there is barely any site engagement to weigh —
+    // is not permanent.
+    requestPersistenceOnCommitment().catch(() => {});
     const newTimecode: Timecode = {
       id: crypto.randomUUID(),
       name,
@@ -1266,8 +1266,11 @@ export const TimeTrackerProvider: React.FC<{ children: ReactNode }> = ({ childre
 
   const wipeAllData = async () => {
     await db.wipeAllData();
-    // Everything the app has written to localStorage, in one place — the error
-    // log holds messages, stack traces and context, so it must go too.
+    // Everything the app has written about the user's data, in one place — the
+    // error log holds messages, stack traces and context, so it must go too.
+    // The timedoco.persistence.* keys deliberately survive: they cache a
+    // browser-level grant, not user data, and dropping them would only make the
+    // app re-ask for something it already holds.
     localStorage.removeItem('backupReminderDismissed');
     localStorage.removeItem('dismissedForgotToStopIds');
     clearErrorLog();
