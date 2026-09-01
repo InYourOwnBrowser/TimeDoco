@@ -99,15 +99,21 @@ export const ActiveTimer: React.FC<{ activeEntry: Entry | null }> = ({ activeEnt
   };
 
   return (
-    <div className="bg-white dark:bg-graphite p-6 rounded-panel shadow-sm dark:shadow-[inset_0_1px_0_rgba(255,255,255,0.06)] border border-graphite/20 dark:border-white/20 max-w-md w-full mx-auto flex flex-col items-center transition-colors">
+    <div className={`relative bg-white dark:bg-graphite p-6 rounded-panel shadow-md dark:shadow-[inset_0_1px_0_rgba(255,255,255,0.08)] border ${
+      activeEntry && !activeEntry.isPaused
+        ? 'border-signal/50 dark:border-signal/40 ring-1 ring-signal/20'
+        : 'border-graphite/20 dark:border-white/15'
+    } max-w-md w-full mx-auto flex flex-col items-center transition-all duration-200`}>
       {!activeEntry ? (
-        <div className="w-full flex flex-col items-center gap-6">
-          <div className="text-5xl text-gray-400 dark:text-gray-500 font-mono tracking-wider tabular">
-            00:00
+        <div className="w-full flex flex-col items-center gap-5">
+          <div className="px-6 py-2.5 rounded-lg bg-stone/60 dark:bg-ink/60 border border-graphite/10 dark:border-white/10 shadow-inner">
+            <span className="text-5xl font-mono font-medium tracking-wider tabular text-gray-400 dark:text-gray-500">
+              00:00
+            </span>
           </div>
 
           <div className="w-full relative z-20">
-            <label className="block text-sm font-medium text-gray-600 dark:text-gray-400 mb-2 text-center">What are you working on?</label>
+            <label className="block text-xs font-semibold uppercase tracking-wider text-gray-500 dark:text-gray-400 mb-2 text-center">What are you working on?</label>
             <TimecodeSelector onSelect={setSelectedTimecodeId} selectedId={selectedTimecodeId} />
           </div>
 
@@ -116,27 +122,29 @@ export const ActiveTimer: React.FC<{ activeEntry: Entry | null }> = ({ activeEnt
               type="text"
               maxLength={2000}
               placeholder="Add a note (optional)"
-              className="w-full text-center text-sm px-3 py-2 border border-graphite/20 dark:border-white/20 hover:border-graphite/30 dark:hover:border-white/30 focus:border-signal dark:focus:border-signal rounded-panel outline-none transition-colors bg-white dark:bg-graphite text-graphite dark:text-stone placeholder-gray-500 dark:placeholder-gray-400 focus-visible:ring-2 focus-visible:ring-signal focus-visible:ring-offset-2 ring-offset-stone dark:ring-offset-graphite"
+              className="w-full text-center text-sm px-3.5 py-2 border border-graphite/20 dark:border-white/20 hover:border-graphite/30 dark:hover:border-white/30 focus:border-signal dark:focus:border-signal rounded-panel outline-none transition-all bg-white dark:bg-graphite text-graphite dark:text-stone placeholder-gray-400 dark:placeholder-gray-500 focus-visible:ring-2 focus-visible:ring-signal focus-visible:ring-offset-2 ring-offset-stone dark:ring-offset-graphite"
               value={preStartNote}
               onChange={(e) => setPreStartNote(e.target.value)}
             />
-            <input
-              type="text"
-              maxLength={500}
-              placeholder="Tags (e.g. design, client)"
-              className="w-full text-center text-xs px-3 py-1.5 border border-graphite/20 dark:border-white/20 hover:border-graphite/30 dark:hover:border-white/30 focus:border-signal dark:focus:border-signal rounded-panel outline-none transition-colors bg-white dark:bg-graphite text-graphite dark:text-stone placeholder-gray-500 dark:placeholder-gray-400 focus-visible:ring-2 focus-visible:ring-signal focus-visible:ring-offset-2 ring-offset-stone dark:ring-offset-graphite"
-              value={preStartTags}
-              onChange={(e) => setPreStartTags(e.target.value)}
-            />
-            <input
-              type="number"
-              min="1"
-              step="1"
-              placeholder="Estimated time (minutes, optional)"
-              className="w-full text-center text-xs px-3 py-1.5 border border-graphite/20 dark:border-white/20 hover:border-graphite/30 dark:hover:border-white/30 focus:border-signal dark:focus:border-signal rounded-panel outline-none transition-colors bg-white dark:bg-graphite text-graphite dark:text-stone placeholder-gray-500 dark:placeholder-gray-400 focus-visible:ring-2 focus-visible:ring-signal focus-visible:ring-offset-2 ring-offset-stone dark:ring-offset-graphite"
-              value={preStartExpectedMinutes}
-              onChange={(e) => setPreStartExpectedMinutes(e.target.value)}
-            />
+            <div className="grid grid-cols-2 gap-2">
+              <input
+                type="text"
+                maxLength={500}
+                placeholder="Tags (e.g. design, client)"
+                className="w-full text-center text-xs px-3 py-1.5 border border-graphite/20 dark:border-white/20 hover:border-graphite/30 dark:hover:border-white/30 focus:border-signal dark:focus:border-signal rounded-panel outline-none transition-all bg-white dark:bg-graphite text-graphite dark:text-stone placeholder-gray-400 dark:placeholder-gray-500 focus-visible:ring-2 focus-visible:ring-signal focus-visible:ring-offset-2 ring-offset-stone dark:ring-offset-graphite"
+                value={preStartTags}
+                onChange={(e) => setPreStartTags(e.target.value)}
+              />
+              <input
+                type="number"
+                min="1"
+                step="1"
+                placeholder="Est. mins (optional)"
+                className="w-full text-center text-xs px-3 py-1.5 border border-graphite/20 dark:border-white/20 hover:border-graphite/30 dark:hover:border-white/30 focus:border-signal dark:focus:border-signal rounded-panel outline-none transition-all bg-white dark:bg-graphite text-graphite dark:text-stone placeholder-gray-400 dark:placeholder-gray-500 focus-visible:ring-2 focus-visible:ring-signal focus-visible:ring-offset-2 ring-offset-stone dark:ring-offset-graphite"
+                value={preStartExpectedMinutes}
+                onChange={(e) => setPreStartExpectedMinutes(e.target.value)}
+              />
+            </div>
           </div>
 
           <button
@@ -152,7 +160,7 @@ export const ActiveTimer: React.FC<{ activeEntry: Entry | null }> = ({ activeEnt
               setPreStartTags('');
               setPreStartExpectedMinutes('');
             }}
-            className="mt-2 w-16 h-16 rounded-full bg-signal hover:bg-signal-dim text-ink flex items-center justify-center shadow-lg disabled:opacity-50 disabled:cursor-not-allowed transition-colors focus-visible:ring-2 focus-visible:ring-signal focus-visible:ring-offset-2 ring-offset-stone dark:ring-offset-graphite"
+            className="mt-1 w-16 h-16 rounded-full bg-signal hover:bg-amber-500 active:scale-95 text-ink flex items-center justify-center shadow-lg disabled:opacity-40 disabled:cursor-not-allowed transition-all focus-visible:ring-2 focus-visible:ring-signal focus-visible:ring-offset-2 ring-offset-stone dark:ring-offset-graphite"
             aria-label="Start Timer (Cmd/Ctrl+Shift+S)"
             title="Start Timer (Cmd/Ctrl+Shift+S)"
           >
@@ -163,27 +171,29 @@ export const ActiveTimer: React.FC<{ activeEntry: Entry | null }> = ({ activeEnt
         <div className="w-full flex flex-col items-center gap-4">
 
           <div className="flex flex-col items-center">
-            <span className="text-xs uppercase tracking-wide font-sans text-gray-500 dark:text-gray-400 mb-1">RECORDING</span>
-            <div className="flex items-center gap-2">
+            <span className="text-[10px] font-bold uppercase tracking-widest text-signal-dim dark:text-signal mb-1">
+              {activeEntry.isPaused ? 'PAUSED' : 'RECORDING'}
+            </span>
+            <div className="flex items-center gap-2 bg-stone/50 dark:bg-ink/40 px-3 py-1 rounded-full border border-graphite/10 dark:border-white/10">
               <div
-                className="w-3 h-3 rounded-full"
+                className="w-3 h-3 rounded-full shadow-sm"
                 style={{ backgroundColor: activeTimecode?.color || '#cbd5e1' }}
               ></div>
-              <span className="text-lg font-semibold text-gray-800 dark:text-gray-200">
+              <span className="text-base font-semibold text-gray-800 dark:text-gray-200">
                 {activeTimecode?.name || 'Unknown Timecode'}
               </span>
             </div>
           </div>
 
-          <div className="flex items-center gap-3">
-            <div className={`w-4 h-4 rounded-full ${activeEntry.isPaused ? 'bg-verdigris' : 'bg-signal recording-dot'}`}></div>
-            <div className="text-6xl font-mono tracking-wider tabular text-graphite dark:text-stone">
+          <div className="px-6 py-2 rounded-xl bg-stone/70 dark:bg-ink/70 border border-graphite/15 dark:border-white/15 shadow-inner flex items-center gap-3">
+            <div className={`w-3.5 h-3.5 rounded-full ${activeEntry.isPaused ? 'bg-verdigris' : 'bg-signal recording-dot'}`}></div>
+            <div className="text-5xl sm:text-6xl font-mono font-semibold tracking-wider tabular text-graphite dark:text-stone">
               {formatElapsedSeconds(elapsedSeconds)}
             </div>
           </div>
 
           {activeEntry.expectedDurationMinutes ? (
-            <div className="flex items-center gap-2 text-xs font-mono tabular -mt-2">
+            <div className="flex items-center gap-2 text-xs font-mono tabular -mt-1">
               <span className="text-gray-500 dark:text-gray-400">
                 Est. {formatDurationShort(activeEntry.expectedDurationMinutes * 60)}
               </span>
@@ -200,12 +210,12 @@ export const ActiveTimer: React.FC<{ activeEntry: Entry | null }> = ({ activeEnt
             </div>
           ) : null}
 
-          <div className="w-full mt-2 mb-2 space-y-2">
+          <div className="w-full mt-1 space-y-2">
             <input
               type="text"
               maxLength={2000}
               placeholder="Add a note..."
-              className="w-full text-center text-sm px-3 py-2 border border-graphite/20 dark:border-white/20 hover:border-graphite/30 dark:hover:border-white/30 focus:border-signal dark:focus:border-signal rounded-panel outline-none transition-colors bg-white dark:bg-graphite text-graphite dark:text-stone placeholder-gray-500 dark:placeholder-gray-400 focus-visible:ring-2 focus-visible:ring-signal focus-visible:ring-offset-2 ring-offset-stone dark:ring-offset-graphite"
+              className="w-full text-center text-sm px-3.5 py-2 border border-graphite/20 dark:border-white/20 hover:border-graphite/30 dark:hover:border-white/30 focus:border-signal dark:focus:border-signal rounded-panel outline-none transition-all bg-white dark:bg-graphite text-graphite dark:text-stone placeholder-gray-400 dark:placeholder-gray-500 focus-visible:ring-2 focus-visible:ring-signal focus-visible:ring-offset-2 ring-offset-stone dark:ring-offset-graphite"
               value={localNote}
               onChange={(e) => setLocalNote(e.target.value)}
             />
@@ -213,7 +223,7 @@ export const ActiveTimer: React.FC<{ activeEntry: Entry | null }> = ({ activeEnt
               type="text"
               maxLength={500}
               placeholder="Tags (e.g. design, review)"
-              className="w-full text-center text-xs px-3 py-1.5 border border-graphite/20 dark:border-white/20 hover:border-graphite/30 dark:hover:border-white/30 focus:border-signal dark:focus:border-signal rounded-panel outline-none transition-colors bg-white dark:bg-graphite text-graphite dark:text-stone placeholder-gray-500 dark:placeholder-gray-400 focus-visible:ring-2 focus-visible:ring-signal focus-visible:ring-offset-2 ring-offset-stone dark:ring-offset-graphite"
+              className="w-full text-center text-xs px-3 py-1.5 border border-graphite/20 dark:border-white/20 hover:border-graphite/30 dark:hover:border-white/30 focus:border-signal dark:focus:border-signal rounded-panel outline-none transition-all bg-white dark:bg-graphite text-graphite dark:text-stone placeholder-gray-400 dark:placeholder-gray-500 focus-visible:ring-2 focus-visible:ring-signal focus-visible:ring-offset-2 ring-offset-stone dark:ring-offset-graphite"
               value={localTags}
               onChange={(e) => setLocalTags(e.target.value)}
             />
@@ -223,7 +233,7 @@ export const ActiveTimer: React.FC<{ activeEntry: Entry | null }> = ({ activeEnt
             {activeEntry.isPaused ? (
               <button
                 onClick={() => resumeTimer(activeEntry.id)}
-                className="w-14 h-14 rounded-full bg-verdigris text-white hover:bg-verdigris-dim flex items-center justify-center transition-colors focus-visible:ring-2 focus-visible:ring-signal focus-visible:ring-offset-2 ring-offset-stone dark:ring-offset-graphite"
+                className="w-14 h-14 rounded-full bg-verdigris text-white hover:bg-verdigris-dim active:scale-95 flex items-center justify-center transition-all shadow-md focus-visible:ring-2 focus-visible:ring-signal focus-visible:ring-offset-2 ring-offset-stone dark:ring-offset-graphite"
                 title="Resume"
                 aria-label="Resume Timer"
               >
@@ -232,7 +242,7 @@ export const ActiveTimer: React.FC<{ activeEntry: Entry | null }> = ({ activeEnt
             ) : (
               <button
                 onClick={() => pauseTimer(activeEntry.id)}
-                className="w-14 h-14 rounded-full bg-stone dark:bg-gray-700 text-graphite dark:text-gray-200 hover:bg-gray-200 dark:hover:bg-gray-600 flex items-center justify-center transition-colors focus-visible:ring-2 focus-visible:ring-signal focus-visible:ring-offset-2 ring-offset-stone dark:ring-offset-graphite"
+                className="w-14 h-14 rounded-full bg-stone dark:bg-gray-700 text-graphite dark:text-gray-200 hover:bg-gray-200 dark:hover:bg-gray-600 active:scale-95 flex items-center justify-center transition-all shadow-sm focus-visible:ring-2 focus-visible:ring-signal focus-visible:ring-offset-2 ring-offset-stone dark:ring-offset-graphite"
                 title="Pause"
                 aria-label="Pause Timer"
               >
@@ -242,7 +252,7 @@ export const ActiveTimer: React.FC<{ activeEntry: Entry | null }> = ({ activeEnt
 
             <button
               onClick={handleStop}
-              className="w-16 h-16 rounded-full bg-graphite hover:bg-ink dark:bg-stone dark:hover:bg-gray-300 text-stone dark:text-ink flex items-center justify-center shadow-lg transition-colors focus-visible:ring-2 focus-visible:ring-signal focus-visible:ring-offset-2 ring-offset-stone dark:ring-offset-graphite"
+              className="w-16 h-16 rounded-full bg-graphite hover:bg-ink dark:bg-stone dark:hover:bg-gray-200 active:scale-95 text-stone dark:text-ink flex items-center justify-center shadow-lg transition-all focus-visible:ring-2 focus-visible:ring-signal focus-visible:ring-offset-2 ring-offset-stone dark:ring-offset-graphite"
               title="Stop (Cmd/Ctrl+Shift+S)"
               aria-label="Stop Timer (Cmd/Ctrl+Shift+S)"
             >
