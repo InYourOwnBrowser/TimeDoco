@@ -1,9 +1,10 @@
 name: Deploy
 
 # A push runs `verify` only. Deployment is deliberately manual — the `deploy`
-# job is gated on `workflow_dispatch` — so landing on main or staging checks the
-# code without shipping it. Removing the push trigger would leave both branches
-# unverified, which is worse than the asymmetry.
+# job is gated on `workflow_dispatch` *and* on the ref it was dispatched from —
+# so landing on main or staging checks the code without shipping it. Removing
+# the push trigger would leave both branches unverified, which is worse than the
+# asymmetry.
 on:
   push:
     branches: [main, staging]
@@ -65,7 +66,24 @@ jobs:
 
   deploy:
     needs: verify
-    if: github.event_name == 'workflow_dispatch'
+    # `workflow_dispatch` can be fired from *any* ref, so the event name alone
+    # is not a gate: without the ref test below, anyone with write access could
+    # push a branch and ship it straight to production, and `verify` would go
+    # green against that same branch and vouch for it. Production ships from
+    # `main` only; a preview from `main` or `staging` — the two branches the
+    # push trigger already verifies.
+    if: >-
+      github.event_name == 'workflow_dispatch' &&
+      (
+        (inputs.target == 'production' && github.ref == 'refs/heads/main') ||
+        (inputs.target == 'preview' &&
+          (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/staging'))
+      )
+    # Names the environment the publish belongs to so branch policy and required
+    # reviewers can be attached to it. NOTE: this is inert until those rules are
+    # configured in the repository's Settings -> Environments; the `if:` above is
+    # what actually enforces the branch today.
+    environment: ${{ inputs.target == 'production' && 'production' || 'preview' }}
     runs-on: ubuntu-latest
     permissions:
       contents: read

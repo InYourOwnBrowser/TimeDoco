@@ -270,6 +270,47 @@ describe('Fixed Cost & Template Deletion', () => {
       });
     });
 
+    /** Drive the modal into flat-fee mode with a date and the given amount. */
+    const submitFlatFee = (container: HTMLElement, amount: string) => {
+      fireEvent.click(screen.getByPlaceholderText('Select or type to create...'));
+      const options = screen.getAllByText('Materials & Expenses');
+      fireEvent.click(options[options.length - 1]);
+
+      fireEvent.click(screen.getByRole('button', { name: 'Flat Fee' }));
+
+      const dateInput = container.querySelector('input[type="date"]') as HTMLInputElement;
+      fireEvent.change(dateInput, { target: { value: '2025-05-10' } });
+
+      const amountInput = screen.getByPlaceholderText('e.g. 150.00') as HTMLInputElement;
+      fireEvent.change(amountInput, { target: { value: amount } });
+
+      fireEvent.click(screen.getByText('Add Entry'));
+    };
+
+    // C-1: `ce388d3` taught the reports to print a negative amount, but this
+    // gate still rejected one, so a credit could not be recorded in the first
+    // place. The timed-entry path in the same file already allowed it.
+    it('records a negative flat fee as a credit', async () => {
+      const { container } = render(<ManualEntryModal onClose={vi.fn()} />);
+
+      submitFlatFee(container, '-250.00');
+
+      await waitFor(() => {
+        expect(mockAddManualEntry).toHaveBeenCalledWith(
+          expect.objectContaining({ manualAmount: -250 }),
+        );
+      });
+    });
+
+    it('still rejects a zero flat fee', async () => {
+      const { container, findByText } = render(<ManualEntryModal onClose={vi.fn()} />);
+
+      submitFlatFee(container, '0');
+
+      expect(await findByText(/non-zero fixed amount/i)).toBeTruthy();
+      expect(mockAddManualEntry).not.toHaveBeenCalled();
+    });
+
     it('confirms before a flat fee throws away times already typed into the form', async () => {
       const confirmSpy = vi.spyOn(window, 'confirm').mockReturnValue(false);
       const onClose = vi.fn();

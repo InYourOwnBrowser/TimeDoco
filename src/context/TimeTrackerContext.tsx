@@ -15,6 +15,19 @@ import {
   MAX_IMPORT_ENTRIES,
 } from '../utils/importValidation';
 
+/**
+ * A settings change: either the fields to merge, or a function deriving them
+ * from the freshest stored record.
+ *
+ * The function form matters for any field holding a whole collection — custom
+ * report fields, templates. Building the new array from React state captures it
+ * as it was at render, and the merge below would then write that snapshot over
+ * whatever the record holds now: an edit to a sibling field is reverted, and a
+ * row deleted in between comes back. Deriving inside the lock edits what is
+ * actually stored.
+ */
+export type SettingsUpdate = Partial<Settings> | ((current: Settings) => Partial<Settings>);
+
 /** Which half of a split keeps a flat fee. A fee is not a rate, so it cannot be divided by time. */
 export type FeeAllocation = 'first' | 'second' | 'discard';
 
@@ -59,7 +72,7 @@ interface TimeTrackerContextType {
   dismissForgotToStop: () => void;
   settings: Settings | null;
   /** Resolves to whether the change was stored. Gate any success message on it. */
-  updateSettings: (updates: Partial<Settings>) => Promise<boolean>;
+  updateSettings: (updates: SettingsUpdate) => Promise<boolean>;
   /**
    * Put a deleted template back, merged against the templates as they stand now
    * rather than a snapshot taken before the delete.
@@ -1598,10 +1611,11 @@ export const TimeTrackerProvider: React.FC<{ children: ReactNode }> = ({ childre
   const restoreTimecode = (id: string): Promise<boolean> => restoreFromTrash({ timecodeIds: [id] });
 
   /** Resolves to whether the change was stored; gate any success message on it. */
-  const updateSettings = async (updates: Partial<Settings>): Promise<boolean> => {
+  const updateSettings = async (updates: SettingsUpdate): Promise<boolean> => {
     if (!settings) return false;
     const previousSettings = settings;
-    const newSettings = { ...settings, ...updates };
+    const resolve = (base: Settings) => (typeof updates === 'function' ? updates(base) : updates);
+    const newSettings = { ...settings, ...resolve(settings) };
     setSettings(newSettings);
 
     // The read, the merge and the write are one step. Interleaved, the second
@@ -1610,7 +1624,9 @@ export const TimeTrackerProvider: React.FC<{ children: ReactNode }> = ({ childre
     return runSettingsExclusive(async () => {
       // Read the latest settings from the DB to prevent clobbering fields saved by other tabs
       const currentSettings = await db.getSettings();
-      const toWrite = currentSettings ? { ...currentSettings, ...updates } : newSettings;
+      // Resolved against the record just read, so a function form edits the
+      // stored collection rather than replaying the caller's render snapshot.
+      const toWrite = currentSettings ? { ...currentSettings, ...resolve(currentSettings) } : newSettings;
       if (currentSettings) setSettings(toWrite);
 
       // The state above is optimistic. If the write fails, put it back rather than

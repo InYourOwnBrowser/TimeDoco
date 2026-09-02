@@ -145,6 +145,10 @@ const bucketKeyFor = (
  * it to share one line's billable seconds across the days it spans. Either way
  * the parts reconcile with the whole, whatever rounding scope is in use.
  *
+ * A negative target is a credit and allocates with its sign preserved, so the
+ * parts still sum to it exactly. Only a zero target, or parts that sum to
+ * nothing, allocate all zeros — there is nothing to share out in either case.
+ *
  * `keys` breaks a tie between equal remainders. Without it the leftover unit
  * goes to whichever tied part sits earlier in the array — `Array.sort` is
  * stable, so a tie is decided by input order — and two entries of identical
@@ -164,11 +168,18 @@ export const allocateProportionally = (
   keys?: readonly string[],
 ): number[] => {
   const total = rawSeconds.reduce((sum, value) => sum + value, 0);
-  if (total <= 0 || target <= 0) return rawSeconds.map(() => 0);
+  if (total <= 0 || target === 0) return rawSeconds.map(() => 0);
 
-  const exact = rawSeconds.map((value) => (value * target) / total);
+  // A credit is allocated by magnitude and re-signed on the way out. Feeding a
+  // negative target through directly would floor toward -Infinity and then hand
+  // the largest-remainder units out in the wrong direction, so the parts would
+  // no longer sum back to `target`.
+  const sign = target < 0 ? -1 : 1;
+  const magnitude = Math.abs(target);
+
+  const exact = rawSeconds.map((value) => (value * magnitude) / total);
   const allocated = exact.map((value) => Math.floor(value));
-  let remaining = target - allocated.reduce((sum, value) => sum + value, 0);
+  let remaining = magnitude - allocated.reduce((sum, value) => sum + value, 0);
 
   const order = exact
     .map((value, index) => ({ index, remainder: value - Math.floor(value) }))
@@ -193,7 +204,10 @@ export const allocateProportionally = (
     }
   }
 
-  return allocated;
+  // Re-sign, mapping 0 to 0 rather than -0: the two are numerically equal but
+  // print differently and compare unequal under Object.is, which would show up
+  // in snapshots and in toEqual assertions.
+  return sign === 1 ? allocated : allocated.map((value) => (value === 0 ? 0 : -value));
 };
 
 export interface BuildOptions {

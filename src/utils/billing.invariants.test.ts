@@ -260,14 +260,19 @@ describe('allocateProportionally', () => {
     fc.assert(
       fc.property(
         fc.array(fc.integer({ min: 0, max: 100_000 }), { minLength: 1, maxLength: 20 }),
-        fc.integer({ min: 0, max: 500_000 }),
+        // Spans both signs: a negative target is a credit, and it used to be the
+        // one quadrant this property never generated, so the allocator silently
+        // zeroed every line under it and nothing here objected.
+        fc.integer({ min: -500_000, max: 500_000 }),
         (parts, target) => {
           const allocated = allocateProportionally(parts, target);
           const total = parts.reduce((acc, value) => acc + value, 0);
           expect(allocated).toHaveLength(parts.length);
-          expect(allocated.every((value) => value >= 0)).toBe(true);
+          // Each part carries the target's sign: a credit never yields a positive
+          // line, a charge never a negative one.
+          expect(allocated.every((value) => (target < 0 ? value <= 0 : value >= 0))).toBe(true);
           expect(allocated.reduce((acc, value) => acc + value, 0)).toBe(
-            total <= 0 || target <= 0 ? 0 : target,
+            total <= 0 || target === 0 ? 0 : target,
           );
         },
       ),
@@ -293,6 +298,19 @@ describe('allocateProportionally', () => {
     expect(forward.reduce((acc, value) => acc + value, 0)).toBe(target);
   });
 
+  // C-1: `ce388d3` taught the reports to print a negative amount, but the
+  // allocator still bailed out on `target <= 0` and handed back all zeros, so a
+  // credit's lines silently stopped summing to the row they sat under.
+  it('shares a credit out exactly, the same way it shares a charge', () => {
+    const parts = [3600, 1800];
+    const credit = allocateProportionally(parts, -500);
+
+    expect(credit.reduce((acc, value) => acc + value, 0)).toBe(-500);
+    expect(credit).toEqual([-333, -167]);
+    // Mirror image of the charge: same split, opposite sign.
+    expect(credit).toEqual(allocateProportionally(parts, 500).map((value) => -value));
+  });
+
   it('is a function of the set, not of the order the parts arrive in', () => {
     fc.assert(
       fc.property(
@@ -301,7 +319,8 @@ describe('allocateProportionally', () => {
             fc.record({ key: fc.string({ minLength: 1, maxLength: 6 }), part: fc.integer({ min: 0, max: 100_000 }) }),
             { minLength: 1, maxLength: 12, selector: (item) => item.key },
           ),
-          fc.integer({ min: 1, max: 500_000 }),
+          // Non-zero, both signs: order independence has to hold for credits too.
+          fc.oneof(fc.integer({ min: -500_000, max: -1 }), fc.integer({ min: 1, max: 500_000 })),
         (items, target) => {
           const allocate = (list: typeof items) =>
             allocateProportionally(

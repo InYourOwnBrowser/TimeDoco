@@ -88,8 +88,11 @@ export const ManualEntryModal: React.FC<ManualEntryModalProps> = ({ onClose }) =
         setError('Please select a date.');
         return;
       }
-      if (!manualAmount || parseFloat(manualAmount) <= 0) {
-        setError('Please enter a fixed amount.');
+      // A negative fixed amount is a credit. The timed-entry path below already
+      // accepts one and reports print it, so rejecting it here left the feature
+      // reachable from one path only. Empty, non-numeric and zero stay rejected.
+      if (!manualAmount || !Number.isFinite(parsedManualAmount) || parsedManualAmount === 0) {
+        setError('Please enter a non-zero fixed amount. A negative amount records a credit.');
         return;
       }
 

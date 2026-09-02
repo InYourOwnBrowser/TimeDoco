@@ -347,8 +347,12 @@ export function validateBackupPayload(
       }
     }
 
+    // A negative manual amount is a credit, so only a non-numeric or non-finite
+    // one is invalid here. The finite check still earns its place: 1e999 parses
+    // to Infinity and `roundCurrency` would turn that into a silent 0. Hourly
+    // rates above stay non-negative — a credit is a fixed amount, not a rate.
     if (e.manualAmount !== undefined && e.manualAmount !== null) {
-      if (typeof e.manualAmount !== 'number' || !Number.isFinite(e.manualAmount) || e.manualAmount < 0) {
+      if (typeof e.manualAmount !== 'number' || !Number.isFinite(e.manualAmount)) {
         throw new Error(`Import failed: entry at index ${i} has an invalid manual amount.`);
       }
     }

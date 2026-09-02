@@ -1,5 +1,5 @@
 import React, { useState, useRef } from 'react';
-import { useTimeTracker } from '../context/TimeTrackerContext';
+import { useTimeTracker, type SettingsUpdate } from '../context/TimeTrackerContext';
 import { useNamedDownload } from '../hooks/useNamedDownload';
 import { checkPersistence, requestPersistence, storageEstimate, type PersistenceState } from '../utils/storagePersistence';
 import { useInstallPrompt } from '../hooks/useInstallPrompt';
@@ -170,7 +170,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ onClose }) => {
     e.target.value = '';
   };
 
-  const handleUpdateSettings = async (updates: any) => {
+  const handleUpdateSettings = async (updates: SettingsUpdate) => {
     // The "Saved" chip is a claim about storage, so it waits on storage. A
     // failed write raises its own error toast; showing "Saved" beside it told
     // the user their preference had been kept when it had not.
@@ -904,33 +904,41 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ onClose }) => {
                   Custom Report Fields
                   <HelpTooltip text="Extra label/value pairs shown at the top of every PDF report — e.g. Tax Registration Number, Business Number." />
                 </label>
-                {(settings?.customFields || []).map((field, i) => (
+                {(settings?.customFields || []).map((field) => (
                   <div key={field.id} className="flex gap-2 mb-2">
                     <SettingField
                       type="text" value={field.label} placeholder="Label"
                       onCommit={(value) => {
-                        const updated = [...(settings?.customFields || [])];
-                        updated[i] = { ...updated[i], label: value };
-                        void handleUpdateSettings({ customFields: updated });
+                        // Addressed by id against the freshest record, not by
+                        // index into a render snapshot: committing this field
+                        // must not revert its sibling or resurrect a row the
+                        // user deleted while this edit was still pending.
+                        void handleUpdateSettings((current) => ({
+                          customFields: (current.customFields || []).map((f) =>
+                            f.id === field.id ? { ...f, label: value } : f,
+                          ),
+                        }));
                       }}
                       className="w-32 px-2 py-1.5 text-sm border border-graphite/20 dark:border-white/20 rounded bg-white dark:bg-graphite text-graphite dark:text-stone"
                     />
                     <SettingField
                       type="text" value={field.value} placeholder="Value"
                       onCommit={(next) => {
-                        const updated = [...(settings?.customFields || [])];
-                        updated[i] = { ...updated[i], value: next };
-                        void handleUpdateSettings({ customFields: updated });
+                        void handleUpdateSettings((current) => ({
+                          customFields: (current.customFields || []).map((f) =>
+                            f.id === field.id ? { ...f, value: next } : f,
+                          ),
+                        }));
                       }}
                       className="flex-1 px-2 py-1.5 text-sm border border-graphite/20 dark:border-white/20 rounded bg-white dark:bg-graphite text-graphite dark:text-stone"
                     />
-                    <button onClick={() => handleUpdateSettings({ customFields: (settings?.customFields || []).filter((_, j) => j !== i) })} className="text-gray-500 hover:text-rust" aria-label="Remove field">
+                    <button onClick={() => handleUpdateSettings((current) => ({ customFields: (current.customFields || []).filter((f) => f.id !== field.id) }))} className="text-gray-500 hover:text-rust" aria-label="Remove field">
                       <X size={16} />
                     </button>
                   </div>
                 ))}
                 <button
-                  onClick={() => handleUpdateSettings({ customFields: [...(settings?.customFields || []), { id: crypto.randomUUID(), label: '', value: '' }] })}
+                  onClick={() => handleUpdateSettings((current) => ({ customFields: [...(current.customFields || []), { id: crypto.randomUUID(), label: '', value: '' }] }))}
                   className="text-sm text-signal-dim dark:text-signal hover:underline"
                 >
                   + Add Field

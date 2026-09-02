@@ -7,6 +7,7 @@ const mockAddToast = vi.fn();
 const mockAddTimecode = vi.fn();
 const mockBulkAddManualEntries = vi.fn().mockResolvedValue({ added: 1, skipped: 0 });
 let mockEntries: any[] = [];
+let mockCustomFields: any[] = [];
 
 vi.mock('../context/TimeTrackerContext', () => ({
   useTimeTracker: () => ({
@@ -17,6 +18,7 @@ vi.mock('../context/TimeTrackerContext', () => ({
       userLogoBase64: null,
       theme: 'system',
       allowConcurrentTimers: false,
+      customFields: mockCustomFields,
     },
     updateSettings: mockUpdateSettings,
     bulkAddManualEntries: mockBulkAddManualEntries,
@@ -278,5 +280,69 @@ describe('SettingsModal Logo Upload Validation', () => {
 
     // Not "malformed": the message points at the setting that explains it.
     expect(await findByText(/unreadable date or time for the DMY format/i)).toBeTruthy();
+  });
+});
+
+describe('SettingsModal custom report fields', () => {
+  // Two rows, so an edit to one can be checked against the other.
+  const STORED = [
+    { id: 'f1', label: 'Tax ID', value: '111' },
+    { id: 'f2', label: 'Biz No', value: '222' },
+  ];
+
+  beforeEach(() => {
+    mockUpdateSettings.mockClear();
+    mockCustomFields = STORED.map((f) => ({ ...f }));
+  });
+
+  /** Edit the first row's label and return the update handed to `updateSettings`. */
+  const commitFirstLabel = (next: string) => {
+    const { getAllByPlaceholderText } = render(<SettingsModal onClose={vi.fn()} />);
+    const label = getAllByPlaceholderText('Label')[0];
+    fireEvent.change(label, { target: { value: next } });
+    fireEvent.blur(label);
+    return mockUpdateSettings.mock.calls.at(-1)?.[0];
+  };
+
+  it('sends a function so the edit resolves against the stored record', () => {
+    // The whole point of the fix: a prebuilt array would carry the row list as
+    // it was at render, and the context would write that snapshot back wholesale.
+    expect(typeof commitFirstLabel('VAT ID')).toBe('function');
+  });
+
+  it('does not revert a sibling field committed while this edit was pending', () => {
+    const update = commitFirstLabel('VAT ID');
+
+    // The sibling's value landed after this field's draft was captured.
+    const stored = {
+      customFields: [
+        { id: 'f1', label: 'Tax ID', value: '111' },
+        { id: 'f2', label: 'Biz No', value: 'committed-after' },
+      ],
+    };
+
+    expect(update(stored).customFields).toEqual([
+      { id: 'f1', label: 'VAT ID', value: '111' },
+      { id: 'f2', label: 'Biz No', value: 'committed-after' },
+    ]);
+  });
+
+  it('does not resurrect a row deleted while this edit was pending', () => {
+    const update = commitFirstLabel('VAT ID');
+
+    // f1 is gone by the time the flush lands: the edit applies to nothing.
+    const stored = { customFields: [{ id: 'f2', label: 'Biz No', value: '222' }] };
+
+    expect(update(stored).customFields).toEqual([{ id: 'f2', label: 'Biz No', value: '222' }]);
+  });
+
+  it('never writes a row without an id, whatever the stored list looks like', () => {
+    const update = commitFirstLabel('VAT ID');
+
+    // Indexing into a shorter array used to yield `{...undefined, label}` — a
+    // record with no id, which then read back from storage as undefined.
+    const written = update({ customFields: [] }).customFields;
+    expect(written).toEqual([]);
+    expect(written.every((f: { id?: string }) => typeof f.id === 'string')).toBe(true);
   });
 });
