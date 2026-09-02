@@ -407,14 +407,21 @@ export const buildDetailTable = (
     // A fee bills no hours, so the Hours cell is a dash rather than a 0.00 that
     // reads as a missing figure.
     const hrs = line?.isFixedCost ? '—' : (line?.hours ?? 0).toFixed(2);
-    const paused = e.endTime
-      ? formatDurationShort(calculateTotalPausedSeconds(parseISO(e.startTime), parseISO(e.endTime), e.pausedSegments))
-      : '—';
+    // Parsed once and checked once. `format` throws on an unparseable timestamp,
+    // and one such row in a restored backup used to take the entire report with
+    // it. A dash marks the cell that could not be read; the rest of the row —
+    // timecode, hours, amount, note — still prints what it has.
+    const start = parseISO(e.startTime);
+    const end = e.endTime ? parseISO(e.endTime) : null;
+    const paused =
+      end && isValid(start) && isValid(end)
+        ? formatDurationShort(calculateTotalPausedSeconds(start, end, e.pausedSegments))
+        : '—';
     return [
-      format(parseISO(e.startTime), 'MMM d'),
+      safeFormatDate(start, 'MMM d', '—'),
       tc?.name ?? 'Unknown',
-      format(parseISO(e.startTime), 'HH:mm'),
-      e.endTime ? format(parseISO(e.endTime), 'HH:mm') : 'Running',
+      safeFormatDate(start, 'HH:mm', '—'),
+      end ? safeFormatDate(end, 'HH:mm', '—') : 'Running',
       paused,
       hrs,
       formatAmount(line?.amount ?? 0, currencySymbol),
@@ -460,12 +467,18 @@ export const buildDetailedRawCSV = (
     const grp = tc?.groupId ? groupMap.get(tc.groupId) : undefined;
     const line = lines.get(e.id);
     const amount = line?.amount ?? 0;
+    // As in `buildDetailTable`: `calendarDayKey` throws its own RangeError on an
+    // invalid date and `format` throws another, so a single unreadable timestamp
+    // used to mean no CSV at all — and no clue which entry was at fault. An
+    // empty cell leaves the row visible and the file importable.
+    const start = parseISO(e.startTime);
+    const end = e.endTime ? parseISO(e.endTime) : null;
     return [
-      escapeCSV(calendarDayKey(parseISO(e.startTime))),
+      escapeCSV(isValid(start) ? calendarDayKey(start) : ''),
       escapeCSV(tc?.name ?? 'Unknown'),
       escapeCSV(grp?.name ?? 'Ungrouped'),
-      escapeCSV(format(parseISO(e.startTime), 'HH:mm:ss')),
-      escapeCSV(e.endTime ? format(parseISO(e.endTime), 'HH:mm:ss') : ''),
+      escapeCSV(safeFormatDate(start, 'HH:mm:ss')),
+      escapeCSV(end ? safeFormatDate(end, 'HH:mm:ss') : ''),
       formatWorkedHours(line?.workedSeconds ?? 0),
       // A fee bills no hours; an empty cell says so, where 0.00 would read as a
       // duration that was measured and came out at zero. The worked column
@@ -488,6 +501,12 @@ export const buildCalendarEvents = (
     const tc = timecodeMap.get(e.timecodeId);
     const start = parseISO(e.startTime);
     const end = e.endTime ? parseISO(e.endTime) : now;
+
+    // This one does not throw — it writes NaN into every component and produces
+    // an event no calendar can read, which can cost the whole file rather than
+    // the one entry. There is no blank to fall back to as there is in the CSV,
+    // so an entry whose dates cannot be read is left out instead.
+    if (!isValid(start) || !isValid(end)) return null;
 
     return {
       uid: e.id,
@@ -512,7 +531,8 @@ export const buildCalendarEvents = (
       title: tc?.name ?? 'Unknown',
       description: e.note ?? '',
     } as EventAttributes;
-  });
+  })
+    .filter((event): event is EventAttributes => event !== null);
 
 export interface ReportMetaInput {
   preparedFor: string;

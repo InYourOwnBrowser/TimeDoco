@@ -302,6 +302,28 @@ describe('Fixed Cost & Template Deletion', () => {
       });
     });
 
+    // W-3 asked whether confirming "You have unsaved changes" would save them
+    // anyway: deferred-write fields flush on unmount, so a modal that both
+    // prompted and deferred would turn Cancel into Save. None does — the form
+    // modals hold plain local state, and this pins that they discard on close.
+    it('discards the form when the unsaved-changes prompt is confirmed', () => {
+      const confirmSpy = vi.spyOn(window, 'confirm').mockReturnValue(true);
+      const onClose = vi.fn();
+      render(<ManualEntryModal onClose={onClose} />);
+
+      fireEvent.click(screen.getByPlaceholderText('Select or type to create...'));
+      const options = screen.getAllByText('Materials & Expenses');
+      fireEvent.click(options[options.length - 1]);
+
+      fireEvent.keyDown(document, { key: 'Escape' });
+
+      expect(confirmSpy).toHaveBeenCalled();
+      expect(onClose).toHaveBeenCalled();
+      // Nothing reached storage: closing a form modal is a discard, not a save.
+      expect(mockAddManualEntry).not.toHaveBeenCalled();
+      confirmSpy.mockRestore();
+    });
+
     it('still rejects a zero flat fee', async () => {
       const { container, findByText } = render(<ManualEntryModal onClose={vi.fn()} />);
 

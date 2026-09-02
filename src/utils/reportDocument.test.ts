@@ -1,8 +1,9 @@
 import { describe, it, expect } from 'vitest';
 import { createEvents } from 'ics';
 import { roundCurrency } from './timeUtils';
-import { buildCalendarEvents, formatAmount, formatMoney, sortEntriesForDocument } from './reportDocument';
-import { ALL_TIMECODES, FIXTURES, NOW, renderFixture as render } from '../test/reportFixtures';
+import { buildCalendarEvents, buildDetailTable, buildDetailedRawCSV, formatAmount, formatMoney, sortEntriesForDocument } from './reportDocument';
+import { ALL_GROUPS, ALL_TIMECODES, FIXTURES, NOW, renderFixture as render } from '../test/reportFixtures';
+import type { Entry } from '../types';
 
 /**
  * The document layer, asserted end to end: entries in, the exact rows a client
@@ -251,6 +252,55 @@ describe('report document specifics', () => {
     // 22:00–02:00, of which two hours fall on or after the window's start.
     expect(out.lines.get('e-before')!.seconds).toBe(2 * 3600);
     expect(out.lines.get('e-after')!.isClipped).toBe(true);
+  });
+
+  // W-2: an unreadable timestamp threw a RangeError out of `format` — and out
+  // of `calendarDayKey`, which raises its own — so one bad row in a restored
+  // backup cost the entire export rather than the row that was broken.
+  describe('a row whose timestamp cannot be read', () => {
+    const timecodeMap = new Map(ALL_TIMECODES.map((t) => [t.id, t]));
+    const groupMap = new Map(ALL_GROUPS.map((g) => [g.id, g]));
+    const noLines = new Map();
+    const settings = FIXTURES[0].settings;
+
+    const base = { timecodeId: ALL_TIMECODES[0].id, tags: [], pausedSegments: [] };
+    const good = {
+      ...base, id: 'e-ok', note: 'fine',
+      startTime: '2026-01-05T09:00:00.000Z', endTime: '2026-01-05T10:00:00.000Z',
+    } as unknown as Entry;
+    const broken = {
+      ...base, id: 'e-broken', note: 'kept',
+      startTime: 'not-a-timestamp', endTime: 'also-not-a-timestamp',
+    } as unknown as Entry;
+
+    it('still writes the raw CSV, leaving the unreadable cells blank', () => {
+      const csv = buildDetailedRawCSV([good, broken], noLines, timecodeMap, groupMap);
+
+      // Header plus both entries: the broken row is kept, not dropped.
+      expect(csv.split('\n')).toHaveLength(3);
+      // Its note survives, so the user can find the entry and repair it.
+      expect(csv).toContain('kept');
+    });
+
+    it('still builds the detail table the PDF is drawn from', () => {
+      const table = buildDetailTable([good, broken], noLines, timecodeMap, settings);
+
+      expect(table.body).toHaveLength(2);
+      // Found by note: an invalid date has no defined sort position.
+      const row = table.body.find((cells) => cells[7] === 'kept');
+      expect(row).toBeDefined();
+      expect(row![0]).toBe('—');
+      expect(row![2]).toBe('—');
+    });
+
+    it('leaves the entry out of the calendar rather than writing NaN into it', () => {
+      // This path never threw; it wrote NaN components and produced an event no
+      // calendar can read, which risks the whole file rather than one entry.
+      const events = buildCalendarEvents([good, broken], timecodeMap);
+
+      expect(events).toHaveLength(1);
+      expect(events[0].uid).toBe('e-ok');
+    });
   });
 
   describe('money on the page', () => {
