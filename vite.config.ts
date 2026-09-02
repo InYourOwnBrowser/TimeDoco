@@ -29,8 +29,17 @@ export default defineConfig({
     { enforce: 'pre', ...mdx({ remarkPlugins: [remarkGfm] }) },
     react(),
     VitePWA({
-      registerType: 'autoUpdate',
-      injectRegister: false,
+      // 'prompt', not 'autoUpdate'. A worker that takes over on its own cleans
+      // up the previous build's precache as it activates, and any tab still
+      // running that build is then holding chunk names nothing serves. The
+      // update installs in the background either way; PwaUpdatePrompt asks
+      // before applying it. `injectRegister: null` because registration is that
+      // component's job, through `virtual:pwa-register`.
+      registerType: 'prompt',
+      injectRegister: null,
+      // The registration scope, which the plugin otherwise takes from `base`.
+      // The worker has no business controlling the marketing site or the blog.
+      scope: '/app/',
       includeAssets: ['favicon.svg', 'apple-touch-icon.png'],
       workbox: {
         navigateFallback: '/app/index.html',
@@ -79,6 +88,10 @@ export default defineConfig({
     })
   ],
   test: {
+    // Only the unit and component suites. `e2e/` is Playwright's, and its specs
+    // throw if Vitest collects them.
+    include: ['src/**/*.{test,spec}.{ts,tsx}'],
+
     // Every suite runs twice, under two timezones.
     //
     // Nothing in the suite ran outside UTC, where a calendar day is always 24

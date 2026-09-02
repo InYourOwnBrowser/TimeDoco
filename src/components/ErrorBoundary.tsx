@@ -1,6 +1,7 @@
 import { Component, type ErrorInfo, type ReactNode } from 'react';
 import { AlertCircle, RefreshCw, Copy } from 'lucide-react';
 import { logError, formatErrorLogForClipboard } from '../utils/errorLog';
+import { isStaleChunkError, reloadOnceForStaleChunk } from '../utils/chunkRecovery';
 
 interface Props {
   children?: ReactNode;
@@ -26,6 +27,14 @@ export class ErrorBoundary extends Component<Props, State> {
   public componentDidCatch(error: Error, errorInfo: ErrorInfo) {
     console.error('Uncaught error:', error, errorInfo);
     logError(error, 'render');
+
+    // A code-split route whose chunk the origin no longer serves is not an
+    // application error, it is a build the tab has outlived. Reload into the
+    // current one rather than showing a failure the user cannot act on. The
+    // guard inside makes this at most one reload; if it declines, the error
+    // screen below stands, which is the right answer for a build that is
+    // actually broken.
+    reloadOnceForStaleChunk(error);
   }
 
   public render() {
@@ -38,7 +47,9 @@ export class ErrorBoundary extends Component<Props, State> {
             </div>
             <h1 className="text-xl font-bold text-gray-900 dark:text-white">Something went wrong</h1>
             <p className="text-gray-600 dark:text-gray-400 text-sm">
-              An unexpected error occurred. This is a local-only app, so your data is safe on your device.
+              {isStaleChunkError(this.state.error)
+                ? 'Part of the app could not be loaded, which usually means it was updated while this tab was open. Reloading should fix it. This is a local-only app, so your data is safe on your device.'
+                : 'An unexpected error occurred. This is a local-only app, so your data is safe on your device.'}
             </p>
             {this.state.error && (
               <div className="bg-gray-100 dark:bg-gray-900 rounded p-3 text-left overflow-auto max-h-32 text-xs text-red-800 dark:text-red-300 font-mono">

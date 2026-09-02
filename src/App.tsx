@@ -1,4 +1,4 @@
-import { useState, useEffect, Suspense, lazy, useRef, useCallback } from 'react';
+import { useState, useEffect, Suspense, useRef, useCallback } from 'react';
 import { BrowserRouter, Routes, Route } from 'react-router-dom';
 import { TimeTrackerProvider } from './context/TimeTrackerContext';
 import { BlogIndex } from './components/BlogIndex';
@@ -9,10 +9,12 @@ import { ForgotToStopPrompt } from './components/ForgotToStopPrompt';
 import { TemplateList } from './components/TemplateList';
 import { BackupReminderBanner } from './components/BackupReminderBanner';
 import { SettingsModal } from './components/SettingsModal';
-const AnalysisView = lazy(() => import('./components/AnalysisView').then(module => ({ default: module.AnalysisView })));
-const GroupingManagement = lazy(() => import('./components/GroupingManagement').then(module => ({ default: module.GroupingManagement })));
-const TimesheetView = lazy(() => import('./components/TimesheetView').then(module => ({ default: module.TimesheetView })));
-const ResourcesView = lazy(() => import('./components/ResourcesView').then(module => ({ default: module.ResourcesView })));
+// `lazyChunk` is `lazy` that reports a chunk arriving, which is what clears the
+// stale-chunk reload guard — see utils/chunkRecovery.
+const AnalysisView = lazyChunk(() => import('./components/AnalysisView').then(module => ({ default: module.AnalysisView })));
+const GroupingManagement = lazyChunk(() => import('./components/GroupingManagement').then(module => ({ default: module.GroupingManagement })));
+const TimesheetView = lazyChunk(() => import('./components/TimesheetView').then(module => ({ default: module.TimesheetView })));
+const ResourcesView = lazyChunk(() => import('./components/ResourcesView').then(module => ({ default: module.ResourcesView })));
 import { WeeklySummary } from './components/WeeklySummary';
 import { IdleDetector } from './components/IdleDetector';
 import { OverrunDetector } from './components/OverrunDetector';
@@ -30,6 +32,31 @@ import { Logo } from './components/ui/Logo';
 import { Download, Save } from 'lucide-react';
 import { SocialLinks } from './components/SocialLinks';
 import { logError } from './utils/errorLog';
+import { lazyChunk, wasStaleChunkReload } from './utils/chunkRecovery';
+
+const TABS = ['tracker', 'timesheet', 'analysis', 'management', 'resources'] as const;
+type Tab = (typeof TABS)[number];
+const ACTIVE_TAB_KEY = 'timedoco.activeTab';
+
+const isTab = (value: string | null): value is Tab => TABS.includes(value as Tab);
+
+/**
+ * Which tab to open on.
+ *
+ * Normally the tracker, as always. The exception is the load that a stale-chunk
+ * recovery started (see utils/chunkRecovery): the user clicked a tab, the chunk
+ * behind it had been deployed away, and the reload is the fix — so it should
+ * finish the click rather than drop them back at the start.
+ */
+const resumeTab = (): Tab => {
+  if (!wasStaleChunkReload()) return 'tracker';
+  try {
+    const stored = sessionStorage.getItem(ACTIVE_TAB_KEY);
+    return isTab(stored) ? stored : 'tracker';
+  } catch {
+    return 'tracker';
+  }
+};
 
 // Extracted inner component so we can use TimeTrackerContext
 const AppContent = () => {
@@ -51,7 +78,7 @@ const AppContent = () => {
   const { addToast } = useToast();
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
   const handleCloseSettings = useCallback(() => setIsSettingsOpen(false), []);
-  const [activeTab, setActiveTab] = useState<'tracker' | 'timesheet' | 'analysis' | 'management' | 'resources'>('tracker');
+  const [activeTab, setActiveTab] = useState<Tab>(resumeTab);
   const [showNewTimer, setShowNewTimer] = useState(false);
   const [isFallbackMode, setIsFallbackMode] = useState(false);
   const { canInstall, promptInstall, installed, needsManualInstall } = useInstallPrompt();
@@ -146,6 +173,16 @@ const AppContent = () => {
       return () => clearInterval(interval);
     }
   }, [activeEntries, timecodes, isOverrunPromptActive]);
+
+  // Only ever read back by `resumeTab`, after a recovery reload.
+  useEffect(() => {
+    try {
+      sessionStorage.setItem(ACTIVE_TAB_KEY, activeTab);
+    } catch {
+      // A tab that cannot be remembered just means the recovery lands on the
+      // tracker, which is where it landed before any of this existed.
+    }
+  }, [activeTab]);
 
   // Reset new timer form when a timer starts or concurrent is disabled
   useEffect(() => {

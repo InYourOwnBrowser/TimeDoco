@@ -55,6 +55,13 @@ jobs:
         run: npm test
       - name: Build
         run: npm run build
+      - name: Install Playwright browser
+        run: npx playwright install --with-deps chromium
+      - name: End-to-end tests
+        # Drives the `dist/` the step above produced. These are the checks that
+        # only exist in sequence — a deploy landing on an open tab, above all —
+        # and no unit test can stand in for them.
+        run: npx playwright test
 
   deploy:
     needs: verify
