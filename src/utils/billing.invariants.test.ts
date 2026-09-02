@@ -273,6 +273,56 @@ describe('allocateProportionally', () => {
       ),
     );
   });
+
+  // The counterexample I9 found, kept as a fixed case: the property that caught
+  // it runs unseeded, so without this the same defect could return and be
+  // dismissed as a flake on a re-run that happens to pass.
+  it('gives two equal parts the same answer whichever order they arrive in', () => {
+    const parts = [10794, 10794, 3769];
+    const keys = ['a', 'b', 'c'];
+    const target = 25358;
+
+    const forward = allocateProportionally(parts, target, keys);
+    const reversed = allocateProportionally(
+      [...parts].reverse(),
+      target,
+      [...keys].reverse(),
+    ).reverse();
+
+    expect(forward).toEqual(reversed);
+    expect(forward.reduce((acc, value) => acc + value, 0)).toBe(target);
+  });
+
+  it('is a function of the set, not of the order the parts arrive in', () => {
+    fc.assert(
+      fc.property(
+        fc
+          .uniqueArray(
+            fc.record({ key: fc.string({ minLength: 1, maxLength: 6 }), part: fc.integer({ min: 0, max: 100_000 }) }),
+            { minLength: 1, maxLength: 12, selector: (item) => item.key },
+          ),
+          fc.integer({ min: 1, max: 500_000 }),
+        (items, target) => {
+          const allocate = (list: typeof items) =>
+            allocateProportionally(
+              list.map((item) => item.part),
+              target,
+              list.map((item) => item.key),
+            );
+
+          const byKey = new Map(
+            items.map((item, index) => [item.key, allocate(items)[index]]),
+          );
+          const shuffled = [...items].reverse();
+          const shuffledAllocation = allocate(shuffled);
+
+          shuffled.forEach((item, index) => {
+            expect(shuffledAllocation[index]).toBe(byKey.get(item.key));
+          });
+        },
+      ),
+    );
+  });
 });
 
 describe('regression: the invoice row a client checks', () => {

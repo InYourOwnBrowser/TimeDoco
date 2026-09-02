@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
-import { validateBackupPayload, parseCSVDate, MAX_IMPORT_ENTRIES } from './importValidation';
+import { MAX_EDIT_HISTORY, MAX_EDIT_VALUE_CHARS, validateBackupPayload, parseCSVDate, MAX_IMPORT_ENTRIES } from './importValidation';
 
 describe('parseCSVDate', () => {
   it('parses ISO format correctly', () => {
@@ -410,6 +410,74 @@ describe('validateBackupPayload', () => {
       expect(() => validateBackupPayload({ ...validPayload, settings: { weeklyTargetHours: NaN } })).toThrow('invalid weeklyTargetHours');
       expect(() => validateBackupPayload({ ...validPayload, settings: { preparerName: 'a'.repeat(201) } })).toThrow('invalid preparerName');
       expect(() => validateBackupPayload({ ...validPayload, settings: { reportFooterText: 'a'.repeat(1001) } })).toThrow('invalid reportFooterText');
+    });
+  });
+
+  describe('edit history', () => {
+    const withHistory = (editHistory: unknown) => ({
+      ...validPayload,
+      entries: [{ ...validPayload.entries[0], editHistory }],
+    });
+
+    it('accepts a well-formed history', () => {
+      expect(() =>
+        validateBackupPayload(
+          withHistory([{ field: 'note', oldValue: 'a', newValue: 'b', editedAt: '2025-01-01T10:00:00.000Z' }]),
+        ),
+      ).not.toThrow();
+    });
+
+    // The timestamp is formatted with date-fns inside the edit modal's own
+    // body, which throws rather than degrading — so an entry carrying an
+    // unparseable one could not be opened at all, and could not be repaired.
+    it.each([
+      ['an empty timestamp', ''],
+      ['a non-date string', 'not-a-date'],
+      ['a number', 1735725600000],
+      ['a missing field', undefined],
+    ])('rejects %s', (_label, editedAt) => {
+      expect(() =>
+        validateBackupPayload(withHistory([{ field: 'note', oldValue: 'a', newValue: 'b', editedAt }])),
+      ).toThrow(/edit history record with an invalid timestamp/);
+    });
+
+    it('rejects a history that is not an array', () => {
+      expect(() => validateBackupPayload(withHistory({ field: 'note' }))).toThrow(/invalid edit history/);
+    });
+
+    it('rejects a malformed record', () => {
+      expect(() => validateBackupPayload(withHistory([null]))).toThrow(/malformed edit history record/);
+    });
+
+    it('rejects a non-string field name', () => {
+      expect(() =>
+        validateBackupPayload(withHistory([{ field: 42, editedAt: '2025-01-01T10:00:00.000Z' }])),
+      ).toThrow(/edit history record with an invalid field name/);
+    });
+
+    it('caps the number of records', () => {
+      const many = Array.from({ length: MAX_EDIT_HISTORY + 1 }, () => ({
+        field: 'note',
+        oldValue: 'a',
+        newValue: 'b',
+        editedAt: '2025-01-01T10:00:00.000Z',
+      }));
+      expect(() => validateBackupPayload(withHistory(many))).toThrow(/more than 1000 edit history records/);
+    });
+
+    it('caps the size of a recorded value', () => {
+      expect(() =>
+        validateBackupPayload(
+          withHistory([
+            {
+              field: 'note',
+              oldValue: 'a'.repeat(MAX_EDIT_VALUE_CHARS + 1),
+              newValue: 'b',
+              editedAt: '2025-01-01T10:00:00.000Z',
+            },
+          ]),
+        ),
+      ).toThrow(/oldValue is too large/);
     });
   });
 });

@@ -353,10 +353,10 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ onClose }) => {
          * import can reference them yet — so hard-deleting them cannot orphan
          * anything.
          *
-         * `hardDeleteTimecode` is guarded: it reports its own failure and
-         * resolves either way, so the count comes from its return value.
-         * Incrementing on every call instead claimed a cleanup that may not
-         * have happened.
+         * `hardDeleteTimecode` goes through `guardedResult`, so it reports its
+         * own failure and resolves to whether the delete actually happened —
+         * which is where this count comes from. Incrementing on every call
+         * instead claimed a cleanup that may not have happened.
          */
         const rollbackCreatedTimecodes = async (): Promise<string> => {
           let rolledBack = 0;
@@ -1498,8 +1498,8 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ onClose }) => {
                     <div key={e.id} className="flex justify-between items-center bg-stone dark:bg-gray-800/30 p-2 rounded text-sm border border-graphite/20 dark:border-white/20">
                       <span className="truncate flex-1 text-graphite dark:text-stone">Entry: {e.note || 'No note'}</span>
                       <div className="flex gap-2 shrink-0 ml-2">
-                        <button onClick={() => restoreEntry(e.id)} className="text-signal-dim dark:text-signal hover:underline">Restore</button>
-                        <button onClick={() => window.confirm('Permanently delete this entry?') && hardDeleteEntry(e.id)} className="text-rust dark:text-orange-300 hover:underline">Delete</button>
+                        <button onClick={() => { void restoreEntry(e.id); }} className="text-signal-dim dark:text-signal hover:underline">Restore</button>
+                        <button onClick={() => { if (window.confirm('Permanently delete this entry?')) void hardDeleteEntry(e.id); }} className="text-rust dark:text-orange-300 hover:underline">Delete</button>
                       </div>
                     </div>
                   ))}
@@ -1507,8 +1507,11 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ onClose }) => {
                     <div key={tc.id} className="flex justify-between items-center bg-stone dark:bg-gray-800/30 p-2 rounded text-sm border border-graphite/20 dark:border-white/20">
                       <span className="truncate flex-1 text-graphite dark:text-stone">Timecode: {tc.name}</span>
                       <div className="flex gap-2 shrink-0 ml-2">
-                        <button onClick={() => restoreTimecode(tc.id)} className="text-signal-dim dark:text-signal hover:underline">Restore</button>
-                        <button onClick={() => window.confirm('Permanently delete this timecode?') && hardDeleteTimecode(tc.id)} className="text-rust dark:text-orange-300 hover:underline">Delete</button>
+                        <button onClick={() => { void restoreTimecode(tc.id); }} className="text-signal-dim dark:text-signal hover:underline">Restore</button>
+                        {/* Two prompts only when the timecode still has live entries: this one
+                            asks about the timecode, and `hardDeleteTimecode` then says how many
+                            entries go with it. Both outcomes are reported by the provider. */}
+                        <button onClick={() => { if (window.confirm('Permanently delete this timecode?')) void hardDeleteTimecode(tc.id); }} className="text-rust dark:text-orange-300 hover:underline">Delete</button>
                       </div>
                     </div>
                   ))}
@@ -1516,8 +1519,8 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ onClose }) => {
                     <div key={g.id} className="flex justify-between items-center bg-stone dark:bg-gray-800/30 p-2 rounded text-sm border border-graphite/20 dark:border-white/20">
                       <span className="truncate flex-1 text-graphite dark:text-stone">Group: {g.name}</span>
                       <div className="flex gap-2 shrink-0 ml-2">
-                        <button onClick={() => restoreGroup(g.id)} className="text-signal-dim dark:text-signal hover:underline">Restore</button>
-                        <button onClick={() => window.confirm('Permanently delete this group?') && hardDeleteGroup(g.id)} className="text-rust dark:text-orange-300 hover:underline">Delete</button>
+                        <button onClick={() => { void restoreGroup(g.id); }} className="text-signal-dim dark:text-signal hover:underline">Restore</button>
+                        <button onClick={() => { if (window.confirm('Permanently delete this group?')) void hardDeleteGroup(g.id); }} className="text-rust dark:text-orange-300 hover:underline">Delete</button>
                       </div>
                     </div>
                   ))}

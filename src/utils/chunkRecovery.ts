@@ -52,6 +52,19 @@ const writeGuard = (value: '1' | null): void => {
   }
 };
 
+let recoveryReloadInFlight = false;
+
+/**
+ * Whether the app itself is reloading to recover from a stale chunk.
+ *
+ * The running-timer `beforeunload` guard asks: it exists to catch a user
+ * closing the tab on a timer, and a recovery reload is neither of those things.
+ * Without this the silent recovery surfaced a "Leave site?" modal, and choosing
+ * Stay left the guard already spent — so the automatic path would not try again
+ * for the rest of the session, over a file the next load would have fetched.
+ */
+export const isRecoveryReloadInFlight = (): boolean => recoveryReloadInFlight;
+
 /**
  * Reload for a chunk the origin no longer has, at most once per failure run.
  * Returns whether a reload was started — the caller has nothing left to do if
@@ -66,6 +79,7 @@ export const reloadOnceForStaleChunk = (error: unknown): boolean => {
   // after that, so don't start the cycle at all.
   if (!readGuard()) return false;
 
+  recoveryReloadInFlight = true;
   window.location.reload();
   return true;
 };

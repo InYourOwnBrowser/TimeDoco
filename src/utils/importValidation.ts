@@ -3,6 +3,17 @@ export const MAX_IMPORT_ENTRIES = 50000;
 /** ~4MB of base64, comfortably above the 1MB upload cap after encoding. */
 export const MAX_LOGO_DATA_URL_LENGTH = 4 * 1024 * 1024;
 
+/**
+ * Caps on an entry's edit history, which the app only ever appends to.
+ *
+ * Nothing in normal use approaches either: the history gains one record per
+ * edited field per save. They exist because the array arrives from a file, and
+ * an unbounded one is carried on every read of that entry for the life of the
+ * database.
+ */
+export const MAX_EDIT_HISTORY = 1000;
+export const MAX_EDIT_VALUE_CHARS = 10_000;
+
 /** The only backup schema this build can read. */
 export const SUPPORTED_SCHEMA_VERSION = 1;
 
@@ -296,8 +307,13 @@ export function validateBackupPayload(
       throw new Error(`Import failed: duplicate timecode ID "${tc.id}".`);
     }
     timecodeIdsInPayload.add(tc.id);
+    // Finite and non-negative, matching every settings field and the app's own
+    // rate editor, which stores null rather than a rate of zero or less.
+    // `Number.isNaN` alone let `Infinity` through — 1e999 parses to it — and
+    // `roundCurrency` then returns 0, so the timecode billed nothing on the
+    // invoice with no error anywhere.
     if (tc.hourlyRate !== undefined && tc.hourlyRate !== null) {
-      if (typeof tc.hourlyRate !== 'number' || Number.isNaN(tc.hourlyRate)) {
+      if (typeof tc.hourlyRate !== 'number' || !Number.isFinite(tc.hourlyRate) || tc.hourlyRate < 0) {
         throw new Error(`Import failed: timecode "${tc.name || i}" has an invalid hourly rate.`);
       }
     }
@@ -326,13 +342,13 @@ export function validateBackupPayload(
     }
 
     if (e.duration !== undefined && e.duration !== null) {
-      if (typeof e.duration !== 'number' || Number.isNaN(e.duration)) {
+      if (typeof e.duration !== 'number' || !Number.isFinite(e.duration) || e.duration < 0) {
         throw new Error(`Import failed: entry at index ${i} has an invalid duration.`);
       }
     }
 
     if (e.manualAmount !== undefined && e.manualAmount !== null) {
-      if (typeof e.manualAmount !== 'number' || Number.isNaN(e.manualAmount)) {
+      if (typeof e.manualAmount !== 'number' || !Number.isFinite(e.manualAmount) || e.manualAmount < 0) {
         throw new Error(`Import failed: entry at index ${i} has an invalid manual amount.`);
       }
     }
@@ -405,6 +421,57 @@ export function validateBackupPayload(
         throw new Error(`Import failed: entry at index ${i} tags exceed maximum length of 500 characters.`);
       }
     }
+
+    // The edit modal formats `editedAt` with date-fns, which throws on an
+    // invalid date rather than printing a placeholder. An unvalidated entry
+    // carrying one made its own edit modal throw on every open, permanently,
+    // with no way to repair it from the UI — so the timestamp is checked here
+    // like every other date on the record.
+    if (e.editHistory !== undefined && e.editHistory !== null) {
+      if (!Array.isArray(e.editHistory)) {
+        throw new Error(`Import failed: entry at index ${i} has an invalid edit history.`);
+      }
+      if (e.editHistory.length > MAX_EDIT_HISTORY) {
+        throw new Error(
+          `Import failed: entry at index ${i} has more than ${MAX_EDIT_HISTORY} edit history records.`
+        );
+      }
+      for (const change of e.editHistory) {
+        if (!change || typeof change !== 'object' || Array.isArray(change)) {
+          throw new Error(`Import failed: entry at index ${i} has a malformed edit history record.`);
+        }
+        if (typeof change.field !== 'string' || change.field.length > 100) {
+          throw new Error(
+            `Import failed: entry at index ${i} has an edit history record with an invalid field name.`
+          );
+        }
+        if (
+          typeof change.editedAt !== 'string' ||
+          !change.editedAt.trim() ||
+          Number.isNaN(Date.parse(change.editedAt))
+        ) {
+          throw new Error(
+            `Import failed: entry at index ${i} has an edit history record with an invalid timestamp.`
+          );
+        }
+        // Rendered with `String(...)`, so anything is printable — but a deeply
+        // nested or enormous value is still carried on every read of the entry.
+        for (const key of ['oldValue', 'newValue'] as const) {
+          const value = change[key];
+          if (value !== undefined && value !== null && typeof value === 'object') {
+            if (JSON.stringify(value)?.length > MAX_EDIT_VALUE_CHARS) {
+              throw new Error(
+                `Import failed: entry at index ${i} has an edit history record whose ${key} is too large.`
+              );
+            }
+          } else if (typeof value === 'string' && value.length > MAX_EDIT_VALUE_CHARS) {
+            throw new Error(
+              `Import failed: entry at index ${i} has an edit history record whose ${key} is too large.`
+            );
+          }
+        }
+      }
+    }
   }
 
   // The constraint that matters is the one in force after the import. Reading
@@ -448,8 +515,15 @@ function validateSettings(settings: any, resolvableTimecodeIds?: Set<string>): v
     }
   }
 
+  // A percentage, so bounded like the field that sets it (`min="0"`). Unbounded,
+  // a hand-edited rate of 5000 silently multiplied every invoice total by 51.
   if (settings.taxRate !== undefined && settings.taxRate !== null) {
-    if (typeof settings.taxRate !== 'number' || !Number.isFinite(settings.taxRate)) {
+    if (
+      typeof settings.taxRate !== 'number' ||
+      !Number.isFinite(settings.taxRate) ||
+      settings.taxRate < 0 ||
+      settings.taxRate > 100
+    ) {
       throw new Error('Import failed: settings contain an invalid tax rate.');
     }
   }

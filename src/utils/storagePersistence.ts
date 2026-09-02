@@ -133,7 +133,15 @@ export const checkPersistence = async (): Promise<PersistenceState> => {
 };
 
 /**
- * May prompt in Firefox. Call only from a user gesture, or when already granted.
+ * May prompt in Firefox. Call from a user gesture, when the grant is already
+ * held, or to reclaim one this origin held before and has since lost.
+ *
+ * That third case is `resumePersistence`, and it is why this is not simply
+ * "only from a user gesture": Safari drops the grant on a session reset, and
+ * without re-asking the app goes on believing it is persisted when it is not.
+ * The user has answered this question affirmatively for this origin already, so
+ * a Firefox prompt on the load after a reset is a re-confirmation rather than a
+ * cold request. Never call it at load time without that prior grant.
  *
  * @param now the timestamp a denial is stamped with, so the back-off window is
  *   measured against the same clock the caller used to decide to ask.

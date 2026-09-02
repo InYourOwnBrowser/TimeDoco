@@ -101,16 +101,39 @@ describe("db error fallback mode", () => {
       return { ...actual, openDB: vi.fn().mockRejectedValue(new Error("boom")) };
     });
 
-    const { getGroups, putGroup, closeDB } = await import("./index");
+    const { getGroups, putGroup, closeDB, getIsFallbackMode } = await import("./index");
 
     await getGroups(); // enters fallback mode
     await putGroup({ id: "gx", name: "Held in memory", color: "#000", archived: false, updatedAt: "2026-01-01" } as Group);
     expect(await getGroups()).toHaveLength(1);
+    expect(getIsFallbackMode()).toBe(true);
 
     await closeDB();
 
     // Fallback state is reset with the connection rather than persisting for
     // the life of the page.
+    expect(getIsFallbackMode()).toBe(false);
+  });
+
+  it("closeDB keeps the in-memory data, which in fallback mode is the only copy", async () => {
+    vi.doMock("idb", async (importOriginal) => {
+      const actual = await importOriginal<typeof import("idb")>();
+      return { ...actual, openDB: vi.fn().mockRejectedValue(new Error("boom")) };
+    });
+
+    const { getGroups, putGroup, closeDB, resetDBForTests } = await import("./index");
+
+    await getGroups(); // enters fallback mode
+    await putGroup({ id: "gx", name: "Held in memory", color: "#000", archived: false, updatedAt: "2026-01-01" } as Group);
+
+    await closeDB();
+
+    // The reopen fails again, so the app is back in fallback mode — reading the
+    // work the user did before, rather than an empty app.
+    expect(await getGroups()).toHaveLength(1);
+
+    // The wipe is its own function, for a test that wants a clean slate.
+    await resetDBForTests();
     expect(await getGroups()).toHaveLength(0);
   });
 

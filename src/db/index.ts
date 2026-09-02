@@ -56,6 +56,16 @@ const clearFallbackMemory = () => {
   fallbackMemoryDB.settings.clear();
 };
 
+/**
+ * Close the connection and clear the degraded state, keeping whatever the
+ * in-memory store holds.
+ *
+ * The memory is not scratch space: when IndexedDB could not be opened it is the
+ * user's data, and the only copy of it. Clearing it here — in a function whose
+ * name promises to close a connection — discarded a session's work outright,
+ * and left a reopen that fails again looking at an empty app. Resetting just
+ * the flag is what the reopen actually needs; `resetDBForTests` is the wipe.
+ */
 export const closeDB = async () => {
   if (dbPromise) {
     try {
@@ -69,6 +79,16 @@ export const closeDB = async () => {
   // Reset the degraded state with the connection. Leaving it set made fallback
   // mode permanent for the life of the page even after a successful reopen.
   isFallbackMode = false;
+};
+
+/**
+ * `closeDB`, plus the wipe of the in-memory store that a fresh test needs.
+ *
+ * Separate from `closeDB` because discarding the fallback data is only ever
+ * right when there is no user whose data it is.
+ */
+export const resetDBForTests = async () => {
+  await closeDB();
   clearFallbackMemory();
 };
 
@@ -146,11 +166,24 @@ async function withDB<T>(
   return await operation(db);
 }
 
+/** Oldest-first by start time, treating an unparseable timestamp as the epoch. */
+const byStartTimeAsc = (a: Entry, b: Entry) => {
+  const tA = a.startTime ? new Date(a.startTime).getTime() : NaN;
+  const tB = b.startTime ? new Date(b.startTime).getTime() : NaN;
+  const validA = Number.isNaN(tA) ? 0 : tA;
+  const validB = Number.isNaN(tB) ? 0 : tB;
+  return validA - validB;
+};
+
 /** Running entries, most recent first, matching GlobalActiveTimerBar and document title. */
 const selectActive = (entries: Entry[]): Entry[] =>
   entries
     .filter((e) => e.isRunning === true && !e.deletedAt)
-    .sort((a, b) => new Date(b.startTime).getTime() - new Date(a.startTime).getTime());
+    // Sorted through the same NaN-safe comparator `getEntries` uses. A raw
+    // `getTime()` difference on an unparseable start time is NaN, which is
+    // neither negative, zero nor positive, so the sort order became arbitrary
+    // — and this list decides which timer the app calls the primary one.
+    .sort((a, b) => byStartTimeAsc(b, a));
 
 // --- Groups ---
 export const getGroups = async (): Promise<Group[]> =>
@@ -189,14 +222,6 @@ export const deleteTimecode = async (id: string): Promise<void> =>
   });
 
 // --- Entries ---
-const byStartTimeAsc = (a: Entry, b: Entry) => {
-  const tA = a.startTime ? new Date(a.startTime).getTime() : NaN;
-  const tB = b.startTime ? new Date(b.startTime).getTime() : NaN;
-  const validA = Number.isNaN(tA) ? 0 : tA;
-  const validB = Number.isNaN(tB) ? 0 : tB;
-  return validA - validB;
-};
-
 /**
  * Entries ordered oldest-first by start time, sorted explicitly by timestamp.
  *
@@ -252,6 +277,46 @@ export const putEntries = async (entries: Entry[]): Promise<void> => {
 };
 
 /**
+ * Put a group/timecode/entry set back as one unit: all of it lands, or none.
+ *
+ * A restore from the trash is one user action over three stores — a group, the
+ * timecodes under it, and their entries. Written as three sequential loops of
+ * single-record puts it is as many transactions as there are records, so a
+ * failure part-way leaves the group and its timecodes live with half their
+ * entries still in the trash: a state the user never asked for and cannot see
+ * without going back to the trash to look. One transaction across the three
+ * stores makes that impossible — an error aborts it and nothing moved.
+ *
+ * Ordered group → timecode → entry so the parent of every restored record is
+ * already in the transaction, matching what `planRestore` builds.
+ */
+export const putRestorePlan = async (
+  groups: Group[],
+  timecodes: Timecode[],
+  entries: Entry[],
+): Promise<void> => {
+  if (groups.length === 0 && timecodes.length === 0 && entries.length === 0) return;
+  return withDB(
+    async (db) => {
+      const tx = db.transaction(['groups', 'timecodes', 'entries'], 'readwrite');
+      await Promise.all([
+        ...groups.map((group) => tx.objectStore('groups').put(group)),
+        ...timecodes.map((timecode) => tx.objectStore('timecodes').put(timecode)),
+        ...entries.map((entry) => tx.objectStore('entries').put(entry)),
+      ]);
+      await tx.done;
+    },
+    () => {
+      // The in-memory store has no transactions, but a Map write cannot fail
+      // partway either, so the same all-or-nothing holds without one.
+      groups.forEach((group) => fallbackMemoryDB.groups.set(group.id, group));
+      timecodes.forEach((timecode) => fallbackMemoryDB.timecodes.set(timecode.id, timecode));
+      entries.forEach((entry) => fallbackMemoryDB.entries.set(entry.id, entry));
+    },
+  );
+};
+
+/**
  * The primary running timer: the most recently started active timer,
  * matching GlobalActiveTimerBar and document title.
  */
@@ -271,8 +336,44 @@ export const getActiveEntries = async (): Promise<Entry[]> =>
 export const selectActiveEntries = (entries: Entry[]): Entry[] => selectActive(entries);
 
 // --- Settings ---
+/** The single settings record's key. Only ever one row in this store. */
+const SETTINGS_KEY = 'user-settings';
+
 export const getSettings = async (): Promise<Settings | undefined> =>
-  withDB((db) => db.get('settings', 'user-settings'), () => fallbackMemoryDB.settings.get('user-settings'));
+  withDB((db) => db.get('settings', SETTINGS_KEY), () => fallbackMemoryDB.settings.get(SETTINGS_KEY));
+
+/**
+ * Merge-mode settings: the newer record wins, and templates are a union.
+ *
+ * Templates are genuinely additive — a merge should end up holding both sides'
+ * — while everything else is a single-valued preference, so the newer write
+ * wins, the same rule groups, timecodes and entries already follow. Spreading
+ * the file over the local settings unconditionally silently replaced the user's
+ * rounding rule, scope, currency, tax setup, preparer details, logo and footer
+ * with the file's. Settings written before `updatedAt` existed carry none, and
+ * count as older.
+ *
+ * Shared by the IndexedDB and the in-memory path: this rule was fixed on one
+ * and not the other, so the whole bug was intact for any user whose database
+ * failed to open. One function is what stops that happening again.
+ */
+export const mergeSettings = (existing: Settings, incoming: Settings): Settings => {
+  const mergedTemplates = [...(existing.templates || [])];
+  if (incoming.templates) {
+    incoming.templates.forEach((t) => {
+      if (!mergedTemplates.some((already) => already.id === t.id)) mergedTemplates.push(t);
+    });
+  }
+
+  const incomingAt = incoming.updatedAt ? new Date(incoming.updatedAt).getTime() : NaN;
+  const existingAt = existing.updatedAt ? new Date(existing.updatedAt).getTime() : NaN;
+  const incomingIsNewer =
+    Number.isFinite(incomingAt) && (!Number.isFinite(existingAt) || incomingAt > existingAt);
+
+  return incomingIsNewer
+    ? { ...existing, ...incoming, templates: mergedTemplates }
+    : { ...existing, templates: mergedTemplates };
+};
 
 /**
  * Stamps `updatedAt` on every settings write. Doing it here rather than at each
@@ -337,26 +438,13 @@ export const importBackup = async (
     });
     if (data.settings) {
       if (mode === 'replace') {
-        fallbackMemoryDB.settings.set(data.settings.id, data.settings);
+        fallbackMemoryDB.settings.set(SETTINGS_KEY, { ...data.settings, id: SETTINGS_KEY });
       } else if (mode === 'merge') {
-        const existingSettings = fallbackMemoryDB.settings.get('user-settings');
-        if (existingSettings) {
-          const mergedTemplates = [...(existingSettings.templates || [])];
-          if (data.settings.templates) {
-            data.settings.templates.forEach(t => {
-              if (!mergedTemplates.some(existing => existing.id === t.id)) {
-                mergedTemplates.push(t);
-              }
-            });
-          }
-          fallbackMemoryDB.settings.set('user-settings', {
-            ...existingSettings,
-            ...data.settings,
-            templates: mergedTemplates
-          });
-        } else {
-          fallbackMemoryDB.settings.set('user-settings', data.settings);
-        }
+        const existingSettings = fallbackMemoryDB.settings.get(SETTINGS_KEY);
+        fallbackMemoryDB.settings.set(
+          SETTINGS_KEY,
+          existingSettings ? mergeSettings(existingSettings, data.settings) : data.settings,
+        );
       }
     }
     return;
@@ -416,38 +504,10 @@ export const importBackup = async (
     if (mode === 'replace') {
       await settingsStore.put(data.settings);
     } else if (mode === 'merge') {
-      const existingSettings = await settingsStore.get('user-settings');
-      if (existingSettings) {
-        // Templates are genuinely additive: a merge should end up holding both
-        // sides' templates, and that is what the user expects from "merge".
-        const mergedTemplates = [...(existingSettings.templates || [])];
-        if (data.settings.templates) {
-          data.settings.templates.forEach(t => {
-            if (!mergedTemplates.some(existing => existing.id === t.id)) {
-              mergedTemplates.push(t);
-            }
-          });
-        }
-
-        // Everything else is a single-valued preference, so the newer write
-        // wins — the same rule groups, timecodes and entries already follow.
-        // Spreading the file over the local settings unconditionally silently
-        // replaced the user's rounding rule, scope, currency, tax setup,
-        // preparer details, logo and footer with the file's. Settings written
-        // before updatedAt existed carry none, and count as older.
-        const incomingAt = data.settings.updatedAt ? new Date(data.settings.updatedAt).getTime() : NaN;
-        const existingAt = existingSettings.updatedAt ? new Date(existingSettings.updatedAt).getTime() : NaN;
-        const incomingIsNewer =
-          Number.isFinite(incomingAt) && (!Number.isFinite(existingAt) || incomingAt > existingAt);
-
-        await settingsStore.put(
-          incomingIsNewer
-            ? { ...existingSettings, ...data.settings, templates: mergedTemplates }
-            : { ...existingSettings, templates: mergedTemplates }
-        );
-      } else {
-        await settingsStore.put(data.settings);
-      }
+      const existingSettings = await settingsStore.get(SETTINGS_KEY);
+      await settingsStore.put(
+        existingSettings ? mergeSettings(existingSettings, data.settings) : data.settings
+      );
     }
   }
 

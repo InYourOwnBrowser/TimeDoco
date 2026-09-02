@@ -1,8 +1,8 @@
 import React, { useState, useMemo, useEffect, useCallback } from 'react';
 import { useTimeTracker } from '../context/TimeTrackerContext';
 import {
-  startOfDay, endOfDay, startOfWeek, endOfWeek, subWeeks, parseISO, format,
-  eachDayOfInterval, addDays, isValid
+  startOfDay, endOfDay, startOfWeek, endOfWeek, subWeeks, subDays, parseISO, format,
+  eachDayOfInterval, addDays, differenceInCalendarDays, isValid
 } from 'date-fns';
 import {
   BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, PieChart, Pie, Cell,
@@ -136,12 +136,22 @@ export const AnalysisView: React.FC = () => {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [preset, customStart, customEnd, isCustomInvalid, tick]);
 
-  // Previous Date Range for comparison
+  /**
+   * The same number of calendar days, immediately before `dateRange`.
+   *
+   * Counted in days rather than milliseconds. `dateRange` is always built from
+   * `startOfWeek`/`endOfWeek`/`startOfDay`, so it is a whole number of calendar
+   * days — but a week containing a DST transition is 23 or 25 hours short of
+   * 7x24, so subtracting its length in milliseconds slid the comparison window
+   * an hour off the day boundary and moved entries in or out of it. Shifting
+   * both ends by a day count and re-anchoring keeps it aligned in every zone.
+   */
   const prevDateRange = useMemo(() => {
-    const rangeMs = dateRange.end.getTime() - dateRange.start.getTime() + 1;
-    const prevEnd = new Date(dateRange.start.getTime() - 1);
-    const prevStart = new Date(prevEnd.getTime() - rangeMs + 1);
-    return { start: prevStart, end: prevEnd };
+    const days = differenceInCalendarDays(dateRange.end, dateRange.start) + 1;
+    return {
+      start: startOfDay(subDays(dateRange.start, days)),
+      end: endOfDay(subDays(dateRange.end, days)),
+    };
   }, [dateRange]);
 
   // Every entry in the reporting window, before the group and timecode

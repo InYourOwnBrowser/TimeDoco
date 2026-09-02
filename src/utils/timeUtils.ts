@@ -415,6 +415,11 @@ export const getElapsedTimeMs = (startTime: string, pausedSegments: PauseSegment
 };
 
 export const formatElapsedSeconds = (totalSeconds: number): string => {
+  // Guarded like `formatDurationShort`: this drives the running timer readout,
+  // so an unparseable start time rendered a live "NaN:NaN:NaN" once a second
+  // rather than something a user could read as "no reading".
+  if (!Number.isFinite(totalSeconds)) return '--:--';
+
   const hrs = Math.floor(totalSeconds / 3600);
   const mins = Math.floor((totalSeconds % 3600) / 60);
   const secs = totalSeconds % 60;

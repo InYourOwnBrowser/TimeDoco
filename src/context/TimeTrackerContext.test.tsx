@@ -10,7 +10,7 @@ const clearDB = async () => {
   try {
     await db.wipeAllData();
   } catch {}
-  await db.closeDB();
+  await db.resetDBForTests();
   return new Promise<void>((resolve, _reject) => {
     const req = indexedDB.deleteDatabase(DB_NAME);
     req.onsuccess = () => resolve();

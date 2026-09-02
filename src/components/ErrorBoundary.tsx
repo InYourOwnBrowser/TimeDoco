@@ -76,6 +76,14 @@ export class ErrorBoundary extends Component<Props, State> {
                     this.setState({ copyResult });
                     setTimeout(() => this.setState({ copyResult: null }), 2000);
                   };
+                  // `navigator.clipboard` is undefined outside a secure context,
+                  // so reaching straight for `.writeText` threw a TypeError —
+                  // from inside the error screen, which is the one place in the
+                  // app with nothing left to catch it.
+                  if (!navigator.clipboard?.writeText) {
+                    settle('failed');
+                    return;
+                  }
                   navigator.clipboard.writeText(logText).then(
                     () => settle('copied'),
                     () => settle('failed'),

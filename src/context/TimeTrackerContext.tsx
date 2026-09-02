@@ -5,6 +5,7 @@ import { differenceInSeconds, isSameDay } from 'date-fns';
 import { calculateDuration, findOverlappingCandidates } from '../utils/timeUtils';
 import { clearErrorLog, logError } from '../utils/errorLog';
 import { useToast } from './ToastContext';
+import { isRecoveryReloadInFlight } from '../utils/chunkRecovery';
 import { requestPersistenceOnCommitment, resumePersistence } from '../utils/storagePersistence';
 import {
   validateBackupPayload,
@@ -517,6 +518,10 @@ export const TimeTrackerProvider: React.FC<{ children: ReactNode }> = ({ childre
   useEffect(() => {
     if (activeEntries.length === 0) return;
     const onBeforeUnload = (e: BeforeUnloadEvent) => {
+      // Not for a reload the app started itself to recover from a stale chunk:
+      // that is not the user leaving with a timer running, and prompting turned
+      // a silent recovery into a modal the user had to understand and dismiss.
+      if (isRecoveryReloadInFlight()) return;
       e.preventDefault();
       // Browsers ignore custom text but still require returnValue to be set.
       e.returnValue = '';
@@ -1089,14 +1094,22 @@ export const TimeTrackerProvider: React.FC<{ children: ReactNode }> = ({ childre
       }
     }
 
-    for (const group of plan.groups) {
-      await db.putGroup(touch({ ...group, deletedAt: undefined }));
-    }
-    for (const timecode of plan.timecodes) {
-      await db.putTimecode(touch({ ...timecode, deletedAt: undefined }));
-    }
-    for (const entry of plan.entries) {
-      await db.putEntry(touch({ ...entry, deletedAt: undefined }));
+    // One transaction over the three stores. Three loops of single-record puts
+    // were as many transactions as there were records, so a failure part-way
+    // left the group and timecodes live with half their entries still trashed.
+    try {
+      await db.putRestorePlan(
+        plan.groups.map(group => touch({ ...group, deletedAt: undefined })),
+        plan.timecodes.map(timecode => touch({ ...timecode, deletedAt: undefined })),
+        plan.entries.map(entry => touch({ ...entry, deletedAt: undefined })),
+      );
+    } catch (error) {
+      // Reported here rather than thrown, for the same reason the refusal above
+      // is: three internal callers have no catch, and the docstring promises a
+      // boolean. Nothing was written, so there is nothing to reload.
+      console.error('Failed to restore from trash', error);
+      addToast('Could not restore from the trash. Nothing was changed.', 'error');
+      return false;
     }
     return true;
   };
@@ -1367,6 +1380,12 @@ export const TimeTrackerProvider: React.FC<{ children: ReactNode }> = ({ childre
         totalAdded += chunk.length;
       } catch (error) {
         if (totalAdded > 0) {
+          // Earlier chunks are committed and cannot be rolled back — they are
+          // separate transactions by design, so a 50k-row import is not one
+          // enormous one. Reload before reporting, or the rows that did land
+          // sit on disk and off the screen until the next page load, and the
+          // user is told the import failed while looking at none of it.
+          await refreshData();
           throw new Error(`Import failed after committing ${totalAdded} entries: ${error instanceof Error ? error.message : String(error)}`);
         }
         throw error;
@@ -1377,6 +1396,14 @@ export const TimeTrackerProvider: React.FC<{ children: ReactNode }> = ({ childre
   };
 
 
+  /**
+   * Rejects rather than resolving false when it refuses.
+   *
+   * The odd one out among the mutations here, and deliberately: each refusal
+   * carries a specific, already user-readable reason, and `handleMergeSave`
+   * toasts that message. A boolean would collapse "both timecodes have a timer
+   * running" and "the destination is archived" into one unexplained failure.
+   */
   const mergeTimecodes = async (sourceId: string, destId: string): Promise<boolean> => {
     if (!sourceId || !destId || sourceId === destId) return false;
 
@@ -1515,7 +1542,16 @@ export const TimeTrackerProvider: React.FC<{ children: ReactNode }> = ({ childre
     await refreshData();
   };
 
-  const hardDeleteTimecode = async (id: string) => {
+  /**
+   * Resolves to whether the timecode was actually destroyed.
+   *
+   * It can decline — the confirm below is the user's last chance to keep live
+   * entries — so it must go through `guardedResult`, not `guarded`. `guarded`
+   * resolves true whenever nothing threw, which made a cancelled delete
+   * indistinguishable from a completed one; the CSV import's rollback counted
+   * its cleanup from this value and reported timecodes it had not removed.
+   */
+  const hardDeleteTimecode = async (id: string): Promise<boolean> => {
     // From the database: a permanent delete must not leave orphans behind
     // because the React snapshot was missing a record.
     const allEntries = await db.getEntries();
@@ -1544,6 +1580,7 @@ export const TimeTrackerProvider: React.FC<{ children: ReactNode }> = ({ childre
     }
 
     await refreshData();
+    return true;
   };
 
   const restoreTimecode = (id: string): Promise<boolean> => restoreFromTrash({ timecodeIds: [id] });
@@ -2065,7 +2102,7 @@ export const TimeTrackerProvider: React.FC<{ children: ReactNode }> = ({ childre
       restoreTimecode: guardedResult('restore the timecode', restoreTimecode),
       restoreEntry: guardedResult('restore the entry', restoreEntry),
       hardDeleteGroup: guarded('permanently delete the group', hardDeleteGroup),
-      hardDeleteTimecode: guarded('permanently delete the timecode', hardDeleteTimecode),
+      hardDeleteTimecode: guardedResult('permanently delete the timecode', hardDeleteTimecode),
       hardDeleteEntry: guarded('permanently delete the entry', hardDeleteEntry),
       emptyTrash: guarded('empty the trash', emptyTrash),
     }}>

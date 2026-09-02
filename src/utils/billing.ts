@@ -144,8 +144,25 @@ const bucketKeyFor = (
  * Buckets use it to share a rounded total across their lines; the timeline uses
  * it to share one line's billable seconds across the days it spans. Either way
  * the parts reconcile with the whole, whatever rounding scope is in use.
+ *
+ * `keys` breaks a tie between equal remainders. Without it the leftover unit
+ * goes to whichever tied part sits earlier in the array — `Array.sort` is
+ * stable, so a tie is decided by input order — and two entries of identical
+ * length are not an exotic input: reordering or pre-filtering the entry list
+ * then moved a cent between two lines of an invoice. Sorting the tie on
+ * something intrinsic to the part instead makes the allocation a function of
+ * the set, not of the order it arrived in. Parts whose size *and* key both tie
+ * are genuinely interchangeable, so index is the honest last resort.
+ *
+ * Callers whose order is itself intrinsic — the timeline's chronological day
+ * buckets — pass no keys and get the index tie-break, which is deterministic
+ * for them because position carries meaning.
  */
-export const allocateProportionally = (rawSeconds: number[], target: number): number[] => {
+export const allocateProportionally = (
+  rawSeconds: number[],
+  target: number,
+  keys?: readonly string[],
+): number[] => {
   const total = rawSeconds.reduce((sum, value) => sum + value, 0);
   if (total <= 0 || target <= 0) return rawSeconds.map(() => 0);
 
@@ -155,7 +172,15 @@ export const allocateProportionally = (rawSeconds: number[], target: number): nu
 
   const order = exact
     .map((value, index) => ({ index, remainder: value - Math.floor(value) }))
-    .sort((a, b) => b.remainder - a.remainder);
+    .sort((a, b) => {
+      if (b.remainder !== a.remainder) return b.remainder - a.remainder;
+      if (keys) {
+        const keyA = keys[a.index];
+        const keyB = keys[b.index];
+        if (keyA !== keyB) return keyA < keyB ? -1 : 1;
+      }
+      return a.index - b.index;
+    });
 
   for (let i = 0; remaining > 0 && i < order.length; i++, remaining--) {
     allocated[order[i].index]++;
@@ -251,7 +276,9 @@ export const buildBillableLines = (entries: Entry[], options: BuildOptions): Map
     const rawSeconds = bucket.map((line) => line.workedSeconds);
     const bucketTotal = rawSeconds.reduce((sum, value) => sum + value, 0);
     const target = applyRounding(bucketTotal, roundingRule);
-    const allocated = allocateProportionally(rawSeconds, target);
+    // Keyed by entry id: which line absorbs the leftover second must not depend
+    // on where the entry happened to sit in the caller's list.
+    const allocated = allocateProportionally(rawSeconds, target, bucket.map((line) => line.entryId));
     bucket.forEach((line, index) => billableSeconds.set(line.entryId, allocated[index]));
   }
 
@@ -286,7 +313,11 @@ export const buildBillableLines = (entries: Entry[], options: BuildOptions): Map
     const totalSeconds = seconds.reduce((sum, value) => sum + value, 0);
     // The figure a client checks: rate x the row's printed hours.
     const rowAmount = roundCurrency(roundHours(totalSeconds / 3600) * rate);
-    const cents = allocateProportionally(seconds, Math.round(rowAmount * 100));
+    const cents = allocateProportionally(
+      seconds,
+      Math.round(rowAmount * 100),
+      group.map((line) => line.entryId),
+    );
     group.forEach((line, index) => lineAmounts.set(line.entryId, cents[index] / 100));
   }
 

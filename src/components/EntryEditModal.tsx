@@ -13,6 +13,39 @@ interface EntryEditModalProps {
   onClose: () => void;
 }
 
+/**
+ * An edit history timestamp, or a placeholder if it is not a date.
+ *
+ * `format` throws a RangeError on an invalid date rather than printing
+ * anything, and this renders inside the modal's own body — so one unparseable
+ * timestamp took out the whole modal for that entry, every time it was opened,
+ * with no way to reach the fields that would repair it. Imports validate the
+ * field now; this is what keeps a record already in the database from being
+ * unopenable.
+ */
+const formatHistoryTimestamp = (editedAt: string): string => {
+  const parsed = new Date(editedAt);
+  return Number.isNaN(parsed.getTime()) ? 'an unknown time' : format(parsed, 'MMM d, h:mm a');
+};
+
+/**
+ * One side of a recorded change, as a line of text.
+ *
+ * `String(value)` renders every object as `[object Object]`, and `splitEntry`
+ * records one: the split note's old value is the endTime, duration, fee and
+ * estimate it changed. A split entry's history therefore read
+ * `[object Object] → [object Object]`, which says less than nothing.
+ */
+const formatHistoryValue = (value: unknown): string => {
+  if (value === null || value === undefined) return '';
+  if (typeof value === 'object') {
+    return Object.entries(value as Record<string, unknown>)
+      .map(([key, entryValue]) => `${key}: ${entryValue === null || entryValue === undefined ? '—' : String(entryValue)}`)
+      .join(', ');
+  }
+  return String(value);
+};
+
 export const EntryEditModal: React.FC<EntryEditModalProps> = ({ entry, onClose }) => {
   const { updateEntry, entries, settings } = useTimeTracker();
   const { addToast } = useToast();
@@ -492,15 +525,19 @@ export const EntryEditModal: React.FC<EntryEditModalProps> = ({ entry, onClose }
           <div className="p-4 border-t border-graphite/20 dark:border-white/20">
             <h4 className="text-sm font-medium text-graphite dark:text-stone mb-2">Edit History</h4>
             <div className="space-y-2 max-h-32 overflow-y-auto">
-              {entry.editHistory.map((change, idx) => (
-                <div key={idx} className="text-xs text-gray-600 dark:text-gray-400 bg-stone dark:bg-gray-800/50 p-2 rounded border border-graphite/10 dark:border-white/10">
-                  <span className="font-semibold text-graphite dark:text-stone">{change.field}</span> changed at {format(new Date(change.editedAt), 'MMM d, h:mm a')}:
-                  <div className="mt-1 flex flex-col gap-1">
-                    <div className="text-rust dark:text-orange-300 line-through truncate" title={String(change.oldValue)}>{String(change.oldValue) || '(empty)'}</div>
-                    <div className="text-verdigris dark:text-emerald-400 truncate" title={String(change.newValue)}>{String(change.newValue) || '(empty)'}</div>
+              {entry.editHistory.map((change, idx) => {
+                const oldValue = formatHistoryValue(change.oldValue);
+                const newValue = formatHistoryValue(change.newValue);
+                return (
+                  <div key={idx} className="text-xs text-gray-600 dark:text-gray-400 bg-stone dark:bg-gray-800/50 p-2 rounded border border-graphite/10 dark:border-white/10">
+                    <span className="font-semibold text-graphite dark:text-stone">{change.field}</span> changed at {formatHistoryTimestamp(change.editedAt)}:
+                    <div className="mt-1 flex flex-col gap-1">
+                      <div className="text-rust dark:text-orange-300 line-through truncate" title={oldValue}>{oldValue || '(empty)'}</div>
+                      <div className="text-verdigris dark:text-emerald-400 truncate" title={newValue}>{newValue || '(empty)'}</div>
+                    </div>
                   </div>
-                </div>
-              ))}
+                );
+              })}
             </div>
           </div>
         )}
