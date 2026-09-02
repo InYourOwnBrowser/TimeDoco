@@ -9,6 +9,7 @@ import { ForgotToStopPrompt } from './components/ForgotToStopPrompt';
 import { TemplateList } from './components/TemplateList';
 import { BackupReminderBanner } from './components/BackupReminderBanner';
 import { SettingsModal } from './components/SettingsModal';
+import { isRecoveryReloadInFlight, lazyChunk, wasStaleChunkReload } from './utils/chunkRecovery';
 // `lazyChunk` is `lazy` that reports a chunk arriving, which is what clears the
 // stale-chunk reload guard — see utils/chunkRecovery.
 const AnalysisView = lazyChunk(() => import('./components/AnalysisView').then(module => ({ default: module.AnalysisView })));
@@ -32,7 +33,6 @@ import { Logo } from './components/ui/Logo';
 import { Download, Save } from 'lucide-react';
 import { SocialLinks } from './components/SocialLinks';
 import { logError } from './utils/errorLog';
-import { isRecoveryReloadInFlight, lazyChunk, wasStaleChunkReload } from './utils/chunkRecovery';
 import { resolveActiveTheme } from './utils/theme';
 
 const TABS = ['tracker', 'timesheet', 'analysis', 'management', 'resources'] as const;

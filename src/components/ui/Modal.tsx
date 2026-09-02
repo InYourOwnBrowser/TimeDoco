@@ -1,4 +1,4 @@
-import React, { useEffect, useRef } from 'react';
+import React, { useEffect, useId, useRef } from 'react';
 
 interface ModalProps {
   onClose: () => void;
@@ -8,6 +8,23 @@ interface ModalProps {
 }
 
 const modalStack: string[] = [];
+
+/**
+ * What Tab may move to inside a dialog. `[hidden]` and `aria-hidden` are
+ * excluded in the selector itself so the filter beside it only has to deal with
+ * hidden *ancestors* — checking visibility any other way (offsetParent, computed
+ * style) reports nothing useful under jsdom, where the focus trap is tested.
+ */
+const FOCUSABLE_SELECTOR = [
+  'a[href]',
+  'button:not([disabled])',
+  'textarea:not([disabled])',
+  'input:not([disabled])',
+  'select:not([disabled])',
+  '[tabindex]:not([tabindex="-1"])',
+]
+  .map((selector) => `${selector}:not([hidden]):not([aria-hidden="true"])`)
+  .join(', ');
 
 /**
  * The body's inline overflow from before any modal opened, held while the lock
@@ -40,21 +57,20 @@ const unlockBodyScroll = () => {
 
 export const Modal: React.FC<ModalProps> = ({ onClose, children, className = '', isDirty = false }) => {
   const modalRef = useRef<HTMLDivElement>(null);
-  const idRef = useRef<string>('');
-
-  if (!idRef.current) {
-    idRef.current = Math.random().toString(36).substring(2, 9);
-  }
+  // `useId` rather than a random string written during render: identity is
+  // exactly what this hook is for, and generating it in the render body is a
+  // side effect that concurrent rendering is free to run more than once.
+  const id = useId();
 
   useEffect(() => {
     // Registration and the scroll lock move together: the lock is a property of
     // the stack being non-empty, so it cannot be decided by a separate effect
     // whose ordering against this one is not guaranteed.
-    modalStack.push(idRef.current);
+    modalStack.push(id);
     lockBodyScroll();
 
     return () => {
-      const index = modalStack.indexOf(idRef.current);
+      const index = modalStack.indexOf(id);
       if (index !== -1) {
         modalStack.splice(index, 1);
       }
@@ -66,7 +82,7 @@ export const Modal: React.FC<ModalProps> = ({ onClose, children, className = '',
     const handleKeyDown = (e: KeyboardEvent) => {
       if (e.key === 'Escape') {
         // Only handle Escape if this modal is at the top of the modal stack
-        if (modalStack[modalStack.length - 1] !== idRef.current) return;
+        if (modalStack[modalStack.length - 1] !== id) return;
 
         if (isDirty) {
           if (window.confirm('You have unsaved changes. Are you sure you want to close?')) {
@@ -79,16 +95,20 @@ export const Modal: React.FC<ModalProps> = ({ onClose, children, className = '',
         // Focus trap — only for the modal on top, so a stacked dialog does not
         // pull focus back into the one behind it.
         if (!modalRef.current) return;
-        if (modalStack[modalStack.length - 1] !== idRef.current) return;
+        if (modalStack[modalStack.length - 1] !== id) return;
 
-        const focusableElements = modalRef.current.querySelectorAll(
-          'a[href], button:not([disabled]), textarea:not([disabled]), input:not([disabled]), select:not([disabled]), [tabindex]:not([tabindex="-1"])'
-        );
+        // Hidden elements are excluded, and elements inside a hidden container
+        // with them: `.focus()` on something invisible silently does nothing,
+        // so a hidden first or last element used to swallow the Tab that should
+        // have wrapped and leave the user stuck at the end of the dialog.
+        const focusableElements = Array.from(
+          modalRef.current.querySelectorAll<HTMLElement>(FOCUSABLE_SELECTOR),
+        ).filter((el) => !el.closest('[hidden], [aria-hidden="true"]'));
 
         if (focusableElements.length === 0) return;
 
-        const firstElement = focusableElements[0] as HTMLElement;
-        const lastElement = focusableElements[focusableElements.length - 1] as HTMLElement;
+        const firstElement = focusableElements[0];
+        const lastElement = focusableElements[focusableElements.length - 1];
 
         // Anything not inside this modal is out of bounds, not just the two
         // ends of the list: focus can leave by a click on the page behind, or
@@ -158,7 +178,11 @@ export const Modal: React.FC<ModalProps> = ({ onClose, children, className = '',
 
   return (
     <div
-      className={`fixed inset-0 bg-ink/50 dark:bg-black/75 backdrop-blur-sm flex items-center justify-center p-4 z-50 overflow-y-auto ${className}`}
+      // `items-start` with `my-auto` on the child, not `items-center`: centring a
+      // child taller than the scroll container pushes its top above the scrollable
+      // area, where nothing can reach it. `my-auto` still centres anything short
+      // enough to fit, and collapses when it is not.
+      className={`fixed inset-0 bg-ink/50 dark:bg-black/75 backdrop-blur-sm flex items-start justify-center p-4 z-50 overflow-y-auto ${className}`}
       role="dialog"
       aria-modal="true"
       onClick={handleBackdropClick}
@@ -166,7 +190,7 @@ export const Modal: React.FC<ModalProps> = ({ onClose, children, className = '',
       <div
         ref={modalRef}
         tabIndex={-1}
-        className="outline-none w-full flex justify-center"
+        className="outline-none w-full my-auto flex justify-center"
       >
         {children}
       </div>

@@ -49,7 +49,13 @@ export const SettingField: React.FC<SettingFieldProps> = ({
   // Read through a ref so a caller passing an inline arrow — which every one of
   // them does — cannot restart the debounce on each render.
   const onCommitRef = useRef(onCommit);
-  onCommitRef.current = onCommit;
+  // Updated after commit rather than during render. Every flush happens on blur,
+  // Enter, idle or unmount — all after the commit that set this — so the timing
+  // is unchanged, and writing a ref in the render body is a side effect that
+  // concurrent rendering may run more than once or throw away.
+  useEffect(() => {
+    onCommitRef.current = onCommit;
+  });
 
   // Idle, blur and Enter flush through this; unmount flushes inside the hook,
   // so closing the modal writes what was typed into it rather than dropping it.

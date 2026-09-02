@@ -20,8 +20,26 @@ export class ErrorBoundary extends Component<Props, State> {
     copyResult: null,
   };
 
+  /**
+   * The pending "Copied" reset. Held so it can be cancelled: the error screen
+   * unmounts as soon as anything recovers, and a timer left running would call
+   * `setState` on a component that is gone.
+   */
+  private copyResetTimer: number | null = null;
+
   public static getDerivedStateFromError(error: Error): State {
     return { hasError: true, error };
+  }
+
+  private clearCopyResult(): void {
+    if (this.copyResetTimer !== null) {
+      window.clearTimeout(this.copyResetTimer);
+      this.copyResetTimer = null;
+    }
+  }
+
+  public componentWillUnmount(): void {
+    this.clearCopyResult();
   }
 
   public componentDidCatch(error: Error, errorInfo: ErrorInfo) {
@@ -74,7 +92,11 @@ export class ErrorBoundary extends Component<Props, State> {
                   const logText = formatErrorLogForClipboard();
                   const settle = (copyResult: 'copied' | 'failed') => {
                     this.setState({ copyResult });
-                    setTimeout(() => this.setState({ copyResult: null }), 2000);
+                    this.clearCopyResult();
+                    this.copyResetTimer = window.setTimeout(
+                      () => this.setState({ copyResult: null }),
+                      2000,
+                    );
                   };
                   // `navigator.clipboard` is undefined outside a secure context,
                   // so reaching straight for `.writeText` threw a TypeError —

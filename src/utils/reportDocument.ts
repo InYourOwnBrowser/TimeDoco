@@ -82,6 +82,22 @@ export const formatMoney = (amount: number, currencySymbol: string): string => {
 export const formatAmount = (amount: number, currencySymbol: string): string =>
   amount === 0 ? '-' : formatMoney(amount, currencySymbol);
 
+/**
+ * A CSV cell, quoted, with a leading apostrophe on anything a spreadsheet would
+ * otherwise evaluate.
+ *
+ * The apostrophe is a deliberate trade-off, not an oversight. Excel and Sheets
+ * read a leading `=`, `+`, `-`, `@`, tab or CR as the start of a formula, so a
+ * note beginning `=cmd|...` becomes an executable cell in whatever the recipient
+ * opens the export in. Prefixing it makes the cell inert. The cost is that some
+ * importers show the apostrophe as literal text rather than consuming it, so a
+ * note that began with one of those characters reads with a stray quote in
+ * front. A visible apostrophe is the better failure.
+ *
+ * Numeric columns deliberately do not come through here: they are generated
+ * from numbers, never from user input, and quoting them would stop a
+ * spreadsheet reading them as numbers at all.
+ */
 export const escapeCSV = (str: string): string => {
   let escaped = String(str ?? '').replace(/"/g, '""');
   if (/^[=+\-@\t\r]/.test(escaped)) {

@@ -123,4 +123,29 @@ describe('Modal scroll lock', () => {
     unmount();
     expect(document.body.style.overflow).toBe('scroll');
   });
+
+  // A hidden element cannot take focus: `.focus()` on it silently does nothing,
+  // so a hidden first or last child used to swallow the Tab that should have
+  // wrapped and leave the user stuck at the end of the dialog.
+  it('wraps focus past elements that cannot receive it', () => {
+    const { getByTestId } = render(
+      <Modal onClose={vi.fn()}>
+        <button hidden data-testid="hidden-first">Hidden first</button>
+        <button data-testid="real-first">Real first</button>
+        <button data-testid="real-last">Real last</button>
+        <div aria-hidden="true"><button data-testid="hidden-last">Hidden last</button></div>
+      </Modal>,
+    );
+
+    // Tabbing forward from the last element it may actually reach must land on
+    // the first one it may reach, not on either hidden button.
+    getByTestId('real-last').focus();
+    fireEvent.keyDown(document, { key: 'Tab' });
+    expect(document.activeElement).toBe(getByTestId('real-first'));
+
+    // And backwards from the first, to the real last.
+    getByTestId('real-first').focus();
+    fireEvent.keyDown(document, { key: 'Tab', shiftKey: true });
+    expect(document.activeElement).toBe(getByTestId('real-last'));
+  });
 });

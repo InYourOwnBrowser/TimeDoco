@@ -444,6 +444,9 @@ export const findOverlappingCandidates = (
 };
 
 export const applyRounding = (seconds: number, roundingRule: 'none' | '5min' | '10min' | '15min'): number => {
+  // The same guard `roundCurrency` and `roundHours` carry twenty lines above.
+  // Without it Infinity survives the rounding and becomes a billable duration.
+  if (!Number.isFinite(seconds)) return 0;
   if (roundingRule === 'none') return seconds;
 
   let roundingInterval = 1;
