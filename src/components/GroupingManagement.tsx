@@ -205,7 +205,11 @@ export const GroupingManagement: React.FC = () => {
       name: trimmedName,
       color: editingTimecodeData.color || undefined,
       groupId: targetGroupId,
-      hourlyRate: isNaN(parsedRate) || parsedRate <= 0 ? null : parsedRate,
+      // `Number.isFinite` rather than `isNaN`: "1e999" parses to Infinity, which
+      // is not NaN and is not <= 0, so it was stored as a rate — and then every
+      // amount computed from it came out of `roundCurrency` as a silent 0. The
+      // backup importer has always applied this rule; the editor had not.
+      hourlyRate: Number.isFinite(parsedRate) && parsedRate > 0 ? parsedRate : null,
     })) {
       setEditingTimecodeId(null);
     }

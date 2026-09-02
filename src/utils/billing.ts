@@ -215,6 +215,13 @@ export interface BuildOptions {
   roundingRule?: RoundingRule;
   roundingScope?: RoundingScope;
   scopeWindow?: DateRange | null;
+  /**
+   * The rates amounts are computed from. Omit it only on a surface that shows
+   * no hourly money: without it every rate reads as null and every hourly
+   * amount comes out 0, silently. Fixed costs are unaffected — a fee carries
+   * its own amount and needs no rate — which is why `EntryList`, which sums
+   * only fees, can leave this out.
+   */
   timecodeMap?: Map<string, Timecode>;
   now?: Date;
 }

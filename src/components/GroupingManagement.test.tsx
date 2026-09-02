@@ -235,6 +235,27 @@ describe('GroupingManagement Redesigned View', () => {
     });
   });
 
+  // Pins the end-to-end property rather than one guard: a rate that is not a
+  // finite number never reaches storage. Today the `type="number"` input is what
+  // stops it — it sanitises "1e999" to "" before any handler sees it — and the
+  // `Number.isFinite` check in the save path is the backstop for if that ever
+  // changes. Worth stating, because a non-finite rate would not fail loudly: it
+  // would come back out of `roundCurrency` as 0 and bill nothing.
+  it('stores no rate at all for a value that is not a finite number', async () => {
+    render(<GroupingManagement />);
+
+    fireEvent.click(screen.getAllByRole('button', { name: 'Edit Timecode' })[0]);
+    fireEvent.change(screen.getByDisplayValue('85'), { target: { value: '1e999' } });
+    fireEvent.click(screen.getByRole('button', { name: /Save/i }));
+
+    await waitFor(() => {
+      expect(mockUpdateTimecode).toHaveBeenCalledWith(
+        'tc1',
+        expect.objectContaining({ hourlyRate: null }),
+      );
+    });
+  });
+
   it('shows archived items disclosure toggle and restores archived items', async () => {
     render(<GroupingManagement />);
 

@@ -12,6 +12,16 @@ export const PERSISTENCE_RETRY_INTERVAL_MS = 24 * 60 * 60 * 1000;
 const GRANTED_KEY = 'timedoco.persistence.granted';
 const LAST_ATTEMPT_KEY = 'timedoco.persistence.lastAttempt';
 
+/**
+ * That this origin has held the grant at some point — never cleared by losing
+ * it. `GRANTED_KEY` is the *current* state and `checkPersistence` clears it the
+ * moment the browser reports the grant gone, which is exactly the moment
+ * `resumePersistence` needs to know it once existed. Reading the current flag
+ * there made reclamation one-shot: a single refused reclaim erased the only
+ * evidence that reclaiming was allowed, and no later load would try again.
+ */
+const EVER_GRANTED_KEY = 'timedoco.persistence.everGranted';
+
 // Written by earlier versions. `persistenceAttempted` recorded that a request
 // had been made rather than how it went, which made a single early denial
 // permanent; it is dropped rather than carried forward, so the next commitment
@@ -66,6 +76,11 @@ const migrateLegacyKeys = (): void => {
   if (readKey(LEGACY_GRANTED_KEY) === 'true' && readKey(GRANTED_KEY) === null) {
     writeKey(GRANTED_KEY, 'true');
   }
+  // A grant already held predates `EVER_GRANTED_KEY`, so seed it rather than
+  // making existing users look as though they had never been granted.
+  if (readKey(GRANTED_KEY) === 'true' && readKey(EVER_GRANTED_KEY) === null) {
+    writeKey(EVER_GRANTED_KEY, 'true');
+  }
   removeKey(LEGACY_GRANTED_KEY);
   removeKey(LEGACY_ATTEMPTED_KEY);
 };
@@ -89,6 +104,9 @@ export const persistenceRecord = (): { granted: boolean; lastAttempt: number | n
 const recordGranted = (): void => {
   migrateLegacyKeys();
   writeKey(GRANTED_KEY, 'true');
+  // Durable: losing the grant must not erase the fact that it was once given,
+  // which is what licenses a reclaim at load time.
+  writeKey(EVER_GRANTED_KEY, 'true');
   // A grant clears the back-off: if it is ever lost we should ask again at the
   // next gesture, not sit out a day left over from an old denial.
   removeKey(LAST_ATTEMPT_KEY);
@@ -203,10 +221,20 @@ export const requestPersistenceOnCommitment = async (
  * cold request.
  */
 export const resumePersistence = async (): Promise<PersistenceState> => {
-  const hadGrant = persistenceRecord().granted;
+  migrateLegacyKeys();
+  const everGranted = readKey(EVER_GRANTED_KEY) === 'true';
   const state = await checkPersistence();
-  if (state === 'best-effort' && hadGrant) return requestPersistence();
-  return state;
+  if (state !== 'best-effort' || !everGranted) return state;
+
+  // The same back-off the commitment path uses. Reclaiming is licensed by a
+  // prior grant, not unlimited: a browser that keeps refusing must not be asked
+  // on every single load, and in Firefox that would be a prompt every time.
+  const now = Date.now();
+  const { lastAttempt } = persistenceRecord();
+  if (lastAttempt !== null && Math.abs(now - lastAttempt) < PERSISTENCE_RETRY_INTERVAL_MS) {
+    return state;
+  }
+  return requestPersistence(now);
 };
 
 /** Quota headroom, for the Settings readout and pre-emptive warnings. */

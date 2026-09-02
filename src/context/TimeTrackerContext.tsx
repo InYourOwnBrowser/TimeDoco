@@ -2070,10 +2070,14 @@ export const TimeTrackerProvider: React.FC<{ children: ReactNode }> = ({ childre
 
     await db.importBackup(
       {
-        groups: migratedData.groups || [],
-        timecodes: migratedData.timecodes || [],
+        // The one place the import crosses from unknown data into typed
+        // records. `validateBackupPayload` has just checked every one of these
+        // field by field, which is what earns the cast; before it was typed
+        // `any` and the crossing was invisible.
+        groups: (migratedData.groups || []) as Group[],
+        timecodes: (migratedData.timecodes || []) as Timecode[],
         entries: importedEntries,
-        settings: migratedData.settings,
+        settings: migratedData.settings as Settings | undefined,
       },
       mode
     );

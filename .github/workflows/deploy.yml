@@ -63,6 +63,16 @@ jobs:
         # only exist in sequence — a deploy landing on an open tab, above all —
         # and no unit test can stand in for them.
         run: npx playwright test
+      - name: Upload the verified bundle
+        # The exact bundle every check above ran against. `deploy` publishes
+        # this rather than building again: two builds from one commit are two
+        # artifacts, and only one of them was ever tested.
+        uses: actions/upload-artifact@v4
+        with:
+          name: verified-dist
+          path: dist
+          retention-days: 1
+          if-no-files-found: error
 
   deploy:
     needs: verify
@@ -90,13 +100,14 @@ jobs:
       # wrangler-action records a GitHub deployment for the published site.
       deployments: write
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - name: Download the verified bundle
+        # No checkout, no reinstall, no rebuild: publishing anything other than
+        # the artifact `verify` tested would make the checks vouch for a bundle
+        # that is not the one going out.
+        uses: actions/download-artifact@v4
         with:
-          node-version: 20
-          cache: 'npm'
-      - run: npm ci
-      - run: npm run build
+          name: verified-dist
+          path: dist
       - name: Deploy to Cloudflare Pages
         uses: cloudflare/wrangler-action@v3
         with:

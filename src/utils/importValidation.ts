@@ -24,7 +24,7 @@ export const SUPPORTED_SCHEMA_VERSION = 1;
  * same questions: the preview used to look at neither, so a hand-edited or
  * future-format file showed a clean green preview and then failed on import.
  */
-export function assertSupportedSchemaVersion(version: unknown): void {
+export function assertSupportedSchemaVersion(version: unknown): asserts version is number {
   if (version !== SUPPORTED_SCHEMA_VERSION) {
     throw new Error(`Unsupported schema version: ${version}. Cannot migrate.`);
   }
@@ -42,6 +42,38 @@ const fallbackHash = (payload: string): string => {
 };
 
 /**
+ * A parsed backup whose *envelope* has been checked — size, JSON syntax,
+ * checksum, schema version — and whose contents have not.
+ *
+ * Deliberately not `any`. This is attacker-supplied data one call away from the
+ * database, and `any` switched type checking off for every consumer downstream
+ * of the one function whose whole job is to be suspicious of it. Every field is
+ * `unknown`, so a caller has to narrow before it can use anything — which is
+ * what the validators below already do at runtime.
+ */
+export interface RawBackup {
+  [key: string]: unknown;
+}
+
+/** A `RawBackup` whose schema version has been checked, and nothing else. */
+export interface VerifiedBackup extends RawBackup {
+  schemaVersion: number;
+}
+
+/**
+ * A backup that has been through `validateBackupPayload`.
+ *
+ * The three collections are known to be arrays — that is what the validator
+ * checked — while their elements stay `unknown`, because whether a given record
+ * is well formed is a separate question answered per field.
+ */
+export interface ValidatedBackup extends VerifiedBackup {
+  groups: unknown[];
+  timecodes: unknown[];
+  entries: unknown[];
+}
+
+/**
  * Verify a parsed backup's integrity checksum.
  *
  * Prefer SHA-256 always, and only fall back to the weak 32-bit hash when the
@@ -50,15 +82,18 @@ const fallbackHash = (payload: string): string => {
  * one. Note the checksum is an integrity check, not a security boundary:
  * anyone crafting a backup can compute a valid digest under either algorithm.
  */
-export async function verifyBackupChecksum(parsed: any): Promise<void> {
+export async function verifyBackupChecksum(parsed: unknown): Promise<void> {
   if (!parsed || typeof parsed !== 'object') {
     throw new Error('Import failed: Backup data is not a valid JSON object.');
   }
-  if (!parsed.checksum) {
+  // The one cast, made after the runtime check that earns it. Everything it
+  // yields is `unknown`, so nothing below is trusted by having passed here.
+  const backup = parsed as RawBackup;
+  if (!backup.checksum) {
     throw new Error('No checksum found in backup file');
   }
 
-  const { checksum, ...dataToVerify } = parsed;
+  const { checksum, ...dataToVerify } = backup;
   let payloadString: string = JSON.stringify(dataToVerify);
 
   let verified = false;
@@ -100,7 +135,7 @@ export async function verifyBackupChecksum(parsed: any): Promise<void> {
  *
  * @returns the parsed backup, for the caller to validate and migrate.
  */
-export async function verifyBackupFile(file: File): Promise<any> {
+export async function verifyBackupFile(file: File): Promise<VerifiedBackup> {
   if (file.size > MAX_IMPORT_FILE_BYTES) {
     throw new Error('Import failed: File size exceeds the 20MB limit.');
   }
@@ -115,9 +150,13 @@ export async function verifyBackupFile(file: File): Promise<any> {
   content = '';
 
   await verifyBackupChecksum(parsed);
-  assertSupportedSchemaVersion(parsed?.schemaVersion);
+  const backup = parsed as RawBackup;
+  const version = backup.schemaVersion;
+  assertSupportedSchemaVersion(version);
 
-  return parsed;
+  // The version is the only thing about the contents established so far. Every
+  // other field stays `unknown` until `validateBackupPayload` has run.
+  return backup as VerifiedBackup;
 }
 
 /** Data URLs only — never a remote reference that would make the app phone home. */
@@ -260,32 +299,35 @@ export interface BackupValidationOptions {
  *   file.
  */
 export function validateBackupPayload(
-  parsed: any,
+  parsed: unknown,
   knownTimecodeIds?: Set<string>,
   options?: BackupValidationOptions
-): void {
+): asserts parsed is ValidatedBackup {
   if (!parsed || typeof parsed !== 'object') {
     throw new Error('Import failed: Backup data is not a valid JSON object.');
   }
+  // Narrowed for the checks below; the assertion signature is what carries the
+  // result out to callers, so they no longer have to re-check what this proved.
+  const backup = parsed as RawBackup;
 
-  if (!Array.isArray(parsed.groups)) {
+  if (!Array.isArray(backup.groups)) {
     throw new Error('Import failed: "groups" must be an array.');
   }
-  if (!Array.isArray(parsed.timecodes)) {
+  if (!Array.isArray(backup.timecodes)) {
     throw new Error('Import failed: "timecodes" must be an array.');
   }
-  if (!Array.isArray(parsed.entries)) {
+  if (!Array.isArray(backup.entries)) {
     throw new Error('Import failed: "entries" must be an array.');
   }
 
-  if (parsed.entries.length > MAX_IMPORT_ENTRIES) {
-    throw new Error(`Import failed: Backup contains ${parsed.entries.length} entries, exceeding the maximum cap of ${MAX_IMPORT_ENTRIES}.`);
+  if (backup.entries.length > MAX_IMPORT_ENTRIES) {
+    throw new Error(`Import failed: Backup contains ${backup.entries.length} entries, exceeding the maximum cap of ${MAX_IMPORT_ENTRIES}.`);
   }
 
   // Validate duplicate IDs in groups
   const groupIds = new Set<string>();
-  for (let i = 0; i < parsed.groups.length; i++) {
-    const g = parsed.groups[i];
+  for (let i = 0; i < backup.groups.length; i++) {
+    const g = backup.groups[i];
     if (!g || typeof g !== 'object' || typeof g.id !== 'string' || typeof g.name !== 'string') {
       throw new Error(`Import failed: group at index ${i} is malformed.`);
     }
@@ -298,8 +340,8 @@ export function validateBackupPayload(
   // Validate duplicate IDs in timecodes
   const resolvableTimecodeIds = new Set<string>(knownTimecodeIds ?? []);
   const timecodeIdsInPayload = new Set<string>();
-  for (let i = 0; i < parsed.timecodes.length; i++) {
-    const tc = parsed.timecodes[i];
+  for (let i = 0; i < backup.timecodes.length; i++) {
+    const tc = backup.timecodes[i];
     if (!tc || typeof tc !== 'object' || typeof tc.id !== 'string' || typeof tc.name !== 'string') {
       throw new Error(`Import failed: timecode at index ${i} is malformed.`);
     }
@@ -323,8 +365,8 @@ export function validateBackupPayload(
   // Validate entries
   const entryIds = new Set<string>();
   let runningCount = 0;
-  for (let i = 0; i < parsed.entries.length; i++) {
-    const e = parsed.entries[i];
+  for (let i = 0; i < backup.entries.length; i++) {
+    const e = backup.entries[i];
     if (!e || typeof e !== 'object' || typeof e.id !== 'string' || typeof e.timecodeId !== 'string') {
       throw new Error(`Import failed: entry at index ${i} is malformed.`);
     }
@@ -482,7 +524,10 @@ export function validateBackupPayload(
   // it from the file meant a merge could pass validation on the file's
   // permissive setting and then land two running timers in a database whose own
   // setting forbids them.
-  const allowConcurrent = options?.allowConcurrentTimers ?? Boolean(parsed.settings?.allowConcurrentTimers);
+  // `validateSettings` above has already checked this object's shape; reading
+  // one boolean off it here needs no more than that.
+  const fileSettings = backup.settings as { allowConcurrentTimers?: unknown } | undefined;
+  const allowConcurrent = options?.allowConcurrentTimers ?? Boolean(fileSettings?.allowConcurrentTimers);
   const totalRunning = runningCount + (options?.existingRunningCount ?? 0);
   if (!allowConcurrent && totalRunning > 1) {
     const existingRunning = options?.existingRunningCount ?? 0;
@@ -493,7 +538,7 @@ export function validateBackupPayload(
     );
   }
 
-  validateSettings(parsed.settings, resolvableTimecodeIds);
+  validateSettings(backup.settings, resolvableTimecodeIds);
 }
 
 function validateSettings(settings: any, resolvableTimecodeIds?: Set<string>): void {

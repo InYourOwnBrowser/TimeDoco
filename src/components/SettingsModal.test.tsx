@@ -8,6 +8,7 @@ const mockAddTimecode = vi.fn();
 const mockBulkAddManualEntries = vi.fn().mockResolvedValue({ added: 1, skipped: 0 });
 let mockEntries: any[] = [];
 let mockCustomFields: any[] = [];
+let mockTaxEnabled = false;
 
 vi.mock('../context/TimeTrackerContext', () => ({
   useTimeTracker: () => ({
@@ -19,6 +20,7 @@ vi.mock('../context/TimeTrackerContext', () => ({
       theme: 'system',
       allowConcurrentTimers: false,
       customFields: mockCustomFields,
+      taxEnabled: mockTaxEnabled,
     },
     updateSettings: mockUpdateSettings,
     bulkAddManualEntries: mockBulkAddManualEntries,
@@ -53,6 +55,7 @@ describe('SettingsModal Logo Upload Validation', () => {
 
   beforeEach(() => {
     vi.clearAllMocks();
+    mockTaxEnabled = false;
   });
 
   it('rejects files with non-image MIME types (e.g. text/html)', () => {
@@ -176,6 +179,36 @@ describe('SettingsModal Logo Upload Validation', () => {
 
     readAsDataURLSpy.mockRestore();
     global.Image = originalImage;
+  });
+
+  // W-7: `min="0"` is only a hint to the browser, and `parseFloat` passes "-5"
+  // and "1e999" (Infinity) straight through. Either prints a nonsense tax line
+  // on an invoice rather than failing where the user could see it.
+  it.each(['-5', '150'])('refuses the tax rate %s', (bad) => {
+    mockTaxEnabled = true;
+    const { getByPlaceholderText } = renderComponent();
+    const field = getByPlaceholderText('15');
+
+    fireEvent.change(field, { target: { value: bad } });
+    fireEvent.blur(field);
+
+    expect(mockAddToast).toHaveBeenCalledWith('Tax rate must be a number between 0 and 100.', 'error');
+    expect(mockUpdateSettings).not.toHaveBeenCalled();
+  });
+
+  it('stores a tax rate that is in range, and clears it when emptied', () => {
+    mockTaxEnabled = true;
+    const { getByPlaceholderText } = renderComponent();
+    const field = getByPlaceholderText('15');
+
+    fireEvent.change(field, { target: { value: '15' } });
+    fireEvent.blur(field);
+    expect(mockUpdateSettings).toHaveBeenCalledWith({ taxRate: 15 });
+
+    mockUpdateSettings.mockClear();
+    fireEvent.change(field, { target: { value: '' } });
+    fireEvent.blur(field);
+    expect(mockUpdateSettings).toHaveBeenCalledWith({ taxRate: null });
   });
 
   it('writes reportFooterText once the field settles, not on every keystroke', () => {

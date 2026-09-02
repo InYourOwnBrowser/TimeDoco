@@ -1017,7 +1017,22 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ onClose }) => {
                       min="0"
                       step="0.1"
                       value={settings?.taxRate?.toString() ?? ''}
-                      onCommit={(value) => void handleUpdateSettings({ taxRate: value === '' ? null : parseFloat(value) })}
+                      onCommit={(value) => {
+                        if (value === '') {
+                          void handleUpdateSettings({ taxRate: null });
+                          return;
+                        }
+                        // `min="0"` is a hint the browser need not enforce, and
+                        // `parseFloat` passes "-5" and "1e999" (Infinity)
+                        // through unchanged. Either one prints a nonsense tax
+                        // line on an invoice rather than failing loudly.
+                        const parsed = parseFloat(value);
+                        if (!Number.isFinite(parsed) || parsed < 0 || parsed > 100) {
+                          addToast('Tax rate must be a number between 0 and 100.', 'error');
+                          return;
+                        }
+                        void handleUpdateSettings({ taxRate: parsed });
+                      }}
                       placeholder="15"
                       className="w-24 px-3 py-1.5 border border-graphite/20 dark:border-white/20 rounded outline-none focus-visible:ring-2 focus-visible:ring-signal text-sm bg-white dark:bg-graphite text-graphite dark:text-stone text-right"
                     />

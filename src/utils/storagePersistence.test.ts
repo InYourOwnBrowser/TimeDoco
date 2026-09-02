@@ -251,6 +251,42 @@ describe('storagePersistence', () => {
       expect(persist).not.toHaveBeenCalled();
     });
 
+    // W-8: `checkPersistence` clears the current-grant flag the moment the
+    // browser reports the grant gone — which is exactly when this needs to know
+    // it once existed. Reading that flag made reclamation one-shot: a single
+    // refusal erased the only evidence that reclaiming was licensed at all.
+    it('still tries to reclaim on a later load after a reclaim was refused', async () => {
+      localStorage.setItem(GRANTED_KEY, 'true');
+      const persist = vi.fn().mockResolvedValue(false);
+      navigatorWith({ persisted: vi.fn().mockResolvedValue(false), persist });
+
+      // This load: the grant is gone, and the reclaim is refused.
+      expect(await resumePersistence()).toBe('best-effort');
+      expect(persist).toHaveBeenCalledTimes(1);
+      // The refusal clears the *current* grant, which is correct.
+      expect(localStorage.getItem(GRANTED_KEY)).toBeNull();
+
+      // A later load, past the back-off: the prior grant still licenses a retry.
+      localStorage.setItem(LAST_ATTEMPT_KEY, String(Date.now() - PERSISTENCE_RETRY_INTERVAL_MS - 1));
+      resetPersistenceMigrationForTests();
+
+      expect(await resumePersistence()).toBe('best-effort');
+      expect(persist).toHaveBeenCalledTimes(2);
+    });
+
+    it('does not ask again inside the back-off window', async () => {
+      // Reclaiming is licensed by a prior grant, not unlimited: without this a
+      // browser that keeps refusing would be asked on every load, and in
+      // Firefox that is a prompt every time.
+      localStorage.setItem(GRANTED_KEY, 'true');
+      localStorage.setItem(LAST_ATTEMPT_KEY, String(Date.now() - 1000));
+      const persist = vi.fn().mockResolvedValue(true);
+      navigatorWith({ persisted: vi.fn().mockResolvedValue(false), persist });
+
+      expect(await resumePersistence()).toBe('best-effort');
+      expect(persist).not.toHaveBeenCalled();
+    });
+
     it('does not request for a user who never had a grant', async () => {
       const persist = vi.fn().mockResolvedValue(true);
       navigatorWith({ persisted: vi.fn().mockResolvedValue(false), persist });
