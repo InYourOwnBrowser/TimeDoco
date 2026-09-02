@@ -42,6 +42,11 @@ export default function assertBuildIsCurrent() {
     newestMtime(join(ROOT, 'src'), (name) => name.endsWith('.test.ts') || name.endsWith('.test.tsx')),
     ...['index.html', 'vite.config.ts', 'package.json'].map((file) => statSync(join(ROOT, file)).mtimeMs),
     newestMtime(join(ROOT, 'app')),
+    // `public/` is copied into the build verbatim, so a change there is as
+    // stale as a change in `src/` — and `theme-init.js` lives in it precisely
+    // because it must not be inlined. Without this, editing it and running a
+    // bare `playwright test` passed the guard while driving the old file.
+    newestMtime(join(ROOT, 'public')),
   );
 
   if (sources > built) {

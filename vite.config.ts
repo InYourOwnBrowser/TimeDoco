@@ -123,6 +123,30 @@ export default defineConfig({
           env: { TZ: 'Pacific/Auckland' },
         },
       },
+      // A third zone, for the one case the first two cannot show. Auckland
+      // transitions at 2am and UTC never transitions, so in both of them
+      // midnight exists on every date of the year. America/Santiago springs
+      // forward *at* midnight, where 00:00 simply does not occur — and a day
+      // whose first instant is 01:00 is what broke `calendarDayBounds` into
+      // overlapping buckets. Scoped to the day-boundary and billing suites
+      // rather than the whole app: this zone is about calendar arithmetic, and
+      // running every component test a third time to reach it is not worth the
+      // minutes.
+      {
+        extends: true,
+        test: {
+          name: 'santiago',
+          environment: 'jsdom',
+          setupFiles: ['./src/test/setup.ts'],
+          env: { TZ: 'America/Santiago' },
+          include: [
+            'src/utils/timeUtils.test.ts',
+            'src/utils/billing.test.ts',
+            'src/utils/billing.invariants.test.ts',
+            'src/tests/TimeTotals.consistency.test.ts',
+          ],
+        },
+      },
     ],
   }
 })

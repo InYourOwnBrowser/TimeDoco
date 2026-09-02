@@ -1120,7 +1120,7 @@ export const AnalysisView: React.FC = () => {
                   <p className="text-xs text-gray-600 dark:text-gray-300">
                     Add a tax rate in Settings to show before/after-tax totals on your earnings and exports.
                   </p>
-                  <button onClick={() => updateSettings({ taxPromptDismissed: true })} className="text-xs font-semibold px-3 py-1 bg-graphite text-stone dark:bg-stone dark:text-ink rounded">
+                  <button onClick={() => { void updateSettings({ taxPromptDismissed: true }); }} className="text-xs font-semibold px-3 py-1 bg-graphite text-stone dark:bg-stone dark:text-ink rounded">
                     Dismiss
                   </button>
                 </div>

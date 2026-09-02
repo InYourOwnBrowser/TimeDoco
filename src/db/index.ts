@@ -116,7 +116,11 @@ export const initDB = () => {
             }
           }
           if (oldVersion < 3 && !entryStore.indexNames.contains('by-start-time')) {
-            // Lets entries be read back already ordered instead of sorted in JS.
+            // Declared but deliberately not read: see `getEntries`, which sorts
+            // in JS because an IndexedDB index compares `startTime` as a string
+            // and ISO strings with different offsets do not sort by instant.
+            // Kept so the schema matches v3 databases already in the wild —
+            // dropping it is a v4 migration, for no gain a reader would see.
             entryStore.createIndex('by-start-time', 'startTime');
           }
         }

@@ -210,7 +210,7 @@ export interface BuildOptions {
  *
  * The summary table, the detail table, the CSV export and the on-screen totals
  * all consume this, so an invoice cannot show one number in one table and a
- * different number in another. Three rules make a generated document
+ * different number in another. Four rules make a generated document
  * self-consistent:
  *
  *  1. Duration is always recomputed from the entry's start/end clipped to the

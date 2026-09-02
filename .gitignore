@@ -25,3 +25,7 @@ dist-ssr
 pdf-review/
 test-results/
 playwright-report/
+
+# Second lockfile. CI installs with `npm ci`; a bun lockfile alongside
+# package-lock.json only drifts from it.
+bun.lock

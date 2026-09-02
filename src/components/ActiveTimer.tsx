@@ -262,7 +262,7 @@ export const ActiveTimer: React.FC<{ activeEntry: Entry | null }> = ({ activeEnt
           <div className="flex items-center gap-4 mt-2">
             {activeEntry.isPaused ? (
               <button
-                onClick={() => resumeTimer(activeEntry.id)}
+                onClick={() => { void resumeTimer(activeEntry.id); }}
                 className="w-14 h-14 rounded-full bg-verdigris text-white hover:bg-verdigris-dim active:scale-95 flex items-center justify-center transition-all shadow-md focus-visible:ring-2 focus-visible:ring-signal focus-visible:ring-offset-2 ring-offset-stone dark:ring-offset-graphite"
                 title="Resume"
                 aria-label="Resume Timer"
@@ -271,7 +271,7 @@ export const ActiveTimer: React.FC<{ activeEntry: Entry | null }> = ({ activeEnt
               </button>
             ) : (
               <button
-                onClick={() => pauseTimer(activeEntry.id)}
+                onClick={() => { void pauseTimer(activeEntry.id); }}
                 className="w-14 h-14 rounded-full bg-stone dark:bg-gray-700 text-graphite dark:text-gray-200 hover:bg-gray-200 dark:hover:bg-gray-600 active:scale-95 flex items-center justify-center transition-all shadow-sm focus-visible:ring-2 focus-visible:ring-signal focus-visible:ring-offset-2 ring-offset-stone dark:ring-offset-graphite"
                 title="Pause"
                 aria-label="Pause Timer"

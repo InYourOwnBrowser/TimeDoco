@@ -207,7 +207,19 @@ export const TimeTrackerProvider: React.FC<{ children: ReactNode }> = ({ childre
   const touch = <T extends { updatedAt: string }>(record: T, at: string = new Date().toISOString()): T =>
     ({ ...record, updatedAt: at });
 
-  const isStartingTimerRef = useRef(false);
+  /**
+   * Timecodes with a start already in flight, so a double-click on one button
+   * does not stop and immediately restart the timer it just started.
+   *
+   * Scoped to the timecode rather than to starting-anything-at-all. A single
+   * boolean also refused a start on a *different* timecode issued while the
+   * first was in flight — silently, with no toast — which with
+   * `allowConcurrentTimers` on is a legitimate request being dropped. Two
+   * different timecodes both proceed now; `runExclusive` serialises the writes,
+   * and with concurrency off the second is told a timer is already running
+   * instead of vanishing.
+   */
+  const startingTimecodesRef = useRef<Set<string>>(new Set());
 
   /**
    * Serialises every mutation that reads a running entry and writes the whole
@@ -441,7 +453,7 @@ export const TimeTrackerProvider: React.FC<{ children: ReactNode }> = ({ childre
       const trashedTimecodes: Timecode[] = [];
       for (const t of loadedTimecodes) (t.deletedAt ? trashedTimecodes : liveTimecodes).push(t);
 
-      // getEntries returns ascending by start time from the index, so the list's
+      // getEntries returns ascending by start time, sorted in JS, so the list's
       // descending order is a reverse rather than a full re-sort.
       const liveEntries: Entry[] = [];
       const trashedEntries: Entry[] = [];
@@ -652,8 +664,8 @@ export const TimeTrackerProvider: React.FC<{ children: ReactNode }> = ({ childre
   }, [refreshData]);
 
   const startTimer = async (timecodeId: string, note: string = '', tags: string[] = [], expectedDurationMinutes: number | null = null) => {
-    if (isStartingTimerRef.current) return;
-    isStartingTimerRef.current = true;
+    if (startingTimecodesRef.current.has(timecodeId)) return;
+    startingTimecodesRef.current.add(timecodeId);
     try {
       // The whole stop-then-create sequence holds the queue, so no other timer
       // mutation can slip between deciding what to stop and writing the new
@@ -708,7 +720,7 @@ export const TimeTrackerProvider: React.FC<{ children: ReactNode }> = ({ childre
         addToast('Another timer is already running — stop it first', 'error');
       }
     } finally {
-      isStartingTimerRef.current = false;
+      startingTimecodesRef.current.delete(timecodeId);
     }
   };
 
@@ -1916,7 +1928,11 @@ export const TimeTrackerProvider: React.FC<{ children: ReactNode }> = ({ childre
     const blob = await getBackupBlob();
     const dateStr = new Date().toISOString().split('T')[0];
     const defaultName = `timedoco-backup-${dateStr}`;
-    const cleanName = customFilename ? customFilename.replace(/[/\\:*?"<>|]/g, '').trim() : defaultName;
+    // Falls back when the name is empty *after* stripping: a name made entirely
+    // of characters a filesystem will not take left nothing behind, and the
+    // download was offered as a bare `.json`.
+    const stripped = customFilename ? customFilename.replace(/[/\\:*?"<>|]/g, '').trim() : '';
+    const cleanName = stripped || defaultName;
     const filename = cleanName.endsWith('.json') ? cleanName : `${cleanName}.json`;
 
     const url = URL.createObjectURL(blob);

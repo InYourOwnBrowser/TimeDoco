@@ -708,9 +708,12 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ onClose }) => {
             });
           }
 
+          // `bulkAddManualEntries` resolves to a count or throws; it never
+          // resolves to nothing. Defaulting to the requested row count would
+          // have reported every row as imported on a run that imported none.
           const result = await bulkAddManualEntries(entriesToBulkAdd);
-          let importedCount = result ? result.added : entriesToBulkAdd.length;
-          if (result && result.skipped > 0) {
+          let importedCount = result.added;
+          if (result.skipped > 0) {
             skip('rejected on write as overlapping', result.skipped);
           }
 

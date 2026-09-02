@@ -5,8 +5,15 @@ import { useCallback, useEffect, useRef } from 'react';
  *
  * The hand-rolled version of this is a `setTimeout` in an effect whose cleanup
  * calls `clearTimeout`, and that cleanup runs on unmount — so leaving the
- * screen, or reloading, silently cancels the write instead of performing it.
- * Up to a debounce of typing disappears, and nothing on screen says so.
+ * screen silently cancels the write instead of performing it. Up to a debounce
+ * of typing disappears, and nothing on screen says so.
+ *
+ * Unmount is the case this closes. A page reload is *not*: React does not run
+ * effect cleanup when the document goes away, so a pending write is still lost
+ * there, and the flush below is void-ed rather than awaited because teardown
+ * cannot wait on a promise. A caller that must not lose a write across a
+ * reload has to `flush()` from something the browser does run first — a blur,
+ * an Enter, or the `beforeunload` guard the running timer already installs.
  *
  * Every part of that is in here rather than in each field: scheduling replaces
  * the pending write, `flush` performs it now for a blur or an Enter, and

@@ -153,6 +153,14 @@ const overlaps = (a: { start: number; end: number }, b: { start: number; end: nu
  * `findFreeSlot` and `checkOverlap` share it so they cannot drift apart on what
  * counts as a conflict — a slot found by one and rejected by the other reads to
  * the user as the app refusing its own suggestion.
+ *
+ * Those two only. `findOverlappingCandidates` answers the same question for a
+ * whole batch and groups by timecode itself, because every candidate it is
+ * given carries one; this has to cope with `timecodeId` being omitted, and
+ * fails safe by treating everything as a conflict. The two are consistent
+ * wherever a timecode is supplied, which is every call that compares entries on
+ * the same footing — but they are not one implementation, so a change to the
+ * concurrency rule has to be made in both.
  */
 const isBlocking = (
   entry: Entry,
@@ -246,6 +254,14 @@ export const calendarDayBounds = (date: Date): { start: Date; end: Date } => {
   start.setHours(0, 0, 0, 0);
   const end = new Date(start);
   end.setDate(end.getDate() + 1);
+  // Re-anchored, because `start` is not always midnight. In a zone whose DST
+  // transition is at midnight — America/Santiago, Asia/Beirut — 00:00 does not
+  // exist on the changeover date, and `setHours(0,0,0,0)` returns 01:00, which
+  // is genuinely that day's first instant. Advancing the date from there landed
+  // on 01:00 the following day, so the day ran an hour into the next one and
+  // the two buckets overlapped: an entry in that hour was counted under both
+  // dates, while `calendarDayKey` filed it under only the later one.
+  end.setHours(0, 0, 0, 0);
   return { start, end };
 };
 

@@ -44,7 +44,7 @@ export const GlobalActiveTimerBar: React.FC = () => {
         {/* Play/Pause control for this timer */}
         {primaryEntry.isPaused ? (
            <button
-             onClick={() => resumeTimer(primaryEntry.id)}
+             onClick={() => { void resumeTimer(primaryEntry.id); }}
              className="w-10 h-10 rounded-full bg-verdigris/10 text-verdigris dark:text-emerald-400 hover:bg-verdigris/20 flex items-center justify-center transition-colors shrink-0 focus-visible:ring-2 focus-visible:ring-signal focus-visible:ring-offset-2 ring-offset-stone dark:ring-offset-graphite"
              title="Resume"
              aria-label="Resume Timer"
@@ -53,7 +53,7 @@ export const GlobalActiveTimerBar: React.FC = () => {
            </button>
         ) : (
            <button
-             onClick={() => pauseTimer(primaryEntry.id)}
+             onClick={() => { void pauseTimer(primaryEntry.id); }}
              className="w-10 h-10 rounded-full bg-stone dark:bg-gray-700 text-graphite dark:text-gray-200 hover:bg-gray-200 dark:hover:bg-gray-600 flex items-center justify-center transition-colors shrink-0 focus-visible:ring-2 focus-visible:ring-signal focus-visible:ring-offset-2 ring-offset-stone dark:ring-offset-graphite"
              title="Pause"
              aria-label="Pause Timer"
@@ -100,7 +100,7 @@ export const GlobalActiveTimerBar: React.FC = () => {
         </div>
 
         <button
-          onClick={() => stopTimer(primaryEntry.id)}
+          onClick={() => { void stopTimer(primaryEntry.id); }}
           className="w-10 h-10 rounded-full bg-graphite hover:bg-ink dark:bg-stone dark:hover:bg-gray-300 text-stone dark:text-ink flex items-center justify-center transition-colors shrink-0 focus-visible:ring-2 focus-visible:ring-signal focus-visible:ring-offset-2 ring-offset-stone dark:ring-offset-graphite"
           title="Stop Timer"
           aria-label="Stop Timer"

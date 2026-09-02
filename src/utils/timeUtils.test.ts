@@ -588,6 +588,42 @@ describe('timeUtils', () => {
       }
     });
 
+    /**
+     * Consecutive days meet exactly, on every date of the year.
+     *
+     * This is the half-open contract stated as something a zone can break, and
+     * one does: America/Santiago springs forward *at* midnight, so 00:00 does
+     * not exist on the changeover date and `setHours(0, 0, 0, 0)` returns
+     * 01:00 — correctly, since that is the day's first instant. Advancing the
+     * date from there landed on 01:00 the next day, so the day ran an hour into
+     * its successor and the two buckets overlapped: an entry in that hour was
+     * counted under both dates, while `calendarDayKey` filed it under only the
+     * later one. Auckland transitions at 2am and UTC not at all, which is why
+     * the suite runs a third project in Santiago.
+     */
+    it('ends each day exactly where the next one begins, all year', () => {
+      for (let month = 0; month < 12; month++) {
+        for (const day of [1, 5, 6, 7, 27, 28]) {
+          const { start, end } = calendarDayBounds(new Date(2026, month, day, 12, 0, 0));
+          expect(end.getTime()).toBeGreaterThan(start.getTime());
+          // The next day's bucket starts on this one's last instant, so no
+          // moment belongs to two days and none belongs to none.
+          expect(calendarDayBounds(end).start.getTime()).toBe(end.getTime());
+          // ...and it really is the following calendar date.
+          expect(calendarDayKey(end)).not.toBe(calendarDayKey(start));
+        }
+      }
+    });
+
+    it.runIf(new Date(2026, 8, 6, 0, 0, 0).getHours() === 1)(
+      'starts a midnight-transition day at the first hour that exists',
+      () => {
+        const { start } = calendarDayBounds(new Date(2026, 8, 6, 12, 0, 0));
+        expect(start.getHours()).toBe(1);
+        expect(calendarDayKey(start)).toBe('2026-09-06');
+      },
+    );
+
     it.runIf(hasTransitions)('gives a spring-forward day 23 hours and an autumn day 25', () => {
       expect(lengthOf(SHORT_DAY)).toBe(23);
       expect(lengthOf(LONG_DAY)).toBe(25);
