@@ -45,8 +45,8 @@ test('an entry survives being tracked, corrected, split and billed', async ({ pa
   expect(csv.split('\n').find(line => line.startsWith('"Total"'))).toContain('300.00');
 
   const pdf = await exportFile(page, /Generate Report \(PDF\)/);
-  expect(await pdf.suggestedFilename()).toMatch(/\.pdf$/);
-  const bytes = await readFile((await pdf.path())!);
+  expect(pdf.suggestedFilename()).toMatch(/\.pdf$/);
+  const bytes = await readFile(await pdf.path());
   expect(bytes.subarray(0, 5).toString()).toBe('%PDF-');
   expect(bytes.byteLength).toBeGreaterThan(5000);
 });

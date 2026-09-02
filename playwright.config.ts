@@ -14,6 +14,9 @@ const executablePath = process.env.PLAYWRIGHT_CHROMIUM_EXECUTABLE;
 
 export default defineConfig({
   testDir: './e2e',
+  // Refuses to start against a stale dist/ — see the file for why that matters
+  // more here than the usual amount.
+  globalSetup: './e2e/support/globalSetup.ts',
   fullyParallel: false,
   workers: 1,
   forbidOnly: !!process.env.CI,

@@ -1,4 +1,5 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
+import { useDeferredWrite } from '../../hooks/useDeferredWrite';
 
 /**
  * A settings input that writes when the user stops typing, not on every
@@ -10,9 +11,12 @@ import React, { useCallback, useEffect, useRef, useState } from 'react';
  * that is one of those per character typed. Beyond the cost, the writes are
  * read-modify-write, so overlapping ones could drop characters.
  *
- * Holding the draft locally and flushing on idle, blur or Enter makes that
- * impossible rather than fixing it a field at a time: a field written this way
- * cannot issue a write per keystroke however it is used.
+ * Holding the draft locally and flushing on idle, blur, Enter or unmount makes
+ * that impossible rather than fixing it a field at a time: a field written this
+ * way cannot issue a write per keystroke however it is used, and cannot lose
+ * one either. The scheduling itself lives in `useDeferredWrite`, so the next
+ * field that needs it does not hand-roll the version whose cleanup discards the
+ * pending write.
  *
  * The value is a string, as the DOM has it. Callers parse in `onCommit`,
  * exactly as they used to in `onChange`.
@@ -42,11 +46,14 @@ export const SettingField: React.FC<SettingFieldProps> = ({
   const draftRef = useRef(value);
   // True from the first keystroke until the draft is written.
   const dirtyRef = useRef(false);
-  const timerRef = useRef<number | null>(null);
   // Read through a ref so a caller passing an inline arrow — which every one of
   // them does — cannot restart the debounce on each render.
   const onCommitRef = useRef(onCommit);
   onCommitRef.current = onCommit;
+
+  // Idle, blur and Enter flush through this; unmount flushes inside the hook,
+  // so closing the modal writes what was typed into it rather than dropping it.
+  const { schedule, flush } = useDeferredWrite(debounceMs);
 
   useEffect(() => {
     // A change from outside: another tab saved, or the panel reloaded. Take it,
@@ -56,19 +63,10 @@ export const SettingField: React.FC<SettingFieldProps> = ({
     draftRef.current = value;
   }, [value]);
 
-  const flush = useCallback(() => {
-    if (timerRef.current !== null) {
-      window.clearTimeout(timerRef.current);
-      timerRef.current = null;
-    }
-    if (!dirtyRef.current) return;
+  const commitDraft = useCallback(() => {
     dirtyRef.current = false;
     onCommitRef.current(draftRef.current);
   }, []);
-
-  // Closing the modal must not discard what was typed into it. A pending
-  // debounce is written on the way out.
-  useEffect(() => flush, [flush]);
 
   const handleChange = (
     event: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>,
@@ -77,21 +75,20 @@ export const SettingField: React.FC<SettingFieldProps> = ({
     setDraft(next);
     draftRef.current = next;
     dirtyRef.current = true;
-    if (timerRef.current !== null) window.clearTimeout(timerRef.current);
-    timerRef.current = window.setTimeout(flush, debounceMs);
+    schedule(commitDraft);
   };
 
   const shared = {
     value: draft,
     onChange: handleChange,
     onBlur: (event: React.FocusEvent<HTMLInputElement & HTMLTextAreaElement>) => {
-      flush();
+      void flush();
       onBlur?.(event);
     },
     onKeyDown: (event: React.KeyboardEvent<HTMLInputElement & HTMLTextAreaElement>) => {
       // Enter reads as "I am done with this field", so honour it rather than
       // making the user wait out the debounce or click elsewhere.
-      if (event.key === 'Enter' && !multiline) flush();
+      if (event.key === 'Enter' && !multiline) void flush();
       onKeyDown?.(event);
     },
   };

@@ -1,17 +1,19 @@
-import { render, cleanup } from '@testing-library/react';
+import { render, cleanup, fireEvent, act } from '@testing-library/react';
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { ActiveTimer } from './ActiveTimer';
 import type { Entry } from '../types';
 
 const mockAddToast = vi.fn();
+const mockUpdateActiveNote = vi.fn().mockResolvedValue(true);
+const mockStopTimer = vi.fn().mockResolvedValue(undefined);
 
 vi.mock('../context/TimeTrackerContext', () => ({
   useTimeTracker: () => ({
     startTimer: vi.fn(),
-    stopTimer: vi.fn(),
+    stopTimer: mockStopTimer,
     pauseTimer: vi.fn(),
     resumeTimer: vi.fn(),
-    updateActiveNote: vi.fn(),
+    updateActiveNote: mockUpdateActiveNote,
     timecodes: [{ id: 'tc-1', name: 'Client Work', color: '#000', archived: false, groupId: null, hourlyRate: null }],
     settings: { targetAlertMinutes: 1, allowConcurrentTimers: false },
   }),
@@ -91,5 +93,85 @@ describe('ActiveTimer target alert', () => {
     } finally {
       if (original) Object.defineProperty(window, 'Notification', original);
     }
+  });
+});
+
+/**
+ * The note beside a running timer is written a second after the typing stops.
+ * Everything that can happen inside that second has to write it rather than
+ * discard it — the debounce used to live in an effect whose cleanup cleared the
+ * timer, so leaving the tracker tab, or reloading to apply an update, threw the
+ * write away without a word.
+ */
+describe('ActiveTimer note draft', () => {
+  beforeEach(() => {
+    cleanup();
+    vi.clearAllMocks();
+    vi.useFakeTimers();
+    vi.setSystemTime(NOW);
+  });
+
+  afterEach(() => {
+    cleanup();
+    vi.useRealTimers();
+  });
+
+  const noteField = (view: ReturnType<typeof render>) =>
+    view.container.querySelector('input[placeholder="Add a note..."]')!;
+  const tagsField = (view: ReturnType<typeof render>) =>
+    view.container.querySelector('input[placeholder="Tags (e.g. design, review)"]')!;
+
+  it('writes once the typing stops, not per keystroke', () => {
+    const view = render(<ActiveTimer activeEntry={runningEntry('entry-1')} />);
+
+    fireEvent.change(noteField(view), { target: { value: 'Drafting the brief' } });
+    expect(mockUpdateActiveNote).not.toHaveBeenCalled();
+
+    act(() => { vi.advanceTimersByTime(1000); });
+    expect(mockUpdateActiveNote).toHaveBeenCalledTimes(1);
+    expect(mockUpdateActiveNote).toHaveBeenCalledWith('entry-1', 'Drafting the brief', []);
+  });
+
+  it('writes what was typed when the component goes away', () => {
+    // Switching to another tab unmounts the tracker. The pending write used to
+    // be cancelled by the effect cleanup, losing up to a second of typing.
+    const view = render(<ActiveTimer activeEntry={runningEntry('entry-1')} />);
+
+    fireEvent.change(noteField(view), { target: { value: 'Half a sentence' } });
+    view.unmount();
+
+    expect(mockUpdateActiveNote).toHaveBeenCalledWith('entry-1', 'Half a sentence', []);
+  });
+
+  it('writes on blur rather than making the user wait out the debounce', () => {
+    const view = render(<ActiveTimer activeEntry={runningEntry('entry-1')} />);
+
+    fireEvent.change(tagsField(view), { target: { value: 'design, review' } });
+    fireEvent.blur(tagsField(view));
+
+    expect(mockUpdateActiveNote).toHaveBeenCalledWith('entry-1', '', ['design', 'review']);
+  });
+
+  it('writes the note before the timer it belongs to is stopped', async () => {
+    const view = render(<ActiveTimer activeEntry={runningEntry('entry-1')} />);
+
+    fireEvent.change(noteField(view), { target: { value: 'Last thought' } });
+    await act(async () => {
+      view.container.querySelector<HTMLButtonElement>('button[aria-label^="Stop Timer"]')!.click();
+    });
+
+    expect(mockUpdateActiveNote).toHaveBeenCalledWith('entry-1', 'Last thought', []);
+    expect(mockStopTimer).toHaveBeenCalledWith('entry-1');
+    expect(mockUpdateActiveNote.mock.invocationCallOrder[0])
+      .toBeLessThan(mockStopTimer.mock.invocationCallOrder[0]);
+  });
+
+  it('does not write when nothing was typed', () => {
+    const view = render(<ActiveTimer activeEntry={runningEntry('entry-1')} />);
+
+    act(() => { vi.advanceTimersByTime(5000); });
+    view.unmount();
+
+    expect(mockUpdateActiveNote).not.toHaveBeenCalled();
   });
 });

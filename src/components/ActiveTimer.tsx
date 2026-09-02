@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { useTimeTracker } from '../context/TimeTrackerContext';
 import { Play, Square, Pause } from 'lucide-react';
 import { TimecodeSelector } from './TimecodeSelector';
@@ -7,6 +7,7 @@ import { getElapsedTimeMs, formatElapsedSeconds, formatDurationShort } from '../
 import { useToast } from '../context/ToastContext';
 import { unlockAudioAlert } from '../utils/audioAlert';
 import { sendNotification, requestNotificationPermission } from '../utils/notification';
+import { useDeferredWrite } from '../hooks/useDeferredWrite';
 
 export const ActiveTimer: React.FC<{ activeEntry: Entry | null }> = ({ activeEntry }) => {
   const { startTimer, stopTimer, pauseTimer, resumeTimer, timecodes, updateActiveNote } = useTimeTracker();
@@ -20,29 +21,59 @@ export const ActiveTimer: React.FC<{ activeEntry: Entry | null }> = ({ activeEnt
 
   const lastLoadedEntryIdRef = useRef<string | null>(null);
 
+  // What is on screen right now, for a write that runs after the render that
+  // scheduled it — a debounce firing, a blur, or the component going away.
+  const noteRef = useRef(localNote);
+  const tagsRef = useRef(localTags);
+  const entryRef = useRef(activeEntry);
+  entryRef.current = activeEntry;
+  const updateActiveNoteRef = useRef(updateActiveNote);
+  updateActiveNoteRef.current = updateActiveNote;
+
   // Sync local note & tags when active entry changes (e.g. initial load)
   useEffect(() => {
     if (activeEntry && lastLoadedEntryIdRef.current !== activeEntry.id) {
       setLocalNote(activeEntry.note);
       setLocalTags((activeEntry.tags || []).join(', '));
+      noteRef.current = activeEntry.note;
+      tagsRef.current = (activeEntry.tags || []).join(', ');
       lastLoadedEntryIdRef.current = activeEntry.id;
     } else if (!activeEntry) {
       lastLoadedEntryIdRef.current = null;
     }
   }, [activeEntry]);
 
-  // Debounced save for the note and tags
-  useEffect(() => {
-    if (!activeEntry) return;
-    const handler = setTimeout(() => {
-      const tagsArray = localTags.split(',').map(t => t.trim()).filter(t => t !== '').slice(0, 20);
-      const tagsChanged = JSON.stringify(tagsArray) !== JSON.stringify(activeEntry.tags || []);
-      if (localNote !== activeEntry.note || tagsChanged) {
-        void updateActiveNote(activeEntry.id, localNote, tagsArray);
-      }
-    }, 1000);
-    return () => clearTimeout(handler);
-  }, [localNote, localTags, activeEntry, updateActiveNote]);
+  /**
+   * The note and tags, written a second after the typing stops.
+   *
+   * This used to be a `setTimeout` in an effect whose cleanup cleared it, which
+   * meant leaving the tracker tab — or reloading to apply an update — threw the
+   * pending write away instead of performing it. Up to a second of typing, gone
+   * without a word. `useDeferredWrite` flushes on the way out instead, and the
+   * blur handlers below write immediately rather than waiting the second out.
+   */
+  const { schedule: scheduleNoteWrite, flush: flushNoteWrite } = useDeferredWrite(1000);
+
+  const writeNoteAndTags = useCallback(() => {
+    const entry = entryRef.current;
+    if (!entry) return;
+    const tagsArray = tagsRef.current.split(',').map(t => t.trim()).filter(t => t !== '').slice(0, 20);
+    const tagsChanged = JSON.stringify(tagsArray) !== JSON.stringify(entry.tags || []);
+    if (noteRef.current === entry.note && !tagsChanged) return;
+    return updateActiveNoteRef.current(entry.id, noteRef.current, tagsArray);
+  }, []);
+
+  const handleNoteChange = (value: string) => {
+    setLocalNote(value);
+    noteRef.current = value;
+    scheduleNoteWrite(writeNoteAndTags);
+  };
+
+  const handleTagsChange = (value: string) => {
+    setLocalTags(value);
+    tagsRef.current = value;
+    scheduleNoteWrite(writeNoteAndTags);
+  };
 
   const { settings } = useTimeTracker();
   const { addToast } = useToast();
@@ -88,14 +119,11 @@ export const ActiveTimer: React.FC<{ activeEntry: Entry | null }> = ({ activeEnt
   const activeTimecode = activeEntry ? timecodes.find(t => t.id === activeEntry.timecodeId) : null;
 
   const handleStop = async () => {
-    if (activeEntry) {
-      const tagsArray = localTags.split(',').map(t => t.trim()).filter(t => t !== '').slice(0, 20);
-      const tagsChanged = JSON.stringify(tagsArray) !== JSON.stringify(activeEntry.tags || []);
-      if (localNote !== activeEntry.note || tagsChanged) {
-        await updateActiveNote(activeEntry.id, localNote, tagsArray);
-      }
-      await stopTimer(activeEntry.id);
-    }
+    if (!activeEntry) return;
+    // Anything part-way through being typed is written before the entry is
+    // closed, not left to a debounce this unmount would have cancelled.
+    await flushNoteWrite();
+    await stopTimer(activeEntry.id);
   };
 
   return (
@@ -217,7 +245,8 @@ export const ActiveTimer: React.FC<{ activeEntry: Entry | null }> = ({ activeEnt
               placeholder="Add a note..."
               className="w-full text-center text-sm px-3.5 py-2 border border-graphite/20 dark:border-white/20 hover:border-graphite/30 dark:hover:border-white/30 focus:border-signal dark:focus:border-signal rounded-panel outline-none transition-all bg-white dark:bg-graphite text-graphite dark:text-stone placeholder-gray-400 dark:placeholder-gray-500 focus-visible:ring-2 focus-visible:ring-signal focus-visible:ring-offset-2 ring-offset-stone dark:ring-offset-graphite"
               value={localNote}
-              onChange={(e) => setLocalNote(e.target.value)}
+              onChange={(e) => handleNoteChange(e.target.value)}
+              onBlur={() => { void flushNoteWrite(); }}
             />
             <input
               type="text"
@@ -225,7 +254,8 @@ export const ActiveTimer: React.FC<{ activeEntry: Entry | null }> = ({ activeEnt
               placeholder="Tags (e.g. design, review)"
               className="w-full text-center text-xs px-3 py-1.5 border border-graphite/20 dark:border-white/20 hover:border-graphite/30 dark:hover:border-white/30 focus:border-signal dark:focus:border-signal rounded-panel outline-none transition-all bg-white dark:bg-graphite text-graphite dark:text-stone placeholder-gray-400 dark:placeholder-gray-500 focus-visible:ring-2 focus-visible:ring-signal focus-visible:ring-offset-2 ring-offset-stone dark:ring-offset-graphite"
               value={localTags}
-              onChange={(e) => setLocalTags(e.target.value)}
+              onChange={(e) => handleTagsChange(e.target.value)}
+              onBlur={() => { void flushNoteWrite(); }}
             />
           </div>
 
