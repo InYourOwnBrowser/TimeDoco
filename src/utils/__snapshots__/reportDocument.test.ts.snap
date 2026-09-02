@@ -173,7 +173,7 @@ exports[`report documents > a running timer > assembles the summary table, both 
       "Total",
       "",
       "10.25",
-      "$1160.00",
+      "$1,160.00",
     ],
   ],
   "head": [
@@ -632,7 +632,7 @@ exports[`report documents > entries clipped by the window > assembles the summar
       "Total",
       "",
       "12.25",
-      "$1330.00",
+      "$1,330.00",
     ],
   ],
   "head": [
@@ -767,7 +767,7 @@ exports[`report documents > fees alongside hourly work > assembles the summary t
       "",
       "8.25",
       "$500.00",
-      "$1420.00",
+      "$1,420.00",
     ],
   ],
   "head": [
@@ -904,7 +904,7 @@ exports[`report documents > names and notes that need escaping > assembles the s
       "Total",
       "",
       "10.25",
-      "$1000.00",
+      "$1,000.00",
     ],
   ],
   "head": [
@@ -1500,7 +1500,7 @@ exports[`report documents > tax, exclusive > assembles the summary table, both C
       "Total",
       "",
       "8.25",
-      "$1058.00",
+      "$1,058.00",
     ],
   ],
   "head": [

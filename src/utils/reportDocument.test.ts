@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import { createEvents } from 'ics';
 import { roundCurrency } from './timeUtils';
-import { buildCalendarEvents, sortEntriesForDocument } from './reportDocument';
+import { buildCalendarEvents, formatAmount, formatMoney, sortEntriesForDocument } from './reportDocument';
 import { ALL_TIMECODES, FIXTURES, NOW, renderFixture as render } from '../test/reportFixtures';
 
 /**
@@ -251,5 +251,37 @@ describe('report document specifics', () => {
     // 22:00–02:00, of which two hours fall on or after the window's start.
     expect(out.lines.get('e-before')!.seconds).toBe(2 * 3600);
     expect(out.lines.get('e-after')!.isClipped).toBe(true);
+  });
+
+  describe('money on the page', () => {
+    it('groups thousands, so a four-figure invoice is not counted out digit by digit', () => {
+      expect(formatMoney(4800, '$')).toBe('$4,800.00');
+      expect(formatMoney(1234567.5, '$')).toBe('$1,234,567.50');
+      // The symbol stays where it was, ahead of the sign, as `toFixed` left it.
+      expect(formatMoney(-1234.5, '$')).toBe('$-1,234.50');
+      expect(formatMoney(920, '$')).toBe('$920.00');
+    });
+
+    it('keeps the decimal a point, whatever locale the machine would prefer', () => {
+      // Both CSV exports print with `toFixed`, so a comma here would put the
+      // PDF and the spreadsheet a client reconciles it against into different
+      // number formats.
+      expect(formatMoney(1234.5, '€')).toBe('€1,234.50');
+      expect(formatAmount(1234.5, '€')).toBe('€1,234.50');
+    });
+
+    it('still prints nothing at all as a dash', () => {
+      expect(formatAmount(0, '$')).toBe('-');
+      expect(formatMoney(0, '$')).toBe('$0.00');
+    });
+
+    it('leaves the CSV exports ungrouped, where a comma would be a column break', () => {
+      const out = render(FIXTURES.find((f) => f.name === 'fees alongside hourly work')!);
+      const total = parseCSV(out.summaryCsv).find((row) => row[0] === 'Total')!;
+      expect(total.some((cell) => cell.includes(','))).toBe(false);
+      expect(total[total.length - 1]).toBe('1420.00');
+      // And the PDF beside it does group the same figure.
+      expect(out.summary.foot.at(-1)!.at(-1)).toBe('$1,420.00');
+    });
   });
 });

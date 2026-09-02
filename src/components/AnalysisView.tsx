@@ -17,7 +17,7 @@ import { calculateDuration, calendarDayBounds, calendarDayKey, formatDurationSho
 import { buildReportLines, distributeAcrossBuckets, workedSecondsFor } from '../utils/billing';
 import {
   buildCalendarEvents, buildDetailedRawCSV, buildReportMeta, buildReportModel,
-  buildSummaryCSV, formatAmount as formatMoney, safeFormatDate,
+  buildSummaryCSV, formatAmount as formatAmountCell, formatMoney as formatCurrency, safeFormatDate,
 } from '../utils/reportDocument';
 import { renderReportPdf } from '../utils/reportPdf';
 import { createEvents } from 'ics';
@@ -586,7 +586,10 @@ export const AnalysisView: React.FC = () => {
     }));
   }, [dateRange, filteredEntries, billableLines]);
 
-  const formatAmount = (amount: number) => formatMoney(amount, currencySymbol);
+  const formatAmount = (amount: number) => formatAmountCell(amount, currencySymbol);
+  // The headline figures, where a zero is a zero rather than a dash — and
+  // grouped the same way the PDF and the summary table group it.
+  const formatTotal = (amount: number) => formatCurrency(amount, currencySymbol);
 
   // Export CSV
   const handleExportCSV = () => {
@@ -896,20 +899,20 @@ export const AnalysisView: React.FC = () => {
                   <div className="space-y-1 mt-1">
                     <div className="flex justify-between text-xs text-gray-600 dark:text-gray-400">
                       <span>Subtotal</span>
-                      <span className="font-mono tabular">{currencySymbol}{taxBreakdown.subtotal.toFixed(2)}</span>
+                      <span className="font-mono tabular">{formatTotal(taxBreakdown.subtotal)}</span>
                     </div>
                     <div className="flex justify-between text-xs text-gray-600 dark:text-gray-400">
                       <span>{settings?.taxLabel || 'Tax'} ({settings?.taxRate}%)</span>
-                      <span className="font-mono tabular">{currencySymbol}{taxBreakdown.tax.toFixed(2)}</span>
+                      <span className="font-mono tabular">{formatTotal(taxBreakdown.tax)}</span>
                     </div>
                     <div className="flex justify-between text-2xl font-mono tabular font-medium text-graphite dark:text-stone pt-1 border-t border-graphite/20 dark:border-white/20">
                       <span>Total</span>
-                      <span>{currencySymbol}{taxBreakdown.total.toFixed(2)}</span>
+                      <span>{formatTotal(taxBreakdown.total)}</span>
                     </div>
                   </div>
                 ) : (
                   <div className="text-4xl font-mono tabular font-medium text-graphite dark:text-stone">
-                    {currencySymbol}{totalEarnings.toFixed(2)}
+                    {formatTotal(totalEarnings)}
                   </div>
                 )}
               </div>
@@ -1607,7 +1610,7 @@ export const AnalysisView: React.FC = () => {
               </div>
               <div>
                 <span className="text-xs text-gray-500 dark:text-gray-400 block uppercase tracking-wide">Total Earnings</span>
-                <span className="font-mono font-semibold text-graphite dark:text-stone">{currencySymbol}{totalEarnings.toFixed(2)}</span>
+                <span className="font-mono font-semibold text-graphite dark:text-stone">{formatTotal(totalEarnings)}</span>
               </div>
             </div>
 

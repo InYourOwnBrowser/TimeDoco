@@ -55,8 +55,27 @@ const taxLabelFor = (settings: ReportSettings): string => settings?.taxLabel || 
  * negatives included — a credit, a discount or a negative-rate adjustment
  * counts toward the total, so hiding it makes the total unreconcilable.
  */
+/**
+ * Money, grouped.
+ *
+ * `toFixed(2)` alone prints $4800.00, which on a document a client reads as an
+ * invoice is a figure they have to count digits on. The locale is pinned rather
+ * than taken from the browser: the decimal separator has to stay a point, since
+ * every other number in the report and both CSV exports use one, and a report
+ * whose PDF says 4.800,00 where its spreadsheet says 4800.00 is worse than one
+ * that groups by a convention the reader may not share.
+ */
+const GROUPED = new Intl.NumberFormat('en-US', {
+  minimumFractionDigits: 2,
+  maximumFractionDigits: 2,
+});
+
+export const formatMoney = (amount: number, currencySymbol: string): string =>
+  `${currencySymbol}${GROUPED.format(amount)}`;
+
+/** As `formatMoney`, but nothing at all reads as a dash rather than a zero. */
 export const formatAmount = (amount: number, currencySymbol: string): string =>
-  amount === 0 ? '-' : `${currencySymbol}${amount.toFixed(2)}`;
+  amount === 0 ? '-' : formatMoney(amount, currencySymbol);
 
 export const escapeCSV = (str: string): string => {
   let escaped = String(str ?? '').replace(/"/g, '""');
@@ -247,7 +266,7 @@ export const buildSummaryTable = (model: ReportModel, settings: ReportSettings):
   // Rate x Hours + Fees = Total. It only appears when there is a fee to show,
   // so an ordinary hourly report keeps the four columns it had.
   const body = model.timecodeData.map((tc) => {
-    const rate = tc.hourlyRate ? `${currencySymbol}${tc.hourlyRate.toFixed(2)}/hr` : '-';
+    const rate = tc.hourlyRate ? `${formatMoney(tc.hourlyRate, currencySymbol)}/hr` : '-';
     const row = [tc.name, tc.groupName, rate, tc.durationHours.toFixed(2)];
     if (showFeesColumn) row.push(formatAmount(tc.fees, currencySymbol));
     row.push(formatAmount(tc.earnings, currencySymbol));
@@ -264,9 +283,9 @@ export const buildSummaryTable = (model: ReportModel, settings: ReportSettings):
 
   const foot = taxBreakdown
     ? [
-        labelledFootRow(subtotalLabelFor(settings), `${currencySymbol}${taxBreakdown.subtotal.toFixed(2)}`),
-        labelledFootRow(taxRowLabelFor(settings), `${currencySymbol}${taxBreakdown.tax.toFixed(2)}`),
-        ['', 'Total', '', totalHours.toFixed(2), ...feeCell, `${currencySymbol}${taxBreakdown.total.toFixed(2)}`],
+        labelledFootRow(subtotalLabelFor(settings), formatMoney(taxBreakdown.subtotal, currencySymbol)),
+        labelledFootRow(taxRowLabelFor(settings), formatMoney(taxBreakdown.tax, currencySymbol)),
+        ['', 'Total', '', totalHours.toFixed(2), ...feeCell, formatMoney(taxBreakdown.total, currencySymbol)],
       ]
     : [['', 'Total', '', totalHours.toFixed(2), ...feeCell, formatAmount(totalEarnings, currencySymbol)]];
 
@@ -545,7 +564,7 @@ export const buildReportMeta = (
   if (model.totalFees !== 0) {
     addMeta(
       'Fees:',
-      `${currencySymbol}${model.totalFees.toFixed(2)} billed as fixed amounts rather than by the hour — ` +
+      `${formatMoney(model.totalFees, currencySymbol)} billed as fixed amounts rather than by the hour — ` +
       `worked ${workedHours.toFixed(2)} h in total, of which ${model.totalHours.toFixed(2)} h is billed at a rate.`,
     );
   }

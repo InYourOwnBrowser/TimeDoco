@@ -129,12 +129,26 @@ export const renderReportPdf = async ({
   // reads can be asserted without a PDF renderer. Everything here is layout.
   const summaryTable = buildSummaryTable(reportModel, settings);
 
+  // Figures right-aligned, so the decimal points line up down the column. A
+  // client checks an invoice by running an eye down it, and ragged left-aligned
+  // decimals are the one thing that stops them.
+  //
+  // Through `didParseCell` rather than `columnStyles`, which autoTable applies
+  // to body cells only: the total row is exactly the row that must line up with
+  // the rows above it.
+  const alignFigures = (firstFigureColumn: number) =>
+    (data: { cell: { styles: { halign: string } }; column: { index: number } }) => {
+      if (data.column.index >= firstFigureColumn) data.cell.styles.halign = 'right';
+    };
+
   autoTable(doc, {
     startY: y + 4,
     head: summaryTable.head,
     body: summaryTable.body,
     foot: summaryTable.foot,
     footStyles: { fontStyle: 'bold', fillColor: [238, 240, 236], textColor: [16, 22, 28] },
+    // From Rate onwards: the leading columns are names, the rest are figures.
+    didParseCell: alignFigures(2),
     margin: { top: 25 },
     didDrawPage: () => ensureHeader((doc.internal as any).getNumberOfPages()),
   });
@@ -147,9 +161,24 @@ export const renderReportPdf = async ({
     body: detailTable.body,
     styles: { fontSize: 8, cellPadding: 2 },
     columnStyles: { 7: { cellWidth: 60 } },
+    // Hours and Amount, the two columns anyone adds up; the Note after them is
+    // prose and stays left.
+    didParseCell: (data) => {
+      if (data.column.index === 5 || data.column.index === 6) data.cell.styles.halign = 'right';
+    },
     margin: { top: 25 },
     didDrawPage: () => ensureHeader((doc.internal as any).getNumberOfPages()),
   });
+
+  // A table that is nothing but a header row reads as a document that failed to
+  // render. Say what it actually means.
+  if (detailTable.body.length === 0) {
+    doc.setFontSize(9);
+    doc.setFont('helvetica', 'italic');
+    doc.setTextColor(120);
+    doc.text('No entries in this period.', 14, (doc as any).lastAutoTable.finalY + 6);
+    doc.setFont('helvetica', 'normal');
+  }
 
   const footerText = footerTextOverride || settings?.reportFooterText;
   if (footerText && footerText.trim()) {
