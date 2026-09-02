@@ -32,7 +32,8 @@ import { Logo } from './components/ui/Logo';
 import { Download, Save } from 'lucide-react';
 import { SocialLinks } from './components/SocialLinks';
 import { logError } from './utils/errorLog';
-import { lazyChunk, wasStaleChunkReload } from './utils/chunkRecovery';
+import { isRecoveryReloadInFlight, lazyChunk, wasStaleChunkReload } from './utils/chunkRecovery';
+import { resolveActiveTheme } from './utils/theme';
 
 const TABS = ['tracker', 'timesheet', 'analysis', 'management', 'resources'] as const;
 type Tab = (typeof TABS)[number];
@@ -116,6 +117,12 @@ const AppContent = () => {
   useEffect(() => {
     if (!isFallbackMode) return;
     const handleBeforeUnload = (e: BeforeUnloadEvent) => {
+      // Same exemption the running-timer guard makes: a reload the app started
+      // to recover from a stale chunk is not the user leaving. Without it the
+      // silent recovery raised "Leave site?" here, and choosing Stay spent the
+      // one-shot guard — the behaviour `chunkRecovery` says it fixed, still
+      // reachable through this second handler.
+      if (isRecoveryReloadInFlight()) return;
       e.preventDefault();
       e.returnValue = 'Storage error detected. App is running in memory fallback mode. Data will be lost if you close this page.';
       return e.returnValue;
@@ -189,16 +196,21 @@ const AppContent = () => {
     setShowNewTimer(false);
   }, [activeEntries.length, settings?.allowConcurrentTimers]);
 
+  // `settings` is null until IndexedDB answers, and stays null for good in
+  // fallback mode, so "which theme" and "have we actually got one" are two
+  // different questions below.
+  const settingsLoaded = settings !== null;
+  const storedTheme = settings?.theme;
+
   useEffect(() => {
     const root = window.document.documentElement;
-    const theme = settings?.theme || 'dark';
+    const theme = storedTheme || 'dark';
 
     root.classList.remove('light', 'dark');
 
-    let activeTheme = theme;
-    if (theme === 'system') {
-      activeTheme = window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
-    }
+    // Shared with the pre-hydration boot script through `resolveActiveTheme`,
+    // which is the only place the rule is written down.
+    const activeTheme = resolveActiveTheme(storedTheme);
 
     root.classList.add(activeTheme);
 
@@ -206,18 +218,25 @@ const AppContent = () => {
     // cannot be read synchronously before paint, so without this a user whose
     // explicit theme contradicts their OS preference sees the wrong one flash
     // on every load.
-    try {
-      localStorage.setItem('theme', theme);
-    } catch {
-      // Private mode or blocked storage: the boot script falls back to the OS
-      // preference, which is what it did before.
+    //
+    // Only once the settings have actually arrived. Writing during the null
+    // window put the 'dark' default over a stored 'light', so the next boot
+    // painted dark from the mirror — and in fallback mode, where settings never
+    // arrive, that wrong value was all the boot script would ever read.
+    if (settingsLoaded) {
+      try {
+        localStorage.setItem('theme', theme);
+      } catch {
+        // Private mode or blocked storage: the boot script falls back to the OS
+        // preference, which is what it did before.
+      }
     }
 
     const metaThemeColor = document.querySelector('meta[name="theme-color"]');
     if (metaThemeColor) {
       metaThemeColor.setAttribute('content', activeTheme === 'dark' ? '#111827' : '#f9fafb');
     }
-  }, [settings?.theme]);
+  }, [storedTheme, settingsLoaded]);
 
   // Keyboard shortcut to start/stop the most recent timer (Ctrl+Shift+S or Cmd+Shift+S)
   useEffect(() => {

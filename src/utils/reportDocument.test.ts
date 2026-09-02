@@ -192,7 +192,8 @@ describe('report documents', () => {
     });
 
     it('generates a calendar export covering every entry', () => {
-      const events = buildCalendarEvents(out.entries, new Map(ALL_TIMECODES.map((t) => [t.id, t])), NOW);
+      const { events, skipped } = buildCalendarEvents(out.entries, new Map(ALL_TIMECODES.map((t) => [t.id, t])), NOW);
+      expect(skipped).toEqual([]);
       expect(events.length).toBe(out.entries.length);
       // Earliest first, like every other document built from the same entries.
       expect(events.map((e) => e.uid)).toEqual(sortEntriesForDocument(out.entries).map((e) => e.id));
@@ -293,13 +294,16 @@ describe('report document specifics', () => {
       expect(row![2]).toBe('—');
     });
 
-    it('leaves the entry out of the calendar rather than writing NaN into it', () => {
+    it('leaves the entry out of the calendar, and reports which one', () => {
       // This path never threw; it wrote NaN components and produced an event no
       // calendar can read, which risks the whole file rather than one entry.
-      const events = buildCalendarEvents([good, broken], timecodeMap);
+      const { events, skipped } = buildCalendarEvents([good, broken], timecodeMap);
 
       expect(events).toHaveLength(1);
       expect(events[0].uid).toBe('e-ok');
+      // Handed back so the caller can name it: a dropped entry leaves no trace
+      // in the file for the user to notice.
+      expect(skipped.map((e) => e.id)).toEqual(['e-broken']);
     });
   });
 

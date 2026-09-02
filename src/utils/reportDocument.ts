@@ -492,12 +492,25 @@ export const buildDetailedRawCSV = (
   return [headers.join(','), ...rows].join('\n');
 };
 
+export interface CalendarExport {
+  events: EventAttributes[];
+  /**
+   * Entries left out because their timestamps could not be read. The caller is
+   * expected to say so: an entry quietly missing from a calendar is not
+   * something the user would otherwise notice.
+   */
+  skipped: Entry[];
+}
+
 export const buildCalendarEvents = (
   entries: Entry[],
   timecodeMap: Map<string, Timecode>,
   now: Date = new Date(),
-): EventAttributes[] =>
-  sortEntriesForDocument(entries).map((e) => {
+): CalendarExport => {
+  const events: EventAttributes[] = [];
+  const skipped: Entry[] = [];
+
+  for (const e of sortEntriesForDocument(entries)) {
     const tc = timecodeMap.get(e.timecodeId);
     const start = parseISO(e.startTime);
     const end = e.endTime ? parseISO(e.endTime) : now;
@@ -505,10 +518,13 @@ export const buildCalendarEvents = (
     // This one does not throw — it writes NaN into every component and produces
     // an event no calendar can read, which can cost the whole file rather than
     // the one entry. There is no blank to fall back to as there is in the CSV,
-    // so an entry whose dates cannot be read is left out instead.
-    if (!isValid(start) || !isValid(end)) return null;
+    // so an entry whose dates cannot be read is left out and reported instead.
+    if (!isValid(start) || !isValid(end)) {
+      skipped.push(e);
+      continue;
+    }
 
-    return {
+    events.push({
       uid: e.id,
       start: [
         start.getUTCFullYear(),
@@ -530,9 +546,11 @@ export const buildCalendarEvents = (
       endOutputType: 'utc',
       title: tc?.name ?? 'Unknown',
       description: e.note ?? '',
-    } as EventAttributes;
-  })
-    .filter((event): event is EventAttributes => event !== null);
+    } as EventAttributes);
+  }
+
+  return { events, skipped };
+};
 
 export interface ReportMetaInput {
   preparedFor: string;

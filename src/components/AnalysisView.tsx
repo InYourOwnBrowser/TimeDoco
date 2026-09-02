@@ -697,7 +697,25 @@ export const AnalysisView: React.FC = () => {
 
   // Export ICS
   const handleExportICS = () => {
-    const events = buildCalendarEvents(filteredEntries, timecodeMap);
+    const { events, skipped } = buildCalendarEvents(filteredEntries, timecodeMap);
+
+    if (skipped.length > 0) {
+      // Named, not merely counted. An entry dropped from a calendar leaves no
+      // trace in the file, so a bare count would tell the user something is
+      // missing without telling them which entry to go and repair.
+      const label = (e: Entry) => e.note?.trim() || timecodeMap.get(e.timecodeId)?.name || e.id;
+      const shown = skipped.slice(0, 3).map((e) => `"${label(e)}"`).join(', ');
+      const rest = skipped.length > 3 ? ` and ${skipped.length - 3} more` : '';
+      addToast(
+        skipped.length === 1
+          ? `Left 1 entry out of the calendar — its date could not be read: ${shown}.`
+          : `Left ${skipped.length} entries out of the calendar — their dates could not be read: ${shown}${rest}.`,
+        'error',
+        undefined,
+        10000,
+      );
+    }
+
     if (events.length === 0) return;
 
     const defaultFilename = `time-entries-${scopeSlug}-${safeFormatDate(dateRange.start, 'yyyy-MM-dd', 'custom-period')}`;

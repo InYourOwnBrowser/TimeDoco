@@ -101,6 +101,13 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ onClose }) => {
   };
 
   const MAX_LOGO_BYTES = 1024 * 1024; // 1MB — keeps backups/exports lean, since this gets embedded in every export
+  /**
+   * A bound on what the file *decodes to*, which `MAX_LOGO_BYTES` says nothing
+   * about: compression ratio is unbounded, so a 1MB PNG can carry 20000x20000
+   * pixels — about 1.6GB once rasterised to RGBA. 16MP is far beyond any real
+   * logo and still small enough to decode safely.
+   */
+  const MAX_LOGO_PIXELS = 16_000_000;
   const ALLOWED_LOGO_MIME_TYPES = ['image/png', 'image/jpeg', 'image/webp'];
 
   const handleLogoUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -121,6 +128,23 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ onClose }) => {
       const dataUrl = reader.result as string;
       const img = new Image();
       img.onload = () => {
+        // Checked before the canvas work below: `drawImage` forces the full
+        // decode, so the allocation this guards against happens there rather
+        // than at `onload`, where only the header has been read.
+        // `naturalWidth` is the decoded size and so the one that bounds memory,
+        // falling back to `width` for any implementation that does not expose it
+        // — reading an undefined pair would make `NaN > limit` false and leave
+        // the guard quietly doing nothing.
+        const pixelWidth = img.naturalWidth || img.width;
+        const pixelHeight = img.naturalHeight || img.height;
+        if (pixelWidth * pixelHeight > MAX_LOGO_PIXELS) {
+          addToast(
+            `Logo image is too large to process — ${pixelWidth}x${pixelHeight} pixels. Please use a smaller image.`,
+            'error',
+          );
+          return;
+        }
+
         const MAX_DIM = 300;
         let width = img.width;
         let height = img.height;

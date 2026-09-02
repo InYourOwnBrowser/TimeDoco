@@ -1,5 +1,7 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
+import { renderHook, act } from '@testing-library/react';
 import { isStaleChunkError, noteChunkLoaded, reloadOnceForStaleChunk, wasStaleChunkReload } from './chunkRecovery';
+import { useDeferredWrite } from '../hooks/useDeferredWrite';
 
 const reload = vi.fn();
 
@@ -42,9 +44,12 @@ describe('isStaleChunkError', () => {
 describe('reloadOnceForStaleChunk', () => {
   const staleChunk = () => new Error('Failed to fetch dynamically imported module: /assets/AnalysisView-abc123.js');
 
-  it('reloads for a chunk the origin no longer serves', () => {
+  // The return value is still synchronous — the caller has nothing left to do
+  // the moment it is true. The reload itself now waits for pending debounced
+  // writes to settle, so it is awaited rather than asserted inline.
+  it('reloads for a chunk the origin no longer serves', async () => {
     expect(reloadOnceForStaleChunk(staleChunk())).toBe(true);
-    expect(reload).toHaveBeenCalledTimes(1);
+    await vi.waitFor(() => expect(reload).toHaveBeenCalledTimes(1));
   });
 
   it('does not reload for an error that is not a missing chunk', () => {
@@ -52,18 +57,34 @@ describe('reloadOnceForStaleChunk', () => {
     expect(reload).not.toHaveBeenCalled();
   });
 
-  it('reloads once, then stops — a broken build must not cycle', () => {
+  it('reloads once, then stops — a broken build must not cycle', async () => {
     reloadOnceForStaleChunk(staleChunk());
     expect(reloadOnceForStaleChunk(staleChunk())).toBe(false);
     expect(reloadOnceForStaleChunk(staleChunk())).toBe(false);
-    expect(reload).toHaveBeenCalledTimes(1);
+    await vi.waitFor(() => expect(reload).toHaveBeenCalledTimes(1));
   });
 
-  it('re-arms once a chunk has actually loaded', () => {
+  it('re-arms once a chunk has actually loaded', async () => {
     reloadOnceForStaleChunk(staleChunk());
     noteChunkLoaded();
     expect(reloadOnceForStaleChunk(staleChunk())).toBe(true);
-    expect(reload).toHaveBeenCalledTimes(2);
+    await vi.waitFor(() => expect(reload).toHaveBeenCalledTimes(2));
+  });
+
+  // W-6: the reload that rescues a stale chunk used to take pending debounced
+  // writes down with it. React runs no effect cleanup for a reload, so this is
+  // the one loss `useDeferredWrite` cannot prevent from inside itself.
+  it('flushes a pending debounced write before reloading', async () => {
+    const order: string[] = [];
+    reload.mockImplementation(() => { order.push('reload'); });
+
+    const { result } = renderHook(() => useDeferredWrite(5000));
+    act(() => result.current.schedule(() => { order.push('write'); }));
+
+    expect(reloadOnceForStaleChunk(staleChunk())).toBe(true);
+    await vi.waitFor(() => expect(reload).toHaveBeenCalled());
+
+    expect(order).toEqual(['write', 'reload']);
   });
 
   it('declines when the guard cannot be stored, rather than reloading unguarded', () => {

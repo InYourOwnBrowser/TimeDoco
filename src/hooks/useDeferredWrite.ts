@@ -15,6 +15,11 @@ import { useCallback, useEffect, useRef } from 'react';
  * reload has to `flush()` from something the browser does run first — a blur,
  * an Enter, or the `beforeunload` guard the running timer already installs.
  *
+ * A reload the *app itself* starts is the one case it can do better than that,
+ * which is what `flushDeferredWrites` below is for: the stale-chunk recovery
+ * calls it and waits before reloading, so the drafts this hook exists to
+ * protect are not lost to the very reload that fixes the page.
+ *
  * Every part of that is in here rather than in each field: scheduling replaces
  * the pending write, `flush` performs it now for a blur or an Enter, and
  * unmounting flushes rather than clears. A field built on this cannot drop a
@@ -24,6 +29,25 @@ import { useCallback, useEffect, useRef } from 'react';
  * `flush` returns whatever the write returned, so a caller that must not race
  * it — stopping the timer the note belongs to — can await it.
  */
+/**
+ * Every mounted `useDeferredWrite`'s flush.
+ *
+ * A module-level registry rather than a context: the one caller is the
+ * stale-chunk recovery, which runs from an error boundary outside any provider
+ * a field of this kind sits under.
+ */
+const mountedFlushes = new Set<() => unknown>();
+
+/**
+ * Flush every pending deferred write now, returning what each produced so the
+ * caller can wait for them. Used before a reload the app starts itself, where
+ * effect cleanup does not run.
+ */
+export const flushDeferredWrites = (): unknown[] =>
+  // Copied first: a write may unmount the field it belongs to, which would
+  // otherwise mutate the set mid-iteration.
+  [...mountedFlushes].map((flush) => flush());
+
 export const useDeferredWrite = (debounceMs: number) => {
   const pendingRef = useRef<(() => unknown) | null>(null);
   const timerRef = useRef<number | null>(null);
@@ -47,7 +71,13 @@ export const useDeferredWrite = (debounceMs: number) => {
     timerRef.current = window.setTimeout(() => { void flush(); }, debounceMs);
   }, [debounceMs, flush]);
 
-  useEffect(() => () => { void flush(); }, [flush]);
+  useEffect(() => {
+    mountedFlushes.add(flush);
+    return () => {
+      mountedFlushes.delete(flush);
+      void flush();
+    };
+  }, [flush]);
 
   return { schedule, flush };
 };

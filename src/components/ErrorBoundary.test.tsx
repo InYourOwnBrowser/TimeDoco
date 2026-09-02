@@ -39,14 +39,17 @@ describe('ErrorBoundary', () => {
     expect(reload).not.toHaveBeenCalled();
   });
 
-  it('reloads for a code-split chunk the origin no longer serves', () => {
+  // Awaited: the recovery flushes pending debounced writes before it reloads,
+  // so the draft a field is still holding is not lost to the reload that fixes
+  // the page. The decision to reload is still made synchronously.
+  it('reloads for a code-split chunk the origin no longer serves', async () => {
     render(
       <ErrorBoundary>
         <Throws error={new Error('Failed to fetch dynamically imported module: /assets/AnalysisView-abc.js')} />
       </ErrorBoundary>,
     );
 
-    expect(reload).toHaveBeenCalledTimes(1);
+    await vi.waitFor(() => expect(reload).toHaveBeenCalledTimes(1));
   });
 
   it('explains a missing chunk in its own terms once reloading has not fixed it', () => {

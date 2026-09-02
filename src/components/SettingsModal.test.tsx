@@ -133,6 +133,51 @@ describe('SettingsModal Logo Upload Validation', () => {
     global.Image = originalImage;
   });
 
+  // W-4: `MAX_LOGO_BYTES` bounds the compressed file, which says nothing about
+  // what it decodes to — compression ratio is unbounded, so a tiny PNG can
+  // carry a very large raster.
+  it('rejects an image whose pixel count would blow up on decode', async () => {
+    const originalImage = global.Image;
+    global.Image = class {
+      onload: () => void = () => {};
+      onerror: () => void = () => {};
+      naturalWidth = 20000;
+      naturalHeight = 20000;
+      width = 20000;
+      height = 20000;
+      _src = '';
+      set src(val: string) {
+        this._src = val;
+        setTimeout(() => this.onload(), 0);
+      }
+      get src() {
+        return this._src;
+      }
+    } as never;
+
+    const readAsDataURLSpy = vi.spyOn(FileReader.prototype, 'readAsDataURL').mockImplementation(function (this: FileReader) {
+      Object.defineProperty(this, 'result', { value: 'data:image/png;base64,ZmFrZQ==' });
+      this.onload?.({} as ProgressEvent<FileReader>);
+    });
+
+    const { container } = renderComponent();
+    const fileInput = container.querySelector('input[type="file"][accept*="image"]') as HTMLInputElement;
+
+    // Four bytes: comfortably inside the 1MB cap, which is the point.
+    fireEvent.change(fileInput, { target: { files: [new File(['fake'], 'bomb.png', { type: 'image/png' })] } });
+
+    await waitFor(() => {
+      expect(mockAddToast).toHaveBeenCalledWith(
+        expect.stringContaining('20000x20000'),
+        'error',
+      );
+    });
+    expect(mockUpdateSettings).not.toHaveBeenCalled();
+
+    readAsDataURLSpy.mockRestore();
+    global.Image = originalImage;
+  });
+
   it('writes reportFooterText once the field settles, not on every keystroke', () => {
     const { getByPlaceholderText } = renderComponent();
 
