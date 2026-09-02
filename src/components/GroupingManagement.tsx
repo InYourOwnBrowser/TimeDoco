@@ -22,6 +22,8 @@ export const GroupingManagement: React.FC = () => {
   const {
     groups,
     timecodes,
+    deletedGroups,
+    deletedTimecodes,
     entries,
     addGroup,
     updateGroup,
@@ -35,6 +37,30 @@ export const GroupingManagement: React.FC = () => {
 
   const currencySymbol = settings?.currencySymbol || '$';
   const { addToast } = useToast();
+
+  /**
+   * A name is taken if anything already carries it — including a record in the
+   * trash.
+   *
+   * CSV import resolves each row's timecode against live and trashed records
+   * alike, so a name that exists in both places makes every row naming it
+   * ambiguous and stops the whole import (see SettingsModal). Restoring a
+   * trashed timecode into a name that has since been reused produces the same
+   * pair from the other direction. Neither is something the user can see coming
+   * from this screen, so refuse the collision here and say where the other one
+   * is.
+   */
+  const takenBy = <T extends { id: string; name: string; deletedAt?: string }>(
+    candidates: T[],
+    name: string,
+    exceptId?: string,
+  ): T | undefined =>
+    candidates.find(c => c.id !== exceptId && c.name.trim().toLowerCase() === name.trim().toLowerCase());
+
+  const nameClashMessage = (clash: { deletedAt?: string }, kind: 'group' | 'timecode', where = '') =>
+    clash.deletedAt
+      ? `A ${kind} with this name is in the trash${where}. Restore it to use it, or empty the trash to free the name.`
+      : `A ${kind} with this name already exists${where}.`;
 
   // Search filter
   const [searchQuery, setSearchQuery] = useState('');
@@ -111,8 +137,9 @@ export const GroupingManagement: React.FC = () => {
     const trimmedName = editingGroupData.name.trim();
     if (!trimmedName) return;
 
-    if (groups.some((g) => g.id !== id && g.name.toLowerCase() === trimmedName.toLowerCase())) {
-      addToast('A group with this name already exists.', 'error');
+    const groupClash = takenBy([...groups, ...deletedGroups], trimmedName, id);
+    if (groupClash) {
+      addToast(nameClashMessage(groupClash, 'group'), 'error');
       return;
     }
 
@@ -125,8 +152,9 @@ export const GroupingManagement: React.FC = () => {
     const trimmedName = newGroupName.trim();
     if (!trimmedName) return;
 
-    if (groups.some((g) => g.name.toLowerCase() === trimmedName.toLowerCase())) {
-      addToast('A group with this name already exists.', 'error');
+    const groupClash = takenBy([...groups, ...deletedGroups], trimmedName);
+    if (groupClash) {
+      addToast(nameClashMessage(groupClash, 'group'), 'error');
       return;
     }
 
@@ -162,15 +190,13 @@ export const GroupingManagement: React.FC = () => {
 
     const targetGroupId = editingTimecodeData.groupId || null;
 
-    if (
-      timecodes.some(
-        (t) =>
-          t.id !== id &&
-          t.name.toLowerCase() === trimmedName.toLowerCase() &&
-          (t.groupId || null) === targetGroupId
-      )
-    ) {
-      addToast('A timecode with this name already exists in the selected group.', 'error');
+    const timecodeClash = takenBy(
+      [...timecodes, ...deletedTimecodes].filter((t) => (t.groupId || null) === targetGroupId),
+      trimmedName,
+      id,
+    );
+    if (timecodeClash) {
+      addToast(nameClashMessage(timecodeClash, 'timecode', ' in the selected group'), 'error');
       return;
     }
 
@@ -199,14 +225,12 @@ export const GroupingManagement: React.FC = () => {
     const trimmedName = newTimecodeName.trim();
     if (!trimmedName) return;
 
-    if (
-      timecodes.some(
-        (t) =>
-          t.name.toLowerCase() === trimmedName.toLowerCase() &&
-          (t.groupId || null) === (groupId || null)
-      )
-    ) {
-      addToast('A timecode with this name already exists in the selected group.', 'error');
+    const timecodeClash = takenBy(
+      [...timecodes, ...deletedTimecodes].filter((t) => (t.groupId || null) === (groupId || null)),
+      trimmedName,
+    );
+    if (timecodeClash) {
+      addToast(nameClashMessage(timecodeClash, 'timecode', ' in the selected group'), 'error');
       return;
     }
 

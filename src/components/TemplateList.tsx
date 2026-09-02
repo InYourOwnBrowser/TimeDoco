@@ -39,22 +39,43 @@ export const TemplateList: React.FC = () => {
     [templates, liveTimecodeIds]
   );
 
-  const isDirty = title !== '' || note !== '' || tagsStr !== '' || isFixedDuration || expectedDurationMinutes !== '';
+  // What the picker below will actually offer. `timecodes` still contains
+  // archived ones, so taking its first entry as the default for a new template
+  // could preselect a timecode the picker refuses to show — and the template
+  // would then be saved against it.
+  const selectableTimecodes = React.useMemo(
+    () => timecodes.filter(t => {
+      if (t.archived) return false;
+      const group = t.groupId ? groups.find(g => g.id === t.groupId) : undefined;
+      return !group?.archived;
+    }),
+    [timecodes, groups]
+  );
+
+  // The timecode the form opened on, so that changing only the timecode still
+  // counts as an unsaved edit worth warning about on close.
+  const [initialTimecodeId, setInitialTimecodeId] = useState('');
+
+  const isDirty = title !== '' || note !== '' || tagsStr !== '' || isFixedDuration
+    || expectedDurationMinutes !== '' || timecodeId !== initialTimecodeId;
 
   const handleOpenModal = (template?: EntryTemplate) => {
     if (template) {
       setEditingTemplate(template);
       setTitle(template.title);
       setTimecodeId(template.timecodeId);
+      setInitialTimecodeId(template.timecodeId);
       setIsFixedDuration(template.durationMinutes !== null);
       setDurationMinutes(template.durationMinutes || 15);
       setExpectedDurationMinutes(template.expectedDurationMinutes ? String(template.expectedDurationMinutes) : '');
       setNote(template.note);
       setTagsStr((template.tags || []).join(', '));
     } else {
+      const defaultTimecodeId = selectableTimecodes.length > 0 ? selectableTimecodes[0].id : '';
       setEditingTemplate(null);
       setTitle('');
-      setTimecodeId(timecodes.length > 0 ? timecodes[0].id : '');
+      setTimecodeId(defaultTimecodeId);
+      setInitialTimecodeId(defaultTimecodeId);
       setIsFixedDuration(false);
       setDurationMinutes(15);
       setExpectedDurationMinutes('');

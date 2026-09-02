@@ -59,10 +59,22 @@ const sampleEntries: Entry[] = [
   },
 ];
 
+const trashedGroups: Group[] = [
+  { id: 'g-trashed', name: 'Retired Client', color: '#999999', archived: false, deletedAt: '2025-02-01T00:00:00Z', updatedAt: '2025-02-01T00:00:00Z' },
+];
+
+const trashedTimecodes: Timecode[] = [
+  { id: 'tc-trashed', name: 'Old Retainer', groupId: 'g1', hourlyRate: 50, archived: false, deletedAt: '2025-02-01T00:00:00Z', updatedAt: '2025-02-01T00:00:00Z' },
+];
+
 vi.mock('../context/TimeTrackerContext', () => ({
   useTimeTracker: () => ({
     groups: sampleGroups,
     timecodes: sampleTimecodes,
+    // The trash, which the duplicate-name checks read: a name still held by a
+    // trashed record is not free, because CSV import resolves against both.
+    deletedGroups: trashedGroups,
+    deletedTimecodes: trashedTimecodes,
     entries: sampleEntries,
     addGroup: mockAddGroup,
     updateGroup: mockUpdateGroup,
@@ -129,6 +141,36 @@ describe('GroupingManagement Redesigned View', () => {
     await waitFor(() => {
       expect(mockAddGroup).toHaveBeenCalledWith('New Client', expect.any(String));
     });
+  });
+
+  it('refuses a group name a trashed group still holds, and says where it is', async () => {
+    // CSV import resolves names against live and trashed records alike, so a
+    // name held in both places makes every row naming it ambiguous and stops
+    // the import. Nothing on this screen shows the trash, so the refusal has
+    // to explain itself.
+    render(<GroupingManagement />);
+
+    fireEvent.click(screen.getByRole('button', { name: /New Group/i }));
+    fireEvent.change(screen.getByPlaceholderText(/Group Name/i), { target: { value: 'retired client' } });
+    fireEvent.click(screen.getByRole('button', { name: /Save Group/i }));
+
+    await waitFor(() => {
+      expect(mockAddToast).toHaveBeenCalledWith(expect.stringContaining('is in the trash'), 'error');
+    });
+    expect(mockAddGroup).not.toHaveBeenCalled();
+  });
+
+  it('refuses a timecode name a trashed timecode in the same group still holds', async () => {
+    render(<GroupingManagement />);
+
+    fireEvent.click(screen.getByRole('button', { name: /Add timecode to Client A/i }));
+    fireEvent.change(screen.getByPlaceholderText('New Timecode Name'), { target: { value: 'Old Retainer' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Add Timecode' }));
+
+    await waitFor(() => {
+      expect(mockAddToast).toHaveBeenCalledWith(expect.stringContaining('is in the trash'), 'error');
+    });
+    expect(mockAddTimecode).not.toHaveBeenCalled();
   });
 
   it('allows creating a timecode contextually under a specific group', async () => {

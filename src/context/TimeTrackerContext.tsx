@@ -1404,12 +1404,21 @@ export const TimeTrackerProvider: React.FC<{ children: ReactNode }> = ({ childre
       end: e.endTime ? new Date(e.endTime).getTime() : now,
     })).filter((inv) => Number.isFinite(inv.start) && Number.isFinite(inv.end));
 
-    for (let i = 0; i < intervals.length; i++) {
-      for (let j = i + 1; j < intervals.length; j++) {
-        if (intervals[i].start < intervals[j].end && intervals[i].end > intervals[j].start) {
-          throw new Error('Cannot merge timecodes: resulting entries would overlap');
-        }
+    // Sort and sweep, not every pair against every other. Two timecodes with a
+    // few thousand entries between them is an ordinary amount of history, and
+    // the pairwise check was millions of comparisons on the main thread before
+    // the merge could even start.
+    //
+    // Sorted by start, an interval can only overlap something already seen, and
+    // only if it begins before the furthest end so far. Touching is not
+    // overlapping, so the comparison stays strict.
+    intervals.sort((a, b) => a.start - b.start);
+    let furthestEnd = -Infinity;
+    for (const interval of intervals) {
+      if (interval.start < furthestEnd) {
+        throw new Error('Cannot merge timecodes: resulting entries would overlap');
       }
+      furthestEnd = Math.max(furthestEnd, interval.end);
     }
 
     const isoNow = new Date().toISOString();

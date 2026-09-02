@@ -73,6 +73,33 @@ export const calculateTotalPausedSeconds = (start: Date, end: Date, pausedSegmen
   return Math.round(sumPausedMs(start, end, pausedSegments) / 1000);
 };
 
+/**
+ * The spans an entry was on the clock inside a window: its own span clipped to
+ * the window, with the paused stretches taken out.
+ *
+ * The complement of the merged pauses, in other words — the same subtraction
+ * `calculateTotalPausedSeconds` does, kept as intervals so a chart can draw
+ * when the work happened rather than only how much of it there was.
+ */
+export const workedIntervals = (
+  start: Date,
+  end: Date,
+  pausedSegments: PauseSegment[] | undefined | null,
+): Array<{ start: number; end: number }> => {
+  const from = start.getTime();
+  const to = end.getTime();
+  if (!Number.isFinite(from) || !Number.isFinite(to) || to <= from) return [];
+
+  const worked: Array<{ start: number; end: number }> = [];
+  let cursor = from;
+  for (const pause of mergePausedSegments(start, end, pausedSegments)) {
+    if (pause.start > cursor) worked.push({ start: cursor, end: pause.start });
+    cursor = Math.max(cursor, pause.end);
+  }
+  if (cursor < to) worked.push({ start: cursor, end: to });
+  return worked;
+};
+
 export const formatDurationShort = (totalSeconds: number): string => {
   if (!Number.isFinite(totalSeconds)) return '—';
   if (totalSeconds === 0) return '—';

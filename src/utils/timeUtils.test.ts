@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { checkOverlap, findFreeSlot, calculateDuration, applyRounding, calculateTaxBreakdown, calculateTotalPausedSeconds, formatDurationShort, getElapsedTimeMs, findOverlappingCandidates, calendarDayKey, calendarDayBounds } from './timeUtils';
+import { checkOverlap, findFreeSlot, calculateDuration, applyRounding, calculateTaxBreakdown, calculateTotalPausedSeconds, formatDurationShort, getElapsedTimeMs, findOverlappingCandidates, calendarDayKey, calendarDayBounds, workedIntervals } from './timeUtils';
 import type { Entry, PauseSegment } from '../types';
 
 describe('timeUtils', () => {
@@ -612,6 +612,63 @@ describe('timeUtils', () => {
         expect(slot!.end.getTime()).toBeLessThanOrEqual(end.getTime());
         expect(calendarDayKey(new Date(slot!.end.getTime() - 1))).toBe(calendarDayKey(day));
       }
+    });
+  });
+
+  describe('workedIntervals', () => {
+    const at = (hour: number, minute = 0) => new Date(Date.UTC(2024, 4, 6, hour, minute));
+    const pause = (from: number, to?: number): PauseSegment => ({
+      pauseStart: at(from).toISOString(),
+      ...(to === undefined ? {} : { pauseEnd: at(to).toISOString() }),
+    });
+    const spans = (intervals: Array<{ start: number; end: number }>) =>
+      intervals.map(i => [new Date(i.start).toISOString(), new Date(i.end).toISOString()]);
+
+    it('is the whole window when nothing was paused', () => {
+      expect(spans(workedIntervals(at(9), at(11), []))).toEqual([
+        [at(9).toISOString(), at(11).toISOString()],
+      ]);
+    });
+
+    it('splits around a pause', () => {
+      expect(spans(workedIntervals(at(9), at(12), [pause(10, 11)]))).toEqual([
+        [at(9).toISOString(), at(10).toISOString()],
+        [at(11).toISOString(), at(12).toISOString()],
+      ]);
+    });
+
+    it('treats overlapping pauses as one gap', () => {
+      // 10–12 and 11–13 are one stretch away from the desk, not two.
+      expect(spans(workedIntervals(at(9), at(14), [pause(11, 13), pause(10, 12)]))).toEqual([
+        [at(9).toISOString(), at(10).toISOString()],
+        [at(13).toISOString(), at(14).toISOString()],
+      ]);
+    });
+
+    it('runs an unfinished pause to the end of the window', () => {
+      expect(spans(workedIntervals(at(9), at(12), [pause(10)]))).toEqual([
+        [at(9).toISOString(), at(10).toISOString()],
+      ]);
+    });
+
+    it('is empty when the pause covers everything, and when the window does not exist', () => {
+      expect(workedIntervals(at(9), at(11), [pause(8, 12)])).toEqual([]);
+      expect(workedIntervals(at(11), at(9), [])).toEqual([]);
+      expect(workedIntervals(at(9), at(9), [])).toEqual([]);
+    });
+
+    it('ignores a pause that falls outside the window', () => {
+      expect(spans(workedIntervals(at(9), at(11), [pause(6, 7), pause(13, 14)]))).toEqual([
+        [at(9).toISOString(), at(11).toISOString()],
+      ]);
+    });
+
+    it('adds up to what calculateTotalPausedSeconds leaves behind', () => {
+      const segments = [pause(10, 10), pause(12, 13)];
+      const worked = workedIntervals(at(9), at(17), segments)
+        .reduce((total, i) => total + (i.end - i.start), 0) / 1000;
+      const window = (at(17).getTime() - at(9).getTime()) / 1000;
+      expect(worked).toBe(window - calculateTotalPausedSeconds(at(9), at(17), segments));
     });
   });
 

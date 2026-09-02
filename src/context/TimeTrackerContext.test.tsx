@@ -1554,6 +1554,116 @@ describe('TimeTrackerContext Reducer Logic', () => {
     await expect(ctx!.mergeTimecodes(tc1, tc2)).rejects.toThrow('Cannot merge timecodes: resulting entries would overlap');
   });
 
+  it('merges timecodes whose entries only meet end to end, however they are ordered', async () => {
+    // The overlap check sweeps a sorted list rather than comparing every pair,
+    // and the boundary it has to get right is the one that is not an overlap:
+    // an entry that begins exactly where another ends. Insertion order must not
+    // decide the answer either, so the later entry is created first.
+    let ctx: ReturnType<typeof useTimeTracker> | undefined;
+
+    render(
+      <ToastProvider><TimeTrackerProvider>
+        <TestConsumer onReady={(c) => (ctx = c)} />
+      </TimeTrackerProvider></ToastProvider>
+    );
+
+    await waitFor(() => expect(ctx?.settings).not.toBeNull());
+
+    let source = '';
+    let dest = '';
+    await act(async () => {
+      source = (await ctx!.addTimecode('Source')).id;
+      dest = (await ctx!.addTimecode('Dest')).id;
+
+      await ctx!.addManualEntry({
+        startTime: '2024-02-01T13:00:00Z',
+        endTime: '2024-02-01T14:00:00Z',
+        timecodeId: source,
+        note: 'Afternoon',
+      });
+      await ctx!.addManualEntry({
+        startTime: '2024-02-01T09:00:00Z',
+        endTime: '2024-02-01T10:00:00Z',
+        timecodeId: dest,
+        note: 'Morning',
+      });
+      await ctx!.addManualEntry({
+        startTime: '2024-02-01T10:00:00Z',
+        endTime: '2024-02-01T11:00:00Z',
+        timecodeId: source,
+        note: 'Meets the morning exactly',
+      });
+    });
+
+    await act(async () => {
+      await expect(ctx!.mergeTimecodes(source, dest)).resolves.toBe(true);
+    });
+
+    const entries = (await db.getEntries()).filter((e) => !e.deletedAt);
+    expect(entries).toHaveLength(3);
+    expect(entries.every((e) => e.timecodeId === dest)).toBe(true);
+  });
+
+  it('still refuses a merge when an overlap is buried in a long history', async () => {
+    let ctx: ReturnType<typeof useTimeTracker> | undefined;
+
+    render(
+      <ToastProvider><TimeTrackerProvider>
+        <TestConsumer onReady={(c) => (ctx = c)} />
+      </TimeTrackerProvider></ToastProvider>
+    );
+
+    await waitFor(() => expect(ctx?.settings).not.toBeNull());
+
+    let source = '';
+    let dest = '';
+    await act(async () => {
+      source = (await ctx!.addTimecode('Long source')).id;
+      dest = (await ctx!.addTimecode('Long dest')).id;
+    });
+
+    // Two hundred back-to-back hours on the destination, and one entry on the
+    // source that lands in the middle of one of them. A sweep that only looked
+    // at neighbouring pairs, or that stopped early, would miss it.
+    const now = new Date().toISOString();
+    const hour = 3_600_000;
+    const base = Date.parse('2024-03-01T00:00:00Z');
+    for (let i = 0; i < 200; i++) {
+      await db.putEntry({
+        id: `bulk-${i}`,
+        timecodeId: dest,
+        startTime: new Date(base + i * hour).toISOString(),
+        endTime: new Date(base + (i + 1) * hour).toISOString(),
+        duration: 3600,
+        note: '',
+        tags: [],
+        isRunning: false,
+        isPaused: false,
+        pausedSegments: [],
+        editHistory: [],
+        createdAt: now,
+        updatedAt: now,
+      });
+    }
+    await db.putEntry({
+      id: 'bulk-collision',
+      timecodeId: source,
+      startTime: new Date(base + 120 * hour + hour / 2).toISOString(),
+      endTime: new Date(base + 121 * hour).toISOString(),
+      duration: 1800,
+      note: '',
+      tags: [],
+      isRunning: false,
+      isPaused: false,
+      pausedSegments: [],
+      editHistory: [],
+      createdAt: now,
+      updatedAt: now,
+    });
+
+    await expect(ctx!.mergeTimecodes(source, dest)).rejects.toThrow('Cannot merge timecodes: resulting entries would overlap');
+  });
+
   it('M7: emptyTrash and hardDeleteGroup read directly from DB ignoring stale state snapshot', async () => {
     let ctx: ReturnType<typeof useTimeTracker> | undefined;
 

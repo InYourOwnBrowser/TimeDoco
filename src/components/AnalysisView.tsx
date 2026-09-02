@@ -13,7 +13,7 @@ import {
   CheckCircle2, Info, Plus, BarChart2, PieChart as PieIcon, ExternalLink
 } from 'lucide-react';
 import { useToast } from '../context/ToastContext';
-import { calculateDuration, calendarDayBounds, calendarDayKey, formatDurationShort, roundCurrency } from '../utils/timeUtils';
+import { calculateDuration, calendarDayBounds, calendarDayKey, formatDurationShort, roundCurrency, workedIntervals } from '../utils/timeUtils';
 import { buildReportLines, distributeAcrossBuckets, workedSecondsFor } from '../utils/billing';
 import {
   buildCalendarEvents, buildDetailedRawCSV, buildReportMeta, buildReportModel,
@@ -341,12 +341,22 @@ export const AnalysisView: React.FC = () => {
     let totalExpectedSec = 0;
     let totalActualSec = 0;
     let onTimeCount = 0;
+    let clippedCount = 0;
 
     const variances: { entry: Entry; variancePct: number; absVariancePct: number; diffSec: number }[] = [];
 
     withEstimates.forEach((e) => {
       const expectedSec = e.expectedDurationMinutes! * 60;
-      const actualSec = workedSecondsFor(billableLines, e.id);
+      // The whole entry, not the part of it inside the report's window.
+      //
+      // An estimate is made for a task, so the only actual it can be compared
+      // against is that task's. `workedSecondsFor` returns the billable line's
+      // clipped time, which is right for an invoice and wrong here: an entry
+      // that started before the range began contributed only its tail, so a
+      // task that ran exactly to estimate was reported as finishing far under
+      // it — and the further the range cut into it, the better it looked.
+      const actualSec = calculateDuration(parseISO(e.startTime), parseISO(e.endTime!), e.pausedSegments);
+      if (billableLines.get(e.id)?.isClipped) clippedCount++;
       totalExpectedSec += expectedSec;
       totalActualSec += actualSec;
       if (actualSec <= expectedSec) onTimeCount++;
@@ -466,6 +476,11 @@ export const AnalysisView: React.FC = () => {
       histogram,
       perTimecodeTable,
       worstOffenders: sortedWorst,
+      // Entries this range only partly covers. Their actuals are whole, which
+      // is the comparison the estimate deserves, but it makes these figures
+      // wider than the hours the report bills — worth saying rather than
+      // leaving as a total that quietly does not reconcile.
+      clippedCount,
     };
   }, [filteredEntries, billableLines, timecodeMap, worstOffenderSort]);
 
@@ -583,8 +598,77 @@ export const AnalysisView: React.FC = () => {
       dateStr: format(d, 'MMM d, yyyy'),
       hours: Number((daySeconds[i] / 3600).toFixed(1)),
       seconds: daySeconds[i],
+      // The window actually charted, which is a calendar day only when the
+      // report covers a whole one — and 23 or 25 hours long twice a year.
+      bounds: dayBounds[i],
     }));
   }, [dateRange, filteredEntries, billableLines]);
+
+  /**
+   * The single-day bar.
+   *
+   * Two things were wrong with drawing each entry's raw span here. It included
+   * paused time, so the blocks showed more work than any other surface did —
+   * and the moment the range grew to two days the same data was presented as
+   * billable time by the heatmap, with nothing to say the question had changed.
+   * And the axis assumed a 24-hour day, which puts every block in the wrong
+   * place on the two days a year that are not one.
+   *
+   * So: on-the-clock spans, positioned against the day's real length, with the
+   * billed figure named underneath.
+   */
+  const { blocks: singleDayBlocks, workedSeconds: singleDayWorkedSeconds } = useMemo(() => {
+    const day = timelineDays.length === 1 ? timelineDays[0] : null;
+    const span = day ? day.bounds.end - day.bounds.start : 0;
+    if (!day || span <= 0) return { blocks: [], workedSeconds: 0 };
+
+    const windowStart = day.bounds.start;
+    const blocks: { key: string; leftPercent: number; widthPercent: number; color: string; title: string }[] = [];
+    let workedMs = 0;
+
+    for (const entry of filteredEntries) {
+      const from = new Date(Math.max(parseISO(entry.startTime).getTime(), windowStart));
+      const to = new Date(Math.min(
+        (entry.endTime ? parseISO(entry.endTime) : new Date()).getTime(),
+        day.bounds.end,
+      ));
+      if (to <= from) continue;
+
+      const tc = timecodeMap.get(entry.timecodeId);
+      const color = tc?.color || (tc?.groupId ? groupMap.get(tc.groupId)?.color : undefined) || '#cbd5e1';
+
+      workedIntervals(from, to, entry.pausedSegments).forEach((interval, i) => {
+        workedMs += interval.end - interval.start;
+        blocks.push({
+          key: `${entry.id}-${i}`,
+          leftPercent: ((interval.start - windowStart) / span) * 100,
+          widthPercent: ((interval.end - interval.start) / span) * 100,
+          color,
+          title: `${tc?.name || 'Unknown'} (${format(interval.start, 'h:mm a')} – ${format(interval.end, 'h:mm a')})`,
+        });
+      });
+    }
+
+    return { blocks, workedSeconds: Math.round(workedMs / 1000) };
+  }, [timelineDays, filteredEntries, timecodeMap, groupMap]);
+
+  /** Hour gridlines at the day's own hour boundaries, however long it is. */
+  const singleDayTicks = useMemo(() => {
+    const day = timelineDays.length === 1 ? timelineDays[0] : null;
+    const span = day ? day.bounds.end - day.bounds.start : 0;
+    if (!day || span <= 0) return [];
+
+    const ticks: { at: number; leftPercent: number; label: string }[] = [];
+    for (let at = day.bounds.start; at <= day.bounds.end; at += 3_600_000) {
+      const hour = new Date(at).getHours();
+      ticks.push({
+        at,
+        leftPercent: ((at - day.bounds.start) / span) * 100,
+        label: hour % 4 !== 0 ? '' : hour === 0 ? '12A' : hour === 12 ? '12P' : hour > 12 ? `${hour - 12}P` : `${hour}A`,
+      });
+    }
+    return ticks;
+  }, [timelineDays]);
 
   const formatAmount = (amount: number) => formatAmountCell(amount, currencySymbol);
   // The headline figures, where a zero is a zero rather than a dash — and
@@ -1260,6 +1344,16 @@ export const AnalysisView: React.FC = () => {
                   </div>
                 </div>
 
+                {estimateDeepData.clippedCount > 0 && (
+                  <p className="text-xs text-gray-500 dark:text-gray-400 -mt-4">
+                    {estimateDeepData.clippedCount === 1
+                      ? '1 task started before this range or ran past it. It is compared'
+                      : `${estimateDeepData.clippedCount} tasks started before this range or ran past it. They are compared`}
+                    {' '}against its whole duration, not just the part inside the range, so these figures cover more
+                    time than the report bills.
+                  </p>
+                )}
+
                 {/* Distribution Histogram Chart */}
                 <div className="bg-stone/30 dark:bg-graphite/50 p-6 rounded-panel border border-graphite/20 dark:border-white/20">
                   <h3 className="text-sm font-semibold text-graphite dark:text-stone mb-2">
@@ -1465,49 +1559,38 @@ export const AnalysisView: React.FC = () => {
             {/* Resolution 1: Single Day 24h Bar */}
             {timelineDays.length === 1 && (
               <div className="bg-stone/30 dark:bg-graphite/50 p-6 rounded-panel border border-graphite/20 dark:border-white/20">
-                <h3 className="text-base font-semibold text-graphite dark:text-stone mb-4 text-center">
+                <h3 className="text-base font-semibold text-graphite dark:text-stone mb-1 text-center">
                   Daily Timeline — {timelineDays[0].dateStr}
                 </h3>
+                {/* The heatmap this bar is replaced by at two days and up plots
+                    billable time. Saying which one this is, and what it comes to
+                    against the billed figure, is what stops the same day reading
+                    as two different amounts of work depending on the range. */}
+                <p className="text-xs text-center text-gray-500 dark:text-gray-400 mb-4">
+                  Blocks are time on the clock, pauses removed — {formatDuration(singleDayWorkedSeconds)} worked,
+                  {' '}{formatDuration(timelineDays[0].seconds)} billed.
+                </p>
                 <div className="relative h-14 bg-stone dark:bg-graphite rounded-panel shadow-inner overflow-hidden border border-graphite/20 dark:border-white/20">
-                  {Array.from({ length: 25 }).map((_, i) => (
+                  {singleDayTicks.map(tick => (
                     <div
-                      key={i}
+                      key={tick.at}
                       className="absolute top-0 bottom-0 border-l border-graphite/20 dark:border-white/20"
-                      style={{ left: `${(i / 24) * 100}%` }}
+                      style={{ left: `${tick.leftPercent}%` }}
                     >
                       <span className="absolute top-full mt-1 -ml-3 text-[10px] font-mono tabular text-gray-500 dark:text-gray-400">
-                        {i % 4 === 0 ? (i === 0 || i === 24 ? '12A' : i === 12 ? '12P' : i > 12 ? `${i - 12}P` : `${i}A`) : ''}
+                        {tick.label}
                       </span>
                     </div>
                   ))}
 
-                  {filteredEntries.map(entry => {
-                    const entryStart = parseISO(entry.startTime);
-                    const entryEnd = entry.endTime ? parseISO(entry.endTime) : new Date();
-
-                    const dayStart = dateRange.start;
-                    const totalDaySeconds = 86400;
-
-                    const startSeconds = Math.max(0, (entryStart.getTime() - dayStart.getTime()) / 1000);
-                    const endSeconds = Math.min(totalDaySeconds, (entryEnd.getTime() - dayStart.getTime()) / 1000);
-
-                    if (startSeconds >= totalDaySeconds || endSeconds <= 0) return null;
-
-                    const leftPercent = (startSeconds / totalDaySeconds) * 100;
-                    const widthPercent = ((endSeconds - startSeconds) / totalDaySeconds) * 100;
-
-                    const tc = timecodeMap.get(entry.timecodeId);
-                    const color = tc?.color || (tc?.groupId ? groupMap.get(tc.groupId)?.color : undefined) || '#cbd5e1';
-
-                    return (
-                      <div
-                        key={entry.id}
-                        className="absolute top-0 bottom-0 opacity-80 hover:opacity-100 transition-opacity"
-                        style={{ left: `${leftPercent}%`, width: `${widthPercent}%`, backgroundColor: color }}
-                        title={`${tc?.name || 'Unknown'} (${format(entryStart, 'h:mm a')} - ${entry.endTime ? format(entryEnd, 'h:mm a') : 'Now'})`}
-                      ></div>
-                    );
-                  })}
+                  {singleDayBlocks.map(block => (
+                    <div
+                      key={block.key}
+                      className="absolute top-0 bottom-0 opacity-80 hover:opacity-100 transition-opacity"
+                      style={{ left: `${block.leftPercent}%`, width: `${block.widthPercent}%`, backgroundColor: block.color }}
+                      title={block.title}
+                    ></div>
+                  ))}
                 </div>
                 <div className="h-6"></div>
               </div>
