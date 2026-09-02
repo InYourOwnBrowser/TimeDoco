@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { checkOverlap, findFreeSlot, calculateDuration, applyRounding, calculateTaxBreakdown, calculateTotalPausedSeconds, formatDurationShort, getElapsedTimeMs, findOverlappingCandidates, calendarDayKey, calendarDayBounds, workedIntervals } from './timeUtils';
+import { checkOverlap, findFreeSlot, calculateDuration, applyRounding, calculateTaxBreakdown, calculateTotalPausedSeconds, formatDurationShort, getElapsedTimeMs, findOverlappingCandidates, calendarDayKey, calendarDayBounds, workedIntervals, roundCurrency, formatSignedAmount } from './timeUtils';
 import type { Entry, PauseSegment } from '../types';
 
 describe('timeUtils', () => {
@@ -218,6 +218,60 @@ describe('timeUtils', () => {
       expect(applyRounding(450, '15min')).toBe(900); // 15 mins
       expect(applyRounding(1349, '15min')).toBe(900);
       expect(applyRounding(1350, '15min')).toBe(1800); // 30 mins
+    });
+  });
+
+  describe('roundCurrency', () => {
+    // `Math.round` breaks ties toward +Infinity, so -2.675 rounded to -2.67
+    // while 2.675 rounded to 2.68, and a credit did not cancel the charge it
+    // reversed — the pair summed to a cent instead of to nothing.
+    it('rounds a half away from zero, so a credit mirrors its charge', () => {
+      expect(roundCurrency(2.675)).toBe(2.68);
+      expect(roundCurrency(-2.675)).toBe(-2.68);
+      expect(roundCurrency(1.005)).toBe(1.01);
+      expect(roundCurrency(-1.005)).toBe(-1.01);
+      expect(roundCurrency(0.005)).toBe(0.01);
+      expect(roundCurrency(-0.005)).toBe(-0.01);
+    });
+
+    it('cancels exactly when a credit reverses a charge', () => {
+      for (const amount of [2.675, 1.005, 0.125, 8.045, 1234.565, 0.005]) {
+        expect(roundCurrency(amount) + roundCurrency(-amount)).toBe(0);
+      }
+    });
+
+    // 593.925 * 100 is 59392.499999999993. `Number.EPSILON` is the gap at 1.0,
+    // far too small to correct that once the value is above about 2, so the old
+    // guard was absorbed and the half fell the wrong way at ordinary invoice
+    // magnitudes rather than only at exotic ones.
+    it('rounds a half up where the scaled value lands just under it', () => {
+      expect(roundCurrency(593.925)).toBe(593.93);
+      expect(roundCurrency(4315.855)).toBe(4315.86);
+      expect(roundCurrency(186.945)).toBe(186.95);
+    });
+
+    it('returns 0, never -0, for a negative that rounds to nothing', () => {
+      expect(roundCurrency(-0.001)).toBe(0);
+      // -0 is numerically equal to 0 but prints as "-0.00".
+      expect(Object.is(roundCurrency(-0.001), -0)).toBe(false);
+    });
+
+    it('returns 0 for a value that is not finite', () => {
+      expect(roundCurrency(Infinity)).toBe(0);
+      expect(roundCurrency(-Infinity)).toBe(0);
+      expect(roundCurrency(NaN)).toBe(0);
+    });
+  });
+
+  describe('formatSignedAmount', () => {
+    it('puts the sign in front of the symbol', () => {
+      expect(formatSignedAmount(-75, '$')).toBe('-$75.00');
+      expect(formatSignedAmount(75, '$')).toBe('$75.00');
+      expect(formatSignedAmount(0, '$')).toBe('$0.00');
+    });
+
+    it('prints no sign for an amount that rounds to nothing', () => {
+      expect(formatSignedAmount(-0.001, '$')).toBe('$0.00');
     });
   });
 

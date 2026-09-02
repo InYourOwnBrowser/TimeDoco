@@ -1,6 +1,32 @@
 import type { Entry, PauseSegment } from '../types';
 
 /**
+ * Round a magnitude to `places` decimals, half away from zero.
+ *
+ * Two separate things go wrong with `Math.round((v + Number.EPSILON) * f) / f`.
+ *
+ * Scaling is not exact: 1.005 * 100 is 100.49999999999999 and 593.925 * 100 is
+ * 59392.499999999993, so a bare `Math.round` takes a half *down* and prints a
+ * cent less than the decimal the user typed. Adding `Number.EPSILON` patched
+ * that only for small values — it is the gap at 1.0, so above roughly 2 it is
+ * absorbed by the addition and does nothing. Re-reading the scaled number at 15
+ * significant digits clears the representation error instead, at every
+ * magnitude: a double carries ~17, so the only thing dropped is the noise.
+ *
+ * And `Math.round` breaks ties toward +Infinity, which is not symmetric: 2.675
+ * rounded to 2.68 while -2.675 rounded to -2.67, so a credit did not cancel the
+ * charge it reversed — the pair summed to a cent instead of to nothing. Rounding
+ * the magnitude and re-applying the sign makes the two mirror each other.
+ */
+const roundHalfAwayFromZero = (value: number, places: number): number => {
+  const factor = 10 ** places;
+  const scaled = Number((Math.abs(value) * factor).toPrecision(15));
+  // `|| 0` so a negative that rounds to nothing returns 0 rather than -0, which
+  // prints as "-0.00" and compares unequal under Object.is.
+  return (Math.sign(value) * Math.round(scaled)) / factor || 0;
+};
+
+/**
  * Round a monetary amount to whole cents.
  * Amounts are accumulated as floats, so a bare `toFixed(2)` at each display
  * site lets printed line items drift out of step with printed totals. Rounding
@@ -8,13 +34,27 @@ import type { Entry, PauseSegment } from '../types';
  */
 export const roundCurrency = (amount: number): number => {
   if (!Number.isFinite(amount)) return 0;
-  return Math.round((amount + Number.EPSILON) * 100) / 100;
+  return roundHalfAwayFromZero(amount, 2);
+};
+
+/**
+ * A rounded amount with its sign in front of the currency symbol: `-$50.00`,
+ * never `$-50.00`. Interpolating a signed number after the symbol puts the minus
+ * inside, which reads as a typo rather than as a credit.
+ *
+ * Ungrouped, unlike `formatMoney` in `reportDocument`: these are short in-app
+ * notes, and the reports group because a client reads them as an invoice.
+ */
+export const formatSignedAmount = (amount: number, currencySymbol: string): string => {
+  const rounded = roundCurrency(amount);
+  const sign = rounded < 0 ? '-' : '';
+  return `${sign}${currencySymbol}${Math.abs(rounded).toFixed(2)}`;
 };
 
 /** Round an hours value to the two decimal places used everywhere it is printed. */
 export const roundHours = (hours: number): number => {
   if (!Number.isFinite(hours)) return 0;
-  return Math.round((hours + Number.EPSILON) * 100) / 100;
+  return roundHalfAwayFromZero(hours, 2);
 };
 
 /**

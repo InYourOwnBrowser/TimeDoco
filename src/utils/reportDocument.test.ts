@@ -257,8 +257,9 @@ describe('report document specifics', () => {
     it('groups thousands, so a four-figure invoice is not counted out digit by digit', () => {
       expect(formatMoney(4800, '$')).toBe('$4,800.00');
       expect(formatMoney(1234567.5, '$')).toBe('$1,234,567.50');
-      // The symbol stays where it was, ahead of the sign, as `toFixed` left it.
-      expect(formatMoney(-1234.5, '$')).toBe('$-1,234.50');
+      // The sign goes in front of the symbol: "$-1,234.50" scans as a typo on a
+      // document a client reads, where "-$1,234.50" reads as the credit it is.
+      expect(formatMoney(-1234.5, '$')).toBe('-$1,234.50');
       expect(formatMoney(920, '$')).toBe('$920.00');
     });
 

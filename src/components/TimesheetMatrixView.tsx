@@ -2,7 +2,7 @@ import React, { useState, useEffect, useMemo } from 'react';
 import { useTimeTracker } from '../context/TimeTrackerContext';
 import { format, startOfWeek, endOfWeek, addWeeks, subWeeks, eachDayOfInterval, parseISO } from 'date-fns';
 import { buildScreenLines, secondsFor, workedSecondsFor } from '../utils/billing';
-import { applyRounding, calendarDayKey, findFreeSlot, formatDurationShort, roundCurrency } from '../utils/timeUtils';
+import { applyRounding, calendarDayKey, findFreeSlot, formatDurationShort, formatSignedAmount } from '../utils/timeUtils';
 import { useNowTick } from '../hooks/useNowTick';
 import { useToast } from '../context/ToastContext';
 import { ChevronLeft, ChevronRight } from 'lucide-react';
@@ -134,7 +134,7 @@ export const TimesheetMatrixView: React.FC = () => {
     const fee = cellFeesMap.get(`${timecodeId}|${calendarDayKey(date)}`);
     if (!fee) return null;
     const label = fee.count === 1 ? 'a flat fee' : `${fee.count} flat fees`;
-    const amount = `${currencySymbol}${roundCurrency(fee.amount).toFixed(2)}`;
+    const amount = formatSignedAmount(fee.amount, currencySymbol);
     return fee.seconds > 0
       ? `${formatDurationShort(fee.seconds)} on the clock bills as ${label} of ${amount}, so it adds no hours to this cell.`
       : `${label.charAt(0).toUpperCase()}${label.slice(1)} of ${amount} on this day. A fee bills no hours.`;

@@ -2,7 +2,7 @@ import React, { useMemo, useState } from 'react';
 import { useTimeTracker } from '../context/TimeTrackerContext';
 import { format, startOfMonth, endOfMonth, eachDayOfInterval, startOfWeek, endOfWeek, addMonths, subMonths, isSameMonth, isToday, parseISO } from 'date-fns';
 import { buildScreenLines, displaySecondsFor, secondsFor } from '../utils/billing';
-import { calendarDayKey, formatDurationShort, roundCurrency } from '../utils/timeUtils';
+import { calendarDayKey, formatDurationShort, formatSignedAmount } from '../utils/timeUtils';
 import { useNowTick } from '../hooks/useNowTick';
 import { ChevronLeft, ChevronRight } from 'lucide-react';
 import { Button } from './ui/Button';
@@ -75,7 +75,7 @@ export const TimesheetCalendarView: React.FC = () => {
     const fee = feesByDay.get(calendarDayKey(date));
     if (!fee) return null;
     const label = fee.count === 1 ? 'a flat fee' : `${fee.count} flat fees`;
-    const amount = `${currencySymbol}${roundCurrency(fee.amount).toFixed(2)}`;
+    const amount = formatSignedAmount(fee.amount, currencySymbol);
     return fee.seconds > 0
       ? `${formatDurationShort(fee.seconds)} on the clock bills as ${label} of ${amount}, so it adds no hours here.`
       : `${label.charAt(0).toUpperCase()}${label.slice(1)} of ${amount} on this day. A fee bills no hours.`;

@@ -70,8 +70,13 @@ const GROUPED = new Intl.NumberFormat('en-US', {
   maximumFractionDigits: 2,
 });
 
-export const formatMoney = (amount: number, currencySymbol: string): string =>
-  `${currencySymbol}${GROUPED.format(amount)}`;
+export const formatMoney = (amount: number, currencySymbol: string): string => {
+  // The minus belongs in front of the symbol. Formatting the signed number puts
+  // it inside — "$-50.00" — which on a document a client reads scans as a typo,
+  // where "-$50.00" reads as the credit it is.
+  const sign = amount < 0 ? '-' : '';
+  return `${sign}${currencySymbol}${GROUPED.format(Math.abs(amount))}`;
+};
 
 /** As `formatMoney`, but nothing at all reads as a dash rather than a zero. */
 export const formatAmount = (amount: number, currencySymbol: string): string =>

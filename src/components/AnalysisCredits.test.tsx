@@ -60,7 +60,7 @@ describe('AnalysisView negative amounts', () => {
     fireEvent.click(screen.getByText('Overview'));
 
     // $200 of consulting less a $75 credit.
-    expect(screen.getAllByText('$-75.00').length).toBeGreaterThan(0);
+    expect(screen.getAllByText('-$75.00').length).toBeGreaterThan(0);
     expect(screen.getAllByText('$200.00').length).toBeGreaterThan(0);
     expect(screen.getAllByText('$125.00').length).toBeGreaterThan(0);
   });
