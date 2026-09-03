@@ -1,5 +1,6 @@
 import { openDB, type DBSchema, type IDBPDatabase } from 'idb';
 import type { Group, Timecode, Entry, Settings } from '../types';
+import { UserFacingError } from '../utils/errorMessage';
 
 interface TimeTrackerDB extends DBSchema {
   groups: {
@@ -32,6 +33,80 @@ let dbPromise: Promise<IDBPDatabase<TimeTrackerDB>> | null = null;
 let isFallbackMode = false;
 
 export const getIsFallbackMode = (): boolean => isFallbackMode;
+
+/**
+ * Two tabs, two builds, one database that can only be at one version.
+ *
+ * A version bump is the one deploy that cannot be absorbed silently: the tab
+ * running the new build needs the upgrade, and IndexedDB will not start it
+ * while any connection to the old version is open. Left unhandled that is not
+ * an error — `openDB` simply never settles — so every read and every write
+ * awaits a promise with no outcome. Nothing rejects, so `refreshData`'s catch
+ * never runs and fallback mode is never entered: the app renders a complete,
+ * empty tracker and stores nothing the user does in it, which is the single
+ * worst way for this to present. Neither state may fall back to the in-memory
+ * store, either — an empty store is exactly the "all my data is gone" the user
+ * would already be fearing.
+ *
+ * Which tab is told, and what it is told, differs:
+ *
+ *  - 'blocked-by-older-tab' is the new build, waiting on a connection it does
+ *    not own. It cannot close that connection itself; the user has to.
+ *  - 'superseded-by-newer-tab' is the old build, asked to get out of the way.
+ *    It closes its connection so the upgrade proceeds, which leaves this tab
+ *    running against a database it can no longer open at its own version.
+ *
+ * `blocking` is the half that only pays off next time: on the deploy that
+ * introduces it, the tab that has to yield is running the *previous* build,
+ * which has no such handler. It is here so the version after this one does not
+ * repeat the whole problem.
+ */
+export type ConnectionBlock = 'blocked-by-older-tab' | 'superseded-by-newer-tab';
+
+let connectionBlock: ConnectionBlock | null = null;
+
+export const getConnectionBlock = (): ConnectionBlock | null => connectionBlock;
+
+/** What each state tells the user, written to be shown verbatim. */
+const BLOCK_MESSAGES: Record<ConnectionBlock, string> = {
+  'blocked-by-older-tab':
+    'Another TimeDoco tab is open on an older version and is holding your database. ' +
+    'Close the other tab, then reload this one. Nothing has been lost.',
+  'superseded-by-newer-tab':
+    'TimeDoco was updated in another tab, which now owns your database. ' +
+    'Reload this tab to catch up. Nothing has been lost.',
+};
+
+const setConnectionBlock = (state: ConnectionBlock) => {
+  if (connectionBlock === state) return;
+  connectionBlock = state;
+  window.dispatchEvent(new CustomEvent('idb-connection-blocked', { detail: { state } }));
+};
+
+const clearConnectionBlock = () => {
+  if (connectionBlock === null) return;
+  connectionBlock = null;
+  // The blocking tab closed and the upgrade went through. Whatever is listening
+  // has a banner to take down and a stale, empty view to re-read.
+  window.dispatchEvent(new CustomEvent('idb-connection-unblocked'));
+};
+
+/**
+ * Refuse an operation while the two tabs are at different versions.
+ *
+ * Throws rather than falling back to memory: a version standoff says nothing
+ * about whether IndexedDB works, and answering from an empty in-memory store
+ * would show the user an app that has lost everything — while quietly taking
+ * writes into a store discarded when the tab closes. A `UserFacingError`
+ * reaches them intact through `describeUserFacingError`, and the last loaded
+ * state stays on screen, which is what `refreshData`'s catch and the mutation
+ * wrappers already do with a failure.
+ */
+const assertConnectionUsable = (): void => {
+  if (connectionBlock !== null) {
+    throw new UserFacingError(BLOCK_MESSAGES[connectionBlock]);
+  }
+};
 
 // In-memory fallback storage
 const fallbackMemoryDB = {
@@ -68,17 +143,25 @@ const clearFallbackMemory = () => {
  */
 export const closeDB = async () => {
   if (dbPromise) {
-    try {
-      const db = await dbPromise;
-      db.close();
-    } catch {
-      // The connection never opened; nothing to close.
-    }
+    const pending = dbPromise;
     dbPromise = null;
+    if (connectionBlock === 'blocked-by-older-tab') {
+      // This one never settles while the other tab holds the database, so
+      // awaiting it would hang whoever asked to close — a test's teardown
+      // among them. Close it if and when it does arrive instead.
+      void pending.then((db) => db.close()).catch(() => {});
+    } else {
+      try {
+        (await pending).close();
+      } catch {
+        // The connection never opened; nothing to close.
+      }
+    }
   }
   // Reset the degraded state with the connection. Leaving it set made fallback
   // mode permanent for the life of the page even after a successful reopen.
   isFallbackMode = false;
+  connectionBlock = null;
 };
 
 /**
@@ -128,6 +211,28 @@ export const initDB = () => {
           db.createObjectStore('settings', { keyPath: 'id' });
         }
       },
+      blocked() {
+        // Pending, not failed: IndexedDB re-fires `success` on its own once the
+        // other connection closes, so this promise is still the one that will
+        // resolve. Say so and let it wait.
+        setConnectionBlock('blocked-by-older-tab');
+      },
+      blocking() {
+        // A newer build is waiting on this connection. Close it so the upgrade
+        // can start — a tab that will not yield blocks the user's other tab
+        // indefinitely, and this one has already loaded its data.
+        setConnectionBlock('superseded-by-newer-tab');
+        void dbPromise
+          ?.then((db) => db.close())
+          // Already closed, or never opened. Either way there is nothing left
+          // holding the upgrade up, which is all this had to achieve.
+          .catch(() => {});
+      },
+    }).then((db) => {
+      // Reached only by an open that actually succeeded, which is the one
+      // unambiguous signal that nothing is holding the database any more.
+      clearConnectionBlock();
+      return db;
     });
   }
   return dbPromise;
@@ -157,6 +262,10 @@ async function withDB<T>(
   operation: (db: IDBPDatabase<TimeTrackerDB>) => Promise<T>,
   whenUnavailable: () => T,
 ): Promise<T> {
+  // Checked before fallback mode: see `assertConnectionUsable` for why this one
+  // rejects where every other unavailability answers from memory.
+  assertConnectionUsable();
+
   if (isFallbackMode) return whenUnavailable();
 
   let db: IDBPDatabase<TimeTrackerDB>;
@@ -343,6 +452,78 @@ export const selectActiveEntries = (entries: Entry[]): Entry[] => selectActive(e
 /** The single settings record's key. Only ever one row in this store. */
 const SETTINGS_KEY = 'user-settings';
 
+/**
+ * A settings record addressed at the one key this store uses.
+ *
+ * `settings` has an in-line key of `id`, so a record arriving from a file
+ * without one cannot be written at all: `put` throws `DataError`. In replace
+ * mode that throw lands *after* the four `clear()` calls, and because it escapes
+ * before `tx.done` is awaited nothing aborts the transaction — the clears
+ * commit. The user is shown a failed import and has lost their rounding rule,
+ * currency, tax setup, preparer details, logo, footer and templates.
+ *
+ * `validateBackupPayload` permits the shape that does this: it rejects an `id`
+ * that is present and wrong, and allows one that is absent or null. The
+ * in-memory fallback path has always normalised here; the IndexedDB path did
+ * not, which is the same one-path-fixed-not-its-sibling split `mergeSettings`
+ * exists to prevent. Normalising is also what makes the permissive validator
+ * correct rather than merely lenient — a backup is addressed to this store, and
+ * this store has exactly one row.
+ */
+const atSettingsKey = (settings: Settings): Settings => ({ ...settings, id: SETTINGS_KEY });
+
+/** A record's change stamp as an epoch time, or NaN when there isn't a readable one. */
+const stampOf = (record: { updatedAt?: string | null }): number =>
+  record.updatedAt ? new Date(record.updatedAt).getTime() : NaN;
+
+/** Whether a record carries a change stamp anything can be concluded from. */
+const hasReadableStamp = (record: { updatedAt?: string | null }): boolean =>
+  Number.isFinite(stampOf(record));
+
+/**
+ * Whether an incoming record should replace the one already stored.
+ *
+ * Merge mode resolves every conflict on `updatedAt`, and nothing validates that
+ * field — `validateBackupPayload` does not mention it — so both sides of this
+ * comparison can be missing or unparseable. Written as a bare
+ * `new Date(incoming.updatedAt) > new Date(existing.updatedAt)` that produced
+ * NaN, and NaN loses every comparison it is in, which broke the rule in two
+ * different directions at once:
+ *
+ *  - An incoming record with no readable stamp always lost, so it was dropped.
+ *    That is the defensible half — nothing can show it is newer — but it was
+ *    silent, and the import still reported success. `undatedSkipped` is what
+ *    makes it audible.
+ *  - A *stored* record with no readable stamp also always won, so no import
+ *    could ever replace it. Restoring a good backup over a corrupted record
+ *    quietly did nothing, which is the opposite of what a restore is for.
+ *
+ * `mergeSettings` already had this right and this is its rule, lifted out so
+ * groups, timecodes and entries cannot drift from settings again: incoming wins
+ * when it can be dated and either the stored copy cannot be, or it is older.
+ */
+const incomingIsNewer = (
+  incoming: { updatedAt?: string | null },
+  existing: { updatedAt?: string | null },
+): boolean => {
+  const incomingAt = stampOf(incoming);
+  const existingAt = stampOf(existing);
+  return Number.isFinite(incomingAt) && (!Number.isFinite(existingAt) || incomingAt > existingAt);
+};
+
+/**
+ * What an import did that the user would not otherwise find out about.
+ *
+ * `undatedSkipped` counts records left alone *only* because their own change
+ * stamp could not be read — not the ones a newer local copy legitimately beat,
+ * which is merge working as intended and not worth saying. The distinction
+ * matters: the first is unresolvable and the user has to decide what to do
+ * about it, the second is the answer they asked for.
+ */
+export interface ImportOutcome {
+  undatedSkipped: number;
+}
+
 export const getSettings = async (): Promise<Settings | undefined> =>
   withDB((db) => db.get('settings', SETTINGS_KEY), () => fallbackMemoryDB.settings.get(SETTINGS_KEY));
 
@@ -369,12 +550,8 @@ export const mergeSettings = (existing: Settings, incoming: Settings): Settings 
     });
   }
 
-  const incomingAt = incoming.updatedAt ? new Date(incoming.updatedAt).getTime() : NaN;
-  const existingAt = existing.updatedAt ? new Date(existing.updatedAt).getTime() : NaN;
-  const incomingIsNewer =
-    Number.isFinite(incomingAt) && (!Number.isFinite(existingAt) || incomingAt > existingAt);
-
-  return incomingIsNewer
+  // The shared rule, which used to be spelled out here and nowhere else.
+  return incomingIsNewer(incoming, existing)
     ? { ...existing, ...incoming, templates: mergedTemplates }
     : { ...existing, templates: mergedTemplates };
 };
@@ -394,6 +571,10 @@ export const putSettings = async (settings: Settings): Promise<string> => {
 };
 
 export const wipeAllData = async (): Promise<void> => {
+  // These two reach `getDB` directly rather than through `withDB`, so they need
+  // the version-standoff guard spelled out. Both are destructive; hanging
+  // part-way through one is the last thing either should do.
+  assertConnectionUsable();
   if (isFallbackMode) {
     clearFallbackMemory();
     return;
@@ -411,15 +592,23 @@ export const wipeAllData = async (): Promise<void> => {
 export const importBackup = async (
   data: { groups: Group[]; timecodes: Timecode[]; entries: Entry[]; settings?: Settings },
   mode: 'merge' | 'replace'
-): Promise<void> => {
+): Promise<ImportOutcome> => {
+  assertConnectionUsable();
+  // Only ever incremented in merge mode: replace writes every record
+  // unconditionally, so nothing is resolved and nothing can be skipped.
+  let undatedSkipped = 0;
   if (isFallbackMode) {
     if (mode === 'replace') {
       clearFallbackMemory();
     }
+    // The same three rules as the IndexedDB path below. They were written out
+    // twice and the pair has drifted before, which is why the comparison itself
+    // now lives in one function rather than in six expressions.
     data.groups.forEach(g => {
       if (mode === 'merge') {
         const existing = fallbackMemoryDB.groups.get(g.id);
-        if (!existing || new Date(g.updatedAt) > new Date(existing.updatedAt)) fallbackMemoryDB.groups.set(g.id, g);
+        if (!existing || incomingIsNewer(g, existing)) fallbackMemoryDB.groups.set(g.id, g);
+        else if (!hasReadableStamp(g)) undatedSkipped++;
       } else {
         fallbackMemoryDB.groups.set(g.id, g);
       }
@@ -427,7 +616,8 @@ export const importBackup = async (
     data.timecodes.forEach(tc => {
       if (mode === 'merge') {
         const existing = fallbackMemoryDB.timecodes.get(tc.id);
-        if (!existing || new Date(tc.updatedAt) > new Date(existing.updatedAt)) fallbackMemoryDB.timecodes.set(tc.id, tc);
+        if (!existing || incomingIsNewer(tc, existing)) fallbackMemoryDB.timecodes.set(tc.id, tc);
+        else if (!hasReadableStamp(tc)) undatedSkipped++;
       } else {
         fallbackMemoryDB.timecodes.set(tc.id, tc);
       }
@@ -435,23 +625,27 @@ export const importBackup = async (
     data.entries.forEach(e => {
       if (mode === 'merge') {
         const existing = fallbackMemoryDB.entries.get(e.id);
-        if (!existing || new Date(e.updatedAt) > new Date(existing.updatedAt)) fallbackMemoryDB.entries.set(e.id, e);
+        if (!existing || incomingIsNewer(e, existing)) fallbackMemoryDB.entries.set(e.id, e);
+        else if (!hasReadableStamp(e)) undatedSkipped++;
       } else {
         fallbackMemoryDB.entries.set(e.id, e);
       }
     });
     if (data.settings) {
       if (mode === 'replace') {
-        fallbackMemoryDB.settings.set(SETTINGS_KEY, { ...data.settings, id: SETTINGS_KEY });
+        fallbackMemoryDB.settings.set(SETTINGS_KEY, atSettingsKey(data.settings));
       } else if (mode === 'merge') {
         const existingSettings = fallbackMemoryDB.settings.get(SETTINGS_KEY);
+        // Normalised on this branch too. A Map takes the key it is given, so an
+        // unnormalised record was readable here — right up until it was exported
+        // and imported into a database, where the id is the key.
         fallbackMemoryDB.settings.set(
           SETTINGS_KEY,
-          existingSettings ? mergeSettings(existingSettings, data.settings) : data.settings,
+          atSettingsKey(existingSettings ? mergeSettings(existingSettings, data.settings) : data.settings),
         );
       }
     }
-    return;
+    return { undatedSkipped };
   }
 
   // An import that fails is an import that failed — it says nothing about
@@ -471,8 +665,12 @@ export const importBackup = async (
   for (const g of data.groups) {
     if (mode === 'merge') {
       const existing = await groupStore.get(g.id);
-      if (!existing || new Date(g.updatedAt) > new Date(existing.updatedAt)) {
+      // No stored copy means no conflict to resolve, so an undated record is
+      // still written — it is only ever a tie-break that needs a stamp.
+      if (!existing || incomingIsNewer(g, existing)) {
         await groupStore.put(g);
+      } else if (!hasReadableStamp(g)) {
+        undatedSkipped++;
       }
     } else {
       await groupStore.put(g);
@@ -483,8 +681,10 @@ export const importBackup = async (
   for (const tc of data.timecodes) {
     if (mode === 'merge') {
       const existing = await tcStore.get(tc.id);
-      if (!existing || new Date(tc.updatedAt) > new Date(existing.updatedAt)) {
+      if (!existing || incomingIsNewer(tc, existing)) {
         await tcStore.put(tc);
+      } else if (!hasReadableStamp(tc)) {
+        undatedSkipped++;
       }
     } else {
       await tcStore.put(tc);
@@ -495,8 +695,10 @@ export const importBackup = async (
   for (const e of data.entries) {
     if (mode === 'merge') {
       const existing = await entryStore.get(e.id);
-      if (!existing || new Date(e.updatedAt) > new Date(existing.updatedAt)) {
+      if (!existing || incomingIsNewer(e, existing)) {
         await entryStore.put(e);
+      } else if (!hasReadableStamp(e)) {
+        undatedSkipped++;
       }
     } else {
       await entryStore.put(e);
@@ -506,14 +708,19 @@ export const importBackup = async (
   if (data.settings) {
     const settingsStore = tx.objectStore('settings');
     if (mode === 'replace') {
-      await settingsStore.put(data.settings);
+      await settingsStore.put(atSettingsKey(data.settings));
     } else if (mode === 'merge') {
       const existingSettings = await settingsStore.get(SETTINGS_KEY);
       await settingsStore.put(
-        existingSettings ? mergeSettings(existingSettings, data.settings) : data.settings
+        atSettingsKey(
+          existingSettings ? mergeSettings(existingSettings, data.settings) : data.settings
+        )
       );
     }
   }
 
   await tx.done;
+  // Reported after the commit: a count of what an import skipped is only true
+  // if the transaction it was skipped from actually landed.
+  return { undatedSkipped };
 };

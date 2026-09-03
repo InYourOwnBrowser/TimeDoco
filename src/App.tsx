@@ -30,10 +30,11 @@ import { useInstallPrompt } from './hooks/useInstallPrompt';
 import { useNamedDownload } from './hooks/useNamedDownload';
 import { IOSInstallModal } from './components/IOSInstallModal';
 import { Logo } from './components/ui/Logo';
-import { Download, Save } from 'lucide-react';
+import { Download, Save, RefreshCw } from 'lucide-react';
 import { SocialLinks } from './components/SocialLinks';
 import { logError } from './utils/errorLog';
 import { resolveActiveTheme } from './utils/theme';
+import type { ConnectionBlock } from './db';
 
 const TABS = ['tracker', 'timesheet', 'analysis', 'management', 'resources'] as const;
 type Tab = (typeof TABS)[number];
@@ -82,6 +83,7 @@ const AppContent = () => {
   const [activeTab, setActiveTab] = useState<Tab>(resumeTab);
   const [showNewTimer, setShowNewTimer] = useState(false);
   const [isFallbackMode, setIsFallbackMode] = useState(false);
+  const [connectionBlock, setConnectionBlock] = useState<ConnectionBlock | null>(null);
   const { canInstall, promptInstall, installed, needsManualInstall } = useInstallPrompt();
   const [showIOSInstallModal, setShowIOSInstallModal] = useState(false);
   const [isOverrunPromptActive, setIsOverrunPromptActive] = useState(false);
@@ -112,6 +114,23 @@ const AppContent = () => {
     window.addEventListener('idb-fallback-mode', handleFallbackMode);
     return () => window.removeEventListener('idb-fallback-mode', handleFallbackMode);
   }, [addToast]);
+
+  // Two tabs on two builds, and the database can only be at one version. The
+  // banner is the whole point: without it the tab that needs the upgrade waits
+  // on a promise that never settles, and renders a complete, empty tracker with
+  // nothing on screen to say why. See `ConnectionBlock` in src/db.
+  useEffect(() => {
+    const onBlocked = (event: Event) => {
+      setConnectionBlock((event as CustomEvent<{ state: ConnectionBlock }>).detail.state);
+    };
+    const onUnblocked = () => setConnectionBlock(null);
+    window.addEventListener('idb-connection-blocked', onBlocked);
+    window.addEventListener('idb-connection-unblocked', onUnblocked);
+    return () => {
+      window.removeEventListener('idb-connection-blocked', onBlocked);
+      window.removeEventListener('idb-connection-unblocked', onUnblocked);
+    };
+  }, []);
 
   // Prevent accidental navigation/closure when in fallback mode
   useEffect(() => {
@@ -281,6 +300,24 @@ const AppContent = () => {
 
   return (
       <div className="min-h-screen bg-stone dark:bg-ink flex flex-col items-center pt-12 px-4 font-sans text-gray-900 dark:text-gray-100 pb-24 relative">
+        {connectionBlock && (
+          <div
+            role="alert"
+            className="w-full bg-amber-500 text-ink text-center py-2 px-4 font-medium text-sm shadow-sm sticky top-0 z-50 flex items-center justify-center gap-3"
+          >
+            <span>
+              {connectionBlock === 'blocked-by-older-tab'
+                ? '⚠️ Another TimeDoco tab is open on an older version and is holding your database. Close the other tab, then reload this one. Nothing has been lost.'
+                : '⚠️ TimeDoco was updated in another tab, which now owns your database. Reload this tab to catch up. Nothing has been lost.'}
+            </span>
+            <button
+              onClick={() => window.location.reload()}
+              className="px-2.5 py-1 text-xs font-semibold bg-white text-amber-800 hover:bg-gray-100 rounded-panel transition-colors flex items-center gap-1 shadow-sm shrink-0"
+            >
+              <RefreshCw size={14} /> Reload
+            </button>
+          </div>
+        )}
         {isFallbackMode && (
           <div className="w-full bg-red-600 text-white text-center py-2 px-4 font-medium text-sm shadow-sm sticky top-0 z-50 flex items-center justify-center gap-3">
             <span>⚠️ Storage Error: App is running in memory fallback mode. Your data will not be saved after you close this page.</span>

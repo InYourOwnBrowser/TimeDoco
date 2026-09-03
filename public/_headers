@@ -30,7 +30,26 @@
   Cache-Control: public, max-age=0, must-revalidate, no-transform
 
 # Content-hashed by the build, so a new build is a new URL: these can be held
-# indefinitely and never revalidated. Overrides the Cache-Control above; the
-# security headers still apply.
+# indefinitely and never revalidated.
+#
+# `! Cache-Control` first, which is not decoration. A request matching more than
+# one rule inherits the headers of *all* of them rather than the most specific
+# one winning, so naming `Cache-Control` here simply added a second value beside
+# the `/*` one — `max-age=0, must-revalidate, no-transform, ..., max-age=31536000,
+# immutable, ...`. Browsers take the first `max-age` they read, so every hashed
+# asset revalidated on every load and this rule achieved nothing it claimed to.
+# It failed safe, which is why nothing caught it: revalidating a file that never
+# changes is wasteful, not wrong. Removing the inherited header before setting
+# this one is Cloudflare's documented way to do exactly this — the `!` prefix
+# exists for "a header which has been added by a more pervasive rule".
+#
+# The security headers above are inherited and still apply; only Cache-Control
+# is replaced.
+#
+# This cannot be checked locally — `vite preview` never reads this file — so it
+# is verified with one request against the preview deploy:
+#   curl -sSI https://<preview>/assets/<any hashed file> | grep -i cache-control
+# One `max-age=31536000, immutable` and nothing else is the pass.
 /assets/*
+  ! Cache-Control
   Cache-Control: public, max-age=31536000, immutable, no-transform

@@ -563,8 +563,15 @@ export const TimeTrackerProvider: React.FC<{ children: ReactNode }> = ({ childre
     };
     document.addEventListener('visibilitychange', onVisibilityChange);
 
+    // The other tab closed and the upgrade went through, so the reads this tab
+    // refused while the two versions were at a standoff can be made now. Without
+    // this the banner clears and leaves an empty tracker behind it until
+    // something else happens to trigger a re-read.
+    window.addEventListener('idb-connection-unblocked', reload);
+
     return () => {
       document.removeEventListener('visibilitychange', onVisibilityChange);
+      window.removeEventListener('idb-connection-unblocked', reload);
       if (channel) {
         channel.onmessage = null;
         channel.close();
@@ -2134,7 +2141,7 @@ export const TimeTrackerProvider: React.FC<{ children: ReactNode }> = ({ childre
       validateBackupPayload(migratedData, knownTimecodeIds);
     }
 
-    await db.importBackup(
+    const { undatedSkipped } = await db.importBackup(
       {
         // The one place the import crosses from unknown data into typed
         // records. `validateBackupPayload` has just checked every one of these
@@ -2155,6 +2162,20 @@ export const TimeTrackerProvider: React.FC<{ children: ReactNode }> = ({ childre
         'info',
         undefined,
         8000
+      );
+    }
+
+    // Merge resolves conflicts on `updatedAt`, and a record without a readable
+    // one cannot be shown to be newer than the copy already here — so it is not
+    // applied. That is the right call, but it used to be a silent one on top of
+    // "Data imported successfully!", which is how a restore could appear to
+    // work and change nothing.
+    if (undatedSkipped > 0) {
+      addToast(
+        `Imported, but kept the copies already here for ${undatedSkipped} ${undatedSkipped === 1 ? 'record' : 'records'} the file gave no change date for. Import again in Replace mode to take the file's version instead.`,
+        'info',
+        undefined,
+        10000
       );
     }
   };

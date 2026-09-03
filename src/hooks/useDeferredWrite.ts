@@ -48,6 +48,31 @@ export const flushDeferredWrites = (): unknown[] =>
   // otherwise mutate the set mid-iteration.
   [...mountedFlushes].map((flush) => flush());
 
+/**
+ * How long a reload will wait on pending writes before going ahead anyway. A
+ * write that never settles must not strand the user on whatever screen the
+ * reload was there to clear.
+ */
+export const FLUSH_BUDGET_MS = 500;
+
+/**
+ * Flush every pending deferred write and wait for them, up to a budget.
+ *
+ * The one thing an app-initiated reload has to do before it reloads, and it
+ * lives here — beside the registry — rather than at each caller. There are two
+ * such reloads: the stale-chunk recovery, and accepting a service worker
+ * update. Only the first ever did this. The second reloads out from under a
+ * debounce window while its own banner says "Anything you are part-way through
+ * typing is saved first", which was not true of the note on a running timer or
+ * of any `SettingField`. One helper, so the next reload the app learns to start
+ * cannot quietly be the third.
+ */
+export const settleDeferredWrites = (budgetMs: number = FLUSH_BUDGET_MS): Promise<unknown> =>
+  Promise.race([
+    Promise.allSettled(flushDeferredWrites()),
+    new Promise((resolve) => window.setTimeout(resolve, budgetMs)),
+  ]);
+
 export const useDeferredWrite = (debounceMs: number) => {
   const pendingRef = useRef<(() => unknown) | null>(null);
   const timerRef = useRef<number | null>(null);
