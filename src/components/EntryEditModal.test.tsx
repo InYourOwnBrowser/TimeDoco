@@ -303,12 +303,18 @@ describe('EntryEditModal only reports a save that happened', () => {
 
     await waitFor(() => expect(mockUpdateEntry).toHaveBeenCalled());
 
+    // Awaited first, and deliberately: `updateEntry` is called before the one
+    // await in the save handler, so waiting on the call above proves only that
+    // the save started. The error appearing is what proves it finished — and
+    // the three assertions below are about what the failed save must not have
+    // done, which pass vacuously on a render where it had not yet run.
+    expect(await screen.findByText(/were not saved/i)).toBeTruthy();
+
     // A green "Changes saved" beside the storage error, and a close that threw
     // the edit away, is exactly what a failed write must not produce.
     expect(mockAddToast).not.toHaveBeenCalled();
     expect(onClose).not.toHaveBeenCalled();
     expect((screen.getByDisplayValue('Corrected note') as HTMLTextAreaElement).value).toBe('Corrected note');
-    expect(screen.getByText(/were not saved/i)).toBeTruthy();
   });
 
   it('reports and closes when the write lands', async () => {
