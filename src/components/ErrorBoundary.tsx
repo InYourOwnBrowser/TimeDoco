@@ -1,6 +1,7 @@
 import { Component, type ErrorInfo, type ReactNode } from 'react';
 import { AlertCircle, RefreshCw, Copy } from 'lucide-react';
 import { logError, formatErrorLogForClipboard } from '../utils/errorLog';
+import { isStaleChunkError, reloadOnceForStaleChunk } from '../utils/chunkRecovery';
 
 interface Props {
   children?: ReactNode;
@@ -9,22 +10,49 @@ interface Props {
 interface State {
   hasError: boolean;
   error?: Error;
-  copied?: boolean;
+  /** null while idle, then whether the clipboard write actually landed. */
+  copyResult?: 'copied' | 'failed' | null;
 }
 
 export class ErrorBoundary extends Component<Props, State> {
   public state: State = {
     hasError: false,
-    copied: false,
+    copyResult: null,
   };
+
+  /**
+   * The pending "Copied" reset. Held so it can be cancelled: the error screen
+   * unmounts as soon as anything recovers, and a timer left running would call
+   * `setState` on a component that is gone.
+   */
+  private copyResetTimer: number | null = null;
 
   public static getDerivedStateFromError(error: Error): State {
     return { hasError: true, error };
   }
 
+  private clearCopyResult(): void {
+    if (this.copyResetTimer !== null) {
+      window.clearTimeout(this.copyResetTimer);
+      this.copyResetTimer = null;
+    }
+  }
+
+  public componentWillUnmount(): void {
+    this.clearCopyResult();
+  }
+
   public componentDidCatch(error: Error, errorInfo: ErrorInfo) {
     console.error('Uncaught error:', error, errorInfo);
     logError(error, 'render');
+
+    // A code-split route whose chunk the origin no longer serves is not an
+    // application error, it is a build the tab has outlived. Reload into the
+    // current one rather than showing a failure the user cannot act on. The
+    // guard inside makes this at most one reload; if it declines, the error
+    // screen below stands, which is the right answer for a build that is
+    // actually broken.
+    reloadOnceForStaleChunk(error);
   }
 
   public render() {
@@ -37,7 +65,9 @@ export class ErrorBoundary extends Component<Props, State> {
             </div>
             <h1 className="text-xl font-bold text-gray-900 dark:text-white">Something went wrong</h1>
             <p className="text-gray-600 dark:text-gray-400 text-sm">
-              An unexpected error occurred. This is a local-only app, so your data is safe on your device.
+              {isStaleChunkError(this.state.error)
+                ? 'Part of the app could not be loaded, which usually means it was updated while this tab was open. Reloading should fix it. This is a local-only app, so your data is safe on your device.'
+                : 'An unexpected error occurred. This is a local-only app, so your data is safe on your device.'}
             </p>
             {this.state.error && (
               <div className="bg-gray-100 dark:bg-gray-900 rounded p-3 text-left overflow-auto max-h-32 text-xs text-red-800 dark:text-red-300 font-mono">
@@ -54,15 +84,41 @@ export class ErrorBoundary extends Component<Props, State> {
               </button>
               <button
                 onClick={() => {
+                  // Say "Copied!" only once it is. The write is rejected when
+                  // the document is not focused or permission is refused, and
+                  // reporting success regardless is worst here of anywhere:
+                  // the user pastes nothing into a bug report and has no idea
+                  // the copy failed.
                   const logText = formatErrorLogForClipboard();
-                  navigator.clipboard.writeText(logText);
-                  this.setState({ copied: true });
-                  setTimeout(() => this.setState({ copied: false }), 2000);
+                  const settle = (copyResult: 'copied' | 'failed') => {
+                    this.setState({ copyResult });
+                    this.clearCopyResult();
+                    this.copyResetTimer = window.setTimeout(
+                      () => this.setState({ copyResult: null }),
+                      2000,
+                    );
+                  };
+                  // `navigator.clipboard` is undefined outside a secure context,
+                  // so reaching straight for `.writeText` threw a TypeError —
+                  // from inside the error screen, which is the one place in the
+                  // app with nothing left to catch it.
+                  if (!navigator.clipboard?.writeText) {
+                    settle('failed');
+                    return;
+                  }
+                  navigator.clipboard.writeText(logText).then(
+                    () => settle('copied'),
+                    () => settle('failed'),
+                  );
                 }}
                 className="inline-flex items-center gap-2 px-5 py-2.5 border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg font-medium transition-colors flex-1 justify-center text-sm"
               >
                 <Copy size={16} />
-                {this.state.copied ? 'Copied!' : 'Copy error details'}
+                {this.state.copyResult === 'copied'
+                  ? 'Copied!'
+                  : this.state.copyResult === 'failed'
+                    ? 'Copy blocked — select the text above'
+                    : 'Copy error details'}
               </button>
             </div>
           </div>

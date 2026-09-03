@@ -35,25 +35,34 @@ export const TimecodeSelector: React.FC<TimecodeSelectorProps> = ({ onSelect, se
     setNewGroupName('');
   };
 
+  const unarchivedTimecodes = useMemo(() => {
+    return timecodes.filter(t => {
+      if (t.archived) return false;
+      if (t.groupId) {
+        const group = groups.find(g => g.id === t.groupId);
+        if (group?.archived) return false;
+      }
+      return true;
+    });
+  }, [timecodes, groups]);
+
   const filteredTimecodes = useMemo(() => {
-    const unarchived = timecodes.filter(t => !t.archived);
-    if (!search) return unarchived;
-    return unarchived.filter(t => t.name.toLowerCase().includes(search.toLowerCase()));
-  }, [timecodes, search]);
+    if (!search) return unarchivedTimecodes;
+    return unarchivedTimecodes.filter(t => t.name.toLowerCase().includes(search.toLowerCase()));
+  }, [unarchivedTimecodes, search]);
 
 
   const recentTimecodes = useMemo(() => {
     if (search) return [];
 
-    const unarchived = timecodes.filter(t => !t.archived);
     const sortedEntries = [...entries].sort((a, b) => new Date(b.startTime).getTime() - new Date(a.startTime).getTime());
     const recentIds = Array.from(new Set(sortedEntries.map(e => e.timecodeId)));
 
     return recentIds
-      .map(id => unarchived.find(t => t.id === id))
+      .map(id => unarchivedTimecodes.find(t => t.id === id))
       .filter((t): t is typeof timecodes[0] => t !== undefined)
       .slice(0, 3);
-  }, [entries, timecodes, search]);
+  }, [entries, unarchivedTimecodes, search]);
 
   const exactMatch = filteredTimecodes.find(t => t.name.toLowerCase() === search.toLowerCase());
 
@@ -267,7 +276,7 @@ export const TimecodeSelector: React.FC<TimecodeSelectorProps> = ({ onSelect, se
                       autoFocus
                       value={newGroupName}
                       onChange={(e) => setNewGroupName(e.target.value)}
-                      onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); handleCreateGroupInline(); } }}
+                      onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); void handleCreateGroupInline(); } }}
                       placeholder="New group name"
                       className="flex-1 text-sm p-1.5 border border-graphite/20 dark:border-white/20 rounded bg-white dark:bg-graphite text-graphite dark:text-stone focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-signal"
                     />

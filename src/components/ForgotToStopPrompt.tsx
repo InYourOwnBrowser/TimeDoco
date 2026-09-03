@@ -50,6 +50,9 @@ export const ForgotToStopPrompt: React.FC = () => {
 
       {isEditModalOpen && (
         <EntryEditModal
+          // Keyed on the entry so a different one always remounts with its own
+          // form state, rather than inheriting the previous entry's.
+          key={forgotToStopEntry.id}
           entry={forgotToStopEntry}
           onClose={() => setIsEditModalOpen(false)}
         />

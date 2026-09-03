@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useTimeTracker } from '../context/TimeTrackerContext';
 import { differenceInSeconds } from 'date-fns';
 import { X, AlertCircle } from 'lucide-react';
-import { checkOverlap } from '../utils/timeUtils';
+import { checkOverlap, formatDurationShort } from '../utils/timeUtils';
 import { Modal } from './ui/Modal';
 import { useToast } from '../context/ToastContext';
 import { TimecodeSelector } from './TimecodeSelector';
@@ -27,6 +27,28 @@ export const ManualEntryModal: React.FC<ManualEntryModalProps> = ({ onClose }) =
   const [warning, setWarning] = useState<string | null>(null);
 
   const isDirty = startTime !== '' || endTime !== '' || timecodeId !== '' || note !== '' || tagsStr !== '' || breakMinutes !== '' || manualAmount !== '' || isFixedCost;
+
+  // A Flat Fee is stored as a zero-length record at noon on the chosen date, so
+  // it ignores the times and break already typed into the form rather than
+  // saving them. Only a span that would actually be thrown away counts.
+  const typedSpanSeconds = startTime && endTime
+    ? Math.max(0, differenceInSeconds(new Date(endTime), new Date(startTime)))
+    : 0;
+  const typedBreakMinutes = Math.max(0, parseInt(breakMinutes, 10) || 0);
+  const flatFeeDiscardsInput = typedSpanSeconds > 0 || typedBreakMinutes > 0;
+
+  // Time this entry would bill by the hour if no amount were entered, and
+  // whether an amount is in fact about to take it out of every hours total.
+  // Only in Time Entry mode: a Flat Fee saves no times at all, and the note
+  // beside its date field already says so.
+  const trackedSecondsIfHourly = Math.max(0, typedSpanSeconds - typedBreakMinutes * 60);
+  const parsedManualAmount = parseFloat(manualAmount);
+  const feeWillDropTrackedTime =
+    !isFixedCost &&
+    trackedSecondsIfHourly > 0 &&
+    manualAmount !== '' &&
+    !isNaN(parsedManualAmount) &&
+    parsedManualAmount !== 0;
 
   useEffect(() => {
     if (!startTime || !endTime) {
@@ -66,14 +88,32 @@ export const ManualEntryModal: React.FC<ManualEntryModalProps> = ({ onClose }) =
         setError('Please select a date.');
         return;
       }
-      if (!manualAmount || parseFloat(manualAmount) <= 0) {
-        setError('Please enter a fixed amount.');
+      // A negative fixed amount is a credit. The timed-entry path below already
+      // accepts one and reports print it, so rejecting it here left the feature
+      // reachable from one path only. Empty, non-numeric and zero stay rejected.
+      if (!manualAmount || !Number.isFinite(parsedManualAmount) || parsedManualAmount === 0) {
+        setError('Please enter a non-zero fixed amount. A negative amount records a credit.');
         return;
+      }
+
+      if (flatFeeDiscardsInput) {
+        const losses: string[] = [];
+        if (typedSpanSeconds > 0) losses.push(`the times you entered (${formatDurationShort(typedSpanSeconds)})`);
+        if (typedBreakMinutes > 0) losses.push(`the ${typedBreakMinutes} minute break`);
+
+        const confirmed = window.confirm(
+          `A Flat Fee is saved as a zero-length record at 12:00 on ${fixedCostDate}, ` +
+          `so ${losses.join(' and ')} will not be saved.\n\nContinue?`
+        );
+        if (!confirmed) return;
       }
 
       const instant = new Date(`${fixedCostDate}T12:00:00`);
 
-      await addManualEntry({
+      // Report success only once the write has landed. On a storage failure the
+      // form stays open with everything the user typed still in it, rather than
+      // closing behind a green toast that contradicts the red one.
+      const savedFee = await addManualEntry({
         timecodeId,
         startTime: instant.toISOString(),
         endTime: instant.toISOString(),
@@ -82,6 +122,10 @@ export const ManualEntryModal: React.FC<ManualEntryModalProps> = ({ onClose }) =
         pausedSegments: [],
         manualAmount: parseFloat(manualAmount),
       });
+      if (!savedFee) {
+        setError('This entry was not saved. It is still here — try again.');
+        return;
+      }
 
       addToast('Entry added successfully', 'success');
       onClose();
@@ -118,15 +162,20 @@ export const ManualEntryModal: React.FC<ManualEntryModalProps> = ({ onClose }) =
 
     const tagsArray = tagsStr.split(',').map(t => t.trim()).filter(t => t !== '').slice(0, 20);
 
-    await addManualEntry({
+    const parsedAmount = parseFloat(manualAmount);
+    const saved = await addManualEntry({
       timecodeId,
       startTime: start.toISOString(),
       endTime: end.toISOString(),
       note,
       tags: tagsArray,
       pausedSegments,
-      manualAmount: manualAmount ? parseFloat(manualAmount) : null,
+      manualAmount: manualAmount && !isNaN(parsedAmount) && parsedAmount !== 0 ? parsedAmount : null,
     });
+    if (!saved) {
+      setError('This entry was not saved. It is still here — try again.');
+      return;
+    }
 
     addToast('Entry added successfully', 'success');
     onClose();
@@ -178,6 +227,11 @@ export const ManualEntryModal: React.FC<ManualEntryModalProps> = ({ onClose }) =
                 onChange={(e) => { setFixedCostDate(e.target.value); setError(null); }}
                 className="w-full px-3 py-2 border border-graphite/20 dark:border-white/20 rounded-md shadow-sm focus:outline-none focus-visible:ring-2 focus-visible:ring-signal sm:text-sm bg-white dark:bg-graphite text-graphite dark:text-stone"
               />
+              {flatFeeDiscardsInput && (
+                <p className="text-xs text-rust dark:text-orange-300 mt-1">
+                  A flat fee is a zero-length record at 12:00, so the times and break you entered will not be saved.
+                </p>
+              )}
             </div>
           ) : (
             <div className="grid grid-cols-2 gap-4">
@@ -221,7 +275,7 @@ export const ManualEntryModal: React.FC<ManualEntryModalProps> = ({ onClose }) =
           {timecodeId && (
             <div>
               <label className="block text-sm font-medium text-graphite dark:text-stone mb-1">
-                Fixed Amount ({settings?.currencySymbol || '$'}){isFixedCost ? ' *' : ' — optional'}
+                Flat fee instead of hourly ({settings?.currencySymbol || '$'}){isFixedCost ? ' *' : ' — optional'}
               </label>
               <input
                 type="number"
@@ -234,8 +288,21 @@ export const ManualEntryModal: React.FC<ManualEntryModalProps> = ({ onClose }) =
                 className="w-full px-3 py-2 border border-graphite/20 dark:border-white/20 rounded-md shadow-sm focus:outline-none focus-visible:ring-2 focus-visible:ring-signal sm:text-sm bg-white dark:bg-graphite text-graphite dark:text-stone"
               />
               <p className="text-xs text-gray-600 dark:text-gray-400 mt-1">
-                For non-time costs (e.g. materials, a flat fee). Overrides hourly-rate calculation on reports.
+                For non-time costs (e.g. materials, a flat fee). The entry bills this
+                amount instead of rate x hours, so its tracked time is not billed and
+                does not count toward any hours total.
               </p>
+              {/* The label calls the field optional, and on a Time Entry it is —
+                  but filling it in is not a small addition: it takes the entry's
+                  hours out of the report, the entry list, the timesheet grid, the
+                  calendar and the weekly target. Naming the exact duration that
+                  stops counting is the only warning that is checkable. */}
+              {feeWillDropTrackedTime && (
+                <p className="text-xs text-rust dark:text-orange-300 mt-1">
+                  This entry's {formatDurationShort(trackedSecondsIfHourly)} on the clock will not
+                  be billed and will not count toward any hours total.
+                </p>
+              )}
             </div>
           )}
 

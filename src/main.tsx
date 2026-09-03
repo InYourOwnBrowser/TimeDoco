@@ -3,15 +3,15 @@ import { createRoot } from 'react-dom/client'
 import './index.css'
 import App from './App.tsx'
 import { ErrorBoundary } from './components/ErrorBoundary.tsx'
-
-if ('serviceWorker' in navigator) {
-  navigator.serviceWorker.register('/sw.js', { scope: '/app/' });
-}
+import { PwaUpdatePrompt } from './components/PwaUpdatePrompt.tsx'
 
 createRoot(document.getElementById('root')!).render(
   <StrictMode>
     <ErrorBoundary>
       <App />
+      {/* Registers the service worker, and asks before swapping the build out
+          from under whatever the user is in the middle of. */}
+      <PwaUpdatePrompt />
     </ErrorBoundary>
   </StrictMode>,
 )

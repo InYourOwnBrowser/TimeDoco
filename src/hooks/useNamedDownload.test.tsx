@@ -2,8 +2,9 @@ import React from 'react';
 import { render, fireEvent, screen, waitFor } from '@testing-library/react';
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { useNamedDownload } from './useNamedDownload';
+import { ToastProvider } from '../context/ToastContext';
 
-const TestComponent: React.FC<{
+const InnerComponent: React.FC<{
   source: Blob | (() => Blob | Promise<Blob>);
   defaultName: string;
   extension: string;
@@ -21,6 +22,19 @@ const TestComponent: React.FC<{
   );
 };
 
+const TestComponent: React.FC<{
+  source: Blob | (() => Blob | Promise<Blob>);
+  defaultName: string;
+  extension: string;
+  onSuccess?: () => void;
+}> = (props) => {
+  return (
+    <ToastProvider>
+      <InnerComponent {...props} />
+    </ToastProvider>
+  );
+};
+
 describe('useNamedDownload', () => {
   let createObjectURLSpy: any;
   let revokeObjectURLSpy: any;
@@ -35,6 +49,9 @@ describe('useNamedDownload', () => {
   });
 
   it('triggers download with chosen filename on confirmation', async () => {
+    // Installed before the download runs so the deferred revoke lands on a
+    // timer this test controls; shouldAdvanceTime keeps waitFor working.
+    vi.useFakeTimers({ shouldAdvanceTime: true });
     const clickSpy = vi.spyOn(HTMLAnchorElement.prototype, 'click').mockImplementation(() => {});
     const onSuccess = vi.fn();
     const testBlob = new Blob(['hello world'], { type: 'text/plain' });
@@ -59,11 +76,46 @@ describe('useNamedDownload', () => {
     await waitFor(() => {
       expect(createObjectURLSpy).toHaveBeenCalledWith(testBlob);
       expect(clickSpy).toHaveBeenCalled();
-      expect(revokeObjectURLSpy).toHaveBeenCalledWith('blob:mock-url');
       expect(onSuccess).toHaveBeenCalled();
     });
 
+    // The object URL is revoked on a timer, not synchronously, so a large
+    // download is not cancelled mid-transfer in Firefox.
+    expect(revokeObjectURLSpy).not.toHaveBeenCalled();
+    vi.advanceTimersByTime(10000);
+    expect(revokeObjectURLSpy).toHaveBeenCalledWith('blob:mock-url');
+    vi.useRealTimers();
+
     clickSpy.mockRestore();
+  });
+
+  it('does not run onSuccess when the download fails after the blob is built', async () => {
+    // The blob exists, but saving it does not: a caller's onSuccess is what
+    // records that a backup reached the user, so it must not fire here.
+    createObjectURLSpy.mockImplementation(() => { throw new Error('no object URL'); });
+    const consoleSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
+    const onSuccess = vi.fn();
+    const source = vi.fn().mockResolvedValue(new Blob(['{}'], { type: 'application/json' }));
+
+    render(
+      <TestComponent
+        source={source}
+        defaultName="timedoco-backup"
+        extension="json"
+        onSuccess={onSuccess}
+      />
+    );
+
+    fireEvent.click(screen.getByText('Trigger'));
+    fireEvent.click(screen.getByText('Save'));
+
+    await waitFor(() => {
+      expect(source).toHaveBeenCalled();
+      expect(screen.queryByText('Save File As')).toBeNull();
+    });
+    expect(onSuccess).not.toHaveBeenCalled();
+
+    consoleSpy.mockRestore();
   });
 
   it('supports async getter function sources', async () => {

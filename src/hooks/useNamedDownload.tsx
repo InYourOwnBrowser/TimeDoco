@@ -1,5 +1,6 @@
-import React, { useState, useCallback } from 'react';
+import React, { useState, useCallback, useRef } from 'react';
 import { SaveAsModal, sanitizeFilename } from '../components/ui/SaveAsModal';
+import { useToast } from '../context/ToastContext';
 
 export type DownloadSource = Blob | (() => Blob | Promise<Blob>);
 
@@ -19,6 +20,7 @@ export function useNamedDownload(): UseNamedDownloadReturn {
   const [defaultFilename, setDefaultFilename] = useState('');
   const [extension, setExtension] = useState('');
   const [onSuccessCallback, setOnSuccessCallback] = useState<(() => void) | null>(null);
+  const { addToast } = useToast();
 
   const triggerDownload = useCallback((
     src: DownloadSource,
@@ -36,6 +38,7 @@ export function useNamedDownload(): UseNamedDownloadReturn {
   const handleConfirm = useCallback(async (chosenName: string) => {
     if (!source) return;
 
+    let succeeded = false;
     try {
       const blob = typeof source === 'function' ? await source() : source;
       const cleanName = sanitizeFilename(chosenName) || defaultFilename;
@@ -49,35 +52,56 @@ export function useNamedDownload(): UseNamedDownloadReturn {
       document.body.appendChild(a);
       a.click();
       document.body.removeChild(a);
-      URL.revokeObjectURL(url);
+      // Revoking synchronously can cancel a large download in Firefox before
+      // the browser has finished reading the blob.
+      setTimeout(() => URL.revokeObjectURL(url), 10000);
 
-      if (onSuccessCallback) {
-        onSuccessCallback();
-      }
+      succeeded = true;
     } catch (err) {
       console.error('Download failed:', err);
+      addToast('Download failed. Please try again.', 'error');
     } finally {
       setIsOpen(false);
       setSource(null);
     }
-  }, [source, defaultFilename, extension, onSuccessCallback]);
+
+    // Outside the try: callers use this to record that the download happened,
+    // and a callback that throws must not be reported back to the user as a
+    // failed download.
+    if (succeeded && onSuccessCallback) {
+      try {
+        onSuccessCallback();
+      } catch (err) {
+        console.error('Download onSuccess failed:', err);
+      }
+    }
+  }, [source, defaultFilename, extension, onSuccessCallback, addToast]);
 
   const handleCancel = useCallback(() => {
     setIsOpen(false);
     setSource(null);
   }, []);
 
+  // The dialog's live props are read through a ref so that SaveAsDialog keeps a
+  // stable function identity. A component whose identity changes is a different
+  // component type to React, which unmounts and remounts SaveAsModal and throws
+  // away whatever filename the user had typed. The owning component re-renders
+  // whenever this hook's state changes, so the ref is always read fresh.
+  const dialogPropsRef = useRef({ isOpen, defaultFilename, extension, handleConfirm, handleCancel });
+  dialogPropsRef.current = { isOpen, defaultFilename, extension, handleConfirm, handleCancel };
+
   const SaveAsDialog: React.FC = useCallback(() => {
+    const props = dialogPropsRef.current;
     return (
       <SaveAsModal
-        isOpen={isOpen}
-        defaultFilename={defaultFilename}
-        extension={extension}
-        onConfirm={handleConfirm}
-        onCancel={handleCancel}
+        isOpen={props.isOpen}
+        defaultFilename={props.defaultFilename}
+        extension={props.extension}
+        onConfirm={props.handleConfirm}
+        onCancel={props.handleCancel}
       />
     );
-  }, [isOpen, defaultFilename, extension, handleConfirm, handleCancel]);
+  }, []);
 
   return {
     triggerDownload,

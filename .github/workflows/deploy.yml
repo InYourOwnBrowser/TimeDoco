@@ -1,5 +1,10 @@
 name: Deploy
 
+# A push runs `verify` only. Deployment is deliberately manual — the `deploy`
+# job is gated on `workflow_dispatch` *and* on the ref it was dispatched from —
+# so landing on main or staging checks the code without shipping it. Removing
+# the push trigger would leave both branches unverified, which is worse than the
+# asymmetry.
 on:
   push:
     branches: [main, staging]
@@ -14,6 +19,19 @@ on:
           - preview
           - production
 
+# Read-only by default, so a compromised dependency in a build step cannot push
+# commits or move tags. The one job that needs more asks for it.
+permissions:
+  contents: read
+
+# Supersede an in-flight verification when a newer commit lands on the same
+# branch. The event name is part of the group so a push can never cancel a
+# manual deploy that is part-way through publishing, and one deploy never
+# cancels another.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event_name }}-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name != 'workflow_dispatch' }}
+
 jobs:
   verify:
     runs-on: ubuntu-latest
@@ -25,28 +43,71 @@ jobs:
           cache: 'npm'
       - run: npm ci
       - name: License compliance check
-        run: npx license-checker --production --failOn "GPL;AGPL;LGPL;SSPL;CC-BY-NC"
+        # Pinned: an unpinned `npx` fetches whatever is latest at run time, so a
+        # gate on what may ship into the bundle could change without a commit.
+        run: npx --yes license-checker@25.0.1 --production --failOn "GPL;AGPL;LGPL;SSPL;CC-BY-NC"
       - name: Dependency vulnerability check
         run: npm audit --omit=dev --audit-level=high
+      - name: Typecheck
+        run: npm run typecheck
       - name: Lint
         run: npm run lint
       - name: Test
         run: npm test
       - name: Build
         run: npm run build
+      - name: Install Playwright browser
+        run: npx playwright install --with-deps chromium
+      - name: End-to-end tests
+        # Drives the `dist/` the step above produced. These are the checks that
+        # only exist in sequence — a deploy landing on an open tab, above all —
+        # and no unit test can stand in for them.
+        run: npx playwright test
+      - name: Upload the verified bundle
+        # The exact bundle every check above ran against. `deploy` publishes
+        # this rather than building again: two builds from one commit are two
+        # artifacts, and only one of them was ever tested.
+        uses: actions/upload-artifact@v4
+        with:
+          name: verified-dist
+          path: dist
+          retention-days: 1
+          if-no-files-found: error
 
   deploy:
     needs: verify
-    if: github.event_name == 'workflow_dispatch'
+    # `workflow_dispatch` can be fired from *any* ref, so the event name alone
+    # is not a gate: without the ref test below, anyone with write access could
+    # push a branch and ship it straight to production, and `verify` would go
+    # green against that same branch and vouch for it. Production ships from
+    # `main` only; a preview from `main` or `staging` — the two branches the
+    # push trigger already verifies.
+    if: >-
+      github.event_name == 'workflow_dispatch' &&
+      (
+        (inputs.target == 'production' && github.ref == 'refs/heads/main') ||
+        (inputs.target == 'preview' &&
+          (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/staging'))
+      )
+    # Names the environment the publish belongs to so branch policy and required
+    # reviewers can be attached to it. NOTE: this is inert until those rules are
+    # configured in the repository's Settings -> Environments; the `if:` above is
+    # what actually enforces the branch today.
+    environment: ${{ inputs.target == 'production' && 'production' || 'preview' }}
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      # wrangler-action records a GitHub deployment for the published site.
+      deployments: write
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - name: Download the verified bundle
+        # No checkout, no reinstall, no rebuild: publishing anything other than
+        # the artifact `verify` tested would make the checks vouch for a bundle
+        # that is not the one going out.
+        uses: actions/download-artifact@v4
         with:
-          node-version: 20
-          cache: 'npm'
-      - run: npm ci
-      - run: npm run build
+          name: verified-dist
+          path: dist
       - name: Deploy to Cloudflare Pages
         uses: cloudflare/wrangler-action@v3
         with:

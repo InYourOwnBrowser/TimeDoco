@@ -1,39 +1,452 @@
 import type { Entry, PauseSegment } from '../types';
 
+/**
+ * Round a magnitude to `places` decimals, half away from zero.
+ *
+ * Two separate things go wrong with `Math.round((v + Number.EPSILON) * f) / f`.
+ *
+ * Scaling is not exact: 1.005 * 100 is 100.49999999999999 and 593.925 * 100 is
+ * 59392.499999999993, so a bare `Math.round` takes a half *down* and prints a
+ * cent less than the decimal the user typed. Adding `Number.EPSILON` patched
+ * that only for small values — it is the gap at 1.0, so above roughly 2 it is
+ * absorbed by the addition and does nothing. Re-reading the scaled number at 15
+ * significant digits clears the representation error instead, at every
+ * magnitude: a double carries ~17, so the only thing dropped is the noise.
+ *
+ * And `Math.round` breaks ties toward +Infinity, which is not symmetric: 2.675
+ * rounded to 2.68 while -2.675 rounded to -2.67, so a credit did not cancel the
+ * charge it reversed — the pair summed to a cent instead of to nothing. Rounding
+ * the magnitude and re-applying the sign makes the two mirror each other.
+ */
+const roundHalfAwayFromZero = (value: number, places: number): number => {
+  const factor = 10 ** places;
+  const scaled = Number((Math.abs(value) * factor).toPrecision(15));
+  // `|| 0` so a negative that rounds to nothing returns 0 rather than -0, which
+  // prints as "-0.00" and compares unequal under Object.is.
+  return (Math.sign(value) * Math.round(scaled)) / factor || 0;
+};
+
+/**
+ * Round a monetary amount to whole cents.
+ * Amounts are accumulated as floats, so a bare `toFixed(2)` at each display
+ * site lets printed line items drift out of step with printed totals. Rounding
+ * to cents at the point a value is computed keeps sums exact.
+ */
+export const roundCurrency = (amount: number): number => {
+  if (!Number.isFinite(amount)) return 0;
+  return roundHalfAwayFromZero(amount, 2);
+};
+
+/**
+ * A rounded amount with its sign in front of the currency symbol: `-$50.00`,
+ * never `$-50.00`. Interpolating a signed number after the symbol puts the minus
+ * inside, which reads as a typo rather than as a credit.
+ *
+ * Ungrouped, unlike `formatMoney` in `reportDocument`: these are short in-app
+ * notes, and the reports group because a client reads them as an invoice.
+ */
+export const formatSignedAmount = (amount: number, currencySymbol: string): string => {
+  const rounded = roundCurrency(amount);
+  const sign = rounded < 0 ? '-' : '';
+  return `${sign}${currencySymbol}${Math.abs(rounded).toFixed(2)}`;
+};
+
+/** Round an hours value to the two decimal places used everywhere it is printed. */
+export const roundHours = (hours: number): number => {
+  if (!Number.isFinite(hours)) return 0;
+  return roundHalfAwayFromZero(hours, 2);
+};
+
+/**
+ * Clamp pause segments to [start, end], discard empty or unparseable ones, and
+ * merge any that overlap or touch.
+ *
+ * Merging matters: the same pause can be recorded twice via the split/edit
+ * modals or an imported backup, and summing raw segments would then subtract
+ * the overlap more than once — enough to drive an entry's duration to zero.
+ * Every duration calculation goes through here so they cannot diverge.
+ */
+const mergePausedSegments = (
+  start: Date,
+  end: Date,
+  pausedSegments: PauseSegment[] | undefined | null,
+): Array<{ start: number; end: number }> => {
+  const boundStart = start.getTime();
+  const boundEnd = end.getTime();
+  if (!Number.isFinite(boundStart) || !Number.isFinite(boundEnd) || boundEnd <= boundStart) return [];
+  if (!Array.isArray(pausedSegments) || pausedSegments.length === 0) return [];
+
+  const clamped: Array<{ start: number; end: number }> = [];
+  for (const segment of pausedSegments) {
+    if (!segment || typeof segment !== 'object') continue;
+
+    const rawStart = new Date(segment.pauseStart).getTime();
+    // An open pause segment runs to the end of the window being measured.
+    const rawEnd = segment.pauseEnd ? new Date(segment.pauseEnd).getTime() : boundEnd;
+    if (!Number.isFinite(rawStart) || !Number.isFinite(rawEnd)) continue;
+
+    const pStart = Math.max(rawStart, boundStart);
+    const pEnd = Math.min(rawEnd, boundEnd);
+    if (pEnd > pStart) clamped.push({ start: pStart, end: pEnd });
+  }
+
+  if (clamped.length === 0) return [];
+  clamped.sort((a, b) => a.start - b.start);
+
+  const merged: Array<{ start: number; end: number }> = [clamped[0]];
+  for (let i = 1; i < clamped.length; i++) {
+    const last = merged[merged.length - 1];
+    const current = clamped[i];
+    if (current.start <= last.end) {
+      if (current.end > last.end) last.end = current.end;
+    } else {
+      merged.push(current);
+    }
+  }
+  return merged;
+};
+
+const sumPausedMs = (start: Date, end: Date, pausedSegments: PauseSegment[] | undefined | null): number =>
+  mergePausedSegments(start, end, pausedSegments).reduce((total, s) => total + (s.end - s.start), 0);
+
 export const calculateTotalPausedSeconds = (start: Date, end: Date, pausedSegments: PauseSegment[]): number => {
-  let totalPauseMs = 0;
-  pausedSegments.forEach(segment => {
-    const segmentStart = new Date(segment.pauseStart);
-    const segmentEnd = segment.pauseEnd ? new Date(segment.pauseEnd) : end;
-    const pStartMs = Math.max(segmentStart.getTime(), start.getTime());
-    const pEndMs = Math.min(segmentEnd.getTime(), end.getTime());
-    if (pEndMs > pStartMs) totalPauseMs += (pEndMs - pStartMs);
-  });
-  return Math.round(totalPauseMs / 1000);
+  return Math.round(sumPausedMs(start, end, pausedSegments) / 1000);
+};
+
+/**
+ * The spans an entry was on the clock inside a window: its own span clipped to
+ * the window, with the paused stretches taken out.
+ *
+ * The complement of the merged pauses, in other words — the same subtraction
+ * `calculateTotalPausedSeconds` does, kept as intervals so a chart can draw
+ * when the work happened rather than only how much of it there was.
+ */
+export const workedIntervals = (
+  start: Date,
+  end: Date,
+  pausedSegments: PauseSegment[] | undefined | null,
+): Array<{ start: number; end: number }> => {
+  const from = start.getTime();
+  const to = end.getTime();
+  if (!Number.isFinite(from) || !Number.isFinite(to) || to <= from) return [];
+
+  const worked: Array<{ start: number; end: number }> = [];
+  let cursor = from;
+  for (const pause of mergePausedSegments(start, end, pausedSegments)) {
+    if (pause.start > cursor) worked.push({ start: cursor, end: pause.start });
+    cursor = Math.max(cursor, pause.end);
+  }
+  if (cursor < to) worked.push({ start: cursor, end: to });
+  return worked;
 };
 
 export const formatDurationShort = (totalSeconds: number): string => {
-  if (totalSeconds <= 0) return '—';
-  const hrs = Math.floor(totalSeconds / 3600);
-  const mins = Math.round((totalSeconds % 3600) / 60);
-  if (hrs > 0) return mins > 0 ? `${hrs}h ${mins}m` : `${hrs}h`;
-  return `${mins}m`;
+  if (!Number.isFinite(totalSeconds)) return '—';
+  if (totalSeconds === 0) return '—';
+
+  const isNegative = totalSeconds < 0;
+  const absSeconds = Math.abs(totalSeconds);
+
+  // Round to whole minutes first, then decompose. Rounding the minute part on
+  // its own produces impossible readings such as "1h 60m" at 7199 seconds.
+  const totalMinutes = Math.round(absSeconds / 60);
+
+  if (totalMinutes === 0) return '—';
+
+  const hrs = Math.floor(totalMinutes / 60);
+  const mins = totalMinutes % 60;
+
+  let formatted = `${mins}m`;
+  if (hrs > 0) {
+    formatted = mins > 0 ? `${hrs}h ${mins}m` : `${hrs}h`;
+  }
+
+  return isNegative ? `-${formatted}` : formatted;
+};
+
+interface Interval {
+  start: number;
+  end: number;
+  timecodeId: string;
+}
+
+/**
+ * An entry as a comparable time interval, or null when it cannot block
+ * anything. Every overlap check goes through this so the single-candidate and
+ * batch paths cannot drift apart on what counts as an overlap.
+ */
+const toInterval = (e: Entry, now: number): Interval | null => {
+  // Trashed entries must never block the creation of a live one.
+  if (e.deletedAt) return null;
+  const start = new Date(e.startTime).getTime();
+  // A running timer effectively ends now.
+  const end = e.endTime ? new Date(e.endTime).getTime() : now;
+  if (!Number.isFinite(start) || !Number.isFinite(end)) return null;
+  return { start, end, timecodeId: e.timecodeId };
+};
+
+const overlaps = (a: { start: number; end: number }, b: { start: number; end: number }): boolean =>
+  a.start < b.end && a.end > b.start;
+
+/**
+ * Whether an entry can block a candidate slot, before its times are looked at.
+ * `findFreeSlot` and `checkOverlap` share it so they cannot drift apart on what
+ * counts as a conflict — a slot found by one and rejected by the other reads to
+ * the user as the app refusing its own suggestion.
+ *
+ * Those two only. `findOverlappingCandidates` answers the same question for a
+ * whole batch and groups by timecode itself, because every candidate it is
+ * given carries one; this has to cope with `timecodeId` being omitted, and
+ * fails safe by treating everything as a conflict. The two are consistent
+ * wherever a timecode is supplied, which is every call that compares entries on
+ * the same footing — but they are not one implementation, so a change to the
+ * concurrency rule has to be made in both.
+ */
+const isBlocking = (
+  entry: Entry,
+  excludeId?: string,
+  timecodeId?: string,
+  allowConcurrentTimers?: boolean,
+): boolean => {
+  if (excludeId && entry.id === excludeId) return false;
+  // Only skip other timecodes when a timecode was actually supplied. Without
+  // the explicit check, an omitted `timecodeId` compares `entry.timecodeId`
+  // against `undefined`, matches nothing, and disables overlap detection.
+  if (allowConcurrentTimers && timecodeId !== undefined && entry.timecodeId !== timecodeId) return false;
+  return true;
+};
+
+/**
+ * The stretches of `day` with nothing in them, in order, clipped to the day.
+ *
+ * Working from the complement of what is occupied is what makes the whole day
+ * reachable. Probing a handful of candidate start times — noon, then the end of
+ * each conflicting entry — could only ever find room *after* something, so a
+ * morning left free by a 09:00 start was invisible and a day two-thirds empty
+ * reported itself full.
+ */
+const freeIntervalsOn = (
+  dayStartMs: number,
+  dayEndMs: number,
+  entries: Entry[],
+  excludeId?: string,
+  timecodeId?: string,
+  allowConcurrentTimers?: boolean,
+): Array<{ start: number; end: number }> => {
+  const now = Date.now();
+  const occupied: Array<{ start: number; end: number }> = [];
+
+  for (const entry of entries) {
+    if (!isBlocking(entry, excludeId, timecodeId, allowConcurrentTimers)) continue;
+    const interval = toInterval(entry, now);
+    if (!interval) continue;
+    const start = Math.max(interval.start, dayStartMs);
+    const end = Math.min(interval.end, dayEndMs);
+    if (end > start) occupied.push({ start, end });
+  }
+
+  occupied.sort((a, b) => a.start - b.start);
+
+  const free: Array<{ start: number; end: number }> = [];
+  let cursor = dayStartMs;
+  for (const { start, end } of occupied) {
+    if (start > cursor) free.push({ start: cursor, end: start });
+    if (end > cursor) cursor = end;
+  }
+  if (cursor < dayEndMs) free.push({ start: cursor, end: dayEndMs });
+
+  return free;
+};
+
+/**
+ * Which calendar day a moment falls on, in the viewer's own timezone.
+ *
+ * There is exactly one answer to that question in this codebase, and this is
+ * it. The day key is what the rounding bucket, the timesheet grid, the calendar
+ * and the timeline all group by, so any disagreement between them puts the same
+ * work on two different days and makes the consistency the billing module
+ * guarantees unprovable. Before this there were four spellings of it —
+ * `setHours(0,0,0,0)`, date-fns `startOfDay`, UTC component extraction, and
+ * `format(d, 'yyyy-MM-dd')` — and nothing forcing them to agree.
+ *
+ * Local, not UTC, deliberately: a user working 9pm–11pm in Auckland is working
+ * on that evening's date, not on the following morning's UTC one.
+ */
+export const calendarDayKey = (date: Date): string => {
+  if (Number.isNaN(date.getTime())) throw new RangeError('Invalid time value');
+  const year = String(date.getFullYear()).padStart(4, '0');
+  const month = String(date.getMonth() + 1).padStart(2, '0');
+  const day = String(date.getDate()).padStart(2, '0');
+  return `${year}-${month}-${day}`;
+};
+
+/**
+ * The half-open interval a calendar day occupies: [midnight, next midnight).
+ *
+ * The end is the *next* midnight rather than start + 24h, so the 23-hour and
+ * 25-hour days either side of a DST transition are exactly as long as the
+ * calendar says. Half-open so a day ends precisely where the next begins: an
+ * entry crossing midnight loses no second to an inclusive `23:59:59.999` end
+ * and is not counted on both sides of the boundary either.
+ */
+export const calendarDayBounds = (date: Date): { start: Date; end: Date } => {
+  const start = new Date(date);
+  start.setHours(0, 0, 0, 0);
+  const end = new Date(start);
+  end.setDate(end.getDate() + 1);
+  // Re-anchored, because `start` is not always midnight. In a zone whose DST
+  // transition is at midnight — America/Santiago, Asia/Beirut — 00:00 does not
+  // exist on the changeover date, and `setHours(0,0,0,0)` returns 01:00, which
+  // is genuinely that day's first instant. Advancing the date from there landed
+  // on 01:00 the following day, so the day ran an hour into the next one and
+  // the two buckets overlapped: an entry in that hour was counted under both
+  // dates, while `calendarDayKey` filed it under only the later one.
+  end.setHours(0, 0, 0, 0);
+  return { start, end };
+};
+
+/**
+ * Somewhere on `day` to put `deltaSeconds` of adjustment without colliding with
+ * what is already there, or null when the day has no room for it.
+ *
+ * Midday is preferred, then anything later, then the earlier part of the day —
+ * an adjustment reads most naturally in working hours, but a day whose
+ * afternoon is full is not a day that is full. The slot never crosses midnight:
+ * it belongs to the day whose cell was edited, and time that spilled onto the
+ * next day landed in another rounding bucket and another week's total.
+ */
+export const findFreeSlot = (
+  day: Date,
+  deltaSeconds: number,
+  entries: Entry[],
+  excludeId?: string,
+  timecodeId?: string,
+  allowConcurrentTimers?: boolean
+): { start: Date; end: Date } | null => {
+  const { start: dayStart, end: dayEnd } = calendarDayBounds(day);
+
+  const dayStartMs = dayStart.getTime();
+  const dayEndMs = dayEnd.getTime();
+  const lengthMs = deltaSeconds * 1000;
+  if (!(lengthMs > 0) || lengthMs > dayEndMs - dayStartMs) return null;
+
+  const free = freeIntervalsOn(dayStartMs, dayEndMs, entries, excludeId, timecodeId, allowConcurrentTimers);
+
+  const noon = new Date(dayStart);
+  noon.setHours(12, 0, 0, 0);
+
+  // Midday first, then the whole day from its start; the second pass can only
+  // return something the first could not, so the preference is never lost.
+  for (const earliest of [noon.getTime(), dayStartMs]) {
+    for (const gap of free) {
+      const start = Math.max(gap.start, earliest);
+      if (start + lengthMs <= gap.end) {
+        return { start: new Date(start), end: new Date(start + lengthMs) };
+      }
+    }
+  }
+
+  return null;
 };
 
 export const checkOverlap = (start: Date, end: Date, entries: Entry[], excludeId?: string, timecodeId?: string, allowConcurrentTimers?: boolean): boolean => {
+  const now = Date.now();
+  const candidate = { start: start.getTime(), end: end.getTime() };
+
   return entries.some(e => {
-    if (excludeId && e.id === excludeId) return false;
-    if (allowConcurrentTimers && e.timecodeId !== timecodeId) return false;
-
-    const eStart = new Date(e.startTime);
-    const eEnd = e.endTime ? new Date(e.endTime) : new Date(); // Use now as effective end time for running timers
-
-    // Check overlap: newStart < eEnd AND newEnd > eStart
-    return start < eEnd && end > eStart;
+    if (!isBlocking(e, excludeId, timecodeId, allowConcurrentTimers)) return false;
+    const interval = toInterval(e, now);
+    return interval ? overlaps(candidate, interval) : false;
   });
 };
 
+/**
+ * Which of `candidates` overlap an existing entry, or an earlier candidate in
+ * the same batch.
+ *
+ * Checking each candidate against every existing entry is O(n*m), which on a
+ * large CSV import against a long history is enough to lock up the tab. This
+ * sweeps a start-ordered list instead, keeping only the intervals still open at
+ * each point, so the cost is the sort plus a near-linear pass.
+ *
+ * Candidates are resolved in chronological order, so when two new rows collide
+ * the earlier-starting one is kept. That makes the outcome independent of how
+ * the source file happened to be ordered — re-sorting a CSV cannot change which
+ * of its rows survive. An existing entry always wins over a new row.
+ *
+ * Returns the indices, into `candidates`, that must be rejected.
+ */
+export const findOverlappingCandidates = (
+  candidates: Entry[],
+  existing: Entry[],
+  allowConcurrentTimers?: boolean,
+): Set<number> => {
+  const now = Date.now();
+  const rejected = new Set<number>();
+
+  // -1 marks an existing entry; anything else is an index into `candidates`.
+  type Marked = Interval & { candidateIndex: number };
+  const marked: Marked[] = [];
+
+  existing.forEach((e) => {
+    const interval = toInterval(e, now);
+    if (interval) marked.push({ ...interval, candidateIndex: -1 });
+  });
+  candidates.forEach((e, index) => {
+    const interval = toInterval(e, now);
+    if (interval) marked.push({ ...interval, candidateIndex: index });
+  });
+
+  // With concurrent timers allowed, only entries on the same timecode conflict.
+  const groups = new Map<string, Marked[]>();
+  for (const item of marked) {
+    const key = allowConcurrentTimers ? item.timecodeId : '';
+    const group = groups.get(key);
+    if (group) group.push(item);
+    else groups.set(key, [item]);
+  }
+
+  for (const group of groups.values()) {
+    group.sort((a, b) => a.start - b.start || a.end - b.end);
+
+    // Pass 1: an existing entry always wins, wherever it sits in the ordering.
+    // This has to settle before candidates are weighed against each other, or a
+    // candidate that is itself doomed could block a valid one first.
+    let active: Marked[] = [];
+    for (const item of group) {
+      active = active.filter((open) => open.end > item.start);
+
+      if (item.candidateIndex >= 0) {
+        if (active.some((open) => open.candidateIndex < 0)) rejected.add(item.candidateIndex);
+      } else {
+        for (const open of active) {
+          if (open.candidateIndex >= 0) rejected.add(open.candidateIndex);
+        }
+      }
+      active.push(item);
+    }
+
+    // Pass 2: resolve collisions between the candidates that survived, keeping
+    // the earlier-starting row exactly as adding them one at a time would.
+    active = [];
+    for (const item of group) {
+      if (item.candidateIndex < 0 || rejected.has(item.candidateIndex)) continue;
+      active = active.filter((open) => open.end > item.start);
+      if (active.length > 0) {
+        rejected.add(item.candidateIndex);
+        continue;
+      }
+      active.push(item);
+    }
+  }
+
+  return rejected;
+};
+
 export const applyRounding = (seconds: number, roundingRule: 'none' | '5min' | '10min' | '15min'): number => {
+  // The same guard `roundCurrency` and `roundHours` carry twenty lines above.
+  // Without it Infinity survives the rounding and becomes a billable duration.
+  if (!Number.isFinite(seconds)) return 0;
   if (roundingRule === 'none') return seconds;
 
   let roundingInterval = 1;
@@ -45,38 +458,27 @@ export const applyRounding = (seconds: number, roundingRule: 'none' | '5min' | '
 };
 
 export const calculateDuration = (start: Date, end: Date, pausedSegments: PauseSegment[]): number => {
-  let totalPauseMs = 0;
-  pausedSegments.forEach(segment => {
-    const segmentStart = new Date(segment.pauseStart);
-    const segmentEnd = segment.pauseEnd ? new Date(segment.pauseEnd) : end;
-
-    const pStartMs = Math.max(segmentStart.getTime(), start.getTime());
-    const pEndMs = Math.min(segmentEnd.getTime(), end.getTime());
-
-    if (pEndMs > pStartMs) {
-      totalPauseMs += (pEndMs - pStartMs);
-    }
-  });
-
-  const durationMs = end.getTime() - start.getTime() - totalPauseMs;
+  const durationMs = end.getTime() - start.getTime() - sumPausedMs(start, end, pausedSegments);
   return Math.max(0, Math.floor(durationMs / 1000));
 };
 
 export const getElapsedTimeMs = (startTime: string, pausedSegments: PauseSegment[], endTimeOverride?: string): number => {
   const now = endTimeOverride ? new Date(endTimeOverride).getTime() : Date.now();
   const start = new Date(startTime).getTime();
+  if (!Number.isFinite(now) || !Number.isFinite(start)) return 0;
 
-  let totalPauseMs = 0;
-  pausedSegments.forEach(segment => {
-    const pStart = new Date(segment.pauseStart).getTime();
-    const pEnd = segment.pauseEnd ? new Date(segment.pauseEnd).getTime() : now;
-    totalPauseMs += Math.max(0, pEnd - pStart);
-  });
-
+  // Shares the clamped/merged pause maths with calculateDuration so the live
+  // ticking display and the duration written on stop cannot disagree.
+  const totalPauseMs = sumPausedMs(new Date(start), new Date(now), pausedSegments);
   return Math.max(0, now - start - totalPauseMs);
 };
 
 export const formatElapsedSeconds = (totalSeconds: number): string => {
+  // Guarded like `formatDurationShort`: this drives the running timer readout,
+  // so an unparseable start time rendered a live "NaN:NaN:NaN" once a second
+  // rather than something a user could read as "no reading".
+  if (!Number.isFinite(totalSeconds)) return '--:--';
+
   const hrs = Math.floor(totalSeconds / 3600);
   const mins = Math.floor((totalSeconds % 3600) / 60);
   const secs = totalSeconds % 60;
@@ -90,10 +492,22 @@ export const formatElapsedSeconds = (totalSeconds: number): string => {
 };
 
 export const calculateTaxBreakdown = (amount: number, taxRate: number, inclusive: boolean) => {
+  const rate = Number.isFinite(taxRate) ? taxRate : 0;
+
   if (inclusive) {
-    const subtotal = amount / (1 + taxRate / 100);
-    return { subtotal, tax: amount - subtotal, total: amount };
+    const divisor = 1 + rate / 100;
+    // A rate of -100% or lower has no meaningful inclusive split and would
+    // otherwise divide by zero and print Infinity onto an invoice.
+    if (divisor <= 0) {
+      const total = roundCurrency(amount);
+      return { subtotal: total, tax: 0, total };
+    }
+    const total = roundCurrency(amount);
+    const subtotal = roundCurrency(amount / divisor);
+    return { subtotal, tax: roundCurrency(total - subtotal), total };
   }
-  const tax = amount * (taxRate / 100);
-  return { subtotal: amount, tax, total: amount + tax };
+
+  const subtotal = roundCurrency(amount);
+  const tax = roundCurrency(subtotal * (rate / 100));
+  return { subtotal, tax, total: roundCurrency(subtotal + tax) };
 };

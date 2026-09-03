@@ -1,8 +1,8 @@
-import React, { useState, useMemo, useEffect } from 'react';
+import React, { useState, useMemo, useEffect, useCallback } from 'react';
 import { useTimeTracker } from '../context/TimeTrackerContext';
 import {
-  startOfDay, endOfDay, startOfWeek, endOfWeek, subWeeks, parseISO, format,
-  eachDayOfInterval, addDays
+  startOfDay, endOfDay, startOfWeek, endOfWeek, subWeeks, subDays, parseISO, format,
+  eachDayOfInterval, addDays, differenceInCalendarDays, isValid
 } from 'date-fns';
 import {
   BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, PieChart, Pie, Cell,
@@ -13,9 +13,14 @@ import {
   CheckCircle2, Info, Plus, BarChart2, PieChart as PieIcon, ExternalLink
 } from 'lucide-react';
 import { useToast } from '../context/ToastContext';
-import { applyRounding, calculateDuration, calculateTaxBreakdown, calculateTotalPausedSeconds, formatDurationShort } from '../utils/timeUtils';
-import { createEvents, type EventAttributes } from 'ics';
-import { LOGO_PRINT_BASE64 } from '../assets/logoPrint';
+import { calculateDuration, calendarDayBounds, calendarDayKey, formatDurationShort, roundCurrency, workedIntervals } from '../utils/timeUtils';
+import { buildReportLines, distributeAcrossBuckets, workedSecondsFor } from '../utils/billing';
+import {
+  buildCalendarEvents, buildDetailedRawCSV, buildReportMeta, buildReportModel,
+  buildSummaryCSV, formatAmount as formatAmountCell, formatMoney as formatCurrency, safeFormatDate,
+} from '../utils/reportDocument';
+import { renderReportPdf } from '../utils/reportPdf';
+import { createEvents } from 'ics';
 import { EntryEditModal } from './EntryEditModal';
 import { useNamedDownload } from '../hooks/useNamedDownload';
 import type { Entry } from '../types';
@@ -97,9 +102,20 @@ export const AnalysisView: React.FC = () => {
     return () => clearInterval(interval);
   }, []);
 
+  const isCustomInvalid = useMemo(() => {
+    if (preset !== 'custom') return false;
+    if (!customStart || !customEnd) return true;
+    const s = new Date(customStart + 'T00:00:00');
+    const e = new Date(customEnd + 'T00:00:00');
+    return !isValid(s) || !isValid(e) || e < s;
+  }, [preset, customStart, customEnd]);
+
   // Main Date Range
   const dateRange = useMemo(() => {
     const now = new Date();
+    if (preset === 'custom' && isCustomInvalid) {
+      return { start: startOfWeek(now, { weekStartsOn: 1 }), end: endOfWeek(now, { weekStartsOn: 1 }) };
+    }
     switch (preset) {
       case 'week':
         return { start: startOfWeek(now, { weekStartsOn: 1 }), end: endOfWeek(now, { weekStartsOn: 1 }) };
@@ -108,127 +124,112 @@ export const AnalysisView: React.FC = () => {
         return { start, end: endOfWeek(now, { weekStartsOn: 1 }) };
       }
       case 'custom':
-      default:
-        return {
-          start: startOfDay(new Date(customStart + 'T00:00:00')),
-          end: endOfDay(new Date(customEnd + 'T00:00:00'))
-        };
+      default: {
+        const s = startOfDay(new Date(customStart + 'T00:00:00'));
+        const e = endOfDay(new Date(customEnd + 'T00:00:00'));
+        if (!isValid(s) || !isValid(e)) {
+          return { start: startOfWeek(now, { weekStartsOn: 1 }), end: endOfWeek(now, { weekStartsOn: 1 }) };
+        }
+        return { start: s, end: e };
+      }
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [preset, customStart, customEnd, tick]);
+  }, [preset, customStart, customEnd, isCustomInvalid, tick]);
 
-  // Previous Date Range for comparison
+  /**
+   * The same number of calendar days, immediately before `dateRange`.
+   *
+   * Counted in days rather than milliseconds. `dateRange` is always built from
+   * `startOfWeek`/`endOfWeek`/`startOfDay`, so it is a whole number of calendar
+   * days — but a week containing a DST transition is 23 or 25 hours short of
+   * 7x24, so subtracting its length in milliseconds slid the comparison window
+   * an hour off the day boundary and moved entries in or out of it. Shifting
+   * both ends by a day count and re-anchoring keeps it aligned in every zone.
+   */
   const prevDateRange = useMemo(() => {
-    const rangeMs = dateRange.end.getTime() - dateRange.start.getTime() + 1;
-    const prevEnd = new Date(dateRange.start.getTime() - 1);
-    const prevStart = new Date(prevEnd.getTime() - rangeMs + 1);
-    return { start: prevStart, end: prevEnd };
+    const days = differenceInCalendarDays(dateRange.end, dateRange.start) + 1;
+    return {
+      start: startOfDay(subDays(dateRange.start, days)),
+      end: endOfDay(subDays(dateRange.end, days)),
+    };
   }, [dateRange]);
 
-  // Filter entries in range
-  const filteredEntries = useMemo(() => {
+  // Every entry in the reporting window, before the group and timecode
+  // dropdowns are applied. This is what the rounding buckets are built from:
+  // at 'timecode' and 'invoice' scope a bucket's total is the set of entries
+  // handed to `buildLinesFromSettings`, so passing only the displayed subset
+  // made an entry's billable minutes move whenever the dropdowns changed.
+  const periodEntries = useMemo(() => {
     return entries.filter(entry => {
       const entryStart = parseISO(entry.startTime);
       const entryEnd = entry.endTime ? parseISO(entry.endTime) : new Date();
-      const inRange = entryStart <= dateRange.end && entryEnd >= dateRange.start;
-
-      const tc = timecodeMap.get(entry.timecodeId);
-      const matchesGroup = selectedGroupId === 'all' || tc?.groupId === selectedGroupId;
-      const matchesTimecode = selectedTimecodeId === 'all' || entry.timecodeId === selectedTimecodeId;
-
-      return inRange && matchesGroup && matchesTimecode;
+      return entryStart <= dateRange.end && entryEnd >= dateRange.start;
     });
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [entries, dateRange, tick, selectedGroupId, selectedTimecodeId, timecodeMap]);
+  }, [entries, dateRange, tick]);
 
-  // Previous Period Filtered Entries
-  const prevFilteredEntries = useMemo(() => {
+  const matchesFilters = useCallback((entry: Entry) => {
+    const tc = timecodeMap.get(entry.timecodeId);
+    const matchesGroup = selectedGroupId === 'all' || tc?.groupId === selectedGroupId;
+    const matchesTimecode = selectedTimecodeId === 'all' || entry.timecodeId === selectedTimecodeId;
+    return matchesGroup && matchesTimecode;
+  }, [timecodeMap, selectedGroupId, selectedTimecodeId]);
+
+  // What the report actually shows: the window narrowed by the dropdowns.
+  const filteredEntries = useMemo(
+    () => periodEntries.filter(matchesFilters),
+    [periodEntries, matchesFilters]
+  );
+
+  // Previous Period, same split: the whole window for the buckets, the filtered
+  // subset for what is compared.
+  const prevPeriodEntries = useMemo(() => {
     if (!comparePrevious) return [];
     return entries.filter(entry => {
       const entryStart = parseISO(entry.startTime);
       const entryEnd = entry.endTime ? parseISO(entry.endTime) : new Date();
-      const inRange = entryStart <= prevDateRange.end && entryEnd >= prevDateRange.start;
-
-      const tc = timecodeMap.get(entry.timecodeId);
-      const matchesGroup = selectedGroupId === 'all' || tc?.groupId === selectedGroupId;
-      const matchesTimecode = selectedTimecodeId === 'all' || entry.timecodeId === selectedTimecodeId;
-
-      return inRange && matchesGroup && matchesTimecode;
+      return entryStart <= prevDateRange.end && entryEnd >= prevDateRange.start;
     });
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [entries, prevDateRange, comparePrevious, selectedGroupId, selectedTimecodeId, timecodeMap]);
+  }, [entries, prevDateRange, comparePrevious]);
+
+  const prevFilteredEntries = useMemo(
+    () => prevPeriodEntries.filter(matchesFilters),
+    [prevPeriodEntries, matchesFilters]
+  );
+
+  // One billable line per entry, shared by the on-screen totals, the PDF summary
+  // and detail tables, and the CSV export. Computing it once is what stops the
+  // same entry being billed differently on different surfaces of one invoice.
+  // Built over the whole window — see `periodEntries` — and looked up per
+  // displayed entry, which is what the scope window contract requires.
+  const billableLines = useMemo(() => {
+    return buildReportLines(entries, settings, dateRange, { timecodeMap, now: new Date() });
+  }, [entries, dateRange, timecodeMap, settings]);
 
   // Calculations for Current Period
-  const { timecodeData, groupData, totalSeconds, totalEarnings, taxBreakdown } = useMemo(() => {
-    let tSec = 0;
-    let tEarn = 0;
-    const tcMap = new Map<string, { duration: number, earnings: number }>();
-    const grpMap = new Map<string, number>();
+  //
+  // One roll-up, in one place, consumed by the screen and by every document
+  // built from it. `reportDocument` owns everything downstream of
+  // `summarizeReport` so the assembly can be asserted without a PDF renderer.
+  const {
+    timecodeData, groupData, totalSeconds, totalHours, totalWorkedSeconds, totalEarnings,
+    totalFees, taxBreakdown, zeroLinesCount, zeroLinesNote, roundingDelta,
+    showFeesColumn, showEarningsColumn,
+  } = useMemo(
+    () => buildReportModel({ entries: filteredEntries, lines: billableLines, timecodeMap, groupMap, settings }),
+    [filteredEntries, billableLines, timecodeMap, groupMap, settings],
+  );
 
-    filteredEntries.forEach(entry => {
-      const entryStart = parseISO(entry.startTime);
-      const entryEnd = entry.endTime ? parseISO(entry.endTime) : new Date();
-
-      const effectiveStart = entryStart < dateRange.start ? dateRange.start : entryStart;
-      const effectiveEnd = entryEnd > dateRange.end ? dateRange.end : entryEnd;
-
-      let actualDuration = calculateDuration(effectiveStart, effectiveEnd, entry.pausedSegments || []);
-      actualDuration = applyRounding(actualDuration, settings?.roundingRule || 'none');
-
-      if (actualDuration <= 0 && entry.manualAmount == null) return;
-
-      tSec += actualDuration;
-
-      const tc = timecodeMap.get(entry.timecodeId);
-      const earnings = entry.manualAmount != null
-        ? entry.manualAmount
-        : (tc?.hourlyRate ? (actualDuration / 3600) * tc.hourlyRate : 0);
-      tEarn += earnings;
-
-      const currentTc = tcMap.get(entry.timecodeId) || { duration: 0, earnings: 0 };
-      tcMap.set(entry.timecodeId, {
-        duration: currentTc.duration + actualDuration,
-        earnings: currentTc.earnings + earnings
-      });
-
-      const groupId = tc?.groupId || 'ungrouped';
-      const currentGrp = grpMap.get(groupId) || 0;
-      grpMap.set(groupId, currentGrp + actualDuration);
-    });
-
-    const formattedTcData = Array.from(tcMap.entries()).map(([tcId, data]) => {
-      const tc = timecodeMap.get(tcId);
-      return {
-        id: tcId,
-        name: tc?.name || 'Unknown',
-        durationHours: Number((data.duration / 3600).toFixed(2)),
-        earnings: data.earnings,
-        color: tc?.color || (tc?.groupId ? groupMap.get(tc.groupId)?.color : undefined) || '#cbd5e1'
-      };
-    }).sort((a, b) => b.durationHours - a.durationHours);
-
-    const formattedGrpData = Array.from(grpMap.entries()).map(([grpId, duration]) => {
-      const grp = groupMap.get(grpId);
-      return {
-        id: grpId,
-        name: grpId === 'ungrouped' ? 'Ungrouped' : grp?.name || 'Unknown',
-        durationHours: Number((duration / 3600).toFixed(2)),
-        color: grp?.color || '#cbd5e1'
-      };
-    }).sort((a, b) => b.durationHours - a.durationHours);
-
-    const calculatedTax = settings?.taxEnabled && settings?.taxRate
-      ? calculateTaxBreakdown(tEarn, settings.taxRate, !!settings.taxInclusive)
-      : null;
-
-    return {
-      timecodeData: formattedTcData,
-      groupData: formattedGrpData,
-      totalSeconds: tSec,
-      totalEarnings: tEarn,
-      taxBreakdown: calculatedTax
-    };
-  }, [filteredEntries, dateRange, timecodeMap, groupMap, settings?.roundingRule, settings?.taxEnabled, settings?.taxRate, settings?.taxInclusive]);
+  const reportModel = useMemo(
+    () => ({
+      timecodeData, groupData, totalSeconds, totalHours, totalWorkedSeconds, totalEarnings,
+      totalFees, taxBreakdown, zeroLinesCount, zeroLinesNote, roundingDelta,
+      showFeesColumn, showEarningsColumn,
+    }),
+    [timecodeData, groupData, totalSeconds, totalHours, totalWorkedSeconds, totalEarnings,
+      totalFees, taxBreakdown, zeroLinesCount, zeroLinesNote, roundingDelta,
+      showFeesColumn, showEarningsColumn],
+  );
 
   // Calculations for Previous Period (for comparisons)
   const prevStats = useMemo(() => {
@@ -236,26 +237,19 @@ export const AnalysisView: React.FC = () => {
     let pSec = 0;
     let pEarn = 0;
 
-    prevFilteredEntries.forEach(entry => {
-      const entryStart = parseISO(entry.startTime);
-      const entryEnd = entry.endTime ? parseISO(entry.endTime) : new Date();
-
-      const effectiveStart = entryStart < prevDateRange.start ? prevDateRange.start : entryStart;
-      const effectiveEnd = entryEnd > prevDateRange.end ? prevDateRange.end : entryEnd;
-
-      let actualDuration = calculateDuration(effectiveStart, effectiveEnd, entry.pausedSegments || []);
-      actualDuration = applyRounding(actualDuration, settings?.roundingRule || 'none');
-
-      if (actualDuration <= 0 && entry.manualAmount == null) return;
-
-      pSec += actualDuration;
-
-      const tc = timecodeMap.get(entry.timecodeId);
-      const earnings = entry.manualAmount != null
-        ? entry.manualAmount
-        : (tc?.hourlyRate ? (actualDuration / 3600) * tc.hourlyRate : 0);
-      pEarn += earnings;
+    const prevLines = buildReportLines(entries, settings, prevDateRange, {
+      timecodeMap,
+      now: new Date(),
     });
+    // Sum only the displayed subset, from lines bucketed over the whole window.
+    prevFilteredEntries.forEach(entry => {
+      const line = prevLines.get(entry.id);
+      if (!line) return;
+      if (line.seconds <= 0 && line.amount === 0) return;
+      pSec += line.seconds;
+      pEarn += line.amount;
+    });
+    pEarn = roundCurrency(pEarn);
 
     const diffSec = totalSeconds - pSec;
     const diffEarnings = totalEarnings - pEarn;
@@ -268,12 +262,18 @@ export const AnalysisView: React.FC = () => {
       diffEarnings,
       pctEarnings
     };
-  }, [prevFilteredEntries, prevDateRange, comparePrevious, totalSeconds, totalEarnings, timecodeMap, settings?.roundingRule]);
+    // `entries` is what this reads; `prevPeriodEntries` was listed instead and
+    // is not used in the body. It happened to work — that memo derives from
+    // `entries`, so its identity changed whenever `entries` did — but the memo
+    // was one refactor away from serving a stale figure, and this is the report
+    // surface, where a stale memo is a stale invoice.
+  }, [entries, prevFilteredEntries, prevDateRange, comparePrevious, totalSeconds, totalEarnings, timecodeMap, settings]);
 
   // Detect overlaps
   const overlaps = useMemo(() => {
     const overlappingPairs: { e1: Entry, e2: Entry }[] = [];
     const sorted = [...filteredEntries].sort((a, b) => new Date(a.startTime).getTime() - new Date(b.startTime).getTime());
+    const allowConcurrent = settings?.allowConcurrentTimers ?? false;
 
     for (let i = 0; i < sorted.length; i++) {
       for (let j = i + 1; j < sorted.length; j++) {
@@ -285,15 +285,21 @@ export const AnalysisView: React.FC = () => {
         const start2 = new Date(e2.startTime).getTime();
         const end2 = e2.endTime ? new Date(e2.endTime).getTime() : Date.now();
 
+        if (start2 >= end1) {
+          break;
+        }
+
+        if (allowConcurrent && e1.timecodeId !== e2.timecodeId) {
+          continue;
+        }
+
         if (start1 < end2 && start2 < end1) {
           overlappingPairs.push({ e1, e2 });
-        } else if (start2 >= end1) {
-          break;
         }
       }
     }
     return overlappingPairs;
-  }, [filteredEntries]);
+  }, [filteredEntries, settings?.allowConcurrentTimers]);
 
   // Detect gaps > 15 minutes
   const gaps = useMemo(() => {
@@ -304,7 +310,7 @@ export const AnalysisView: React.FC = () => {
     filteredEntries.forEach(entry => {
       if (!entry.endTime) return;
       const start = new Date(entry.startTime);
-      const dateStr = format(start, 'yyyy-MM-dd');
+      const dateStr = calendarDayKey(start);
       if (!entriesByDay.has(dateStr)) {
         entriesByDay.set(dateStr, []);
       }
@@ -350,21 +356,32 @@ export const AnalysisView: React.FC = () => {
     let totalExpectedSec = 0;
     let totalActualSec = 0;
     let onTimeCount = 0;
+    let clippedCount = 0;
 
     const variances: { entry: Entry; variancePct: number; absVariancePct: number; diffSec: number }[] = [];
 
     withEstimates.forEach((e) => {
       const expectedSec = e.expectedDurationMinutes! * 60;
+      // The whole entry, not the part of it inside the report's window.
+      //
+      // An estimate is made for a task, so the only actual it can be compared
+      // against is that task's. `workedSecondsFor` returns the billable line's
+      // clipped time, which is right for an invoice and wrong here: an entry
+      // that started before the range began contributed only its tail, so a
+      // task that ran exactly to estimate was reported as finishing far under
+      // it — and the further the range cut into it, the better it looked.
+      const actualSec = calculateDuration(parseISO(e.startTime), parseISO(e.endTime!), e.pausedSegments);
+      if (billableLines.get(e.id)?.isClipped) clippedCount++;
       totalExpectedSec += expectedSec;
-      totalActualSec += e.duration;
-      if (e.duration <= expectedSec) onTimeCount++;
+      totalActualSec += actualSec;
+      if (actualSec <= expectedSec) onTimeCount++;
 
-      const varPct = ((e.duration - expectedSec) / expectedSec) * 100;
+      const varPct = ((actualSec - expectedSec) / expectedSec) * 100;
       variances.push({
         entry: e,
         variancePct: varPct,
         absVariancePct: Math.abs(varPct),
-        diffSec: e.duration - expectedSec,
+        diffSec: actualSec - expectedSec,
       });
     });
 
@@ -426,8 +443,9 @@ export const AnalysisView: React.FC = () => {
 
       itemVars.forEach(v => {
         sumExp += v.entry.expectedDurationMinutes! * 60;
-        sumAct += v.entry.duration;
-        if (v.entry.duration <= v.entry.expectedDurationMinutes! * 60) tcOnTime++;
+        const actualSec = workedSecondsFor(billableLines, v.entry.id);
+        sumAct += actualSec;
+        if (actualSec <= v.entry.expectedDurationMinutes! * 60) tcOnTime++;
       });
 
       const avgExpMins = Math.round(sumExp / tcCount / 60);
@@ -473,8 +491,13 @@ export const AnalysisView: React.FC = () => {
       histogram,
       perTimecodeTable,
       worstOffenders: sortedWorst,
+      // Entries this range only partly covers. Their actuals are whole, which
+      // is the comparison the estimate deserves, but it makes these figures
+      // wider than the hours the report bills — worth saying rather than
+      // leaving as a total that quietly does not reconcile.
+      clippedCount,
     };
-  }, [filteredEntries, timecodeMap, worstOffenderSort]);
+  }, [filteredEntries, billableLines, timecodeMap, worstOffenderSort]);
 
   // Estimates Trend Chart over time (Trailing periods)
   const estimatesTrend = useMemo(() => {
@@ -506,15 +529,16 @@ export const AnalysisView: React.FC = () => {
 
     return weeks.map(w => {
       if (w.entries.length === 0) {
-        return { label: w.label, bias: 0, hitRate: 100, count: 0 };
+        return { label: w.label, bias: 0, hitRate: null, count: 0 };
       }
       let onTime = 0;
       let totalBias = 0;
 
       w.entries.forEach(e => {
         const expSec = e.expectedDurationMinutes! * 60;
-        if (e.duration <= expSec) onTime++;
-        totalBias += ((e.duration - expSec) / expSec) * 100;
+        const actualSec = calculateDuration(parseISO(e.startTime), parseISO(e.endTime!), e.pausedSegments || []);
+        if (actualSec <= expSec) onTime++;
+        totalBias += ((actualSec - expSec) / expSec) * 100;
       });
 
       return {
@@ -563,61 +587,114 @@ export const AnalysisView: React.FC = () => {
   }, [estimateDeepData?.perTimecodeTable, tcSortField, tcSortAsc]);
 
   // Timeline Data
+  //
+  // Built from the same billable lines as the summary, not by re-rounding each
+  // day-slice on its own: rounding per slice ignored `roundingScope` entirely,
+  // so the bars could add up to a different total than the report they sit in.
+  // Each line's billable seconds are shared across the days its worked time
+  // covers, in proportion to how much fell on each, so the chart reconciles
+  // with the total whatever scope is in use.
   const timelineDays = useMemo(() => {
     const days = eachDayOfInterval({ start: dateRange.start, end: dateRange.end });
-    return days.map(d => {
-      const dStart = startOfDay(d);
-      const dEnd = endOfDay(d);
-      let daySec = 0;
-
-      filteredEntries.forEach(e => {
-        const eStart = parseISO(e.startTime);
-        const eEnd = e.endTime ? parseISO(e.endTime) : new Date();
-        if (eStart <= dEnd && eEnd >= dStart) {
-          const effStart = eStart < dStart ? dStart : eStart;
-          const effEnd = eEnd > dEnd ? dEnd : eEnd;
-          const dur = calculateDuration(effStart, effEnd, e.pausedSegments || []);
-          daySec += applyRounding(dur, settings?.roundingRule || 'none');
-        }
-      });
-
+    // Half-open days: each ends where the next begins, so an entry crossing
+    // midnight loses no second to `endOfDay`'s .999 and is not counted twice at
+    // the boundary either.
+    const dayBounds = days.map(d => {
+      const { start, end } = calendarDayBounds(d);
       return {
-        date: d,
-        dateStr: format(d, 'MMM d, yyyy'),
-        hours: Number((daySec / 3600).toFixed(1)),
-        seconds: daySec,
+        start: Math.max(start.getTime(), dateRange.start.getTime()),
+        end: Math.min(end.getTime(), dateRange.end.getTime()),
       };
     });
-  }, [dateRange, filteredEntries, settings?.roundingRule]);
+    const daySeconds = distributeAcrossBuckets(filteredEntries, billableLines, dayBounds);
 
-  const escapeCSV = (str: string) => {
-    let escaped = str.replace(/"/g, '""');
-    if (/^[=+\-@]/.test(escaped)) {
-      escaped = "'" + escaped;
+    return days.map((d, i) => ({
+      date: d,
+      dateStr: format(d, 'MMM d, yyyy'),
+      hours: Number((daySeconds[i] / 3600).toFixed(1)),
+      seconds: daySeconds[i],
+      // The window actually charted, which is a calendar day only when the
+      // report covers a whole one — and 23 or 25 hours long twice a year.
+      bounds: dayBounds[i],
+    }));
+  }, [dateRange, filteredEntries, billableLines]);
+
+  /**
+   * The single-day bar.
+   *
+   * Two things were wrong with drawing each entry's raw span here. It included
+   * paused time, so the blocks showed more work than any other surface did —
+   * and the moment the range grew to two days the same data was presented as
+   * billable time by the heatmap, with nothing to say the question had changed.
+   * And the axis assumed a 24-hour day, which puts every block in the wrong
+   * place on the two days a year that are not one.
+   *
+   * So: on-the-clock spans, positioned against the day's real length, with the
+   * billed figure named underneath.
+   */
+  const { blocks: singleDayBlocks, workedSeconds: singleDayWorkedSeconds } = useMemo(() => {
+    const day = timelineDays.length === 1 ? timelineDays[0] : null;
+    const span = day ? day.bounds.end - day.bounds.start : 0;
+    if (!day || span <= 0) return { blocks: [], workedSeconds: 0 };
+
+    const windowStart = day.bounds.start;
+    const blocks: { key: string; leftPercent: number; widthPercent: number; color: string; title: string }[] = [];
+    let workedMs = 0;
+
+    for (const entry of filteredEntries) {
+      const from = new Date(Math.max(parseISO(entry.startTime).getTime(), windowStart));
+      const to = new Date(Math.min(
+        (entry.endTime ? parseISO(entry.endTime) : new Date()).getTime(),
+        day.bounds.end,
+      ));
+      if (to <= from) continue;
+
+      const tc = timecodeMap.get(entry.timecodeId);
+      const color = tc?.color || (tc?.groupId ? groupMap.get(tc.groupId)?.color : undefined) || '#cbd5e1';
+
+      workedIntervals(from, to, entry.pausedSegments).forEach((interval, i) => {
+        workedMs += interval.end - interval.start;
+        blocks.push({
+          key: `${entry.id}-${i}`,
+          leftPercent: ((interval.start - windowStart) / span) * 100,
+          widthPercent: ((interval.end - interval.start) / span) * 100,
+          color,
+          title: `${tc?.name || 'Unknown'} (${format(interval.start, 'h:mm a')} – ${format(interval.end, 'h:mm a')})`,
+        });
+      });
     }
-    return `"${escaped}"`;
-  };
+
+    return { blocks, workedSeconds: Math.round(workedMs / 1000) };
+  }, [timelineDays, filteredEntries, timecodeMap, groupMap]);
+
+  /** Hour gridlines at the day's own hour boundaries, however long it is. */
+  const singleDayTicks = useMemo(() => {
+    const day = timelineDays.length === 1 ? timelineDays[0] : null;
+    const span = day ? day.bounds.end - day.bounds.start : 0;
+    if (!day || span <= 0) return [];
+
+    const ticks: { at: number; leftPercent: number; label: string }[] = [];
+    for (let at = day.bounds.start; at <= day.bounds.end; at += 3_600_000) {
+      const hour = new Date(at).getHours();
+      ticks.push({
+        at,
+        leftPercent: ((at - day.bounds.start) / span) * 100,
+        label: hour % 4 !== 0 ? '' : hour === 0 ? '12A' : hour === 12 ? '12P' : hour > 12 ? `${hour - 12}P` : `${hour}A`,
+      });
+    }
+    return ticks;
+  }, [timelineDays]);
+
+  const formatAmount = (amount: number) => formatAmountCell(amount, currencySymbol);
+  // The headline figures, where a zero is a zero rather than a dash — and
+  // grouped the same way the PDF and the summary table group it.
+  const formatTotal = (amount: number) => formatCurrency(amount, currencySymbol);
 
   // Export CSV
   const handleExportCSV = () => {
-    const defaultFilename = `time-report-${scopeSlug}-${format(dateRange.start, 'yyyy-MM-dd')}`;
+    const defaultFilename = `time-report-${scopeSlug}-${safeFormatDate(dateRange.start, 'yyyy-MM-dd', 'custom-period')}`;
     triggerDownload(
-      () => {
-        const headers = ['Timecode', 'Group', 'Duration (Hours)', 'Earnings'];
-        const rows = timecodeData.map(tc => {
-          const timecode = timecodeMap.get(tc.id);
-          const groupName = timecode?.groupId ? groupMap.get(timecode.groupId)?.name || 'Unknown' : 'Ungrouped';
-          return [
-            escapeCSV(tc.name),
-            escapeCSV(groupName),
-            tc.durationHours.toString(),
-            tc.earnings.toFixed(2)
-          ].join(',');
-        });
-
-        const csvContent = [headers.join(','), ...rows].join('\n');
-        return new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
-      },
+      () => new Blob([buildSummaryCSV(reportModel, settings)], { type: 'text/csv;charset=utf-8;' }),
       defaultFilename,
       'csv'
     );
@@ -625,38 +702,28 @@ export const AnalysisView: React.FC = () => {
 
   // Export ICS
   const handleExportICS = () => {
-    const events: EventAttributes[] = filteredEntries.map(e => {
-      const tc = timecodeMap.get(e.timecodeId);
-      const start = parseISO(e.startTime);
-      const end = e.endTime ? parseISO(e.endTime) : new Date();
+    const { events, skipped } = buildCalendarEvents(filteredEntries, timecodeMap);
 
-      return {
-        start: [
-          start.getUTCFullYear(),
-          start.getUTCMonth() + 1,
-          start.getUTCDate(),
-          start.getUTCHours(),
-          start.getUTCMinutes()
-        ],
-        end: [
-          end.getUTCFullYear(),
-          end.getUTCMonth() + 1,
-          end.getUTCDate(),
-          end.getUTCHours(),
-          end.getUTCMinutes()
-        ],
-        startInputType: 'utc',
-        startOutputType: 'utc',
-        endInputType: 'utc',
-        endOutputType: 'utc',
-        title: tc?.name ?? 'Unknown',
-        description: e.note ?? '',
-      };
-    });
+    if (skipped.length > 0) {
+      // Named, not merely counted. An entry dropped from a calendar leaves no
+      // trace in the file, so a bare count would tell the user something is
+      // missing without telling them which entry to go and repair.
+      const label = (e: Entry) => e.note?.trim() || timecodeMap.get(e.timecodeId)?.name || e.id;
+      const shown = skipped.slice(0, 3).map((e) => `"${label(e)}"`).join(', ');
+      const rest = skipped.length > 3 ? ` and ${skipped.length - 3} more` : '';
+      addToast(
+        skipped.length === 1
+          ? `Left 1 entry out of the calendar — its date could not be read: ${shown}.`
+          : `Left ${skipped.length} entries out of the calendar — their dates could not be read: ${shown}${rest}.`,
+        'error',
+        undefined,
+        10000,
+      );
+    }
 
     if (events.length === 0) return;
 
-    const defaultFilename = `time-entries-${scopeSlug}-${format(dateRange.start, 'yyyy-MM-dd')}`;
+    const defaultFilename = `time-entries-${scopeSlug}-${safeFormatDate(dateRange.start, 'yyyy-MM-dd', 'custom-period')}`;
     triggerDownload(
       () => new Promise<Blob>((resolve, reject) => {
         createEvents(events, (error, value) => {
@@ -673,34 +740,16 @@ export const AnalysisView: React.FC = () => {
     );
   };
 
-  // Export Detailed Raw CSV
+  // Export Detailed Raw CSV. Assembled in `reportDocument` alongside the PDF's
+  // itemised table, from the same rows in the same order, so the spreadsheet a
+  // client reconciles the invoice against cannot list different work.
   const downloadDetailedRawCSV = () => {
-    const defaultFilename = `time-entries-${scopeSlug}-${format(dateRange.start, 'yyyy-MM-dd')}`;
+    const defaultFilename = `time-entries-${scopeSlug}-${safeFormatDate(dateRange.start, 'yyyy-MM-dd', 'custom-period')}`;
     triggerDownload(
-      () => {
-        const headers = ['Date', 'Timecode', 'Group', 'Start', 'End', 'Duration (h)', 'Amount', 'Note'];
-        const rows = filteredEntries.map(e => {
-          const tc = timecodeMap.get(e.timecodeId);
-          const grp = tc?.groupId ? groupMap.get(tc.groupId) : undefined;
-          const hrs = applyRounding(e.duration, settings?.roundingRule ?? 'none') / 3600;
-          const amount = e.manualAmount != null
-            ? e.manualAmount
-            : (tc?.hourlyRate ? hrs * tc.hourlyRate : 0);
-          return [
-            escapeCSV(format(parseISO(e.startTime), 'yyyy-MM-dd')),
-            escapeCSV(tc?.name ?? 'Unknown'),
-            escapeCSV(grp?.name ?? 'Ungrouped'),
-            escapeCSV(format(parseISO(e.startTime), 'HH:mm:ss')),
-            escapeCSV(e.endTime ? format(parseISO(e.endTime), 'HH:mm:ss') : ''),
-            hrs.toFixed(2),
-            amount > 0 ? amount.toFixed(2) : '',
-            escapeCSV(e.note),
-          ].join(',');
-        });
-
-        const csvContent = [headers.join(','), ...rows].join('\n');
-        return new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
-      },
+      () => new Blob(
+        [buildDetailedRawCSV(filteredEntries, billableLines, timecodeMap, groupMap)],
+        { type: 'text/csv;charset=utf-8;' },
+      ),
       defaultFilename,
       'csv'
     );
@@ -714,188 +763,26 @@ export const AnalysisView: React.FC = () => {
     try {
       const preparedFor = preparedForOverride || scopeLabel;
       const defaultPreparedBy = [settings?.preparerName, settings?.preparerCompany].filter(Boolean).join(' — ');
-      const preparedBy = preparedByOverride || defaultPreparedBy;
-      const { default: jsPDF } = await import('jspdf');
-      const { default: autoTable } = await import('jspdf-autotable');
-      const doc = new jsPDF();
-      const pageWidth = doc.internal.pageSize.getWidth();
 
-      const drawHeader = () => {
-        const userLogo = settings?.userLogoBase64;
-
-        if (userLogo) {
-          try {
-            const props = doc.getImageProperties(userLogo);
-            const maxW = 35, maxH = 12;
-            const ratio = props.width / props.height;
-            const w = ratio > maxW / maxH ? maxW : maxH * ratio;
-            const h = ratio > maxW / maxH ? maxW / ratio : maxH;
-            doc.addImage(userLogo, props.fileType, 14, 10, w, h, undefined, 'MEDIUM');
-          } catch (e) {
-            console.error('Failed to render user logo in PDF, falling back to TimeDoco logo only:', e);
-            doc.addImage(LOGO_PRINT_BASE64, 'PNG', 14, 10, 37.5, 10);
-          }
-          doc.addImage(LOGO_PRINT_BASE64, 'PNG', pageWidth - 14 - 25, 8, 25, 6.67);
-        } else {
-          doc.addImage(LOGO_PRINT_BASE64, 'PNG', 14, 10, 37.5, 10);
-        }
-
-        doc.setFontSize(9);
-        doc.setTextColor(140);
-        doc.text('Time & Activity Report', pageWidth - 14, userLogo ? 18 : 15, { align: 'right' });
-      };
-
-      let headerDrawnPage = 0;
-      const ensureHeader = (pageNumber: number) => {
-        if (pageNumber === headerDrawnPage) return;
-        headerDrawnPage = pageNumber;
-        drawHeader();
-      };
-
-      ensureHeader(1);
-
-      let y = 28;
-      const lines: { label: string; value: string }[] = [];
-      const addMeta = (label: string, value: string) => {
-        if (value) {
-          lines.push({ label, value });
-        }
-      };
-
-      addMeta('Prepared for:', preparedFor);
-      addMeta('Prepared by:', preparedBy);
-      addMeta('Period:', `${format(dateRange.start, 'MMM d, yyyy')} – ${format(dateRange.end, 'MMM d, yyyy')}`);
-      addMeta('Generated:', format(new Date(), "MMM d, yyyy 'at' HH:mm"));
-
-      reportFields
-        .filter(f => f.label.trim() && f.value.trim())
-        .forEach(f => addMeta(`${f.label}:`, f.value));
-
-      let labelColWidth = 0;
-      let valueX = 40;
-
-      if (lines.length > 0) {
-        doc.setFont('helvetica', 'bold');
-        doc.setFontSize(10);
-        const LABEL_COL_CAP = 65;
-        const labelWidths = lines.map(l => doc.getTextWidth(l.label));
-        labelColWidth = Math.min(Math.max(...labelWidths), LABEL_COL_CAP);
-        valueX = 14 + labelColWidth + 3;
-      }
-
-      doc.setFontSize(10);
-      doc.setTextColor(60);
-
-      const metaLine = (label: string, value: string) => {
-        if (!value) return;
-        const labelLines = doc.splitTextToSize(label, labelColWidth);
-        const valueLines = doc.splitTextToSize(value, pageWidth - 14 - valueX);
-        doc.setFont('helvetica', 'bold');
-        labelLines.forEach((l: string, i: number) => doc.text(l, 14, y + i * 5));
-        doc.setFont('helvetica', 'normal');
-        valueLines.forEach((l: string, i: number) => doc.text(l, valueX, y + i * 5));
-        y += Math.max(labelLines.length, valueLines.length) * 5;
-      };
-
-      lines.forEach(l => metaLine(l.label, l.value));
-
-      y += 3;
-      doc.setFontSize(12);
-      doc.setTextColor(20);
-      doc.setFont('helvetica', 'bold');
-      doc.text('Summary', 14, y);
-
-      const summaryRows = timecodeData.map(tc => {
-        const timecode = timecodeMap.get(tc.id);
-        const groupName = timecode?.groupId ? groupMap.get(timecode.groupId)?.name || 'Unknown' : 'Ungrouped';
-        const rate = timecode?.hourlyRate ? `${currencySymbol}${timecode.hourlyRate.toFixed(2)}/hr` : '-';
-        return [tc.name, groupName, rate, tc.durationHours.toFixed(2), tc.earnings > 0 ? `${currencySymbol}${tc.earnings.toFixed(2)}` : '-'];
+      // Layout lives in `reportPdf`, which needs no component tree — so every
+      // fixture in the document matrix can be rendered and looked at, through
+      // the same function that produces the file a client receives.
+      return await renderReportPdf({
+        model: reportModel,
+        entries: filteredEntries,
+        lines: billableLines,
+        timecodeMap,
+        settings,
+        meta: buildReportMeta(reportModel, {
+          preparedFor,
+          preparedBy: preparedByOverride || defaultPreparedBy,
+          periodText: `${safeFormatDate(dateRange.start, 'MMM d, yyyy')} – ${safeFormatDate(dateRange.end, 'MMM d, yyyy')}`,
+          generatedText: format(new Date(), "MMM d, yyyy 'at' HH:mm"),
+          customFields: reportFields,
+          settings,
+        }),
+        footerTextOverride,
       });
-
-      const foot = taxBreakdown
-        ? [
-            ['', '', '', 'Subtotal', `${currencySymbol}${taxBreakdown.subtotal.toFixed(2)}`],
-            ['', '', '', `${settings?.taxLabel || 'Tax'} (${settings?.taxRate}%)`, `${currencySymbol}${taxBreakdown.tax.toFixed(2)}`],
-            ['', 'Total', '', (totalSeconds / 3600).toFixed(2), `${currencySymbol}${taxBreakdown.total.toFixed(2)}`],
-          ]
-        : [['', 'Total', '', (totalSeconds / 3600).toFixed(2), totalEarnings > 0 ? `${currencySymbol}${totalEarnings.toFixed(2)}` : '-']];
-
-      autoTable(doc, {
-        startY: y + 4,
-        head: [['Timecode', 'Group', 'Rate', 'Hours', 'Total']],
-        body: summaryRows,
-        foot,
-        footStyles: { fontStyle: 'bold', fillColor: [238, 240, 236], textColor: [16, 22, 28] },
-        margin: { top: 25 },
-        didDrawPage: (data) => ensureHeader(data.pageNumber),
-      });
-
-      const detailRows = [...filteredEntries]
-        .sort((a, b) => new Date(a.startTime).getTime() - new Date(b.startTime).getTime())
-        .map(e => {
-          const tc = timecodeMap.get(e.timecodeId);
-          const hrs = (applyRounding(e.duration, settings?.roundingRule ?? 'none') / 3600).toFixed(2);
-          const amount = e.manualAmount != null
-            ? e.manualAmount
-            : (tc?.hourlyRate ? parseFloat(hrs) * tc.hourlyRate : 0);
-          const paused = e.endTime
-            ? formatDurationShort(calculateTotalPausedSeconds(parseISO(e.startTime), parseISO(e.endTime), e.pausedSegments))
-            : '—';
-          return [
-            format(parseISO(e.startTime), 'MMM d'),
-            tc?.name ?? 'Unknown',
-            format(parseISO(e.startTime), 'HH:mm'),
-            e.endTime ? format(parseISO(e.endTime), 'HH:mm') : 'Running',
-            paused,
-            hrs,
-            amount > 0 ? `${currencySymbol}${amount.toFixed(2)}` : '-',
-            e.note || '—',
-          ];
-        });
-
-      autoTable(doc, {
-        startY: (doc as any).lastAutoTable.finalY + 10,
-        head: [['Date', 'Timecode', 'Start', 'End', 'Paused', 'Hours', 'Amount', 'Note']],
-        body: detailRows,
-        styles: { fontSize: 8, cellPadding: 2 },
-        columnStyles: { 7: { cellWidth: 60 } },
-        margin: { top: 25 },
-        didDrawPage: (data) => ensureHeader(data.pageNumber),
-      });
-
-      const footerText = footerTextOverride || settings?.reportFooterText;
-      if (footerText && footerText.trim()) {
-        doc.setFontSize(8.5);
-        doc.setFont('helvetica', 'normal');
-        const lines = doc.splitTextToSize(footerText.trim(), pageWidth - 36);
-        const lineHeight = 4;
-        const boxPadding = 4;
-        const blockHeight = lines.length * lineHeight + boxPadding * 2;
-        const pageHeight = doc.internal.pageSize.getHeight();
-
-        let currentY = (doc as any).lastAutoTable.finalY + 10;
-        if (currentY + blockHeight > pageHeight - 20) {
-          doc.addPage();
-          currentY = 28;
-          ensureHeader((doc.internal as any).getNumberOfPages());
-        }
-
-        doc.setFillColor(249, 245, 235);
-        doc.rect(14, currentY, pageWidth - 28, blockHeight, 'F');
-        doc.setTextColor(60);
-        doc.text(lines, 18, currentY + boxPadding + 3);
-      }
-
-      const pageCount = (doc.internal as any).getNumberOfPages();
-      for (let i = 1; i <= pageCount; i++) {
-        doc.setPage(i);
-        doc.setFontSize(8);
-        doc.setTextColor(160);
-        doc.text(`Page ${i} of ${pageCount}`, pageWidth - 14, doc.internal.pageSize.getHeight() - 8, { align: 'right' });
-        doc.text('Generated with TimeDoco', 14, doc.internal.pageSize.getHeight() - 8);
-      }
-
-      return doc.output('blob');
     } catch (err) {
       console.error('PDF generation failed:', err);
       addToast('Failed to generate PDF. Please try again.', 'error');
@@ -906,7 +793,7 @@ export const AnalysisView: React.FC = () => {
   };
 
   const handlePrint = () => {
-    const defaultFilename = `time-report-${scopeSlug}-${format(dateRange.start, 'yyyy-MM-dd')}`;
+    const defaultFilename = `time-report-${scopeSlug}-${safeFormatDate(dateRange.start, 'yyyy-MM-dd', 'custom-period')}`;
     triggerDownload(
       generatePdfBlob,
       defaultFilename,
@@ -914,11 +801,7 @@ export const AnalysisView: React.FC = () => {
     );
   };
 
-  const formatDuration = (seconds: number) => {
-    const hrs = Math.floor(seconds / 3600);
-    const mins = Math.floor((seconds % 3600) / 60);
-    return `${hrs}h ${mins}m`;
-  };
+  const formatDuration = formatDurationShort;
 
   const handleSortClick = (field: SortField) => {
     if (tcSortField === field) {
@@ -959,20 +842,27 @@ export const AnalysisView: React.FC = () => {
 
         {/* Custom Date Inputs */}
         {preset === 'custom' && (
-          <div className="flex items-center gap-2 mb-4">
-            <input
-              type="date"
-              value={customStart}
-              onChange={(e) => setCustomStart(e.target.value)}
-              className="px-3 py-1.5 text-sm border border-graphite/20 dark:border-white/20 rounded-md bg-white dark:bg-graphite text-graphite dark:text-stone"
-            />
-            <span className="text-gray-600 dark:text-gray-400 text-sm">to</span>
-            <input
-              type="date"
-              value={customEnd}
-              onChange={(e) => setCustomEnd(e.target.value)}
-              className="px-3 py-1.5 text-sm border border-graphite/20 dark:border-white/20 rounded-md bg-white dark:bg-graphite text-graphite dark:text-stone"
-            />
+          <div className="flex flex-col gap-1 mb-4">
+            <div className="flex items-center gap-2">
+              <input
+                type="date"
+                value={customStart}
+                onChange={(e) => setCustomStart(e.target.value)}
+                className="px-3 py-1.5 text-sm border border-graphite/20 dark:border-white/20 rounded-md bg-white dark:bg-graphite text-graphite dark:text-stone"
+              />
+              <span className="text-gray-600 dark:text-gray-400 text-sm">to</span>
+              <input
+                type="date"
+                value={customEnd}
+                onChange={(e) => setCustomEnd(e.target.value)}
+                className="px-3 py-1.5 text-sm border border-graphite/20 dark:border-white/20 rounded-md bg-white dark:bg-graphite text-graphite dark:text-stone"
+              />
+            </div>
+            {isCustomInvalid && (
+              <p className="text-xs text-rust dark:text-orange-300">
+                Invalid custom date range. Showing current week as fallback.
+              </p>
+            )}
           </div>
         )}
 
@@ -1101,6 +991,11 @@ export const AnalysisView: React.FC = () => {
                 <div className="text-4xl font-mono tabular font-medium text-graphite dark:text-stone">
                   {formatDuration(totalSeconds)}
                 </div>
+                {roundingDelta && (
+                  <div className="mt-2 text-xs font-mono tabular text-signal-dim dark:text-signal">
+                    {roundingDelta}
+                  </div>
+                )}
               </div>
 
               {/* Earnings */}
@@ -1121,20 +1016,20 @@ export const AnalysisView: React.FC = () => {
                   <div className="space-y-1 mt-1">
                     <div className="flex justify-between text-xs text-gray-600 dark:text-gray-400">
                       <span>Subtotal</span>
-                      <span className="font-mono tabular">{currencySymbol}{taxBreakdown.subtotal.toFixed(2)}</span>
+                      <span className="font-mono tabular">{formatTotal(taxBreakdown.subtotal)}</span>
                     </div>
                     <div className="flex justify-between text-xs text-gray-600 dark:text-gray-400">
                       <span>{settings?.taxLabel || 'Tax'} ({settings?.taxRate}%)</span>
-                      <span className="font-mono tabular">{currencySymbol}{taxBreakdown.tax.toFixed(2)}</span>
+                      <span className="font-mono tabular">{formatTotal(taxBreakdown.tax)}</span>
                     </div>
                     <div className="flex justify-between text-2xl font-mono tabular font-medium text-graphite dark:text-stone pt-1 border-t border-graphite/20 dark:border-white/20">
                       <span>Total</span>
-                      <span>{currencySymbol}{taxBreakdown.total.toFixed(2)}</span>
+                      <span>{formatTotal(taxBreakdown.total)}</span>
                     </div>
                   </div>
                 ) : (
                   <div className="text-4xl font-mono tabular font-medium text-graphite dark:text-stone">
-                    {currencySymbol}{totalEarnings.toFixed(2)}
+                    {formatTotal(totalEarnings)}
                   </div>
                 )}
               </div>
@@ -1248,7 +1143,7 @@ export const AnalysisView: React.FC = () => {
                   <p className="text-xs text-gray-600 dark:text-gray-300">
                     Add a tax rate in Settings to show before/after-tax totals on your earnings and exports.
                   </p>
-                  <button onClick={() => updateSettings({ taxPromptDismissed: true })} className="text-xs font-semibold px-3 py-1 bg-graphite text-stone dark:bg-stone dark:text-ink rounded">
+                  <button onClick={() => { void updateSettings({ taxPromptDismissed: true }); }} className="text-xs font-semibold px-3 py-1 bg-graphite text-stone dark:bg-stone dark:text-ink rounded">
                     Dismiss
                   </button>
                 </div>
@@ -1380,7 +1275,10 @@ export const AnalysisView: React.FC = () => {
                               {breakdownType === 'timecode' ? 'Timecode' : 'Group'}
                             </th>
                             <th className="px-4 py-2.5 text-right font-semibold text-gray-600 dark:text-gray-400 font-sans text-xs uppercase tracking-wide">Hours</th>
-                            {totalEarnings > 0 && breakdownType === 'timecode' && (
+                            {showFeesColumn && breakdownType === 'timecode' && (
+                              <th className="px-4 py-2.5 text-right font-semibold text-gray-600 dark:text-gray-400 font-sans text-xs uppercase tracking-wide">Fees</th>
+                            )}
+                            {showEarningsColumn && breakdownType === 'timecode' && (
                               <th className="px-4 py-2.5 text-right font-semibold text-gray-600 dark:text-gray-400 font-sans text-xs uppercase tracking-wide">Earnings</th>
                             )}
                           </tr>
@@ -1402,10 +1300,17 @@ export const AnalysisView: React.FC = () => {
                                   <span className="font-medium text-graphite dark:text-stone">{row.name}</span>
                                 </td>
                                 <td className="px-4 py-2 text-right text-graphite dark:text-stone font-mono tabular">{row.durationHours.toFixed(2)}</td>
-                                {totalEarnings > 0 && breakdownType === 'timecode' && (
+                                {showFeesColumn && breakdownType === 'timecode' && (
                                   <td className="px-4 py-2 text-right text-graphite dark:text-stone font-mono tabular">
-                                    {'earnings' in row && typeof (row as { earnings?: number }).earnings === 'number' && (row as { earnings: number }).earnings > 0
-                                      ? `${currencySymbol}${(row as { earnings: number }).earnings.toFixed(2)}`
+                                    {'fees' in row && typeof (row as { fees?: number }).fees === 'number'
+                                      ? formatAmount((row as { fees: number }).fees)
+                                      : '-'}
+                                  </td>
+                                )}
+                                {showEarningsColumn && breakdownType === 'timecode' && (
+                                  <td className="px-4 py-2 text-right text-graphite dark:text-stone font-mono tabular">
+                                    {'earnings' in row && typeof (row as { earnings?: number }).earnings === 'number'
+                                      ? formatAmount((row as { earnings: number }).earnings)
                                       : '-'}
                                   </td>
                                 )}
@@ -1471,6 +1376,16 @@ export const AnalysisView: React.FC = () => {
                     </span>
                   </div>
                 </div>
+
+                {estimateDeepData.clippedCount > 0 && (
+                  <p className="text-xs text-gray-500 dark:text-gray-400 -mt-4">
+                    {estimateDeepData.clippedCount === 1
+                      ? '1 task started before this range or ran past it. It is compared'
+                      : `${estimateDeepData.clippedCount} tasks started before this range or ran past it. They are compared`}
+                    {' '}against its whole duration, not just the part inside the range, so these figures cover more
+                    time than the report bills.
+                  </p>
+                )}
 
                 {/* Distribution Histogram Chart */}
                 <div className="bg-stone/30 dark:bg-graphite/50 p-6 rounded-panel border border-graphite/20 dark:border-white/20">
@@ -1621,7 +1536,8 @@ export const AnalysisView: React.FC = () => {
                       {estimateDeepData.worstOffenders.map(({ entry, variancePct, diffSec }) => {
                         const tc = timecodeMap.get(entry.timecodeId);
                         const expMins = entry.expectedDurationMinutes!;
-                        const actMins = Math.round(entry.duration / 60);
+                        const actualSec = workedSecondsFor(billableLines, entry.id);
+                        const actMins = Math.round(actualSec / 60);
                         const diffMins = Math.round(diffSec / 60);
 
                         return (
@@ -1676,49 +1592,38 @@ export const AnalysisView: React.FC = () => {
             {/* Resolution 1: Single Day 24h Bar */}
             {timelineDays.length === 1 && (
               <div className="bg-stone/30 dark:bg-graphite/50 p-6 rounded-panel border border-graphite/20 dark:border-white/20">
-                <h3 className="text-base font-semibold text-graphite dark:text-stone mb-4 text-center">
+                <h3 className="text-base font-semibold text-graphite dark:text-stone mb-1 text-center">
                   Daily Timeline — {timelineDays[0].dateStr}
                 </h3>
+                {/* The heatmap this bar is replaced by at two days and up plots
+                    billable time. Saying which one this is, and what it comes to
+                    against the billed figure, is what stops the same day reading
+                    as two different amounts of work depending on the range. */}
+                <p className="text-xs text-center text-gray-500 dark:text-gray-400 mb-4">
+                  Blocks are time on the clock, pauses removed — {formatDuration(singleDayWorkedSeconds)} worked,
+                  {' '}{formatDuration(timelineDays[0].seconds)} billed.
+                </p>
                 <div className="relative h-14 bg-stone dark:bg-graphite rounded-panel shadow-inner overflow-hidden border border-graphite/20 dark:border-white/20">
-                  {Array.from({ length: 25 }).map((_, i) => (
+                  {singleDayTicks.map(tick => (
                     <div
-                      key={i}
+                      key={tick.at}
                       className="absolute top-0 bottom-0 border-l border-graphite/20 dark:border-white/20"
-                      style={{ left: `${(i / 24) * 100}%` }}
+                      style={{ left: `${tick.leftPercent}%` }}
                     >
                       <span className="absolute top-full mt-1 -ml-3 text-[10px] font-mono tabular text-gray-500 dark:text-gray-400">
-                        {i % 4 === 0 ? (i === 0 || i === 24 ? '12A' : i === 12 ? '12P' : i > 12 ? `${i - 12}P` : `${i}A`) : ''}
+                        {tick.label}
                       </span>
                     </div>
                   ))}
 
-                  {filteredEntries.map(entry => {
-                    const entryStart = parseISO(entry.startTime);
-                    const entryEnd = entry.endTime ? parseISO(entry.endTime) : new Date();
-
-                    const dayStart = dateRange.start;
-                    const totalDaySeconds = 86400;
-
-                    const startSeconds = Math.max(0, (entryStart.getTime() - dayStart.getTime()) / 1000);
-                    const endSeconds = Math.min(totalDaySeconds, (entryEnd.getTime() - dayStart.getTime()) / 1000);
-
-                    if (startSeconds >= totalDaySeconds || endSeconds <= 0) return null;
-
-                    const leftPercent = (startSeconds / totalDaySeconds) * 100;
-                    const widthPercent = ((endSeconds - startSeconds) / totalDaySeconds) * 100;
-
-                    const tc = timecodeMap.get(entry.timecodeId);
-                    const color = tc?.color || (tc?.groupId ? groupMap.get(tc.groupId)?.color : undefined) || '#cbd5e1';
-
-                    return (
-                      <div
-                        key={entry.id}
-                        className="absolute top-0 bottom-0 opacity-80 hover:opacity-100 transition-opacity"
-                        style={{ left: `${leftPercent}%`, width: `${widthPercent}%`, backgroundColor: color }}
-                        title={`${tc?.name || 'Unknown'} (${format(entryStart, 'h:mm a')} - ${entry.endTime ? format(entryEnd, 'h:mm a') : 'Now'})`}
-                      ></div>
-                    );
-                  })}
+                  {singleDayBlocks.map(block => (
+                    <div
+                      key={block.key}
+                      className="absolute top-0 bottom-0 opacity-80 hover:opacity-100 transition-opacity"
+                      style={{ left: `${block.leftPercent}%`, width: `${block.widthPercent}%`, backgroundColor: block.color }}
+                      title={block.title}
+                    ></div>
+                  ))}
                 </div>
                 <div className="h-6"></div>
               </div>
@@ -1812,7 +1717,7 @@ export const AnalysisView: React.FC = () => {
               <div>
                 <span className="text-xs text-gray-500 dark:text-gray-400 block uppercase tracking-wide">Period</span>
                 <span className="font-semibold text-graphite dark:text-stone">
-                  {format(dateRange.start, 'MMM d, yyyy')} – {format(dateRange.end, 'MMM d, yyyy')}
+                  {safeFormatDate(dateRange.start, 'MMM d, yyyy')} – {safeFormatDate(dateRange.end, 'MMM d, yyyy')}
                 </span>
               </div>
               <div>
@@ -1821,7 +1726,7 @@ export const AnalysisView: React.FC = () => {
               </div>
               <div>
                 <span className="text-xs text-gray-500 dark:text-gray-400 block uppercase tracking-wide">Total Earnings</span>
-                <span className="font-mono font-semibold text-graphite dark:text-stone">{currencySymbol}{totalEarnings.toFixed(2)}</span>
+                <span className="font-mono font-semibold text-graphite dark:text-stone">{formatTotal(totalEarnings)}</span>
               </div>
             </div>
 
@@ -1961,6 +1866,7 @@ export const AnalysisView: React.FC = () => {
       {/* Entry Edit Modal */}
       {editingEntry && (
         <EntryEditModal
+          key={editingEntry.id}
           entry={editingEntry}
           onClose={() => setEditingEntry(null)}
         />

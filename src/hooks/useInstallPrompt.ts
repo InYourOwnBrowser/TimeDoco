@@ -18,7 +18,7 @@ function detectIOS(): boolean {
 function detectStandalone(): boolean {
   if (typeof window === 'undefined') return false;
   return (
-    window.matchMedia('(display-mode: standalone)').matches ||
+    (typeof window.matchMedia === 'function' && window.matchMedia('(display-mode: standalone)').matches) ||
     // Safari-only, non-standard, but the most reliable signal on iOS
     (window.navigator as Navigator & { standalone?: boolean }).standalone === true
   );

@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { useTimeTracker } from '../context/TimeTrackerContext';
 import { Play, Square, Pause } from 'lucide-react';
 import { TimecodeSelector } from './TimecodeSelector';
@@ -6,6 +6,8 @@ import { type Entry } from '../types';
 import { getElapsedTimeMs, formatElapsedSeconds, formatDurationShort } from '../utils/timeUtils';
 import { useToast } from '../context/ToastContext';
 import { unlockAudioAlert } from '../utils/audioAlert';
+import { sendNotification, requestNotificationPermission } from '../utils/notification';
+import { useDeferredWrite } from '../hooks/useDeferredWrite';
 
 export const ActiveTimer: React.FC<{ activeEntry: Entry | null }> = ({ activeEntry }) => {
   const { startTimer, stopTimer, pauseTimer, resumeTimer, timecodes, updateActiveNote } = useTimeTracker();
@@ -19,55 +21,89 @@ export const ActiveTimer: React.FC<{ activeEntry: Entry | null }> = ({ activeEnt
 
   const lastLoadedEntryIdRef = useRef<string | null>(null);
 
+  // What is on screen right now, for a write that runs after the render that
+  // scheduled it — a debounce firing, a blur, or the component going away.
+  const noteRef = useRef(localNote);
+  const tagsRef = useRef(localTags);
+  const entryRef = useRef(activeEntry);
+  entryRef.current = activeEntry;
+  const updateActiveNoteRef = useRef(updateActiveNote);
+  updateActiveNoteRef.current = updateActiveNote;
+
   // Sync local note & tags when active entry changes (e.g. initial load)
   useEffect(() => {
     if (activeEntry && lastLoadedEntryIdRef.current !== activeEntry.id) {
       setLocalNote(activeEntry.note);
       setLocalTags((activeEntry.tags || []).join(', '));
+      noteRef.current = activeEntry.note;
+      tagsRef.current = (activeEntry.tags || []).join(', ');
       lastLoadedEntryIdRef.current = activeEntry.id;
     } else if (!activeEntry) {
       lastLoadedEntryIdRef.current = null;
     }
   }, [activeEntry]);
 
-  // Debounced save for the note and tags
-  useEffect(() => {
-    if (!activeEntry) return;
-    const handler = setTimeout(() => {
-      const tagsArray = localTags.split(',').map(t => t.trim()).filter(t => t !== '').slice(0, 20);
-      const tagsChanged = JSON.stringify(tagsArray) !== JSON.stringify(activeEntry.tags || []);
-      if (localNote !== activeEntry.note || tagsChanged) {
-        updateActiveNote(activeEntry.id, localNote, tagsArray);
-      }
-    }, 1000);
-    return () => clearTimeout(handler);
-  }, [localNote, localTags, activeEntry, updateActiveNote]);
+  /**
+   * The note and tags, written a second after the typing stops.
+   *
+   * This used to be a `setTimeout` in an effect whose cleanup cleared it, which
+   * meant leaving the tracker tab — or reloading to apply an update — threw the
+   * pending write away instead of performing it. Up to a second of typing, gone
+   * without a word. `useDeferredWrite` flushes on the way out instead, and the
+   * blur handlers below write immediately rather than waiting the second out.
+   */
+  const { schedule: scheduleNoteWrite, flush: flushNoteWrite } = useDeferredWrite(1000);
+
+  const writeNoteAndTags = useCallback(() => {
+    const entry = entryRef.current;
+    if (!entry) return;
+    const tagsArray = tagsRef.current.split(',').map(t => t.trim()).filter(t => t !== '').slice(0, 20);
+    const tagsChanged = JSON.stringify(tagsArray) !== JSON.stringify(entry.tags || []);
+    if (noteRef.current === entry.note && !tagsChanged) return;
+    return updateActiveNoteRef.current(entry.id, noteRef.current, tagsArray);
+  }, []);
+
+  const handleNoteChange = (value: string) => {
+    setLocalNote(value);
+    noteRef.current = value;
+    scheduleNoteWrite(writeNoteAndTags);
+  };
+
+  const handleTagsChange = (value: string) => {
+    setLocalTags(value);
+    tagsRef.current = value;
+    scheduleNoteWrite(writeNoteAndTags);
+  };
 
   const { settings } = useTimeTracker();
   const { addToast } = useToast();
-  const alertTriggeredRef = useRef(false);
+  // Which entry (and which target) the alert has already fired for. A plain
+  // boolean was only reset when the timer bar emptied, so starting a second
+  // timer straight after the first — the bar never goes empty — left the flag
+  // set and the new timer never announced its target.
+  const alertedForRef = useRef<string | null>(null);
 
   useEffect(() => {
     if (!activeEntry) {
       setElapsedSeconds(0);
-      alertTriggeredRef.current = false;
+      alertedForRef.current = null;
       return;
     }
+
+    const alertKey = `${activeEntry.id}:${settings?.targetAlertMinutes ?? ''}`;
 
     const calculateElapsed = () => {
       const elapsedMs = getElapsedTimeMs(activeEntry.startTime, activeEntry.pausedSegments);
       const seconds = Math.floor(elapsedMs / 1000);
       setElapsedSeconds(seconds);
 
-      if (settings?.targetAlertMinutes && !alertTriggeredRef.current) {
+      if (settings?.targetAlertMinutes && alertedForRef.current !== alertKey) {
         if (seconds >= settings.targetAlertMinutes * 60) {
           addToast(`Target reached! ${settings.targetAlertMinutes} minutes elapsed.`, 'info', undefined, 10000);
-          if (Notification.permission === 'granted') {
-            new Notification('TimeDoco Target Reached', {
-               body: `You have tracked ${settings.targetAlertMinutes} minutes.`,
-             });
-          }
-          alertTriggeredRef.current = true;
+          void sendNotification('TimeDoco Target Reached', {
+            body: `You have tracked ${settings.targetAlertMinutes} minutes.`,
+          });
+          alertedForRef.current = alertKey;
         }
       }
     };
@@ -80,35 +116,32 @@ export const ActiveTimer: React.FC<{ activeEntry: Entry | null }> = ({ activeEnt
     }
   }, [activeEntry, settings?.targetAlertMinutes, addToast]);
 
-  useEffect(() => {
-    if ('Notification' in window && Notification.permission === 'default' && settings?.targetAlertMinutes) {
-      Notification.requestPermission();
-    }
-  }, [settings?.targetAlertMinutes]);
-
   const activeTimecode = activeEntry ? timecodes.find(t => t.id === activeEntry.timecodeId) : null;
 
   const handleStop = async () => {
-    if (activeEntry) {
-      const tagsArray = localTags.split(',').map(t => t.trim()).filter(t => t !== '').slice(0, 20);
-      const tagsChanged = JSON.stringify(tagsArray) !== JSON.stringify(activeEntry.tags || []);
-      if (localNote !== activeEntry.note || tagsChanged) {
-        await updateActiveNote(activeEntry.id, localNote, tagsArray);
-      }
-      stopTimer(activeEntry.id);
-    }
+    if (!activeEntry) return;
+    // Anything part-way through being typed is written before the entry is
+    // closed, not left to a debounce this unmount would have cancelled.
+    await flushNoteWrite();
+    await stopTimer(activeEntry.id);
   };
 
   return (
-    <div className="bg-white dark:bg-graphite p-6 rounded-panel shadow-sm dark:shadow-[inset_0_1px_0_rgba(255,255,255,0.06)] border border-graphite/20 dark:border-white/20 max-w-md w-full mx-auto flex flex-col items-center transition-colors">
+    <div className={`relative bg-white dark:bg-graphite p-6 rounded-panel shadow-md dark:shadow-[inset_0_1px_0_rgba(255,255,255,0.08)] border ${
+      activeEntry && !activeEntry.isPaused
+        ? 'border-signal/50 dark:border-signal/40 ring-1 ring-signal/20'
+        : 'border-graphite/20 dark:border-white/15'
+    } max-w-md w-full mx-auto flex flex-col items-center transition-all duration-200`}>
       {!activeEntry ? (
-        <div className="w-full flex flex-col items-center gap-6">
-          <div className="text-5xl text-gray-400 dark:text-gray-500 font-mono tracking-wider tabular">
-            00:00
+        <div className="w-full flex flex-col items-center gap-5">
+          <div className="px-6 py-2.5 rounded-lg bg-stone/60 dark:bg-ink/60 border border-graphite/10 dark:border-white/10 shadow-inner">
+            <span className="text-5xl font-mono font-medium tracking-wider tabular text-gray-400 dark:text-gray-500">
+              00:00
+            </span>
           </div>
 
           <div className="w-full relative z-20">
-            <label className="block text-sm font-medium text-gray-600 dark:text-gray-400 mb-2 text-center">What are you working on?</label>
+            <label className="block text-xs font-semibold uppercase tracking-wider text-gray-500 dark:text-gray-400 mb-2 text-center">What are you working on?</label>
             <TimecodeSelector onSelect={setSelectedTimecodeId} selectedId={selectedTimecodeId} />
           </div>
 
@@ -117,27 +150,29 @@ export const ActiveTimer: React.FC<{ activeEntry: Entry | null }> = ({ activeEnt
               type="text"
               maxLength={2000}
               placeholder="Add a note (optional)"
-              className="w-full text-center text-sm px-3 py-2 border border-graphite/20 dark:border-white/20 hover:border-graphite/30 dark:hover:border-white/30 focus:border-signal dark:focus:border-signal rounded-panel outline-none transition-colors bg-white dark:bg-graphite text-graphite dark:text-stone placeholder-gray-500 dark:placeholder-gray-400 focus-visible:ring-2 focus-visible:ring-signal focus-visible:ring-offset-2 ring-offset-stone dark:ring-offset-graphite"
+              className="w-full text-center text-sm px-3.5 py-2 border border-graphite/20 dark:border-white/20 hover:border-graphite/30 dark:hover:border-white/30 focus:border-signal dark:focus:border-signal rounded-panel outline-none transition-all bg-white dark:bg-graphite text-graphite dark:text-stone placeholder-gray-400 dark:placeholder-gray-500 focus-visible:ring-2 focus-visible:ring-signal focus-visible:ring-offset-2 ring-offset-stone dark:ring-offset-graphite"
               value={preStartNote}
               onChange={(e) => setPreStartNote(e.target.value)}
             />
-            <input
-              type="text"
-              maxLength={500}
-              placeholder="Tags (e.g. design, client)"
-              className="w-full text-center text-xs px-3 py-1.5 border border-graphite/20 dark:border-white/20 hover:border-graphite/30 dark:hover:border-white/30 focus:border-signal dark:focus:border-signal rounded-panel outline-none transition-colors bg-white dark:bg-graphite text-graphite dark:text-stone placeholder-gray-500 dark:placeholder-gray-400 focus-visible:ring-2 focus-visible:ring-signal focus-visible:ring-offset-2 ring-offset-stone dark:ring-offset-graphite"
-              value={preStartTags}
-              onChange={(e) => setPreStartTags(e.target.value)}
-            />
-            <input
-              type="number"
-              min="1"
-              step="1"
-              placeholder="Estimated time (minutes, optional)"
-              className="w-full text-center text-xs px-3 py-1.5 border border-graphite/20 dark:border-white/20 hover:border-graphite/30 dark:hover:border-white/30 focus:border-signal dark:focus:border-signal rounded-panel outline-none transition-colors bg-white dark:bg-graphite text-graphite dark:text-stone placeholder-gray-500 dark:placeholder-gray-400 focus-visible:ring-2 focus-visible:ring-signal focus-visible:ring-offset-2 ring-offset-stone dark:ring-offset-graphite"
-              value={preStartExpectedMinutes}
-              onChange={(e) => setPreStartExpectedMinutes(e.target.value)}
-            />
+            <div className="grid grid-cols-2 gap-2">
+              <input
+                type="text"
+                maxLength={500}
+                placeholder="Tags (e.g. design, client)"
+                className="w-full text-center text-xs px-3 py-1.5 border border-graphite/20 dark:border-white/20 hover:border-graphite/30 dark:hover:border-white/30 focus:border-signal dark:focus:border-signal rounded-panel outline-none transition-all bg-white dark:bg-graphite text-graphite dark:text-stone placeholder-gray-400 dark:placeholder-gray-500 focus-visible:ring-2 focus-visible:ring-signal focus-visible:ring-offset-2 ring-offset-stone dark:ring-offset-graphite"
+                value={preStartTags}
+                onChange={(e) => setPreStartTags(e.target.value)}
+              />
+              <input
+                type="number"
+                min="1"
+                step="1"
+                placeholder="Est. mins (optional)"
+                className="w-full text-center text-xs px-3 py-1.5 border border-graphite/20 dark:border-white/20 hover:border-graphite/30 dark:hover:border-white/30 focus:border-signal dark:focus:border-signal rounded-panel outline-none transition-all bg-white dark:bg-graphite text-graphite dark:text-stone placeholder-gray-400 dark:placeholder-gray-500 focus-visible:ring-2 focus-visible:ring-signal focus-visible:ring-offset-2 ring-offset-stone dark:ring-offset-graphite"
+                value={preStartExpectedMinutes}
+                onChange={(e) => setPreStartExpectedMinutes(e.target.value)}
+              />
+            </div>
           </div>
 
           <button
@@ -145,14 +180,15 @@ export const ActiveTimer: React.FC<{ activeEntry: Entry | null }> = ({ activeEnt
             onClick={() => {
               if (!selectedTimecodeId) return;
               unlockAudioAlert();
+              void requestNotificationPermission();
               const tagsArray = preStartTags.split(',').map(t => t.trim()).filter(Boolean).slice(0, 20);
               const expected = preStartExpectedMinutes ? Math.max(1, Number(preStartExpectedMinutes)) : null;
-              startTimer(selectedTimecodeId, preStartNote, tagsArray, expected);
+              void startTimer(selectedTimecodeId, preStartNote, tagsArray, expected);
               setPreStartNote('');
               setPreStartTags('');
               setPreStartExpectedMinutes('');
             }}
-            className="mt-2 w-16 h-16 rounded-full bg-signal hover:bg-signal-dim text-ink flex items-center justify-center shadow-lg disabled:opacity-50 disabled:cursor-not-allowed transition-colors focus-visible:ring-2 focus-visible:ring-signal focus-visible:ring-offset-2 ring-offset-stone dark:ring-offset-graphite"
+            className="mt-1 w-16 h-16 rounded-full bg-signal hover:bg-amber-500 active:scale-95 text-ink flex items-center justify-center shadow-lg disabled:opacity-40 disabled:cursor-not-allowed transition-all focus-visible:ring-2 focus-visible:ring-signal focus-visible:ring-offset-2 ring-offset-stone dark:ring-offset-graphite"
             aria-label="Start Timer (Cmd/Ctrl+Shift+S)"
             title="Start Timer (Cmd/Ctrl+Shift+S)"
           >
@@ -163,27 +199,29 @@ export const ActiveTimer: React.FC<{ activeEntry: Entry | null }> = ({ activeEnt
         <div className="w-full flex flex-col items-center gap-4">
 
           <div className="flex flex-col items-center">
-            <span className="text-xs uppercase tracking-wide font-sans text-gray-500 dark:text-gray-400 mb-1">RECORDING</span>
-            <div className="flex items-center gap-2">
+            <span className="text-[10px] font-bold uppercase tracking-widest text-signal-dim dark:text-signal mb-1">
+              {activeEntry.isPaused ? 'PAUSED' : 'RECORDING'}
+            </span>
+            <div className="flex items-center gap-2 bg-stone/50 dark:bg-ink/40 px-3 py-1 rounded-full border border-graphite/10 dark:border-white/10">
               <div
-                className="w-3 h-3 rounded-full"
+                className="w-3 h-3 rounded-full shadow-sm"
                 style={{ backgroundColor: activeTimecode?.color || '#cbd5e1' }}
               ></div>
-              <span className="text-lg font-semibold text-gray-800 dark:text-gray-200">
+              <span className="text-base font-semibold text-gray-800 dark:text-gray-200">
                 {activeTimecode?.name || 'Unknown Timecode'}
               </span>
             </div>
           </div>
 
-          <div className="flex items-center gap-3">
-            <div className={`w-4 h-4 rounded-full ${activeEntry.isPaused ? 'bg-verdigris' : 'bg-signal recording-dot'}`}></div>
-            <div className="text-6xl font-mono tracking-wider tabular text-graphite dark:text-stone">
+          <div className="px-6 py-2 rounded-xl bg-stone/70 dark:bg-ink/70 border border-graphite/15 dark:border-white/15 shadow-inner flex items-center gap-3">
+            <div className={`w-3.5 h-3.5 rounded-full ${activeEntry.isPaused ? 'bg-verdigris' : 'bg-signal recording-dot'}`}></div>
+            <div className="text-5xl sm:text-6xl font-mono font-semibold tracking-wider tabular text-graphite dark:text-stone">
               {formatElapsedSeconds(elapsedSeconds)}
             </div>
           </div>
 
           {activeEntry.expectedDurationMinutes ? (
-            <div className="flex items-center gap-2 text-xs font-mono tabular -mt-2">
+            <div className="flex items-center gap-2 text-xs font-mono tabular -mt-1">
               <span className="text-gray-500 dark:text-gray-400">
                 Est. {formatDurationShort(activeEntry.expectedDurationMinutes * 60)}
               </span>
@@ -200,30 +238,32 @@ export const ActiveTimer: React.FC<{ activeEntry: Entry | null }> = ({ activeEnt
             </div>
           ) : null}
 
-          <div className="w-full mt-2 mb-2 space-y-2">
+          <div className="w-full mt-1 space-y-2">
             <input
               type="text"
               maxLength={2000}
               placeholder="Add a note..."
-              className="w-full text-center text-sm px-3 py-2 border border-graphite/20 dark:border-white/20 hover:border-graphite/30 dark:hover:border-white/30 focus:border-signal dark:focus:border-signal rounded-panel outline-none transition-colors bg-white dark:bg-graphite text-graphite dark:text-stone placeholder-gray-500 dark:placeholder-gray-400 focus-visible:ring-2 focus-visible:ring-signal focus-visible:ring-offset-2 ring-offset-stone dark:ring-offset-graphite"
+              className="w-full text-center text-sm px-3.5 py-2 border border-graphite/20 dark:border-white/20 hover:border-graphite/30 dark:hover:border-white/30 focus:border-signal dark:focus:border-signal rounded-panel outline-none transition-all bg-white dark:bg-graphite text-graphite dark:text-stone placeholder-gray-400 dark:placeholder-gray-500 focus-visible:ring-2 focus-visible:ring-signal focus-visible:ring-offset-2 ring-offset-stone dark:ring-offset-graphite"
               value={localNote}
-              onChange={(e) => setLocalNote(e.target.value)}
+              onChange={(e) => handleNoteChange(e.target.value)}
+              onBlur={() => { void flushNoteWrite(); }}
             />
             <input
               type="text"
               maxLength={500}
               placeholder="Tags (e.g. design, review)"
-              className="w-full text-center text-xs px-3 py-1.5 border border-graphite/20 dark:border-white/20 hover:border-graphite/30 dark:hover:border-white/30 focus:border-signal dark:focus:border-signal rounded-panel outline-none transition-colors bg-white dark:bg-graphite text-graphite dark:text-stone placeholder-gray-500 dark:placeholder-gray-400 focus-visible:ring-2 focus-visible:ring-signal focus-visible:ring-offset-2 ring-offset-stone dark:ring-offset-graphite"
+              className="w-full text-center text-xs px-3 py-1.5 border border-graphite/20 dark:border-white/20 hover:border-graphite/30 dark:hover:border-white/30 focus:border-signal dark:focus:border-signal rounded-panel outline-none transition-all bg-white dark:bg-graphite text-graphite dark:text-stone placeholder-gray-400 dark:placeholder-gray-500 focus-visible:ring-2 focus-visible:ring-signal focus-visible:ring-offset-2 ring-offset-stone dark:ring-offset-graphite"
               value={localTags}
-              onChange={(e) => setLocalTags(e.target.value)}
+              onChange={(e) => handleTagsChange(e.target.value)}
+              onBlur={() => { void flushNoteWrite(); }}
             />
           </div>
 
           <div className="flex items-center gap-4 mt-2">
             {activeEntry.isPaused ? (
               <button
-                onClick={() => resumeTimer(activeEntry.id)}
-                className="w-14 h-14 rounded-full bg-verdigris text-white hover:bg-verdigris-dim flex items-center justify-center transition-colors focus-visible:ring-2 focus-visible:ring-signal focus-visible:ring-offset-2 ring-offset-stone dark:ring-offset-graphite"
+                onClick={() => { void resumeTimer(activeEntry.id); }}
+                className="w-14 h-14 rounded-full bg-verdigris text-white hover:bg-verdigris-dim active:scale-95 flex items-center justify-center transition-all shadow-md focus-visible:ring-2 focus-visible:ring-signal focus-visible:ring-offset-2 ring-offset-stone dark:ring-offset-graphite"
                 title="Resume"
                 aria-label="Resume Timer"
               >
@@ -231,8 +271,8 @@ export const ActiveTimer: React.FC<{ activeEntry: Entry | null }> = ({ activeEnt
               </button>
             ) : (
               <button
-                onClick={() => pauseTimer(activeEntry.id)}
-                className="w-14 h-14 rounded-full bg-stone dark:bg-gray-700 text-graphite dark:text-gray-200 hover:bg-gray-200 dark:hover:bg-gray-600 flex items-center justify-center transition-colors focus-visible:ring-2 focus-visible:ring-signal focus-visible:ring-offset-2 ring-offset-stone dark:ring-offset-graphite"
+                onClick={() => { void pauseTimer(activeEntry.id); }}
+                className="w-14 h-14 rounded-full bg-stone dark:bg-gray-700 text-graphite dark:text-gray-200 hover:bg-gray-200 dark:hover:bg-gray-600 active:scale-95 flex items-center justify-center transition-all shadow-sm focus-visible:ring-2 focus-visible:ring-signal focus-visible:ring-offset-2 ring-offset-stone dark:ring-offset-graphite"
                 title="Pause"
                 aria-label="Pause Timer"
               >
@@ -242,7 +282,7 @@ export const ActiveTimer: React.FC<{ activeEntry: Entry | null }> = ({ activeEnt
 
             <button
               onClick={handleStop}
-              className="w-16 h-16 rounded-full bg-graphite hover:bg-ink dark:bg-stone dark:hover:bg-gray-300 text-stone dark:text-ink flex items-center justify-center shadow-lg transition-colors focus-visible:ring-2 focus-visible:ring-signal focus-visible:ring-offset-2 ring-offset-stone dark:ring-offset-graphite"
+              className="w-16 h-16 rounded-full bg-graphite hover:bg-ink dark:bg-stone dark:hover:bg-gray-200 active:scale-95 text-stone dark:text-ink flex items-center justify-center shadow-lg transition-all focus-visible:ring-2 focus-visible:ring-signal focus-visible:ring-offset-2 ring-offset-stone dark:ring-offset-graphite"
               title="Stop (Cmd/Ctrl+Shift+S)"
               aria-label="Stop Timer (Cmd/Ctrl+Shift+S)"
             >

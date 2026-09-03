@@ -1,9 +1,11 @@
 import { render, screen, fireEvent } from '@testing-library/react';
 import { describe, it, expect, vi } from 'vitest';
-import { format } from 'date-fns';
+import { format, subWeeks } from 'date-fns';
 import { AnalysisView } from './AnalysisView';
 
-const today = format(new Date(), 'yyyy-MM-dd');
+const todayDate = new Date();
+const today = format(todayDate, 'yyyy-MM-dd');
+const twoWeeksAgoStr = format(subWeeks(todayDate, 2), 'yyyy-MM-dd');
 
 const mockEntries = [
   {
@@ -25,6 +27,17 @@ const mockEntries = [
     duration: 2700,
     note: 'Task 2',
     expectedDurationMinutes: 30, // overrun by 15m (+50%)
+    pausedSegments: [],
+    tags: [],
+  },
+  {
+    id: 'entry-est-old',
+    timecodeId: 'tc-1',
+    startTime: `${twoWeeksAgoStr}T10:00:00`,
+    endTime: `${twoWeeksAgoStr}T11:00:00`, // 60 mins actual
+    duration: 3600,
+    note: 'Past Task',
+    expectedDurationMinutes: 30, // overrun by 30m (+100%)
     pausedSegments: [],
     tags: [],
   },
@@ -62,7 +75,7 @@ vi.mock('../context/TimeTrackerContext', () => ({
     timecodes: mockTimecodes,
     groups: mockGroups,
     settings: mockSettings,
-    updateSettings: vi.fn(),
+    updateSettings: vi.fn().mockResolvedValue(true),
   }),
 }));
 
@@ -173,5 +186,28 @@ describe('AnalysisView Redesign Tabs & Metrics', () => {
     const generatePdfBtn = screen.getByText('Generate Report (PDF)');
     expect(generatePdfBtn).not.toBeNull();
     fireEvent.click(generatePdfBtn);
+  });
+
+  it('handles clearing custom date inputs without crashing and displays fallback warning', () => {
+    render(<AnalysisView />);
+
+    const customBtn = screen.getByRole('button', { name: 'Custom' });
+    fireEvent.click(customBtn);
+
+    const dateInputs = screen.getAllByDisplayValue(/\d{4}-\d{2}-\d{2}/);
+    expect(dateInputs.length).toBe(2);
+
+    // Clear start date
+    fireEvent.change(dateInputs[0], { target: { value: '' } });
+
+    expect(screen.getByText('Invalid custom date range. Showing current week as fallback.')).not.toBeNull();
+  });
+
+  it('triggers Summary CSV export including total row', () => {
+    render(<AnalysisView />);
+
+    const summaryCsvBtn = screen.getByRole('button', { name: /Summary CSV/i });
+    expect(summaryCsvBtn).not.toBeNull();
+    fireEvent.click(summaryCsvBtn);
   });
 });

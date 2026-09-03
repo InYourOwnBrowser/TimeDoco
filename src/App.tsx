@@ -1,4 +1,4 @@
-import { useState, useEffect, Suspense, lazy, useRef, useCallback } from 'react';
+import { useState, useEffect, Suspense, useRef, useCallback } from 'react';
 import { BrowserRouter, Routes, Route } from 'react-router-dom';
 import { TimeTrackerProvider } from './context/TimeTrackerContext';
 import { BlogIndex } from './components/BlogIndex';
@@ -9,13 +9,17 @@ import { ForgotToStopPrompt } from './components/ForgotToStopPrompt';
 import { TemplateList } from './components/TemplateList';
 import { BackupReminderBanner } from './components/BackupReminderBanner';
 import { SettingsModal } from './components/SettingsModal';
-const AnalysisView = lazy(() => import('./components/AnalysisView').then(module => ({ default: module.AnalysisView })));
-const GroupingManagement = lazy(() => import('./components/GroupingManagement').then(module => ({ default: module.GroupingManagement })));
-const TimesheetView = lazy(() => import('./components/TimesheetView').then(module => ({ default: module.TimesheetView })));
-const ResourcesView = lazy(() => import('./components/ResourcesView').then(module => ({ default: module.ResourcesView })));
+import { isRecoveryReloadInFlight, lazyChunk, wasStaleChunkReload } from './utils/chunkRecovery';
+// `lazyChunk` is `lazy` that reports a chunk arriving, which is what clears the
+// stale-chunk reload guard — see utils/chunkRecovery.
+const AnalysisView = lazyChunk(() => import('./components/AnalysisView').then(module => ({ default: module.AnalysisView })));
+const GroupingManagement = lazyChunk(() => import('./components/GroupingManagement').then(module => ({ default: module.GroupingManagement })));
+const TimesheetView = lazyChunk(() => import('./components/TimesheetView').then(module => ({ default: module.TimesheetView })));
+const ResourcesView = lazyChunk(() => import('./components/ResourcesView').then(module => ({ default: module.ResourcesView })));
 import { WeeklySummary } from './components/WeeklySummary';
 import { IdleDetector } from './components/IdleDetector';
 import { OverrunDetector } from './components/OverrunDetector';
+import { ErrorBoundary } from './components/ErrorBoundary';
 import { Settings, BarChart2, Clock, ListTree, CalendarDays, Sparkles } from 'lucide-react';
 import { useTimeTracker } from './context/TimeTrackerContext';
 import { ToastProvider, useToast } from './context/ToastContext';
@@ -29,9 +33,40 @@ import { Logo } from './components/ui/Logo';
 import { Download, Save } from 'lucide-react';
 import { SocialLinks } from './components/SocialLinks';
 import { logError } from './utils/errorLog';
+import { resolveActiveTheme } from './utils/theme';
+
+const TABS = ['tracker', 'timesheet', 'analysis', 'management', 'resources'] as const;
+type Tab = (typeof TABS)[number];
+const ACTIVE_TAB_KEY = 'timedoco.activeTab';
+
+const isTab = (value: string | null): value is Tab => TABS.includes(value as Tab);
+
+/**
+ * Which tab to open on.
+ *
+ * Normally the tracker, as always. The exception is the load that a stale-chunk
+ * recovery started (see utils/chunkRecovery): the user clicked a tab, the chunk
+ * behind it had been deployed away, and the reload is the fix — so it should
+ * finish the click rather than drop them back at the start.
+ */
+const resumeTab = (): Tab => {
+  if (!wasStaleChunkReload()) return 'tracker';
+  try {
+    const stored = sessionStorage.getItem(ACTIVE_TAB_KEY);
+    return isTab(stored) ? stored : 'tracker';
+  } catch {
+    return 'tracker';
+  }
+};
 
 // Extracted inner component so we can use TimeTrackerContext
 const AppContent = () => {
+  useEffect(() => {
+    const handleShowInstallModal = () => setShowIOSInstallModal(true);
+    window.addEventListener('show-ios-install-modal', handleShowInstallModal);
+    return () => window.removeEventListener('show-ios-install-modal', handleShowInstallModal);
+  }, []);
+
   useEffect(() => {
     const onError = (e: ErrorEvent) => logError(e.error ?? new Error(e.message), 'window.onerror');
     const onRejection = (e: PromiseRejectionEvent) => logError(e.reason instanceof Error ? e.reason : new Error(String(e.reason)), 'unhandledrejection');
@@ -39,22 +74,23 @@ const AppContent = () => {
     window.addEventListener('unhandledrejection', onRejection);
     return () => { window.removeEventListener('error', onError); window.removeEventListener('unhandledrejection', onRejection); };
   }, []);
-  const { activeEntries, stopTimer, startTimer, timecodes, entries, settings, forgotToStopEntry, getBackupBlob } = useTimeTracker();
+  const { activeEntries, stopTimer, startTimer, timecodes, entries, settings, forgotToStopEntry, getBackupBlob, markBackupSaved } = useTimeTracker();
   const { triggerDownload, SaveAsDialog } = useNamedDownload();
   const { addToast } = useToast();
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
   const handleCloseSettings = useCallback(() => setIsSettingsOpen(false), []);
-  const [activeTab, setActiveTab] = useState<'tracker' | 'timesheet' | 'analysis' | 'management' | 'resources'>('tracker');
+  const [activeTab, setActiveTab] = useState<Tab>(resumeTab);
   const [showNewTimer, setShowNewTimer] = useState(false);
   const [isFallbackMode, setIsFallbackMode] = useState(false);
   const { canInstall, promptInstall, installed, needsManualInstall } = useInstallPrompt();
   const [showIOSInstallModal, setShowIOSInstallModal] = useState(false);
+  const [isOverrunPromptActive, setIsOverrunPromptActive] = useState(false);
 
   const handleInstallClick = useCallback(() => {
     if (needsManualInstall) {
       setShowIOSInstallModal(true);
     } else {
-      promptInstall();
+      void promptInstall();
     }
   }, [needsManualInstall, promptInstall]);
 
@@ -77,22 +113,51 @@ const AppContent = () => {
     return () => window.removeEventListener('idb-fallback-mode', handleFallbackMode);
   }, [addToast]);
 
+  // Prevent accidental navigation/closure when in fallback mode
+  useEffect(() => {
+    if (!isFallbackMode) return;
+    const handleBeforeUnload = (e: BeforeUnloadEvent) => {
+      // Same exemption the running-timer guard makes: a reload the app started
+      // to recover from a stale chunk is not the user leaving. Without it the
+      // silent recovery raised "Leave site?" here, and choosing Stay spent the
+      // one-shot guard — the behaviour `chunkRecovery` says it fixed, still
+      // reachable through this second handler.
+      if (isRecoveryReloadInFlight()) return;
+      e.preventDefault();
+      e.returnValue = 'Storage error detected. App is running in memory fallback mode. Data will be lost if you close this page.';
+      return e.returnValue;
+    };
+    window.addEventListener('beforeunload', handleBeforeUnload);
+    return () => window.removeEventListener('beforeunload', handleBeforeUnload);
+  }, [isFallbackMode]);
+
   // Calculate elapsed time for document title
   useEffect(() => {
-    if (activeEntries.length === 0) {
-      document.title = 'TimeDoco';
-      return;
-    }
-
-    // Pick the most recently started entry (last in the array usually, or sort by start time)
-    const primaryEntry = [...activeEntries].sort((a, b) => new Date(b.startTime).getTime() - new Date(a.startTime).getTime())[0];
-    const activeTimecode = timecodes.find(t => t.id === primaryEntry.timecodeId);
+    let flashOn = false;
 
     const updateTitle = () => {
-      const elapsedMs = getElapsedTimeMs(primaryEntry.startTime, primaryEntry.pausedSegments);
-      const elapsed = Math.floor(elapsedMs / 1000);
+      if (activeEntries.length === 0) {
+        if (isOverrunPromptActive && document.hidden && flashOn) {
+          document.title = '⏰ Past estimate! · TimeDoco';
+        } else {
+          document.title = 'TimeDoco';
+        }
+        return;
+      }
+
+      // Prioritize running entries over paused entries
+      const runningEntry = activeEntries.find(e => !e.isPaused);
+      const primaryEntry = runningEntry || [...activeEntries].sort((a, b) => new Date(b.startTime).getTime() - new Date(a.startTime).getTime())[0];
+      const activeTimecode = timecodes.find(t => t.id === primaryEntry.timecodeId);
+
+      if (isOverrunPromptActive && document.hidden && flashOn) {
+        document.title = '⏰ Past estimate! · TimeDoco';
+        return;
+      }
 
       if (activeTimecode) {
+        const elapsedMs = getElapsedTimeMs(primaryEntry.startTime, primaryEntry.pausedSegments);
+        const elapsed = Math.floor(elapsedMs / 1000);
         const timeStr = formatElapsedSeconds(elapsed);
         let prefix = primaryEntry.isPaused ? '⏸️' : '🔴';
         if (activeEntries.length > 1) {
@@ -100,42 +165,78 @@ const AppContent = () => {
         }
         document.title = `${prefix} ${timeStr} - ${activeTimecode.name}`;
       } else {
-         document.title = 'TimeDoco';
+        document.title = 'TimeDoco';
       }
     };
 
     updateTitle();
 
-    // Only set interval if the primary entry is running
-    if (!primaryEntry.isPaused) {
-      const interval = setInterval(updateTitle, 500); // 500ms to ensure timely updates
+    const anyRunning = activeEntries.some(e => !e.isPaused);
+    if (anyRunning || isOverrunPromptActive) {
+      const interval = setInterval(() => {
+        flashOn = !flashOn;
+        updateTitle();
+      }, 500);
       return () => clearInterval(interval);
     }
-  }, [activeEntries, timecodes]);
+  }, [activeEntries, timecodes, isOverrunPromptActive]);
+
+  // Only ever read back by `resumeTab`, after a recovery reload.
+  useEffect(() => {
+    try {
+      sessionStorage.setItem(ACTIVE_TAB_KEY, activeTab);
+    } catch {
+      // A tab that cannot be remembered just means the recovery lands on the
+      // tracker, which is where it landed before any of this existed.
+    }
+  }, [activeTab]);
 
   // Reset new timer form when a timer starts or concurrent is disabled
   useEffect(() => {
     setShowNewTimer(false);
   }, [activeEntries.length, settings?.allowConcurrentTimers]);
 
+  // `settings` is null until IndexedDB answers, and stays null for good in
+  // fallback mode, so "which theme" and "have we actually got one" are two
+  // different questions below.
+  const settingsLoaded = settings !== null;
+  const storedTheme = settings?.theme;
+
   useEffect(() => {
     const root = window.document.documentElement;
-    const theme = settings?.theme || 'dark';
+    const theme = storedTheme || 'dark';
 
     root.classList.remove('light', 'dark');
 
-    let activeTheme = theme;
-    if (theme === 'system') {
-      activeTheme = window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
-    }
+    // Shared with the pre-hydration boot script through `resolveActiveTheme`,
+    // which is the only place the rule is written down.
+    const activeTheme = resolveActiveTheme(storedTheme);
 
     root.classList.add(activeTheme);
+
+    // Mirror the choice where the pre-hydration script can read it. IndexedDB
+    // cannot be read synchronously before paint, so without this a user whose
+    // explicit theme contradicts their OS preference sees the wrong one flash
+    // on every load.
+    //
+    // Only once the settings have actually arrived. Writing during the null
+    // window put the 'dark' default over a stored 'light', so the next boot
+    // painted dark from the mirror — and in fallback mode, where settings never
+    // arrive, that wrong value was all the boot script would ever read.
+    if (settingsLoaded) {
+      try {
+        localStorage.setItem('theme', theme);
+      } catch {
+        // Private mode or blocked storage: the boot script falls back to the OS
+        // preference, which is what it did before.
+      }
+    }
 
     const metaThemeColor = document.querySelector('meta[name="theme-color"]');
     if (metaThemeColor) {
       metaThemeColor.setAttribute('content', activeTheme === 'dark' ? '#111827' : '#f9fafb');
     }
-  }, [settings?.theme]);
+  }, [storedTheme, settingsLoaded]);
 
   // Keyboard shortcut to start/stop the most recent timer (Ctrl+Shift+S or Cmd+Shift+S)
   useEffect(() => {
@@ -150,7 +251,7 @@ const AppContent = () => {
 
         if (activeEntries && activeEntries.length > 0) {
           const mostRecentActive = [...activeEntries].sort((a, b) => new Date(b.startTime).getTime() - new Date(a.startTime).getTime())[0];
-          stopTimer(mostRecentActive.id);
+          void stopTimer(mostRecentActive.id);
         } else {
           // Find most recent timecode used
           const sortedEntries = [...entries].sort((a, b) => new Date(b.startTime).getTime() - new Date(a.startTime).getTime());
@@ -160,7 +261,7 @@ const AppContent = () => {
             // Make sure it's not archived
             const tc = timecodes.find(t => t.id === recentTimecodeId);
             if (tc && !tc.archived) {
-              startTimer(recentTimecodeId);
+              void startTimer(recentTimecodeId);
               return;
             }
           }
@@ -168,7 +269,7 @@ const AppContent = () => {
           // Fallback to the first available non-archived timecode
           const unarchived = timecodes.filter(t => !t.archived);
           if (unarchived.length > 0) {
-            startTimer(unarchived[0].id);
+            void startTimer(unarchived[0].id);
           }
         }
       }
@@ -181,8 +282,17 @@ const AppContent = () => {
   return (
       <div className="min-h-screen bg-stone dark:bg-ink flex flex-col items-center pt-12 px-4 font-sans text-gray-900 dark:text-gray-100 pb-24 relative">
         {isFallbackMode && (
-          <div className="w-full bg-red-600 text-white text-center py-2 px-4 font-medium text-sm shadow-sm sticky top-0 z-50">
-            ⚠️ Storage Error: App is running in memory fallback mode. Your data will not be saved after you close this page.
+          <div className="w-full bg-red-600 text-white text-center py-2 px-4 font-medium text-sm shadow-sm sticky top-0 z-50 flex items-center justify-center gap-3">
+            <span>⚠️ Storage Error: App is running in memory fallback mode. Your data will not be saved after you close this page.</span>
+            <button
+              onClick={() => {
+                const dateStr = new Date().toISOString().split('T')[0];
+                triggerDownload(getBackupBlob, `timedoco-fallback-backup-${dateStr}`, 'json', markBackupSaved);
+              }}
+              className="px-2.5 py-1 text-xs font-semibold bg-white text-red-700 hover:bg-gray-100 rounded-panel transition-colors flex items-center gap-1 shadow-sm"
+            >
+              <Save size={14} /> Export Backup
+            </button>
           </div>
         )}
         <div className="w-full max-w-3xl absolute top-4 right-4 flex justify-end gap-2 items-center">
@@ -197,7 +307,7 @@ const AppContent = () => {
           <button
             onClick={() => {
               const dateStr = new Date().toISOString().split('T')[0];
-              triggerDownload(getBackupBlob, `timedoco-backup-${dateStr}`, 'json');
+              triggerDownload(getBackupBlob, `timedoco-backup-${dateStr}`, 'json', markBackupSaved);
             }}
             className="p-2 text-gray-600 dark:text-gray-400 hover:text-gray-800 dark:hover:text-gray-200 hover:bg-gray-200/60 dark:hover:bg-gray-800/60 rounded-panel transition-colors focus-visible:ring-2 focus-visible:ring-signal focus-visible:ring-offset-2"
             aria-label="Backup data"
@@ -230,26 +340,26 @@ const AppContent = () => {
           <p className="text-gray-600 dark:text-gray-400 mb-6">Track time. Bill clients. Own your data.</p>
 
           <div className="flex justify-center mb-4 w-full px-4 sm:px-0">
-            <div className="bg-white dark:bg-graphite p-1 rounded-panel flex w-full sm:w-auto overflow-x-auto hide-scrollbar border border-graphite/20 dark:border-white/20 shadow-sm gap-1">
+            <div className="bg-white/80 dark:bg-graphite/90 backdrop-blur-md p-1.5 rounded-panel flex w-full sm:w-auto overflow-x-auto hide-scrollbar border border-graphite/20 dark:border-white/15 shadow-sm gap-1">
               <button
                 onClick={() => setActiveTab('tracker')}
-                className={`flex-1 sm:flex-none flex items-center justify-center sm:justify-start px-3.5 sm:px-4 py-2 text-sm font-medium transition-colors rounded-panel focus-visible:ring-2 focus-visible:ring-signal focus-visible:ring-offset-2 ring-offset-stone dark:ring-offset-ink ${
+                className={`flex-1 sm:flex-none flex items-center justify-center sm:justify-start px-4 py-2 text-sm font-medium transition-all rounded-panel focus-visible:ring-2 focus-visible:ring-signal focus-visible:ring-offset-2 ring-offset-stone dark:ring-offset-ink ${
                   activeTab === 'tracker'
-                    ? 'bg-signal/10 text-signal-dim dark:text-signal border border-signal/30 font-semibold'
-                    : 'text-graphite/80 dark:text-stone/80 hover:text-gray-900 dark:hover:text-white hover:bg-gray-100 dark:hover:bg-gray-800/50'
+                    ? 'bg-signal/15 text-signal-dim dark:text-signal border border-signal/40 font-semibold shadow-xs'
+                    : 'border border-transparent text-graphite/70 dark:text-stone/70 hover:text-graphite dark:hover:text-stone hover:bg-stone/50 dark:hover:bg-gray-800/50'
                 }`}
                 aria-label="Tracker"
                 title="Tracker"
               >
-                <Clock size={16} className="sm:mr-2" />
+                <Clock size={16} className="sm:mr-2 text-signal" />
                 <span className="hidden sm:inline">Tracker</span>
               </button>
               <button
                 onClick={() => setActiveTab('timesheet')}
-                className={`flex-1 sm:flex-none flex items-center justify-center sm:justify-start px-3.5 sm:px-4 py-2 text-sm font-medium transition-colors rounded-panel focus-visible:ring-2 focus-visible:ring-signal focus-visible:ring-offset-2 ring-offset-stone dark:ring-offset-ink ${
+                className={`flex-1 sm:flex-none flex items-center justify-center sm:justify-start px-4 py-2 text-sm font-medium transition-all rounded-panel focus-visible:ring-2 focus-visible:ring-signal focus-visible:ring-offset-2 ring-offset-stone dark:ring-offset-ink ${
                   activeTab === 'timesheet'
-                    ? 'bg-signal/10 text-signal-dim dark:text-signal border border-signal/30 font-semibold'
-                    : 'text-graphite/80 dark:text-stone/80 hover:text-gray-900 dark:hover:text-white hover:bg-gray-100 dark:hover:bg-gray-800/50'
+                    ? 'bg-signal/15 text-signal-dim dark:text-signal border border-signal/40 font-semibold shadow-xs'
+                    : 'border border-transparent text-graphite/70 dark:text-stone/70 hover:text-graphite dark:hover:text-stone hover:bg-stone/50 dark:hover:bg-gray-800/50'
                 }`}
                 aria-label="Timesheet"
                 title="Timesheet"
@@ -259,10 +369,10 @@ const AppContent = () => {
               </button>
               <button
                 onClick={() => setActiveTab('analysis')}
-                className={`flex-1 sm:flex-none flex items-center justify-center sm:justify-start px-3.5 sm:px-4 py-2 text-sm font-medium transition-colors rounded-panel focus-visible:ring-2 focus-visible:ring-signal focus-visible:ring-offset-2 ring-offset-stone dark:ring-offset-ink ${
+                className={`flex-1 sm:flex-none flex items-center justify-center sm:justify-start px-4 py-2 text-sm font-medium transition-all rounded-panel focus-visible:ring-2 focus-visible:ring-signal focus-visible:ring-offset-2 ring-offset-stone dark:ring-offset-ink ${
                   activeTab === 'analysis'
-                    ? 'bg-signal/10 text-signal-dim dark:text-signal border border-signal/30 font-semibold'
-                    : 'text-graphite/80 dark:text-stone/80 hover:text-gray-900 dark:hover:text-white hover:bg-gray-100 dark:hover:bg-gray-800/50'
+                    ? 'bg-signal/15 text-signal-dim dark:text-signal border border-signal/40 font-semibold shadow-xs'
+                    : 'border border-transparent text-graphite/70 dark:text-stone/70 hover:text-graphite dark:hover:text-stone hover:bg-stone/50 dark:hover:bg-gray-800/50'
                 }`}
                 aria-label="Analysis"
                 title="Analysis"
@@ -272,10 +382,10 @@ const AppContent = () => {
               </button>
               <button
                 onClick={() => setActiveTab('management')}
-                className={`flex-1 sm:flex-none flex items-center justify-center sm:justify-start px-3.5 sm:px-4 py-2 text-sm font-medium transition-colors rounded-panel focus-visible:ring-2 focus-visible:ring-signal focus-visible:ring-offset-2 ring-offset-stone dark:ring-offset-ink ${
+                className={`flex-1 sm:flex-none flex items-center justify-center sm:justify-start px-4 py-2 text-sm font-medium transition-all rounded-panel focus-visible:ring-2 focus-visible:ring-signal focus-visible:ring-offset-2 ring-offset-stone dark:ring-offset-ink ${
                   activeTab === 'management'
-                    ? 'bg-signal/10 text-signal-dim dark:text-signal border border-signal/30 font-semibold'
-                    : 'text-graphite/80 dark:text-stone/80 hover:text-gray-900 dark:hover:text-white hover:bg-gray-100 dark:hover:bg-gray-800/50'
+                    ? 'bg-signal/15 text-signal-dim dark:text-signal border border-signal/40 font-semibold shadow-xs'
+                    : 'border border-transparent text-graphite/70 dark:text-stone/70 hover:text-graphite dark:hover:text-stone hover:bg-stone/50 dark:hover:bg-gray-800/50'
                 }`}
                 aria-label="Management"
                 title="Management"
@@ -285,10 +395,10 @@ const AppContent = () => {
               </button>
               <button
                 onClick={() => setActiveTab('resources')}
-                className={`flex-1 sm:flex-none flex items-center justify-center sm:justify-start px-3.5 sm:px-4 py-2 text-sm font-medium transition-colors rounded-panel focus-visible:ring-2 focus-visible:ring-signal focus-visible:ring-offset-2 ring-offset-stone dark:ring-offset-ink ${
+                className={`flex-1 sm:flex-none flex items-center justify-center sm:justify-start px-4 py-2 text-sm font-medium transition-all rounded-panel focus-visible:ring-2 focus-visible:ring-signal focus-visible:ring-offset-2 ring-offset-stone dark:ring-offset-ink ${
                   activeTab === 'resources'
-                    ? 'bg-signal/10 text-signal-dim dark:text-signal border border-signal/30 font-semibold'
-                    : 'text-graphite/80 dark:text-stone/80 hover:text-gray-900 dark:hover:text-white hover:bg-gray-100 dark:hover:bg-gray-800/50'
+                    ? 'bg-signal/15 text-signal-dim dark:text-signal border border-signal/40 font-semibold shadow-xs'
+                    : 'border border-transparent text-graphite/70 dark:text-stone/70 hover:text-graphite dark:hover:text-stone hover:bg-stone/50 dark:hover:bg-gray-800/50'
                 }`}
                 aria-label="Resources"
                 title="Resources"
@@ -323,10 +433,10 @@ const AppContent = () => {
               <EntryList />
             </>
           )}
-          {activeTab === 'timesheet' && <Suspense fallback={<div className="p-8 text-center text-gray-500">Loading timesheet...</div>}><TimesheetView /></Suspense>}
-          {activeTab === 'analysis' && <Suspense fallback={<div className="p-8 text-center text-gray-500">Loading analysis...</div>}><AnalysisView /></Suspense>}
-          {activeTab === 'management' && <Suspense fallback={<div className="p-8 text-center text-gray-500">Loading management...</div>}><GroupingManagement /></Suspense>}
-          {activeTab === 'resources' && <Suspense fallback={<div className="p-8 text-center text-gray-500">Loading resources...</div>}><ResourcesView /></Suspense>}
+          {activeTab === 'timesheet' && <ErrorBoundary><Suspense fallback={<div className="p-8 text-center text-gray-500">Loading timesheet...</div>}><TimesheetView /></Suspense></ErrorBoundary>}
+          {activeTab === 'analysis' && <ErrorBoundary><Suspense fallback={<div className="p-8 text-center text-gray-500">Loading analysis...</div>}><AnalysisView /></Suspense></ErrorBoundary>}
+          {activeTab === 'management' && <ErrorBoundary><Suspense fallback={<div className="p-8 text-center text-gray-500">Loading management...</div>}><GroupingManagement /></Suspense></ErrorBoundary>}
+          {activeTab === 'resources' && <ErrorBoundary><Suspense fallback={<div className="p-8 text-center text-gray-500">Loading resources...</div>}><ResourcesView /></Suspense></ErrorBoundary>}
         </main>
 
         <footer className="mt-12 mb-4 flex justify-center">
@@ -337,7 +447,7 @@ const AppContent = () => {
         {showIOSInstallModal && <IOSInstallModal onClose={() => setShowIOSInstallModal(false)} />}
 
         <IdleDetector />
-        <OverrunDetector />
+        <OverrunDetector onPromptStateChange={setIsOverrunPromptActive} />
 
         {/* Render persistent global active timer bar when not on tracker tab */ }
         {activeTab !== 'tracker' && <GlobalActiveTimerBar />}
