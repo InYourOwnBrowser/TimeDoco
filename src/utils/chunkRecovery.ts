@@ -1,5 +1,5 @@
 import { lazy } from 'react';
-import { flushDeferredWrites } from '../hooks/useDeferredWrite';
+import { settleDeferredWrites } from '../hooks/useDeferredWrite';
 
 /**
  * Recovery from a code-split chunk that is no longer being served.
@@ -67,13 +67,6 @@ let recoveryReloadInFlight = false;
 export const isRecoveryReloadInFlight = (): boolean => recoveryReloadInFlight;
 
 /**
- * How long the reload will wait on pending writes before going ahead anyway. A
- * write that never settles must not leave the user stranded on the error
- * screen, which is the thing the reload is there to clear.
- */
-const FLUSH_BUDGET_MS = 500;
-
-/**
  * Reload for a chunk the origin no longer has, at most once per failure run.
  * Returns whether a reload was started — the caller has nothing left to do if
  * it was.
@@ -96,10 +89,7 @@ export const reloadOnceForStaleChunk = (error: unknown): boolean => {
   // in flight would go down with the page — the one loss `useDeferredWrite`
   // cannot prevent from inside itself. This is a reload the app chose, so it
   // can flush first and wait, unlike one the user triggers.
-  void Promise.race([
-    Promise.allSettled(flushDeferredWrites()),
-    new Promise((resolve) => window.setTimeout(resolve, FLUSH_BUDGET_MS)),
-  ]).then(() => window.location.reload());
+  void settleDeferredWrites().then(() => window.location.reload());
 
   return true;
 };

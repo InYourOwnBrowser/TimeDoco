@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { RefreshCw, X } from 'lucide-react';
 import { registerSW } from 'virtual:pwa-register';
+import { settleDeferredWrites } from '../hooks/useDeferredWrite';
 
 /**
  * Registers the service worker, and asks before replacing the running build.
@@ -71,9 +72,16 @@ export const PwaUpdatePrompt = () => {
         <button
           onClick={() => {
             setUpdating(true);
-            // The reload is the worker's to do once it has taken over: it fires
-            // the `controlling` event, and the registration reloads on it.
-            void updateRef.current?.(true);
+            // The banner above promises pending typing is saved first, and this
+            // is the only place that can keep that promise: the worker takes
+            // over and the registration reloads on `controlling`, and React
+            // runs no effect cleanup for a reload — so the note on a running
+            // timer and every `SettingField` mid-debounce would go down with
+            // the page. Same helper the stale-chunk recovery uses; it was the
+            // only caller, and this path was the one that needed it most.
+            //
+            // The reload is still the worker's to do once it has taken over.
+            void settleDeferredWrites().then(() => updateRef.current?.(true));
           }}
           disabled={updating}
           className="inline-flex items-center justify-center gap-1.5 px-3 py-1.5 text-xs font-semibold rounded-panel bg-graphite hover:bg-ink dark:bg-stone dark:hover:bg-gray-300 text-stone dark:text-ink transition-colors disabled:opacity-60 focus-visible:ring-2 focus-visible:ring-signal focus-visible:ring-offset-2"
