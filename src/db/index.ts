@@ -472,6 +472,58 @@ const SETTINGS_KEY = 'user-settings';
  */
 const atSettingsKey = (settings: Settings): Settings => ({ ...settings, id: SETTINGS_KEY });
 
+/** A record's change stamp as an epoch time, or NaN when there isn't a readable one. */
+const stampOf = (record: { updatedAt?: string | null }): number =>
+  record.updatedAt ? new Date(record.updatedAt).getTime() : NaN;
+
+/** Whether a record carries a change stamp anything can be concluded from. */
+const hasReadableStamp = (record: { updatedAt?: string | null }): boolean =>
+  Number.isFinite(stampOf(record));
+
+/**
+ * Whether an incoming record should replace the one already stored.
+ *
+ * Merge mode resolves every conflict on `updatedAt`, and nothing validates that
+ * field — `validateBackupPayload` does not mention it — so both sides of this
+ * comparison can be missing or unparseable. Written as a bare
+ * `new Date(incoming.updatedAt) > new Date(existing.updatedAt)` that produced
+ * NaN, and NaN loses every comparison it is in, which broke the rule in two
+ * different directions at once:
+ *
+ *  - An incoming record with no readable stamp always lost, so it was dropped.
+ *    That is the defensible half — nothing can show it is newer — but it was
+ *    silent, and the import still reported success. `undatedSkipped` is what
+ *    makes it audible.
+ *  - A *stored* record with no readable stamp also always won, so no import
+ *    could ever replace it. Restoring a good backup over a corrupted record
+ *    quietly did nothing, which is the opposite of what a restore is for.
+ *
+ * `mergeSettings` already had this right and this is its rule, lifted out so
+ * groups, timecodes and entries cannot drift from settings again: incoming wins
+ * when it can be dated and either the stored copy cannot be, or it is older.
+ */
+const incomingIsNewer = (
+  incoming: { updatedAt?: string | null },
+  existing: { updatedAt?: string | null },
+): boolean => {
+  const incomingAt = stampOf(incoming);
+  const existingAt = stampOf(existing);
+  return Number.isFinite(incomingAt) && (!Number.isFinite(existingAt) || incomingAt > existingAt);
+};
+
+/**
+ * What an import did that the user would not otherwise find out about.
+ *
+ * `undatedSkipped` counts records left alone *only* because their own change
+ * stamp could not be read — not the ones a newer local copy legitimately beat,
+ * which is merge working as intended and not worth saying. The distinction
+ * matters: the first is unresolvable and the user has to decide what to do
+ * about it, the second is the answer they asked for.
+ */
+export interface ImportOutcome {
+  undatedSkipped: number;
+}
+
 export const getSettings = async (): Promise<Settings | undefined> =>
   withDB((db) => db.get('settings', SETTINGS_KEY), () => fallbackMemoryDB.settings.get(SETTINGS_KEY));
 
@@ -498,12 +550,8 @@ export const mergeSettings = (existing: Settings, incoming: Settings): Settings 
     });
   }
 
-  const incomingAt = incoming.updatedAt ? new Date(incoming.updatedAt).getTime() : NaN;
-  const existingAt = existing.updatedAt ? new Date(existing.updatedAt).getTime() : NaN;
-  const incomingIsNewer =
-    Number.isFinite(incomingAt) && (!Number.isFinite(existingAt) || incomingAt > existingAt);
-
-  return incomingIsNewer
+  // The shared rule, which used to be spelled out here and nowhere else.
+  return incomingIsNewer(incoming, existing)
     ? { ...existing, ...incoming, templates: mergedTemplates }
     : { ...existing, templates: mergedTemplates };
 };
@@ -544,16 +592,23 @@ export const wipeAllData = async (): Promise<void> => {
 export const importBackup = async (
   data: { groups: Group[]; timecodes: Timecode[]; entries: Entry[]; settings?: Settings },
   mode: 'merge' | 'replace'
-): Promise<void> => {
+): Promise<ImportOutcome> => {
   assertConnectionUsable();
+  // Only ever incremented in merge mode: replace writes every record
+  // unconditionally, so nothing is resolved and nothing can be skipped.
+  let undatedSkipped = 0;
   if (isFallbackMode) {
     if (mode === 'replace') {
       clearFallbackMemory();
     }
+    // The same three rules as the IndexedDB path below. They were written out
+    // twice and the pair has drifted before, which is why the comparison itself
+    // now lives in one function rather than in six expressions.
     data.groups.forEach(g => {
       if (mode === 'merge') {
         const existing = fallbackMemoryDB.groups.get(g.id);
-        if (!existing || new Date(g.updatedAt) > new Date(existing.updatedAt)) fallbackMemoryDB.groups.set(g.id, g);
+        if (!existing || incomingIsNewer(g, existing)) fallbackMemoryDB.groups.set(g.id, g);
+        else if (!hasReadableStamp(g)) undatedSkipped++;
       } else {
         fallbackMemoryDB.groups.set(g.id, g);
       }
@@ -561,7 +616,8 @@ export const importBackup = async (
     data.timecodes.forEach(tc => {
       if (mode === 'merge') {
         const existing = fallbackMemoryDB.timecodes.get(tc.id);
-        if (!existing || new Date(tc.updatedAt) > new Date(existing.updatedAt)) fallbackMemoryDB.timecodes.set(tc.id, tc);
+        if (!existing || incomingIsNewer(tc, existing)) fallbackMemoryDB.timecodes.set(tc.id, tc);
+        else if (!hasReadableStamp(tc)) undatedSkipped++;
       } else {
         fallbackMemoryDB.timecodes.set(tc.id, tc);
       }
@@ -569,7 +625,8 @@ export const importBackup = async (
     data.entries.forEach(e => {
       if (mode === 'merge') {
         const existing = fallbackMemoryDB.entries.get(e.id);
-        if (!existing || new Date(e.updatedAt) > new Date(existing.updatedAt)) fallbackMemoryDB.entries.set(e.id, e);
+        if (!existing || incomingIsNewer(e, existing)) fallbackMemoryDB.entries.set(e.id, e);
+        else if (!hasReadableStamp(e)) undatedSkipped++;
       } else {
         fallbackMemoryDB.entries.set(e.id, e);
       }
@@ -588,7 +645,7 @@ export const importBackup = async (
         );
       }
     }
-    return;
+    return { undatedSkipped };
   }
 
   // An import that fails is an import that failed — it says nothing about
@@ -608,8 +665,12 @@ export const importBackup = async (
   for (const g of data.groups) {
     if (mode === 'merge') {
       const existing = await groupStore.get(g.id);
-      if (!existing || new Date(g.updatedAt) > new Date(existing.updatedAt)) {
+      // No stored copy means no conflict to resolve, so an undated record is
+      // still written — it is only ever a tie-break that needs a stamp.
+      if (!existing || incomingIsNewer(g, existing)) {
         await groupStore.put(g);
+      } else if (!hasReadableStamp(g)) {
+        undatedSkipped++;
       }
     } else {
       await groupStore.put(g);
@@ -620,8 +681,10 @@ export const importBackup = async (
   for (const tc of data.timecodes) {
     if (mode === 'merge') {
       const existing = await tcStore.get(tc.id);
-      if (!existing || new Date(tc.updatedAt) > new Date(existing.updatedAt)) {
+      if (!existing || incomingIsNewer(tc, existing)) {
         await tcStore.put(tc);
+      } else if (!hasReadableStamp(tc)) {
+        undatedSkipped++;
       }
     } else {
       await tcStore.put(tc);
@@ -632,8 +695,10 @@ export const importBackup = async (
   for (const e of data.entries) {
     if (mode === 'merge') {
       const existing = await entryStore.get(e.id);
-      if (!existing || new Date(e.updatedAt) > new Date(existing.updatedAt)) {
+      if (!existing || incomingIsNewer(e, existing)) {
         await entryStore.put(e);
+      } else if (!hasReadableStamp(e)) {
+        undatedSkipped++;
       }
     } else {
       await entryStore.put(e);
@@ -655,4 +720,7 @@ export const importBackup = async (
   }
 
   await tx.done;
+  // Reported after the commit: a count of what an import skipped is only true
+  // if the transaction it was skipped from actually landed.
+  return { undatedSkipped };
 };
