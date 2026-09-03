@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useTimeTracker } from '../context/TimeTrackerContext';
 import { useNamedDownload } from '../hooks/useNamedDownload';
-import { checkPersistence, type PersistenceState } from '../utils/storagePersistence';
+import { checkPersistence, readKey, removeKey, writeKey, type PersistenceState } from '../utils/storagePersistence';
 import { useInstallPrompt } from '../hooks/useInstallPrompt';
 import { differenceInDays } from 'date-fns';
 import { X, AlertCircle } from 'lucide-react';
@@ -50,7 +50,9 @@ export const BackupReminderBanner: React.FC = () => {
     }
 
     // Check if dismissed in this session
-    const dismissalData = localStorage.getItem('backupReminderDismissed');
+    // Guarded: this runs in a `useEffect`, and the banner renders outside every
+    // per-tab ErrorBoundary, so a throw here reached the root boundary.
+    const dismissalData = readKey('backupReminderDismissed');
     let isDismissed = false;
     if (dismissalData) {
       try {
@@ -59,10 +61,10 @@ export const BackupReminderBanner: React.FC = () => {
         if (Date.now() - timestamp < 24 * 60 * 60 * 1000) {
           isDismissed = true;
         } else {
-          localStorage.removeItem('backupReminderDismissed');
+          removeKey('backupReminderDismissed');
         }
       } catch {
-        localStorage.removeItem('backupReminderDismissed');
+        removeKey('backupReminderDismissed');
       }
     }
     if (shouldShow && !isDismissed) {
@@ -73,7 +75,7 @@ export const BackupReminderBanner: React.FC = () => {
   }, [settings, entries.length, timecodes.length, groups.length, persistenceState, needsManualInstall, isIOS]);
 
   const handleDismiss = () => {
-    localStorage.setItem('backupReminderDismissed', JSON.stringify({ timestamp: Date.now() }));
+    writeKey('backupReminderDismissed', JSON.stringify({ timestamp: Date.now() }));
     setIsVisible(false);
   };
 

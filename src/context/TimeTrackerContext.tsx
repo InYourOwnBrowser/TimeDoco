@@ -6,7 +6,7 @@ import { calculateDuration, findOverlappingCandidates } from '../utils/timeUtils
 import { clearErrorLog, logError } from '../utils/errorLog';
 import { useToast } from './ToastContext';
 import { isRecoveryReloadInFlight } from '../utils/chunkRecovery';
-import { requestPersistenceOnCommitment, resumePersistence } from '../utils/storagePersistence';
+import { readKey, removeKey, requestPersistenceOnCommitment, resumePersistence, writeKey } from '../utils/storagePersistence';
 import {
   validateBackupPayload,
   verifyBackupFile,
@@ -137,8 +137,15 @@ export const TimeTrackerProvider: React.FC<{ children: ReactNode }> = ({ childre
   const [deletedEntries, setDeletedEntries] = useState<Entry[]>([]);
   const [forgotToStopEntry, setForgotToStopEntry] = useState<Entry | null>(null);
   const [dismissedForgotToStopIds, setDismissedForgotToStopIds] = useState<string[]>(() => {
-    const data = localStorage.getItem('dismissedForgotToStopIds');
-    try { return data ? JSON.parse(data) : []; } catch { return []; }
+    // Guarded: this is a `useState` initializer, so an unguarded read here took
+    // the whole provider down on mount wherever site data is blocked.
+    const data = readKey('dismissedForgotToStopIds');
+    try {
+      const parsed = data ? JSON.parse(data) : [];
+      // A hand-edited or truncated value must not make every later spread of
+      // this state throw; the key is a dismissal cache and is safe to drop.
+      return Array.isArray(parsed) ? parsed : [];
+    } catch { return []; }
   });
   // Mirrored in a ref so refreshData keeps a stable identity — depending on the
   // state made dismissing a prompt re-read the entire database.
@@ -519,7 +526,7 @@ export const TimeTrackerProvider: React.FC<{ children: ReactNode }> = ({ childre
       if (stillRelevant.length !== dismissedForgotToStopIdsRef.current.length) {
         dismissedForgotToStopIdsRef.current = stillRelevant;
         setDismissedForgotToStopIds(stillRelevant);
-        localStorage.setItem('dismissedForgotToStopIds', JSON.stringify(stillRelevant));
+        writeKey('dismissedForgotToStopIds', JSON.stringify(stillRelevant));
       }
     } catch (error) {
       // A failed read must never blank the UI. The database layer only enters
@@ -1097,46 +1104,54 @@ export const TimeTrackerProvider: React.FC<{ children: ReactNode }> = ({ childre
    * some of its entries, reported nothing, and never reloaded.
    */
   const applyRestorePlan = async (plan: RestorePlan): Promise<boolean> => {
-    // Checked as they would be once live. A trashed entry can never block
-    // anything — `toInterval` drops it — so checking the stored records asked
-    // whether entries already in the trash overlap, which they never do, and
-    // the check passed unconditionally however badly the times collided.
-    const candidates = plan.entries.map(entry => ({ ...entry, deletedAt: undefined }));
-    if (candidates.length > 0) {
-      const planned = new Set(plan.entries.map(entry => entry.id));
-      const liveEntries = (await db.getEntries()).filter(e => !e.deletedAt && !planned.has(e.id));
-      // The batch is checked against itself as well as against what is live, so
-      // two trashed entries that overlap each other cannot both come back.
-      const rejected = findOverlappingCandidates(candidates, liveEntries, settings?.allowConcurrentTimers);
-      if (rejected.size > 0) {
-        addToast(
-          rejected.size === 1
-            ? 'Cannot restore: an entry would overlap one that is already live.'
-            : `Cannot restore: ${rejected.size} entries would overlap ones that are already live.`,
-          'error'
+    /**
+     * Reads what is live to check for overlaps, then writes the restored records
+     * back, so it takes the timer queue for the same reason `splitEntry` does: a
+     * timer started or stopped between that read and this write is not seen by
+     * the overlap check, and the restore it should have refused goes through.
+     */
+    return runExclusive(async (): Promise<boolean> => {
+      // Checked as they would be once live. A trashed entry can never block
+      // anything — `toInterval` drops it — so checking the stored records asked
+      // whether entries already in the trash overlap, which they never do, and
+      // the check passed unconditionally however badly the times collided.
+      const candidates = plan.entries.map(entry => ({ ...entry, deletedAt: undefined }));
+      if (candidates.length > 0) {
+        const planned = new Set(plan.entries.map(entry => entry.id));
+        const liveEntries = (await db.getEntries()).filter(e => !e.deletedAt && !planned.has(e.id));
+        // The batch is checked against itself as well as against what is live, so
+        // two trashed entries that overlap each other cannot both come back.
+        const rejected = findOverlappingCandidates(candidates, liveEntries, settings?.allowConcurrentTimers);
+        if (rejected.size > 0) {
+          addToast(
+            rejected.size === 1
+              ? 'Cannot restore: an entry would overlap one that is already live.'
+              : `Cannot restore: ${rejected.size} entries would overlap ones that are already live.`,
+            'error'
+          );
+          return false;
+        }
+      }
+
+      // One transaction over the three stores. Three loops of single-record puts
+      // were as many transactions as there were records, so a failure part-way
+      // left the group and timecodes live with half their entries still trashed.
+      try {
+        await db.putRestorePlan(
+          plan.groups.map(group => touch({ ...group, deletedAt: undefined })),
+          plan.timecodes.map(timecode => touch({ ...timecode, deletedAt: undefined })),
+          plan.entries.map(entry => touch({ ...entry, deletedAt: undefined })),
         );
+      } catch (error) {
+        // Reported here rather than thrown, for the same reason the refusal above
+        // is: three internal callers have no catch, and the docstring promises a
+        // boolean. Nothing was written, so there is nothing to reload.
+        console.error('Failed to restore from trash', error);
+        addToast('Could not restore from the trash. Nothing was changed.', 'error');
         return false;
       }
-    }
-
-    // One transaction over the three stores. Three loops of single-record puts
-    // were as many transactions as there were records, so a failure part-way
-    // left the group and timecodes live with half their entries still trashed.
-    try {
-      await db.putRestorePlan(
-        plan.groups.map(group => touch({ ...group, deletedAt: undefined })),
-        plan.timecodes.map(timecode => touch({ ...timecode, deletedAt: undefined })),
-        plan.entries.map(entry => touch({ ...entry, deletedAt: undefined })),
-      );
-    } catch (error) {
-      // Reported here rather than thrown, for the same reason the refusal above
-      // is: three internal callers have no catch, and the docstring promises a
-      // boolean. Nothing was written, so there is nothing to reload.
-      console.error('Failed to restore from trash', error);
-      addToast('Could not restore from the trash. Nothing was changed.', 'error');
-      return false;
-    }
-    return true;
+      return true;
+    });
   };
 
   /** Resolves to whether the restore was stored; gate any success message on it. */
@@ -1201,7 +1216,7 @@ export const TimeTrackerProvider: React.FC<{ children: ReactNode }> = ({ childre
       const id = forgotToStopEntry.id;
       const newDismissedIds = [...dismissedForgotToStopIds, id];
       setDismissedForgotToStopIds(newDismissedIds);
-      localStorage.setItem('dismissedForgotToStopIds', JSON.stringify(newDismissedIds));
+      writeKey('dismissedForgotToStopIds', JSON.stringify(newDismissedIds));
       setForgotToStopEntry(null);
     }
   };
@@ -1289,12 +1304,12 @@ export const TimeTrackerProvider: React.FC<{ children: ReactNode }> = ({ childre
       setForgotToStopEntry(null);
       const newDismissedIds = dismissedForgotToStopIds.filter(dId => dId !== id);
       setDismissedForgotToStopIds(newDismissedIds);
-      localStorage.setItem('dismissedForgotToStopIds', JSON.stringify(newDismissedIds));
+      writeKey('dismissedForgotToStopIds', JSON.stringify(newDismissedIds));
     } else if (dismissedForgotToStopIds.includes(id) && updates.endTime) {
       // Clear it from storage if the user addresses it without the banner active
       const newDismissedIds = dismissedForgotToStopIds.filter(dId => dId !== id);
       setDismissedForgotToStopIds(newDismissedIds);
-      localStorage.setItem('dismissedForgotToStopIds', JSON.stringify(newDismissedIds));
+      writeKey('dismissedForgotToStopIds', JSON.stringify(newDismissedIds));
     }
 
     await refreshData();
@@ -1336,8 +1351,8 @@ export const TimeTrackerProvider: React.FC<{ children: ReactNode }> = ({ childre
     // The timedoco.persistence.* keys deliberately survive: they cache a
     // browser-level grant, not user data, and dropping them would only make the
     // app re-ask for something it already holds.
-    localStorage.removeItem('backupReminderDismissed');
-    localStorage.removeItem('dismissedForgotToStopIds');
+    removeKey('backupReminderDismissed');
+    removeKey('dismissedForgotToStopIds');
     clearErrorLog();
     setDismissedForgotToStopIds([]);
     setForgotToStopEntry(null);
@@ -1430,88 +1445,98 @@ export const TimeTrackerProvider: React.FC<{ children: ReactNode }> = ({ childre
    * running" and "the destination is archived" into one unexplained failure.
    */
   const mergeTimecodes = async (sourceId: string, destId: string): Promise<boolean> => {
-    if (!sourceId || !destId || sourceId === destId) return false;
+    /**
+     * Reads every entry on both timecodes, checks the merged result for overlaps
+     * and re-points them all at the destination — a whole-record read-modify-write
+     * over many records, so it takes the timer queue. A stop or a note autosave
+     * landing between the read and the write was silently overwritten by the
+     * pre-merge copy of that entry, and would not have been seen by the overlap
+     * check either.
+     */
+    return runExclusive(async (): Promise<boolean> => {
+      if (!sourceId || !destId || sourceId === destId) return false;
 
-    const allEntries = await db.getEntries();
-    const currentActive = await db.getActiveEntries();
+      const allEntries = await db.getEntries();
+      const currentActive = await db.getActiveEntries();
 
-    // Prevent merging if both source and destination have running timers
-    const activeOnSource = currentActive.filter((e) => e.timecodeId === sourceId && !e.deletedAt);
-    const activeOnDest = currentActive.filter((e) => e.timecodeId === destId && !e.deletedAt);
-    if (activeOnSource.length > 0 && activeOnDest.length > 0) {
-      throw new Error('Cannot merge timecodes: multiple running timers would exist on the same timecode');
-    }
-
-    // Collect all non-deleted entries that will end up on destId
-    const targetEntries = [
-      ...allEntries.filter((e) => (e.timecodeId === destId || e.timecodeId === sourceId) && !e.deletedAt),
-      ...currentActive.filter((e) => (e.timecodeId === destId || e.timecodeId === sourceId) && !e.deletedAt),
-    ];
-    const uniqueTargets = Array.from(new Map(targetEntries.map((e) => [e.id, e])).values());
-
-    const now = Date.now();
-    const intervals = uniqueTargets.map((e) => ({
-      id: e.id,
-      start: new Date(e.startTime).getTime(),
-      end: e.endTime ? new Date(e.endTime).getTime() : now,
-    })).filter((inv) => Number.isFinite(inv.start) && Number.isFinite(inv.end));
-
-    // Sort and sweep, not every pair against every other. Two timecodes with a
-    // few thousand entries between them is an ordinary amount of history, and
-    // the pairwise check was millions of comparisons on the main thread before
-    // the merge could even start.
-    //
-    // Sorted by start, an interval can only overlap something already seen, and
-    // only if it begins before the furthest end so far. Touching is not
-    // overlapping, so the comparison stays strict.
-    intervals.sort((a, b) => a.start - b.start);
-    let furthestEnd = -Infinity;
-    for (const interval of intervals) {
-      if (interval.start < furthestEnd) {
-        throw new Error('Cannot merge timecodes: resulting entries would overlap');
+      // Prevent merging if both source and destination have running timers
+      const activeOnSource = currentActive.filter((e) => e.timecodeId === sourceId && !e.deletedAt);
+      const activeOnDest = currentActive.filter((e) => e.timecodeId === destId && !e.deletedAt);
+      if (activeOnSource.length > 0 && activeOnDest.length > 0) {
+        throw new Error('Cannot merge timecodes: multiple running timers would exist on the same timecode');
       }
-      furthestEnd = Math.max(furthestEnd, interval.end);
-    }
 
-    const isoNow = new Date().toISOString();
-    // 1. Update all entries referencing sourceId to point to destId in one transaction.
-    // Read from the database, not component state: state excludes soft-deleted
-    // entries, which would then be left pointing at a timecode this merge is
-    // about to delete, and can be stale relative to another tab.
-    const entriesToUpdate = allEntries.filter((e) => e.timecodeId === sourceId);
-    const activeToUpdate = currentActive.filter((entry) => entry.timecodeId === sourceId);
+      // Collect all non-deleted entries that will end up on destId
+      const targetEntries = [
+        ...allEntries.filter((e) => (e.timecodeId === destId || e.timecodeId === sourceId) && !e.deletedAt),
+        ...currentActive.filter((e) => (e.timecodeId === destId || e.timecodeId === sourceId) && !e.deletedAt),
+      ];
+      const uniqueTargets = Array.from(new Map(targetEntries.map((e) => [e.id, e])).values());
 
-    const combinedEntriesMap = new Map<string, Entry>();
-    for (const e of entriesToUpdate) {
-      combinedEntriesMap.set(e.id, { ...e, timecodeId: destId, updatedAt: isoNow });
-    }
-    for (const e of activeToUpdate) {
-      combinedEntriesMap.set(e.id, { ...e, timecodeId: destId, updatedAt: isoNow });
-    }
-    const entriesToPut = Array.from(combinedEntriesMap.values());
-    if (entriesToPut.length > 0) {
-      await db.putEntries(entriesToPut);
-    }
+      const now = Date.now();
+      const intervals = uniqueTargets.map((e) => ({
+        id: e.id,
+        start: new Date(e.startTime).getTime(),
+        end: e.endTime ? new Date(e.endTime).getTime() : now,
+      })).filter((inv) => Number.isFinite(inv.start) && Number.isFinite(inv.end));
 
-    // 2. Update templates
-    const currentSettings = await db.getSettings();
-    if (currentSettings && currentSettings.templates) {
-      const updatedTemplates = currentSettings.templates.map(t =>
-        t.timecodeId === sourceId ? { ...t, timecodeId: destId } : t
-      );
-      await db.putSettings({ ...currentSettings, templates: updatedTemplates });
-    }
+      // Sort and sweep, not every pair against every other. Two timecodes with a
+      // few thousand entries between them is an ordinary amount of history, and
+      // the pairwise check was millions of comparisons on the main thread before
+      // the merge could even start.
+      //
+      // Sorted by start, an interval can only overlap something already seen, and
+      // only if it begins before the furthest end so far. Touching is not
+      // overlapping, so the comparison stays strict.
+      intervals.sort((a, b) => a.start - b.start);
+      let furthestEnd = -Infinity;
+      for (const interval of intervals) {
+        if (interval.start < furthestEnd) {
+          throw new Error('Cannot merge timecodes: resulting entries would overlap');
+        }
+        furthestEnd = Math.max(furthestEnd, interval.end);
+      }
 
-    // 3. Soft delete the source timecode
-    const sourceTc = await db.getTimecode(sourceId);
-    if (sourceTc) {
-      const mergedAt = new Date().toISOString();
-      await db.putTimecode(touch({ ...sourceTc, deletedAt: mergedAt }, mergedAt));
-    }
+      const isoNow = new Date().toISOString();
+      // 1. Update all entries referencing sourceId to point to destId in one transaction.
+      // Read from the database, not component state: state excludes soft-deleted
+      // entries, which would then be left pointing at a timecode this merge is
+      // about to delete, and can be stale relative to another tab.
+      const entriesToUpdate = allEntries.filter((e) => e.timecodeId === sourceId);
+      const activeToUpdate = currentActive.filter((entry) => entry.timecodeId === sourceId);
 
-    // 4. Refresh everything
-    await refreshData();
-    return true;
+      const combinedEntriesMap = new Map<string, Entry>();
+      for (const e of entriesToUpdate) {
+        combinedEntriesMap.set(e.id, { ...e, timecodeId: destId, updatedAt: isoNow });
+      }
+      for (const e of activeToUpdate) {
+        combinedEntriesMap.set(e.id, { ...e, timecodeId: destId, updatedAt: isoNow });
+      }
+      const entriesToPut = Array.from(combinedEntriesMap.values());
+      if (entriesToPut.length > 0) {
+        await db.putEntries(entriesToPut);
+      }
+
+      // 2. Update templates
+      const currentSettings = await db.getSettings();
+      if (currentSettings && currentSettings.templates) {
+        const updatedTemplates = currentSettings.templates.map(t =>
+          t.timecodeId === sourceId ? { ...t, timecodeId: destId } : t
+        );
+        await db.putSettings({ ...currentSettings, templates: updatedTemplates });
+      }
+
+      // 3. Soft delete the source timecode
+      const sourceTc = await db.getTimecode(sourceId);
+      if (sourceTc) {
+        const mergedAt = new Date().toISOString();
+        await db.putTimecode(touch({ ...sourceTc, deletedAt: mergedAt }, mergedAt));
+      }
+
+      // 4. Refresh everything
+      await refreshData();
+      return true;
+    });
   };
 
   const deleteTimecode = async (id: string) => {
@@ -1669,137 +1694,157 @@ export const TimeTrackerProvider: React.FC<{ children: ReactNode }> = ({ childre
     newTimecodeId?: string,
     options?: { feeAllocation?: FeeAllocation }
   ): Promise<SplitEntryResult> => {
-    const entry = await db.getEntry(entryId);
-    if (!entry) return { ok: false, reason: 'That entry no longer exists.' };
-    if (entry.deletedAt) return { ok: false, reason: 'That entry is in the trash. Restore it before splitting.' };
-    if (!entry.endTime) return { ok: false, reason: 'A running timer cannot be split. Stop it first.' };
+    /**
+     * Read-modify-write of a whole entry record, so it takes the timer queue —
+     * the same reason `updateEntry` and `deleteEntry` are on it.
+     *
+     * This reads the entry, derives both halves from that snapshot, and writes
+     * them back. Off the queue it did not serialise against the two mutations
+     * that are on it, and both ways of losing data were reachable: a note edit
+     * committing between the read and the write was overwritten by the pre-split
+     * copy, and a delete landing there was undone — `entry1` cleared `deletedAt`
+     * unconditionally — leaving a second half created from a record the user had
+     * already thrown away.
+     *
+     * `refreshData` stays inside so the reload observes this split's own write;
+     * it does not take the queue, so there is no re-entry.
+     */
+    return runExclusive(async (): Promise<SplitEntryResult> => {
+      const entry = await db.getEntry(entryId);
+      if (!entry) return { ok: false, reason: 'That entry no longer exists.' };
+      if (entry.deletedAt) return { ok: false, reason: 'That entry is in the trash. Restore it before splitting.' };
+      if (!entry.endTime) return { ok: false, reason: 'A running timer cannot be split. Stop it first.' };
 
-    const splitDate = new Date(splitTime);
-    const startDate = new Date(entry.startTime);
-    const endDate = new Date(entry.endTime);
+      const splitDate = new Date(splitTime);
+      const startDate = new Date(entry.startTime);
+      const endDate = new Date(entry.endTime);
 
-    if (!Number.isFinite(splitDate.getTime())) {
-      return { ok: false, reason: 'That split time could not be read.' };
-    }
-    if (splitDate <= startDate || splitDate >= endDate) {
-      return { ok: false, reason: 'Split time must be strictly between the start and end times.' };
-    }
-
-    // Filter paused segments for both halves
-    const pausedSegments1: PauseSegment[] = [];
-    const pausedSegments2: PauseSegment[] = [];
-
-    for (const seg of entry.pausedSegments || []) {
-      const pStart = new Date(seg.pauseStart);
-      const pEnd = seg.pauseEnd ? new Date(seg.pauseEnd) : endDate;
-
-      if (pEnd <= splitDate) {
-        pausedSegments1.push(seg);
-      } else if (pStart >= splitDate) {
-        pausedSegments2.push({
-          pauseStart: seg.pauseStart,
-          pauseEnd: seg.pauseEnd || endDate.toISOString(),
-        });
-      } else {
-        // Segment crosses the split time
-        pausedSegments1.push({ pauseStart: seg.pauseStart, pauseEnd: splitDate.toISOString() });
-        pausedSegments2.push({
-          pauseStart: splitDate.toISOString(),
-          pauseEnd: seg.pauseEnd || endDate.toISOString(),
-        });
+      if (!Number.isFinite(splitDate.getTime())) {
+        return { ok: false, reason: 'That split time could not be read.' };
       }
-    }
-
-    const duration1 = calculateDuration(startDate, splitDate, pausedSegments1);
-    const duration2 = calculateDuration(splitDate, endDate, pausedSegments2);
-
-    const now = new Date().toISOString();
-
-    // An estimate describes the whole of the work, so splitting the work splits
-    // the estimate with it, in proportion to the time each half actually took.
-    // Dropping it (the previous behaviour) silently removed the entry from the
-    // Estimates tab's statistics; parking it all on one half would report that
-    // half as wildly under and the other as unestimated.
-    let expected1: number | null = null;
-    let expected2: number | null = null;
-    const expectedTotal = entry.expectedDurationMinutes ?? null;
-    if (expectedTotal != null && Number.isFinite(expectedTotal)) {
-      const totalDuration = duration1 + duration2;
-      if (totalDuration > 0) {
-        expected1 = Math.round((expectedTotal * duration1) / totalDuration);
-        // The remainder rather than a second rounding, so the two halves always
-        // sum back to the original estimate.
-        expected2 = expectedTotal - expected1;
-      } else {
-        expected1 = expectedTotal;
-        expected2 = 0;
+      if (splitDate <= startDate || splitDate >= endDate) {
+        return { ok: false, reason: 'Split time must be strictly between the start and end times.' };
       }
-    }
 
-    // A flat fee cannot be divided by time — it is not a rate — so the caller
-    // says which half keeps it. Silently discarding it destroyed billable money
-    // with no warning and no undo.
-    const feeAllocation: FeeAllocation = options?.feeAllocation ?? 'first';
-    const hadFee = entry.manualAmount != null;
-    const fee1 = hadFee && feeAllocation === 'first' ? entry.manualAmount! : null;
-    const fee2 = hadFee && feeAllocation === 'second' ? entry.manualAmount! : null;
+      // Filter paused segments for both halves
+      const pausedSegments1: PauseSegment[] = [];
+      const pausedSegments2: PauseSegment[] = [];
 
-    const splitNote: EditHistory = {
-      field: 'split',
-      oldValue: { endTime: entry.endTime, duration: entry.duration, manualAmount: entry.manualAmount ?? null, expectedDurationMinutes: expectedTotal },
-      newValue: { endTime: splitDate.toISOString(), duration: duration1, manualAmount: fee1, expectedDurationMinutes: expected1 },
-      editedAt: now,
-    };
+      for (const seg of entry.pausedSegments || []) {
+        const pStart = new Date(seg.pauseStart);
+        const pEnd = seg.pauseEnd ? new Date(seg.pauseEnd) : endDate;
 
-    const entry1: Entry = {
-      ...entry,
-      endTime: splitDate.toISOString(),
-      duration: duration1,
-      pausedSegments: pausedSegments1,
-      manualAmount: fee1,
-      expectedDurationMinutes: expected1,
-      editHistory: [...(entry.editHistory || []), splitNote],
-      deletedAt: undefined,
-      updatedAt: now,
-    };
+        if (pEnd <= splitDate) {
+          pausedSegments1.push(seg);
+        } else if (pStart >= splitDate) {
+          pausedSegments2.push({
+            pauseStart: seg.pauseStart,
+            pauseEnd: seg.pauseEnd || endDate.toISOString(),
+          });
+        } else {
+          // Segment crosses the split time
+          pausedSegments1.push({ pauseStart: seg.pauseStart, pauseEnd: splitDate.toISOString() });
+          pausedSegments2.push({
+            pauseStart: splitDate.toISOString(),
+            pauseEnd: seg.pauseEnd || endDate.toISOString(),
+          });
+        }
+      }
 
-    const entry2: Entry = {
-      ...entry,
-      id: crypto.randomUUID(),
-      timecodeId: newTimecodeId || entry.timecodeId,
-      startTime: splitDate.toISOString(),
-      duration: duration2,
-      pausedSegments: pausedSegments2,
-      createdAt: now,
-      updatedAt: now,
-      editHistory: [splitNote],
-      manualAmount: fee2,
-      expectedDurationMinutes: expected2,
-      deletedAt: undefined,
-    };
+      const duration1 = calculateDuration(startDate, splitDate, pausedSegments1);
+      const duration2 = calculateDuration(splitDate, endDate, pausedSegments2);
 
-    // Both halves in one transaction. Written separately, a failure on the
-    // second put would leave the original already truncated to the first half
-    // and the remainder — along with any fee allocated to it — gone with no way
-    // back. `mutateValue` reports the failure rather than letting it surface as
-    // an unhandled rejection behind a success message.
-    const stored = await mutateValue('split the entry', async () => {
-      await db.putEntries([entry1, entry2]);
-      return true as const;
+      const now = new Date().toISOString();
+
+      // An estimate describes the whole of the work, so splitting the work splits
+      // the estimate with it, in proportion to the time each half actually took.
+      // Dropping it (the previous behaviour) silently removed the entry from the
+      // Estimates tab's statistics; parking it all on one half would report that
+      // half as wildly under and the other as unestimated.
+      let expected1: number | null = null;
+      let expected2: number | null = null;
+      const expectedTotal = entry.expectedDurationMinutes ?? null;
+      if (expectedTotal != null && Number.isFinite(expectedTotal)) {
+        const totalDuration = duration1 + duration2;
+        if (totalDuration > 0) {
+          expected1 = Math.round((expectedTotal * duration1) / totalDuration);
+          // The remainder rather than a second rounding, so the two halves always
+          // sum back to the original estimate.
+          expected2 = expectedTotal - expected1;
+        } else {
+          expected1 = expectedTotal;
+          expected2 = 0;
+        }
+      }
+
+      // A flat fee cannot be divided by time — it is not a rate — so the caller
+      // says which half keeps it. Silently discarding it destroyed billable money
+      // with no warning and no undo.
+      const feeAllocation: FeeAllocation = options?.feeAllocation ?? 'first';
+      const hadFee = entry.manualAmount != null;
+      const fee1 = hadFee && feeAllocation === 'first' ? entry.manualAmount! : null;
+      const fee2 = hadFee && feeAllocation === 'second' ? entry.manualAmount! : null;
+
+      const splitNote: EditHistory = {
+        field: 'split',
+        oldValue: { endTime: entry.endTime, duration: entry.duration, manualAmount: entry.manualAmount ?? null, expectedDurationMinutes: expectedTotal },
+        newValue: { endTime: splitDate.toISOString(), duration: duration1, manualAmount: fee1, expectedDurationMinutes: expected1 },
+        editedAt: now,
+      };
+
+      const entry1: Entry = {
+        ...entry,
+        endTime: splitDate.toISOString(),
+        duration: duration1,
+        pausedSegments: pausedSegments1,
+        manualAmount: fee1,
+        expectedDurationMinutes: expected1,
+        editHistory: [...(entry.editHistory || []), splitNote],
+        // `deletedAt` carries over from the spread rather than being cleared.
+        // Forcing it to undefined here un-deleted the original whenever a delete
+        // landed mid-split; the guard above has already refused a trashed entry,
+        // and inside the queue nothing can trash it between that check and this.
+        updatedAt: now,
+      };
+
+      const entry2: Entry = {
+        ...entry,
+        id: crypto.randomUUID(),
+        timecodeId: newTimecodeId || entry.timecodeId,
+        startTime: splitDate.toISOString(),
+        duration: duration2,
+        pausedSegments: pausedSegments2,
+        createdAt: now,
+        updatedAt: now,
+        editHistory: [splitNote],
+        manualAmount: fee2,
+        expectedDurationMinutes: expected2,
+        deletedAt: undefined,
+      };
+
+      // Both halves in one transaction. Written separately, a failure on the
+      // second put would leave the original already truncated to the first half
+      // and the remainder — along with any fee allocated to it — gone with no way
+      // back. `mutateValue` reports the failure rather than letting it surface as
+      // an unhandled rejection behind a success message.
+      const stored = await mutateValue('split the entry', async () => {
+        await db.putEntries([entry1, entry2]);
+        return true as const;
+      });
+
+      await refreshData();
+
+      if (!stored) {
+        return { ok: false, reason: 'The split could not be saved. The entry is unchanged.' };
+      }
+
+      return {
+        ok: true,
+        newEntryId: entry2.id,
+        feeMoved: hadFee ? feeAllocation : null,
+        estimateSplit: expectedTotal != null,
+      };
     });
-
-    await refreshData();
-
-    if (!stored) {
-      return { ok: false, reason: 'The split could not be saved. The entry is unchanged.' };
-    }
-
-    return {
-      ok: true,
-      newEntryId: entry2.id,
-      feeMoved: hadFee ? feeAllocation : null,
-      estimateSplit: expectedTotal != null,
-    };
   };
 
   const deleteEntry = async (id: string) => {
@@ -1999,11 +2044,26 @@ export const TimeTrackerProvider: React.FC<{ children: ReactNode }> = ({ childre
       return valid ? record : { ...record, updatedAt: EPOCH };
     };
 
+    /**
+     * A zero fee is no fee, as it already is everywhere a person can type one.
+     *
+     * Both modals coerce 0 to null before saving, but the importers accepted it
+     * as a valid number and billing reads *any* non-null `manualAmount` as a
+     * fixed cost — which bills zero hours and zero money. An imported entry
+     * with an hour on the clock and `manualAmount: 0` therefore billed nothing,
+     * got no summary row, and took its hour out of every total, because a field
+     * was 0 rather than absent.
+     */
+    const withFee = (record: any) =>
+      record && typeof record === 'object' && record.manualAmount === 0
+        ? { ...record, manualAmount: null }
+        : record;
+
     return {
       ...data,
       groups: Array.isArray(data.groups) ? data.groups.map(withTimestamp) : data.groups,
       timecodes: Array.isArray(data.timecodes) ? data.timecodes.map(withTimestamp) : data.timecodes,
-      entries: Array.isArray(data.entries) ? data.entries.map(withTimestamp) : data.entries,
+      entries: Array.isArray(data.entries) ? data.entries.map((e: any) => withFee(withTimestamp(e))) : data.entries,
     };
   };
 

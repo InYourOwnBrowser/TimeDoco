@@ -453,18 +453,18 @@ describe('formatWorkedHours', () => {
 
 describe('workedVsBilledNote', () => {
   it('says nothing when the clock and the invoice agree', () => {
-    expect(workedVsBilledNote(3600, 3600, 0)).toBeNull();
+    expect(workedVsBilledNote(3600, 3600, false)).toBeNull();
   });
 
   it('names rounding when rounding is the whole of the difference', () => {
-    expect(workedVsBilledNote(3000, 2700, 0)).toBe('worked 50m · rounding -5m');
-    expect(workedVsBilledNote(3000, 3600, 0)).toBe('worked 50m · rounding +10m');
+    expect(workedVsBilledNote(3000, 2700, false)).toBe('worked 50m · rounding -5m');
+    expect(workedVsBilledNote(3000, 3600, false)).toBe('worked 50m · rounding +10m');
   });
 
   it('does not call fee time rounding', () => {
     // 1h40m on the clock, 1h billed, the other 40 minutes billed as a fee.
     // Calling that "rounding -40m" would misattribute it.
-    expect(workedVsBilledNote(6000, 3600, 150)).toBe('worked 1h 40m · billed 1h plus fees');
+    expect(workedVsBilledNote(6000, 3600, true)).toBe('worked 1h 40m · billed 1h plus fees');
   });
 });
 
@@ -498,15 +498,15 @@ describe('zeroBilledNote', () => {
 
 describe('roundingNote', () => {
   it('says nothing when the clock agrees and nothing dropped out', () => {
-    expect(roundingNote(3600, 3600, 0, 0, '15min')).toBeNull();
+    expect(roundingNote(3600, 3600, false, 0, '15min')).toBeNull();
   });
 
   it('reports the delta on its own', () => {
-    expect(roundingNote(3000, 2700, 0, 0, '5min')).toBe('worked 50m · rounding -5m');
+    expect(roundingNote(3000, 2700, false, 0, '5min')).toBe('worked 50m · rounding -5m');
   });
 
   it('reports both when there is a delta and an entry dropped out', () => {
-    expect(roundingNote(3000, 2700, 0, 1, '5min')).toBe(
+    expect(roundingNote(3000, 2700, false, 1, '5min')).toBe(
       'worked 50m · rounding -5m (1 entry rounded to 0.00 h)'
     );
   });
@@ -515,7 +515,7 @@ describe('roundingNote', () => {
   // exactly as much as another rounds up, so there is no net delta to report
   // and the note is null — while an entry has still vanished from the report.
   it('still reports a dropped entry when the rounding nets out to zero', () => {
-    expect(roundingNote(3600, 3600, 0, 1, '15min')).toBe('1 entry rounded to 0.00 h');
+    expect(roundingNote(3600, 3600, false, 1, '15min')).toBe('1 entry rounded to 0.00 h');
   });
 });
 

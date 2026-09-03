@@ -47,7 +47,7 @@ export const WeeklySummary: React.FC = () => {
       // Without this the week's target could sit short of a full day and give
       // no clue why. Rounding is disclosed the same way, in the same words the
       // report uses.
-      note: workedVsBilledNote(totals.workedSeconds, totals.seconds, totals.fees),
+      note: workedVsBilledNote(totals.workedSeconds, totals.seconds, totals.hasFixedCost),
     };
   }, [entries, settings, nowMs]);
 

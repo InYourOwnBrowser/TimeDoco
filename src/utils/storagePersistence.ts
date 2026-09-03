@@ -38,7 +38,19 @@ const store = (): Storage | null => {
   }
 };
 
-const readKey = (key: string): string | null => {
+/**
+ * The three guarded accessors, exported because every other localStorage caller
+ * in the app needs exactly this and nothing else.
+ *
+ * They were private while this module was the only careful caller, and the rest
+ * of the app reached for the global directly. That is not a style difference:
+ * `localStorage` *itself* throws when site data is blocked, so an unguarded read
+ * in a `useState` initializer or a `useEffect` takes the provider — and with it
+ * the app — down on mount, and an unguarded write throws out of a click handler.
+ * None of the keys involved holds anything the app cannot do without, so losing
+ * one is always better than failing the operation it was attached to.
+ */
+export const readKey = (key: string): string | null => {
   const s = store();
   if (!s) return null;
   try {
@@ -48,7 +60,7 @@ const readKey = (key: string): string | null => {
   }
 };
 
-const writeKey = (key: string, value: string): void => {
+export const writeKey = (key: string, value: string): void => {
   const s = store();
   if (!s) return;
   try {
@@ -59,7 +71,7 @@ const writeKey = (key: string, value: string): void => {
   }
 };
 
-const removeKey = (key: string): void => {
+export const removeKey = (key: string): void => {
   const s = store();
   if (!s) return;
   try {

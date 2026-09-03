@@ -509,7 +509,10 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ onClose }) => {
               if (isDurationEmpty && amountRaw !== undefined && amountRaw !== null && String(amountRaw).trim() !== '') {
                 const parsedAmt = parseFloat(String(amountRaw));
                 if (!isNaN(parsedAmt) && isFinite(parsedAmt)) {
-                  manualAmount = parsedAmt;
+                  // 0 is no fee, as in both modals: billing treats any non-null
+                  // amount as a fixed cost and bills no hours for it, so a zero
+                  // here would silently erase the row's tracked time.
+                  manualAmount = parsedAmt === 0 ? null : parsedAmt;
                 } else {
                   skip('an unreadable amount');
                   continue;

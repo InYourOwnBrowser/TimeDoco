@@ -60,6 +60,22 @@ interface RawLine {
   bucketKey: string | null;
 }
 
+/**
+ * Whether an entry bills as a fee rather than by the hour.
+ *
+ * A zero amount is *not* a fee, which is what both entry modals already record
+ * — they coerce a typed 0 to null before saving. Billing disagreed: it read any
+ * non-null `manualAmount` as a fixed cost, and a fixed cost bills zero hours and
+ * zero money. An entry with an hour on the clock and `manualAmount: 0` therefore
+ * billed nothing and vanished from every total.
+ *
+ * Not reachable from the UI, but both importers accepted 0 as a valid number, so
+ * such records exist in stored data and are not repaired by fixing the importers
+ * alone. A negative amount is a credit and is a genuine fee.
+ */
+const billsAsFee = (manualAmount: number | null | undefined): boolean =>
+  manualAmount != null && manualAmount !== 0;
+
 /** Time actually worked inside the reporting window, before rounding. */
 const computeRaw = (entry: Entry, dateRange: DateRange | null, now: Date) => {
   const entryStart = new Date(entry.startTime);
@@ -262,13 +278,35 @@ export const buildBillableLines = (entries: Entry[], options: BuildOptions): Map
   const raws: RawLine[] = entries.map((entry) => {
     const { entryStart, workedSeconds, isRunning, isClipped } = computeRaw(entry, dateRange, now);
     const timecode = timecodeMap?.get(entry.timecodeId);
+    // A record whose timestamps do not parse has no duration anyone can trust
+    // and no day to file it under, so it is quarantined here: it bills nothing,
+    // and — the part that matters — it joins no rounding bucket.
+    //
+    // Both halves of that were live faults. `calculateDuration` returns NaN for
+    // an unreadable end time (`Math.max(0, Math.floor(NaN / 1000))` is NaN, so
+    // the clamp that reads like a guard is not one); `applyRounding` then turned
+    // the whole bucket total into 0 and `allocateProportionally` handed every
+    // *other* line in the bucket zero, so one corrupt row silently zeroed a
+    // day's billing for the entries beside it and dropped them off the invoice.
+    // And an unreadable start time reached `calendarDayKey` below, which throws
+    // by design — inside the `useMemo` that `EntryList` and `WeeklySummary`
+    // render from, on the one tab with no `ErrorBoundary` of its own, so it
+    // replaced the entire app.
+    //
+    // The three document builders were each hardened against exactly these
+    // records. This is the trunk they all read from, so the guard belongs here
+    // rather than at each surface that consumes the result.
+    const isReadable = Number.isFinite(workedSeconds) && !Number.isNaN(entryStart.getTime());
     return {
       entryId: entry.id,
       timecodeId: entry.timecodeId,
-      workedSeconds,
+      // Zeroed rather than passed through: `sumBillableLines` accumulates this
+      // unguarded, so a NaN here poisons the worked total on every surface that
+      // prints one beside the billed figure.
+      workedSeconds: isReadable ? workedSeconds : 0,
       isRunning,
       isClipped,
-      isFixedCost: entry.manualAmount != null,
+      isFixedCost: billsAsFee(entry.manualAmount),
       manualAmount: entry.manualAmount ?? null,
       hourlyRate: timecode?.hourlyRate ?? null,
       // A fixed cost bills as a fee rather than by the hour, so it has no
@@ -278,7 +316,7 @@ export const buildBillableLines = (entries: Entry[], options: BuildOptions): Map
       // which both billed its hours beside the fee — printing a summary row
       // whose Rate x Hours did not equal its Total — and rounded it at entry
       // scope whatever scope the user had configured.
-      bucketKey: entry.manualAmount != null
+      bucketKey: billsAsFee(entry.manualAmount) || !isReadable
         ? null
         : bucketKeyFor(scope, entry, entryStart, windowKey),
     };
@@ -489,15 +527,22 @@ export const workedSecondsFor = (lines: Map<string, BillableLine>, entryId: stri
  * when a fee is in play would misattribute the part of it that is fee time.
  *
  * Returns null when the two totals agree and there is nothing to disclose.
+ *
+ * `hasFixedCost` is the presence of a fee, not its value. Deriving it from the
+ * money — the earlier `fees !== 0` — misread the case this note exists to get
+ * right: a fixed cost that starts before the window bills 0 into it (rule 3),
+ * so `fees` is 0 while the fee's worked time is still in the totals, and two
+ * hours of already-invoiced fee work were disclosed as "rounding -2h" on a
+ * report with rounding switched off.
  */
 export const workedVsBilledNote = (
   workedSeconds: number,
   billedSeconds: number,
-  fees: number,
+  hasFixedCost: boolean,
 ): string | null => {
   if (workedSeconds === billedSeconds) return null;
   const worked = `worked ${formatDurationShort(workedSeconds)}`;
-  if (fees !== 0) return `${worked} · billed ${formatDurationShort(billedSeconds)} plus fees`;
+  if (hasFixedCost) return `${worked} · billed ${formatDurationShort(billedSeconds)} plus fees`;
   const diff = billedSeconds - workedSeconds;
   const sign = diff > 0 ? '+' : '-';
   return `${worked} · rounding ${sign}${formatDurationShort(Math.abs(diff))}`;
@@ -531,11 +576,11 @@ export const zeroBilledNote = (count: number, roundingRule: RoundingRule): strin
 export const roundingNote = (
   workedSeconds: number,
   billedSeconds: number,
-  fees: number,
+  hasFixedCost: boolean,
   zeroLinesCount: number,
   roundingRule: RoundingRule,
 ): string | null => {
-  const delta = workedVsBilledNote(workedSeconds, billedSeconds, fees);
+  const delta = workedVsBilledNote(workedSeconds, billedSeconds, hasFixedCost);
   const zero = zeroBilledNote(zeroLinesCount, roundingRule);
   if (delta && zero) return `${delta} (${zero})`;
   return delta ?? zero;
@@ -587,6 +632,15 @@ export interface BillableTotals {
   amount: number;
   /** The part of `amount` that came from fixed costs rather than from a rate. */
   fees: number;
+  /**
+   * Whether any line here bills as a fee, whatever that fee came to.
+   *
+   * Distinct from `fees !== 0` on purpose: a fixed cost starting before the
+   * reporting window is attributed to the earlier period and contributes 0,
+   * while its worked time is still in `workedSeconds`. Reading the money to
+   * decide whether a fee is in play calls that time a rounding adjustment.
+   */
+  hasFixedCost: boolean;
 }
 
 /**
@@ -603,11 +657,15 @@ export const sumBillableLines = (lines: BillableLine[]): BillableTotals => {
   let workedSeconds = 0;
   let amount = 0;
   let fees = 0;
+  let hasFixedCost = false;
   for (const line of lines) {
     seconds += line.seconds;
     workedSeconds += line.workedSeconds;
     amount += line.amount;
-    if (line.isFixedCost) fees += line.amount;
+    if (line.isFixedCost) {
+      fees += line.amount;
+      hasFixedCost = true;
+    }
   }
   // Hours come from the summed seconds rather than the summed per-line hours,
   // which would drift upward across many short entries.
@@ -617,6 +675,7 @@ export const sumBillableLines = (lines: BillableLine[]): BillableTotals => {
     hours: roundHours(seconds / 3600),
     amount: roundCurrency(amount),
     fees: roundCurrency(fees),
+    hasFixedCost,
   };
 };
 

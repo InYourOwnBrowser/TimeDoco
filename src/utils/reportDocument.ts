@@ -232,7 +232,7 @@ export const buildReportModel = ({
     roundingDelta: roundingNote(
       totals.workedSeconds,
       totals.seconds,
-      totals.fees,
+      totals.hasFixedCost,
       summary.zeroLinesCount,
       roundingRule,
     ),

@@ -159,22 +159,23 @@ export const EntryList: React.FC = () => {
   // legitimately be smaller than the rows that make it up — a $150 fee carrying
   // 40 minutes used to read "totaling 0m". `workedVsBilledNote` says which is
   // which, in the same words the report uses.
-  const { totalFilteredSeconds, totalFilteredWorkedSeconds, totalFilteredFees } = React.useMemo(() => {
+  const { totalFilteredSeconds, totalFilteredWorkedSeconds, totalFilteredHasFee } = React.useMemo(() => {
     let billed = 0;
     let worked = 0;
-    let fees = 0;
+    let hasFee = false;
     for (const e of filteredEntries) {
       billed += secondsFor(billableLines, e.id);
       worked += workedSecondsFor(billableLines, e.id);
-      const line = billableLines.get(e.id);
-      if (line?.isFixedCost) fees += line.amount;
+      // The presence of a fee, not its total: a fee attributed to an earlier
+      // period bills 0 here and its time would otherwise be called rounding.
+      if (billableLines.get(e.id)?.isFixedCost) hasFee = true;
     }
-    return { totalFilteredSeconds: billed, totalFilteredWorkedSeconds: worked, totalFilteredFees: fees };
+    return { totalFilteredSeconds: billed, totalFilteredWorkedSeconds: worked, totalFilteredHasFee: hasFee };
   }, [filteredEntries, billableLines]);
 
   const totalFilteredNote = React.useMemo(
-    () => workedVsBilledNote(totalFilteredWorkedSeconds, totalFilteredSeconds, totalFilteredFees),
-    [totalFilteredWorkedSeconds, totalFilteredSeconds, totalFilteredFees]
+    () => workedVsBilledNote(totalFilteredWorkedSeconds, totalFilteredSeconds, totalFilteredHasFee),
+    [totalFilteredWorkedSeconds, totalFilteredSeconds, totalFilteredHasFee]
   );
 
   const formatTotalDurationShort = (seconds: number) => {
