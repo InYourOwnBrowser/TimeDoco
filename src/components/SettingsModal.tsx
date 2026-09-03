@@ -14,6 +14,8 @@ import { useToast } from '../context/ToastContext';
 import { validateBackupPayload, verifyBackupFile, MAX_IMPORT_FILE_BYTES, MAX_IMPORT_ENTRIES, parseCSVDate } from '../utils/importValidation';
 import { findOverlappingCandidates } from '../utils/timeUtils';
 import { formatErrorLogForClipboard } from '../utils/errorLog';
+import { describeUserFacingError } from '../utils/errorMessage';
+import { PartialImportError } from '../utils/importErrors';
 
 // A group the CSV named but the user does not have yet gets the app's default
 // group colour; they can recolour it from the grouping panel.
@@ -339,8 +341,11 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ onClose }) => {
       setImportPreview(null);
       setShowReplaceConfirm(false);
       setReplaceConfirmText('');
-    } catch (error: any) {
-      setStatusMsg({ type: 'error', text: error.message || 'Failed to import data.' });
+    } catch (error) {
+      // Was `error.message` raw, so a TypeError thrown anywhere under
+      // `importData` reached the user verbatim. The validator's own messages
+      // are written for them and still come through unchanged.
+      setStatusMsg({ type: 'error', text: describeUserFacingError(error, 'import this backup') });
     } finally {
       setIsProcessing(false);
     }
@@ -370,6 +375,15 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ onClose }) => {
         // would strand another set.
         const createdTimecodes: string[] = [];
         const createdGroups: string[] = [];
+        /**
+         * Rows this run committed. Read by the rollback below, which must not
+         * run once it is above zero.
+         *
+         * Set from `bulkAddManualEntries` either way it finishes: from its
+         * result when it resolves, and from `PartialImportError.committed` when
+         * a chunk failed after earlier ones had already been written.
+         */
+        let committedEntryCount = 0;
 
         /**
          * Remove the timecodes and groups this import created, for a run that
@@ -377,12 +391,21 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ onClose }) => {
          * import can reference them yet — so hard-deleting them cannot orphan
          * anything.
          *
+         * Which is exactly why it is guarded on `committedEntryCount`. Once a
+         * chunk has committed, those rows reference these timecodes, and
+         * `hardDeleteTimecode` cascades to the entries filed under one — so
+         * running this after a partial import permanently deletes the rows that
+         * landed. The guard lives here rather than at the call sites so no
+         * later caller can reintroduce that, and it is what makes "No entries
+         * were imported" below unreachable when some were.
+         *
          * `hardDeleteTimecode` goes through `guardedResult`, so it reports its
          * own failure and resolves to whether the delete actually happened —
          * which is where this count comes from. Incrementing on every call
          * instead claimed a cleanup that may not have happened.
          */
         const rollbackCreatedTimecodes = async (): Promise<string> => {
+          if (committedEntryCount > 0) return '';
           let rolledBack = 0;
           let failed = 0;
           for (const id of createdTimecodes) {
@@ -739,6 +762,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ onClose }) => {
           // resolves to nothing. Defaulting to the requested row count would
           // have reported every row as imported on a run that imported none.
           const result = await bulkAddManualEntries(entriesToBulkAdd);
+          committedEntryCount = result.added;
           let importedCount = result.added;
           if (result.skipped > 0) {
             skip('rejected on write as overlapping', result.skipped);
@@ -759,9 +783,23 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ onClose }) => {
               text: 'Failed to import any entries. Check the CSV format, and that its rows do not overlap entries you already have.' + cleanup,
             });
           }
-        } catch (err: any) {
+        } catch (err) {
+          // A type, not a parsed message: the branch it drives is destructive.
+          // A partial commit leaves rows on disk that reference the timecodes
+          // this import created, and `rollbackCreatedTimecodes` hard-deletes
+          // those, which cascades to the entries filed under them — cleaning up
+          // here would permanently delete exactly what just landed. Recording
+          // the count is what makes the rollback below a no-op; nothing is
+          // orphaned either, since the committed rows are what reference them.
+          if (err instanceof PartialImportError) {
+            committedEntryCount = err.committed;
+          }
           const cleanup = await rollbackCreatedTimecodes();
-          setStatusMsg({ type: 'error', text: `CSV Import Error: ${err.message || 'An unexpected error occurred.'}${cleanup}` });
+          // `describeUserFacingError` passes a PartialImportError through
+          // whole, so the committed count reaches the user; a TypeError from
+          // under the write becomes the generic sentence instead of reaching
+          // them verbatim, which is what used to happen.
+          setStatusMsg({ type: 'error', text: `${describeUserFacingError(err, 'import this CSV')}${cleanup}` });
         } finally {
           setIsProcessing(false);
           if (csvInputRef.current) csvInputRef.current.value = '';

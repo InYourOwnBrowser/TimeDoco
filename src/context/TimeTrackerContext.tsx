@@ -4,6 +4,8 @@ import * as db from '../db';
 import { differenceInSeconds, isSameDay } from 'date-fns';
 import { calculateDuration, findOverlappingCandidates } from '../utils/timeUtils';
 import { clearErrorLog, logError } from '../utils/errorLog';
+import { describeUserFacingError } from '../utils/errorMessage';
+import { PartialImportError } from '../utils/importErrors';
 import { useToast } from './ToastContext';
 import { isRecoveryReloadInFlight } from '../utils/chunkRecovery';
 import { readKey, removeKey, requestPersistenceOnCommitment, resumePersistence, writeKey } from '../utils/storagePersistence';
@@ -275,38 +277,6 @@ export const TimeTrackerProvider: React.FC<{ children: ReactNode }> = ({ childre
   const runSettingsExclusive = useSerialQueue();
 
   /**
-   * Turns a storage failure into something the user can act on.
-   *
-   * Running out of quota is the one case with an obvious remedy, and it is also
-   * the one most likely to hit a long-running local-first database, so it gets
-   * its own message rather than a generic "could not save".
-   */
-  const describeStorageError = (error: unknown, action: string): string => {
-    const name = (error as { name?: string } | null)?.name;
-    const message = error instanceof Error ? error.message : String(error ?? '');
-    if (name === 'QuotaExceededError' || /quota/i.test(message)) {
-      return `Could not ${action}: this browser is out of storage for TimeDoco. Export a backup from Settings, then clear the trash or remove old entries to free space.`;
-    }
-    // Passed through only for an error the app raised itself — `new Error(...)`
-    // with a sentence written for the user, like the import cap or a refused
-    // merge. `error.constructor === Error` is what draws that line: a TypeError
-    // or a RangeError is a bug, and its message ("x is not a function") is not
-    // something to show anyone. The length cap is the backstop for a plain
-    // Error carrying something long from a dependency.
-    if (
-      error instanceof Error &&
-      error.constructor === Error &&
-      !(error instanceof DOMException) &&
-      !name?.includes('Database') &&
-      !name?.includes('IndexedDB') &&
-      message.length <= 200
-    ) {
-      return message;
-    }
-    return `Could not ${action}. Your change was not saved.`;
-  };
-
-  /**
    * Wraps a storage mutation so a failed write is reported rather than becoming
    * an unhandled rejection behind a success toast.
    *
@@ -326,11 +296,11 @@ export const TimeTrackerProvider: React.FC<{ children: ReactNode }> = ({ childre
         return await operation();
       } catch (error) {
         logError(error as Error, `mutate:${action}`);
-        addToast(describeStorageError(error, action), 'error', undefined, 8000);
+        addToast(describeUserFacingError(error, action), 'error', undefined, 8000);
         return null;
       }
     },
-    // addToast is stable; describeStorageError is a pure local helper.
+    // addToast is stable; describeUserFacingError is a module-level pure function.
     // eslint-disable-next-line react-hooks/exhaustive-deps
     [addToast]
   );
@@ -348,7 +318,7 @@ export const TimeTrackerProvider: React.FC<{ children: ReactNode }> = ({ childre
         await operation();
       } catch (error) {
         logError(error as Error, `mutate:${action}`);
-        addToast(describeStorageError(error, action), 'error', undefined, 8000);
+        addToast(describeUserFacingError(error, action), 'error', undefined, 8000);
         throw error;
       }
     },
@@ -1438,7 +1408,18 @@ export const TimeTrackerProvider: React.FC<{ children: ReactNode }> = ({ childre
           // sit on disk and off the screen until the next page load, and the
           // user is told the import failed while looking at none of it.
           await refreshData();
-          throw new Error(`Import failed after committing ${totalAdded} entries: ${error instanceof Error ? error.message : String(error)}`);
+          // A distinct type, not a message the caller parses. The CSV
+          // importer's cleanup path hard-deletes the timecodes this import
+          // created, and that cascades to entries — run against the rows above
+          // it destroys exactly what just committed. The caller reads
+          // `committed` off this to disarm that cleanup.
+          //
+          // The cause is logged rather than interpolated: it comes from the
+          // storage layer and may be a bug's message, which is not something to
+          // put in front of anyone. What the user gets told is the committed
+          // count, which is the part that describes their data.
+          logError(error as Error, 'bulkAddManualEntries:partialCommit');
+          throw new PartialImportError(totalAdded, toInsert.length);
         }
         throw error;
       }

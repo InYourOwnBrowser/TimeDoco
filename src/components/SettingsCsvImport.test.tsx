@@ -2,6 +2,7 @@ import { render, fireEvent, waitFor, screen, cleanup } from '@testing-library/re
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { SettingsModal } from './SettingsModal';
 import type { Entry, Group, Timecode } from '../types';
+import { PartialImportError } from '../utils/importErrors';
 
 const mockAddGroup = vi.fn();
 const mockAddTimecode = vi.fn();
@@ -296,5 +297,79 @@ describe('CSV import resolves timecodes by group as well as name', () => {
 
     await waitFor(() => expect(mockBulkAddManualEntries).toHaveBeenCalled());
     expect(screen.queryByText(/Import stopped/)).toBeNull();
+  });
+});
+
+/**
+ * A CSV import whose write failed after part of it had committed.
+ *
+ * `bulkAddManualEntries` writes in chunks, each its own transaction, so a
+ * failure part way through leaves the earlier chunks on disk. The catch below
+ * could not tell that from a run that wrote nothing, so it ran the rollback —
+ * and rolling back hard-deletes the timecodes the import created, which
+ * cascades to the entries filed under them. The rows that had just committed
+ * were deleted, and the message shown alongside said none had been imported,
+ * which the deletion had just made true.
+ */
+describe('CSV import that committed some rows before failing', () => {
+  const INNER_MESSAGE = "Cannot read properties of undefined (reading 'foo')";
+
+  beforeEach(() => {
+    cleanup();
+    vi.clearAllMocks();
+    mockEntries = [];
+    mockTimecodes = [];
+    mockDeletedTimecodes = [];
+    mockGroups = [];
+    mockAddTimecode.mockResolvedValue({ id: 'tc-new', name: 'Client Work' });
+    mockHardDeleteTimecode.mockResolvedValue(true);
+    mockBulkAddManualEntries.mockRejectedValue(new PartialImportError(48000, 50000));
+  });
+
+  afterEach(() => {
+    cleanup();
+    vi.restoreAllMocks();
+  });
+
+  it('does not roll back the timecodes the committed rows point at', async () => {
+    importCsv();
+
+    await waitFor(() => expect(mockBulkAddManualEntries).toHaveBeenCalled());
+    await screen.findByText(/48000/);
+    // The one that mattered: hardDeleteTimecode cascades to entries, so this
+    // running here would permanently delete the 48,000 rows that landed.
+    expect(mockHardDeleteTimecode).not.toHaveBeenCalled();
+  });
+
+  it('tells the user how many rows are in their timesheet', async () => {
+    importCsv();
+
+    const message = await screen.findByText(/48000/);
+    expect(message.textContent).toContain('48000');
+    expect(message.textContent).toContain('50000');
+    expect(message.textContent).toContain('in your timesheet');
+  });
+
+  it('never says nothing was imported when something was', async () => {
+    importCsv();
+
+    const message = await screen.findByText(/48000/);
+    expect(message.textContent).not.toMatch(/No entries were imported/);
+    expect(message.textContent).not.toMatch(/Failed to import any entries/);
+    // The rollback is what produces every one of those sentences, and the
+    // committed count is what turns it into a no-op — so none of its text can
+    // be appended either.
+    expect(message.textContent).not.toMatch(/removed/);
+    expect(message.textContent).not.toMatch(/could not be removed/);
+  });
+
+  it('keeps the cause of the failure out of the message', async () => {
+    // The cause comes from the storage layer and may be a bug's message. It is
+    // logged in the provider; it is not shown.
+    importCsv();
+
+    const message = await screen.findByText(/48000/);
+    expect(message.textContent).not.toContain(INNER_MESSAGE);
+    expect(message.textContent).not.toContain('undefined');
   });
 });

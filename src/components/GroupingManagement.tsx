@@ -17,6 +17,7 @@ import {
 } from 'lucide-react';
 import type { Group, Timecode } from '../types';
 import { HelpTooltip } from './ui/HelpTooltip';
+import { describeUserFacingError } from '../utils/errorMessage';
 
 export const GroupingManagement: React.FC = () => {
   const {
@@ -286,7 +287,10 @@ export const GroupingManagement: React.FC = () => {
           addToast('Timecodes merged.', 'success');
         }
       } catch (error) {
-        addToast(error instanceof Error ? error.message : 'Merge failed.', 'error');
+        // Was `error.message` raw for any Error, so a TypeError thrown under
+        // `mergeTimecodes` reached the user verbatim. Its refusals are plain
+        // Errors written for the user and still come through unchanged.
+        addToast(describeUserFacingError(error, 'merge these timecodes'), 'error');
       } finally {
         setMergingTimecodeId(null);
         setMergeDestId('');
