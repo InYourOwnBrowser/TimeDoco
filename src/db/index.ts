@@ -452,6 +452,25 @@ export const selectActiveEntries = (entries: Entry[]): Entry[] => selectActive(e
 /** The single settings record's key. Only ever one row in this store. */
 const SETTINGS_KEY = 'user-settings';
 
+/**
+ * A settings record addressed at the one key this store uses.
+ *
+ * `settings` has an in-line key of `id`, so a record arriving from a file
+ * without one cannot be written at all: `put` throws `DataError`. In replace
+ * mode that throw lands *after* the four `clear()` calls, and because it escapes
+ * before `tx.done` is awaited nothing aborts the transaction — the clears
+ * commit. The user is shown a failed import and has lost their rounding rule,
+ * currency, tax setup, preparer details, logo, footer and templates.
+ *
+ * `validateBackupPayload` permits the shape that does this: it rejects an `id`
+ * that is present and wrong, and allows one that is absent or null. The
+ * in-memory fallback path has always normalised here; the IndexedDB path did
+ * not, which is the same one-path-fixed-not-its-sibling split `mergeSettings`
+ * exists to prevent. Normalising is also what makes the permissive validator
+ * correct rather than merely lenient — a backup is addressed to this store, and
+ * this store has exactly one row.
+ */
+const atSettingsKey = (settings: Settings): Settings => ({ ...settings, id: SETTINGS_KEY });
 
 export const getSettings = async (): Promise<Settings | undefined> =>
   withDB((db) => db.get('settings', SETTINGS_KEY), () => fallbackMemoryDB.settings.get(SETTINGS_KEY));
@@ -557,12 +576,15 @@ export const importBackup = async (
     });
     if (data.settings) {
       if (mode === 'replace') {
-        fallbackMemoryDB.settings.set(SETTINGS_KEY, { ...data.settings, id: SETTINGS_KEY });
+        fallbackMemoryDB.settings.set(SETTINGS_KEY, atSettingsKey(data.settings));
       } else if (mode === 'merge') {
         const existingSettings = fallbackMemoryDB.settings.get(SETTINGS_KEY);
+        // Normalised on this branch too. A Map takes the key it is given, so an
+        // unnormalised record was readable here — right up until it was exported
+        // and imported into a database, where the id is the key.
         fallbackMemoryDB.settings.set(
           SETTINGS_KEY,
-          existingSettings ? mergeSettings(existingSettings, data.settings) : data.settings,
+          atSettingsKey(existingSettings ? mergeSettings(existingSettings, data.settings) : data.settings),
         );
       }
     }
@@ -621,11 +643,13 @@ export const importBackup = async (
   if (data.settings) {
     const settingsStore = tx.objectStore('settings');
     if (mode === 'replace') {
-      await settingsStore.put(data.settings);
+      await settingsStore.put(atSettingsKey(data.settings));
     } else if (mode === 'merge') {
       const existingSettings = await settingsStore.get(SETTINGS_KEY);
       await settingsStore.put(
-        existingSettings ? mergeSettings(existingSettings, data.settings) : data.settings
+        atSettingsKey(
+          existingSettings ? mergeSettings(existingSettings, data.settings) : data.settings
+        )
       );
     }
   }
