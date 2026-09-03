@@ -563,8 +563,15 @@ export const TimeTrackerProvider: React.FC<{ children: ReactNode }> = ({ childre
     };
     document.addEventListener('visibilitychange', onVisibilityChange);
 
+    // The other tab closed and the upgrade went through, so the reads this tab
+    // refused while the two versions were at a standoff can be made now. Without
+    // this the banner clears and leaves an empty tracker behind it until
+    // something else happens to trigger a re-read.
+    window.addEventListener('idb-connection-unblocked', reload);
+
     return () => {
       document.removeEventListener('visibilitychange', onVisibilityChange);
+      window.removeEventListener('idb-connection-unblocked', reload);
       if (channel) {
         channel.onmessage = null;
         channel.close();

@@ -1,5 +1,6 @@
 import { openDB, type DBSchema, type IDBPDatabase } from 'idb';
 import type { Group, Timecode, Entry, Settings } from '../types';
+import { UserFacingError } from '../utils/errorMessage';
 
 interface TimeTrackerDB extends DBSchema {
   groups: {
@@ -32,6 +33,80 @@ let dbPromise: Promise<IDBPDatabase<TimeTrackerDB>> | null = null;
 let isFallbackMode = false;
 
 export const getIsFallbackMode = (): boolean => isFallbackMode;
+
+/**
+ * Two tabs, two builds, one database that can only be at one version.
+ *
+ * A version bump is the one deploy that cannot be absorbed silently: the tab
+ * running the new build needs the upgrade, and IndexedDB will not start it
+ * while any connection to the old version is open. Left unhandled that is not
+ * an error — `openDB` simply never settles — so every read and every write
+ * awaits a promise with no outcome. Nothing rejects, so `refreshData`'s catch
+ * never runs and fallback mode is never entered: the app renders a complete,
+ * empty tracker and stores nothing the user does in it, which is the single
+ * worst way for this to present. Neither state may fall back to the in-memory
+ * store, either — an empty store is exactly the "all my data is gone" the user
+ * would already be fearing.
+ *
+ * Which tab is told, and what it is told, differs:
+ *
+ *  - 'blocked-by-older-tab' is the new build, waiting on a connection it does
+ *    not own. It cannot close that connection itself; the user has to.
+ *  - 'superseded-by-newer-tab' is the old build, asked to get out of the way.
+ *    It closes its connection so the upgrade proceeds, which leaves this tab
+ *    running against a database it can no longer open at its own version.
+ *
+ * `blocking` is the half that only pays off next time: on the deploy that
+ * introduces it, the tab that has to yield is running the *previous* build,
+ * which has no such handler. It is here so the version after this one does not
+ * repeat the whole problem.
+ */
+export type ConnectionBlock = 'blocked-by-older-tab' | 'superseded-by-newer-tab';
+
+let connectionBlock: ConnectionBlock | null = null;
+
+export const getConnectionBlock = (): ConnectionBlock | null => connectionBlock;
+
+/** What each state tells the user, written to be shown verbatim. */
+const BLOCK_MESSAGES: Record<ConnectionBlock, string> = {
+  'blocked-by-older-tab':
+    'Another TimeDoco tab is open on an older version and is holding your database. ' +
+    'Close the other tab, then reload this one. Nothing has been lost.',
+  'superseded-by-newer-tab':
+    'TimeDoco was updated in another tab, which now owns your database. ' +
+    'Reload this tab to catch up. Nothing has been lost.',
+};
+
+const setConnectionBlock = (state: ConnectionBlock) => {
+  if (connectionBlock === state) return;
+  connectionBlock = state;
+  window.dispatchEvent(new CustomEvent('idb-connection-blocked', { detail: { state } }));
+};
+
+const clearConnectionBlock = () => {
+  if (connectionBlock === null) return;
+  connectionBlock = null;
+  // The blocking tab closed and the upgrade went through. Whatever is listening
+  // has a banner to take down and a stale, empty view to re-read.
+  window.dispatchEvent(new CustomEvent('idb-connection-unblocked'));
+};
+
+/**
+ * Refuse an operation while the two tabs are at different versions.
+ *
+ * Throws rather than falling back to memory: a version standoff says nothing
+ * about whether IndexedDB works, and answering from an empty in-memory store
+ * would show the user an app that has lost everything — while quietly taking
+ * writes into a store discarded when the tab closes. A `UserFacingError`
+ * reaches them intact through `describeUserFacingError`, and the last loaded
+ * state stays on screen, which is what `refreshData`'s catch and the mutation
+ * wrappers already do with a failure.
+ */
+const assertConnectionUsable = (): void => {
+  if (connectionBlock !== null) {
+    throw new UserFacingError(BLOCK_MESSAGES[connectionBlock]);
+  }
+};
 
 // In-memory fallback storage
 const fallbackMemoryDB = {
@@ -68,17 +143,25 @@ const clearFallbackMemory = () => {
  */
 export const closeDB = async () => {
   if (dbPromise) {
-    try {
-      const db = await dbPromise;
-      db.close();
-    } catch {
-      // The connection never opened; nothing to close.
-    }
+    const pending = dbPromise;
     dbPromise = null;
+    if (connectionBlock === 'blocked-by-older-tab') {
+      // This one never settles while the other tab holds the database, so
+      // awaiting it would hang whoever asked to close — a test's teardown
+      // among them. Close it if and when it does arrive instead.
+      void pending.then((db) => db.close()).catch(() => {});
+    } else {
+      try {
+        (await pending).close();
+      } catch {
+        // The connection never opened; nothing to close.
+      }
+    }
   }
   // Reset the degraded state with the connection. Leaving it set made fallback
   // mode permanent for the life of the page even after a successful reopen.
   isFallbackMode = false;
+  connectionBlock = null;
 };
 
 /**
@@ -128,6 +211,28 @@ export const initDB = () => {
           db.createObjectStore('settings', { keyPath: 'id' });
         }
       },
+      blocked() {
+        // Pending, not failed: IndexedDB re-fires `success` on its own once the
+        // other connection closes, so this promise is still the one that will
+        // resolve. Say so and let it wait.
+        setConnectionBlock('blocked-by-older-tab');
+      },
+      blocking() {
+        // A newer build is waiting on this connection. Close it so the upgrade
+        // can start — a tab that will not yield blocks the user's other tab
+        // indefinitely, and this one has already loaded its data.
+        setConnectionBlock('superseded-by-newer-tab');
+        void dbPromise
+          ?.then((db) => db.close())
+          // Already closed, or never opened. Either way there is nothing left
+          // holding the upgrade up, which is all this had to achieve.
+          .catch(() => {});
+      },
+    }).then((db) => {
+      // Reached only by an open that actually succeeded, which is the one
+      // unambiguous signal that nothing is holding the database any more.
+      clearConnectionBlock();
+      return db;
     });
   }
   return dbPromise;
@@ -157,6 +262,10 @@ async function withDB<T>(
   operation: (db: IDBPDatabase<TimeTrackerDB>) => Promise<T>,
   whenUnavailable: () => T,
 ): Promise<T> {
+  // Checked before fallback mode: see `assertConnectionUsable` for why this one
+  // rejects where every other unavailability answers from memory.
+  assertConnectionUsable();
+
   if (isFallbackMode) return whenUnavailable();
 
   let db: IDBPDatabase<TimeTrackerDB>;
@@ -343,6 +452,7 @@ export const selectActiveEntries = (entries: Entry[]): Entry[] => selectActive(e
 /** The single settings record's key. Only ever one row in this store. */
 const SETTINGS_KEY = 'user-settings';
 
+
 export const getSettings = async (): Promise<Settings | undefined> =>
   withDB((db) => db.get('settings', SETTINGS_KEY), () => fallbackMemoryDB.settings.get(SETTINGS_KEY));
 
@@ -394,6 +504,10 @@ export const putSettings = async (settings: Settings): Promise<string> => {
 };
 
 export const wipeAllData = async (): Promise<void> => {
+  // These two reach `getDB` directly rather than through `withDB`, so they need
+  // the version-standoff guard spelled out. Both are destructive; hanging
+  // part-way through one is the last thing either should do.
+  assertConnectionUsable();
   if (isFallbackMode) {
     clearFallbackMemory();
     return;
@@ -412,6 +526,7 @@ export const importBackup = async (
   data: { groups: Group[]; timecodes: Timecode[]; entries: Entry[]; settings?: Settings },
   mode: 'merge' | 'replace'
 ): Promise<void> => {
+  assertConnectionUsable();
   if (isFallbackMode) {
     if (mode === 'replace') {
       clearFallbackMemory();
