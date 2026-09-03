@@ -262,7 +262,12 @@ export const AnalysisView: React.FC = () => {
       diffEarnings,
       pctEarnings
     };
-  }, [prevPeriodEntries, prevFilteredEntries, prevDateRange, comparePrevious, totalSeconds, totalEarnings, timecodeMap, settings]);
+    // `entries` is what this reads; `prevPeriodEntries` was listed instead and
+    // is not used in the body. It happened to work — that memo derives from
+    // `entries`, so its identity changed whenever `entries` did — but the memo
+    // was one refactor away from serving a stale figure, and this is the report
+    // surface, where a stale memo is a stale invoice.
+  }, [entries, prevFilteredEntries, prevDateRange, comparePrevious, totalSeconds, totalEarnings, timecodeMap, settings]);
 
   // Detect overlaps
   const overlaps = useMemo(() => {

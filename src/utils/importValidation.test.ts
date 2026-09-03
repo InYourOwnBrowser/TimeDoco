@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
-import { MAX_EDIT_HISTORY, MAX_EDIT_VALUE_CHARS, validateBackupPayload, parseCSVDate, MAX_IMPORT_ENTRIES } from './importValidation';
+import { MAX_EDIT_HISTORY, MAX_EDIT_VALUE_CHARS, MAX_NAME_CHARS, validateBackupPayload, parseCSVDate, MAX_IMPORT_ENTRIES, assertSupportedSchemaVersion, READABLE_SCHEMA_VERSIONS, SUPPORTED_SCHEMA_VERSION } from './importValidation';
 
 describe('parseCSVDate', () => {
   it('parses ISO format correctly', () => {
@@ -527,5 +527,79 @@ describe('parseCSVDate time-of-day handling', () => {
     for (const time of ['25:00', '13:00 PM', '0:00 AM', '2:75', 'lunchtime', '2:30 XM']) {
       expect(Number.isNaN(parseCSVDate(`01/02/2024 ${time}`, 'dmy').getTime())).toBe(true);
     }
+  });
+});
+
+describe('colour validation', () => {
+  const base = {
+    groups: [{ id: 'g1', name: 'Group 1' }],
+    timecodes: [{ id: 'tc1', name: 'Code 1', hourlyRate: 50 }],
+    entries: [],
+  };
+
+  // `color` was the one displayed field the validator skipped, and it is the
+  // field `public/_headers` cites as the reason style-src carries
+  // 'unsafe-inline'. It reaches ~10 inline style attributes and Recharts `fill`.
+  it('accepts the hex forms the colour pickers produce', () => {
+    for (const color of ['#fff', '#FFF', '#a1b2c3', '#A1B2C3FF', '#abcd', 'blue', 'rebeccapurple']) {
+      expect(() => validateBackupPayload({ ...base, groups: [{ id: 'g1', name: 'G', color }] })).not.toThrow();
+      expect(() => validateBackupPayload({ ...base, timecodes: [{ id: 'tc1', name: 'T', hourlyRate: 1, color }] })).not.toThrow();
+    }
+  });
+
+  it('rejects a colour that is not a colour', () => {
+    // Everything with punctuation, whitespace or a call in it — the shapes that
+    // make a value dangerous where a colour is expected.
+    for (const color of ['red; background: url(x)', 'javascript:alert(1)', 'expression(1)', '#12', 'rgb(1,2,3)', 'url(x)', 'a b', 42]) {
+      expect(() => validateBackupPayload({ ...base, groups: [{ id: 'g1', name: 'G', color }] })).toThrow(/invalid colour/);
+    }
+  });
+
+  it('leaves an absent colour alone — it is optional', () => {
+    expect(() => validateBackupPayload({ ...base, groups: [{ id: 'g1', name: 'G' }] })).not.toThrow();
+    expect(() => validateBackupPayload({ ...base, groups: [{ id: 'g1', name: 'G', color: null }] })).not.toThrow();
+  });
+});
+
+describe('name and id length caps', () => {
+  const long = 'x'.repeat(MAX_NAME_CHARS + 1);
+  const base = {
+    groups: [{ id: 'g1', name: 'Group 1' }],
+    timecodes: [{ id: 'tc1', name: 'Code 1', hourlyRate: 50 }],
+    entries: [],
+  };
+
+  it('caps a group name, which was bounded only by the 20MB file limit', () => {
+    expect(() => validateBackupPayload({ ...base, groups: [{ id: 'g1', name: long }] })).toThrow(/over-long/);
+  });
+
+  it('caps a timecode name', () => {
+    expect(() => validateBackupPayload({ ...base, timecodes: [{ id: 'tc1', name: long, hourlyRate: 1 }] })).toThrow(/over-long/);
+  });
+
+  it('caps an id', () => {
+    expect(() => validateBackupPayload({ ...base, groups: [{ id: long, name: 'G' }] })).toThrow(/over-long/);
+  });
+});
+
+describe('assertSupportedSchemaVersion', () => {
+  // The gate used to admit only the current version, which made the migration
+  // path unreachable and would have rejected every v1 backup the day the schema
+  // went to 2 — with a message announcing the failure of the code written to
+  // prevent it. It now asks whether the version is one this build can read.
+  it('accepts every readable version', () => {
+    for (const v of READABLE_SCHEMA_VERSIONS) {
+      expect(() => assertSupportedSchemaVersion(v)).not.toThrow();
+    }
+  });
+
+  it('still refuses a version this build has never heard of', () => {
+    expect(() => assertSupportedSchemaVersion(99)).toThrow(/Unsupported schema version/);
+    expect(() => assertSupportedSchemaVersion('1')).toThrow(/Unsupported schema version/);
+    expect(() => assertSupportedSchemaVersion(undefined)).toThrow(/Unsupported schema version/);
+  });
+
+  it('keeps the current version among the readable ones', () => {
+    expect(READABLE_SCHEMA_VERSIONS).toContain(SUPPORTED_SCHEMA_VERSION);
   });
 });

@@ -8,6 +8,15 @@
 # `style-src-attr 'unsafe-inline'`, which needs testing against a real deploy,
 # because a local preview never applies this file.
 #
+# The prerequisite is now in place: `importValidation` checks `color` against a
+# hex allowlist, so the value behind this exception is no longer arbitrary. That
+# ordering was backwards before — the exception was widened for a field the
+# importer never validated. It is defence in depth either way: React sets style
+# objects through the CSSOM, so an arbitrary string there was never a property-
+# injection break-out. What remains before `style-src-elem 'self'` can land is
+# confirming against a real deploy that no dependency injects a <style> element
+# at runtime — Recharts is the one to check — since a local preview cannot.
+#
 # Cache-Control revalidates by default. A bare `public, no-transform` replaced
 # Pages' own `max-age=0, must-revalidate` and left every HTML document — and
 # every unhashed file, `theme-init.js` and the service worker among them — to

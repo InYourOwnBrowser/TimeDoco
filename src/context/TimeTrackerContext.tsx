@@ -10,7 +10,6 @@ import { readKey, removeKey, requestPersistenceOnCommitment, resumePersistence, 
 import {
   validateBackupPayload,
   verifyBackupFile,
-  assertSupportedSchemaVersion,
   SUPPORTED_SCHEMA_VERSION,
   MAX_IMPORT_ENTRIES,
 } from '../utils/importValidation';
@@ -288,7 +287,20 @@ export const TimeTrackerProvider: React.FC<{ children: ReactNode }> = ({ childre
     if (name === 'QuotaExceededError' || /quota/i.test(message)) {
       return `Could not ${action}: this browser is out of storage for TimeDoco. Export a backup from Settings, then clear the trash or remove old entries to free space.`;
     }
-    if (error instanceof Error && !name?.includes('Database') && !name?.includes('IndexedDB') && !(error instanceof DOMException)) {
+    // Passed through only for an error the app raised itself — `new Error(...)`
+    // with a sentence written for the user, like the import cap or a refused
+    // merge. `error.constructor === Error` is what draws that line: a TypeError
+    // or a RangeError is a bug, and its message ("x is not a function") is not
+    // something to show anyone. The length cap is the backstop for a plain
+    // Error carrying something long from a dependency.
+    if (
+      error instanceof Error &&
+      error.constructor === Error &&
+      !(error instanceof DOMException) &&
+      !name?.includes('Database') &&
+      !name?.includes('IndexedDB') &&
+      message.length <= 200
+    ) {
       return message;
     }
     return `Could not ${action}. Your change was not saved.`;
@@ -2013,18 +2025,31 @@ export const TimeTrackerProvider: React.FC<{ children: ReactNode }> = ({ childre
     await markBackupSaved();
   };
 
+  /**
+   * Carry a backup forward to the schema this build writes.
+   *
+   * `verifyBackupFile` has already established that `fromVersion` is one this
+   * build can *read*; this brings it up to current. The check below is the
+   * post-condition — that the migrations above actually arrived at the current
+   * version — and not a second gate on the input. Asserting the input here as
+   * well as upstream is what made this function unreachable: it could only ever
+   * be handed the one version that needed no migrating.
+   */
   const migrateImportData = (data: any, fromVersion: number) => {
     let migratedData = { ...data };
+    let version = fromVersion;
 
-    // Future migrations go here:
-    // if (fromVersion === 1) {
+    // Future migrations go here, each raising `version` as it goes:
+    // if (version === 1) {
     //   migratedData = migrateV1toV2(migratedData);
-    //   fromVersion = 2;
+    //   version = 2;
     // }
 
-    assertSupportedSchemaVersion(fromVersion);
+    if (version !== SUPPORTED_SCHEMA_VERSION) {
+      throw new Error(`Unsupported schema version: ${fromVersion}. Cannot migrate.`);
+    }
 
-    return migratedData;
+    return { ...migratedData, schemaVersion: version };
   };
 
   /**

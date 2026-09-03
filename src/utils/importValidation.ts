@@ -14,8 +14,41 @@ export const MAX_LOGO_DATA_URL_LENGTH = 4 * 1024 * 1024;
 export const MAX_EDIT_HISTORY = 1000;
 export const MAX_EDIT_VALUE_CHARS = 10_000;
 
-/** The only backup schema this build can read. */
+/**
+ * Names and ids were bounded only by the 20MB file cap, while notes, tags and
+ * every settings string had a limit. The value persists in IndexedDB and renders
+ * in dropdowns, so a megabyte of it is a lasting mess for no legitimate purpose.
+ */
+export const MAX_NAME_CHARS = 200;
+export const MAX_ID_CHARS = 200;
+
+/**
+ * A colour has to be a colour before it reaches a style attribute.
+ *
+ * `color` was the one displayed field the validator never checked, and it is
+ * also the field `public/_headers` cites as the reason `style-src` carries
+ * 'unsafe-inline' — the ordering was backwards. React sets style objects
+ * through the CSSOM, so an arbitrary string here is not an injection break-out
+ * and this closes no live XSS; it removes the reason the exception has to stay
+ * open, which the header comment already names as the right end state.
+ *
+ * Two accepted shapes, not hex alone. The colour inputs are `type="color"` and
+ * emit `#rrggbb`, but a bare CSS keyword — `blue` — is what older records and
+ * the app's own test fixtures carry, and refusing a whole backup over one of
+ * those would reject data this app itself wrote. A keyword is letters only, so
+ * everything that makes a value dangerous in a style position — parentheses,
+ * a semicolon, whitespace, a colon, a quote — is still refused.
+ */
+const SAFE_COLOR = /^(?:#(?:[0-9a-f]{3}|[0-9a-f]{4}|[0-9a-f]{6}|[0-9a-f]{8})|[a-z]{3,24})$/i;
+
+/** The schema this build writes. */
 export const SUPPORTED_SCHEMA_VERSION = 1;
+
+/**
+ * Every schema this build can read, oldest first. A version is dropped from here
+ * only when `migrateImportData` stops being able to carry it forward.
+ */
+export const READABLE_SCHEMA_VERSIONS: readonly number[] = [1];
 
 /**
  * Reject a backup this build cannot migrate.
@@ -23,9 +56,18 @@ export const SUPPORTED_SCHEMA_VERSION = 1;
  * Kept beside the checksum check so the preview and the import ask exactly the
  * same questions: the preview used to look at neither, so a hand-edited or
  * future-format file showed a clean green preview and then failed on import.
+ *
+ * "Readable" and "current" are separate questions, and conflating them made the
+ * migration path unreachable: this gate ran *before* `migrateImportData` and
+ * admitted only the current version, so the migrator could never be handed
+ * anything to migrate. Worse, it was latent — the day `SUPPORTED_SCHEMA_VERSION`
+ * became 2, every v1 backup would have been refused with "Unsupported schema
+ * version: 1. Cannot migrate", a message announcing the failure of the code
+ * written to prevent it. The gate now asks whether the version is one we can
+ * read; whether it needs migrating is `migrateImportData`'s business.
  */
 export function assertSupportedSchemaVersion(version: unknown): asserts version is number {
-  if (version !== SUPPORTED_SCHEMA_VERSION) {
+  if (typeof version !== 'number' || !READABLE_SCHEMA_VERSIONS.includes(version)) {
     throw new Error(`Unsupported schema version: ${version}. Cannot migrate.`);
   }
 }
@@ -334,6 +376,14 @@ export function validateBackupPayload(
     if (groupIds.has(g.id)) {
       throw new Error(`Import failed: duplicate group ID "${g.id}".`);
     }
+    if (g.id.length > MAX_ID_CHARS || g.name.length > MAX_NAME_CHARS) {
+      throw new Error(`Import failed: group at index ${i} has an over-long id or name.`);
+    }
+    if (g.color !== undefined && g.color !== null) {
+      if (typeof g.color !== 'string' || !SAFE_COLOR.test(g.color)) {
+        throw new Error(`Import failed: group at index ${i} has an invalid colour.`);
+      }
+    }
     groupIds.add(g.id);
   }
 
@@ -347,6 +397,14 @@ export function validateBackupPayload(
     }
     if (timecodeIdsInPayload.has(tc.id)) {
       throw new Error(`Import failed: duplicate timecode ID "${tc.id}".`);
+    }
+    if (tc.id.length > MAX_ID_CHARS || tc.name.length > MAX_NAME_CHARS) {
+      throw new Error(`Import failed: timecode at index ${i} has an over-long id or name.`);
+    }
+    if (tc.color !== undefined && tc.color !== null) {
+      if (typeof tc.color !== 'string' || !SAFE_COLOR.test(tc.color)) {
+        throw new Error(`Import failed: timecode "${tc.name || i}" has an invalid colour.`);
+      }
     }
     timecodeIdsInPayload.add(tc.id);
     // Finite and non-negative, matching every settings field and the app's own
@@ -373,6 +431,9 @@ export function validateBackupPayload(
 
     if (entryIds.has(e.id)) {
       throw new Error(`Import failed: duplicate entry ID "${e.id}".`);
+    }
+    if (e.id.length > MAX_ID_CHARS || e.timecodeId.length > MAX_ID_CHARS) {
+      throw new Error(`Import failed: entry at index ${i} has an over-long id.`);
     }
     entryIds.add(e.id);
 
