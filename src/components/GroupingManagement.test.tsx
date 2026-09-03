@@ -4,10 +4,10 @@ import { GroupingManagement } from './GroupingManagement';
 import type { Group, Timecode, Entry } from '../types';
 
 const mockAddGroup = vi.fn().mockResolvedValue({ id: 'g3', name: 'New Client', color: '#3E7368' });
-const mockUpdateGroup = vi.fn().mockResolvedValue(undefined);
+const mockUpdateGroup = vi.fn().mockResolvedValue(true);
 const mockDeleteGroup = vi.fn().mockResolvedValue(undefined);
 const mockAddTimecode = vi.fn().mockResolvedValue({ id: 'tc4', name: 'New Task', groupId: 'g1' });
-const mockUpdateTimecode = vi.fn().mockResolvedValue(undefined);
+const mockUpdateTimecode = vi.fn().mockResolvedValue(true);
 const mockDeleteTimecode = vi.fn().mockResolvedValue(undefined);
 const mockMergeTimecodes = vi.fn().mockResolvedValue(undefined);
 const mockAddToast = vi.fn();
@@ -59,10 +59,22 @@ const sampleEntries: Entry[] = [
   },
 ];
 
+const trashedGroups: Group[] = [
+  { id: 'g-trashed', name: 'Retired Client', color: '#999999', archived: false, deletedAt: '2025-02-01T00:00:00Z', updatedAt: '2025-02-01T00:00:00Z' },
+];
+
+const trashedTimecodes: Timecode[] = [
+  { id: 'tc-trashed', name: 'Old Retainer', groupId: 'g1', hourlyRate: 50, archived: false, deletedAt: '2025-02-01T00:00:00Z', updatedAt: '2025-02-01T00:00:00Z' },
+];
+
 vi.mock('../context/TimeTrackerContext', () => ({
   useTimeTracker: () => ({
     groups: sampleGroups,
     timecodes: sampleTimecodes,
+    // The trash, which the duplicate-name checks read: a name still held by a
+    // trashed record is not free, because CSV import resolves against both.
+    deletedGroups: trashedGroups,
+    deletedTimecodes: trashedTimecodes,
     entries: sampleEntries,
     addGroup: mockAddGroup,
     updateGroup: mockUpdateGroup,
@@ -131,6 +143,36 @@ describe('GroupingManagement Redesigned View', () => {
     });
   });
 
+  it('refuses a group name a trashed group still holds, and says where it is', async () => {
+    // CSV import resolves names against live and trashed records alike, so a
+    // name held in both places makes every row naming it ambiguous and stops
+    // the import. Nothing on this screen shows the trash, so the refusal has
+    // to explain itself.
+    render(<GroupingManagement />);
+
+    fireEvent.click(screen.getByRole('button', { name: /New Group/i }));
+    fireEvent.change(screen.getByPlaceholderText(/Group Name/i), { target: { value: 'retired client' } });
+    fireEvent.click(screen.getByRole('button', { name: /Save Group/i }));
+
+    await waitFor(() => {
+      expect(mockAddToast).toHaveBeenCalledWith(expect.stringContaining('is in the trash'), 'error');
+    });
+    expect(mockAddGroup).not.toHaveBeenCalled();
+  });
+
+  it('refuses a timecode name a trashed timecode in the same group still holds', async () => {
+    render(<GroupingManagement />);
+
+    fireEvent.click(screen.getByRole('button', { name: /Add timecode to Client A/i }));
+    fireEvent.change(screen.getByPlaceholderText('New Timecode Name'), { target: { value: 'Old Retainer' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Add Timecode' }));
+
+    await waitFor(() => {
+      expect(mockAddToast).toHaveBeenCalledWith(expect.stringContaining('is in the trash'), 'error');
+    });
+    expect(mockAddTimecode).not.toHaveBeenCalled();
+  });
+
   it('allows creating a timecode contextually under a specific group', async () => {
     render(<GroupingManagement />);
 
@@ -190,6 +232,27 @@ describe('GroupingManagement Redesigned View', () => {
         groupId: 'g1',
         hourlyRate: 95,
       });
+    });
+  });
+
+  // Pins the end-to-end property rather than one guard: a rate that is not a
+  // finite number never reaches storage. Today the `type="number"` input is what
+  // stops it — it sanitises "1e999" to "" before any handler sees it — and the
+  // `Number.isFinite` check in the save path is the backstop for if that ever
+  // changes. Worth stating, because a non-finite rate would not fail loudly: it
+  // would come back out of `roundCurrency` as 0 and bill nothing.
+  it('stores no rate at all for a value that is not a finite number', async () => {
+    render(<GroupingManagement />);
+
+    fireEvent.click(screen.getAllByRole('button', { name: 'Edit Timecode' })[0]);
+    fireEvent.change(screen.getByDisplayValue('85'), { target: { value: '1e999' } });
+    fireEvent.click(screen.getByRole('button', { name: /Save/i }));
+
+    await waitFor(() => {
+      expect(mockUpdateTimecode).toHaveBeenCalledWith(
+        'tc1',
+        expect.objectContaining({ hourlyRate: null }),
+      );
     });
   });
 

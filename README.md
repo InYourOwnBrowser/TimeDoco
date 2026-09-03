@@ -13,7 +13,7 @@
 
 ## Key Features
 
-- 🔒 **100% Local & Confidential:** Stored entirely in your browser using IndexedDB. No accounts, no cloud servers, no third-party tracking or telemetry.
+- 🔒 **100% Local & Confidential:** Stored entirely in your browser using IndexedDB. No accounts, no cloud servers, and no tracking or telemetry in the app itself. (The marketing pages outside `/app/` use cookieless Cloudflare Web Analytics for aggregate traffic — see the [Privacy Policy](https://timedoco.com/privacy/).)
 - ⏱️ **Active Timer & Matrix Views:** Track time in real-time or log hours directly via a fast weekly Timesheet Matrix grid.
 - 📄 **Professional Reporting:** Export client-ready PDF summaries, unrounded raw CSV files for accounting tools, and standard ICS calendar feeds.
 - 💵 **Tax & Multi-Currency Controls:** Configure global or report-level tax rates (inclusive/exclusive), custom tax labels, and currency symbols.

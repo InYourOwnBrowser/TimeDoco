@@ -10,7 +10,7 @@ import { checkOverlap } from '../utils/timeUtils';
 import { HelpTooltip } from './ui/HelpTooltip';
 
 export const TemplateList: React.FC = () => {
-  const { settings, updateSettings, addManualEntry, timecodes, groups, entries, startTimer } = useTimeTracker();
+  const { settings, updateSettings, restoreTemplate, addManualEntry, timecodes, groups, entries, startTimer } = useTimeTracker();
   const { addToast } = useToast();
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingTemplate, setEditingTemplate] = useState<EntryTemplate | null>(null);
@@ -24,24 +24,58 @@ export const TemplateList: React.FC = () => {
   const [note, setNote] = useState('');
   const [tagsStr, setTagsStr] = useState('');
 
-  const templates = settings?.templates || [];
+  // The stored list, which every write below is derived from: writing a
+  // filtered copy back would delete the templates this component hides.
+  const templates = React.useMemo(() => settings?.templates || [], [settings?.templates]);
 
-  const isDirty = title !== '' || note !== '' || tagsStr !== '' || isFixedDuration || expectedDurationMinutes !== '';
+  // Deleting a timecode (or the group above it) is a soft delete the user can
+  // undo from the toast or from the Trash, so its templates are kept rather
+  // than destroyed. They have nothing to log against while the timecode is in
+  // the trash, so they are hidden here and come back with it when it is
+  // restored.
+  const liveTimecodeIds = React.useMemo(() => new Set(timecodes.map(t => t.id)), [timecodes]);
+  const visibleTemplates = React.useMemo(
+    () => templates.filter(t => liveTimecodeIds.has(t.timecodeId)),
+    [templates, liveTimecodeIds]
+  );
+
+  // What the picker below will actually offer. `timecodes` still contains
+  // archived ones, so taking its first entry as the default for a new template
+  // could preselect a timecode the picker refuses to show — and the template
+  // would then be saved against it.
+  const selectableTimecodes = React.useMemo(
+    () => timecodes.filter(t => {
+      if (t.archived) return false;
+      const group = t.groupId ? groups.find(g => g.id === t.groupId) : undefined;
+      return !group?.archived;
+    }),
+    [timecodes, groups]
+  );
+
+  // The timecode the form opened on, so that changing only the timecode still
+  // counts as an unsaved edit worth warning about on close.
+  const [initialTimecodeId, setInitialTimecodeId] = useState('');
+
+  const isDirty = title !== '' || note !== '' || tagsStr !== '' || isFixedDuration
+    || expectedDurationMinutes !== '' || timecodeId !== initialTimecodeId;
 
   const handleOpenModal = (template?: EntryTemplate) => {
     if (template) {
       setEditingTemplate(template);
       setTitle(template.title);
       setTimecodeId(template.timecodeId);
+      setInitialTimecodeId(template.timecodeId);
       setIsFixedDuration(template.durationMinutes !== null);
       setDurationMinutes(template.durationMinutes || 15);
       setExpectedDurationMinutes(template.expectedDurationMinutes ? String(template.expectedDurationMinutes) : '');
       setNote(template.note);
       setTagsStr((template.tags || []).join(', '));
     } else {
+      const defaultTimecodeId = selectableTimecodes.length > 0 ? selectableTimecodes[0].id : '';
       setEditingTemplate(null);
       setTitle('');
-      setTimecodeId(timecodes.length > 0 ? timecodes[0].id : '');
+      setTimecodeId(defaultTimecodeId);
+      setInitialTimecodeId(defaultTimecodeId);
       setIsFixedDuration(false);
       setDurationMinutes(15);
       setExpectedDurationMinutes('');
@@ -85,7 +119,13 @@ export const TemplateList: React.FC = () => {
     }
 
     if (settings) {
-      await updateSettings({ ...settings, templates: newTemplates });
+      // Only the changed field: updateSettings re-reads the stored settings and
+      // merges these keys over them, so passing the whole React snapshot would
+      // reinstate every other field as this tab last saw it and undo whatever a
+      // second tab changed in the meantime.
+      // Only claim the template was saved once the write has landed, and leave
+      // the form open with its contents if it was not.
+      if (!(await updateSettings({ templates: newTemplates }))) return;
       addToast(`Template ${editingTemplate ? 'updated' : 'created'}`);
       handleCloseModal();
     }
@@ -100,13 +140,17 @@ export const TemplateList: React.FC = () => {
       return;
     }
 
+    const originalIndex = templates.findIndex(t => t.id === id);
     const newTemplates = templates.filter(t => t.id !== id);
     if (settings) {
-      await updateSettings({ ...settings, templates: newTemplates });
+      if (!(await updateSettings({ templates: newTemplates }))) return;
       addToast('Template deleted', 'success', {
         label: 'Undo',
         onClick: () => {
-          updateSettings({ ...settings, templates: [...newTemplates, templateToDelete] });
+          // `restoreTemplate` merges against the stored list. Writing the
+          // pre-delete snapshot back instead deleted any template created
+          // during the five second undo window.
+          void restoreTemplate(templateToDelete, originalIndex);
         }
       }, 5000);
     }
@@ -129,13 +173,14 @@ export const TemplateList: React.FC = () => {
       }
     }
 
-    await addManualEntry({
+    const logged = await addManualEntry({
       timecodeId: template.timecodeId,
       startTime: start.toISOString(),
       endTime: end.toISOString(),
       note: template.note,
       tags: template.tags
     });
+    if (!logged) return;
 
     addToast(`Logged ${template.durationMinutes}m for ${template.title}`, 'success');
   };
@@ -157,11 +202,11 @@ export const TemplateList: React.FC = () => {
         </button>
       </div>
 
-      {templates.length === 0 ? (
+      {visibleTemplates.length === 0 ? (
         <p className="text-sm text-gray-600 dark:text-gray-400 italic">No templates created. Add one to quickly log recurring tasks (like Standup or Admin time).</p>
       ) : (
         <div className="flex flex-wrap gap-2">
-          {templates.map(template => {
+          {visibleTemplates.map(template => {
             const tc = timecodes.find(t => t.id === template.timecodeId);
             const tcColor = tc?.color || groups.find(g => g.id === tc?.groupId)?.color || '#94a3b8';
 
@@ -173,7 +218,7 @@ export const TemplateList: React.FC = () => {
                 onKeyDown={(e) => {
                   if (e.key === 'Enter' || e.key === ' ') {
                     e.preventDefault();
-                    handleLogTemplate(template);
+                    void handleLogTemplate(template);
                   }
                 }}
                 role="button"

@@ -8,9 +8,11 @@ import { EntrySplitModal } from './EntrySplitModal';
 import { ManualEntryModal } from './ManualEntryModal';
 import { Modal } from './ui/Modal';
 import type { Entry } from '../types';
-import { applyRounding, getElapsedTimeMs, formatDurationShort } from '../utils/timeUtils';
+import { calendarDayKey, getElapsedTimeMs, formatDurationShort } from '../utils/timeUtils';
+import { buildScreenLines, displaySecondsFor, secondsFor, workedSecondsFor, workedVsBilledNote } from '../utils/billing';
+import { useNowTick } from '../hooks/useNowTick';
 
-const LiveEntryDuration: React.FC<{ entry: Entry, settings: any, formatDuration: (s: number) => string }> = ({ entry, settings, formatDuration }) => {
+const LiveEntryDuration: React.FC<{ entry: Entry, formatDuration: (s: number) => string }> = ({ entry, formatDuration }) => {
   const [elapsed, setElapsed] = useState(0);
 
   useEffect(() => {
@@ -22,7 +24,7 @@ const LiveEntryDuration: React.FC<{ entry: Entry, settings: any, formatDuration:
     return () => clearInterval(interval);
   }, [entry.startTime, entry.pausedSegments]);
 
-  return <>{formatDuration(applyRounding(elapsed, settings?.roundingRule || 'none'))}</>;
+  return <>{formatDuration(elapsed)}</>;
 };
 
 // Live-updating "vs estimate" label for a currently-running entry.
@@ -80,37 +82,67 @@ export const EntryList: React.FC = () => {
     return `${s}s`;
   };
 
-  const getTimecodeName = (id: string) => {
-    const tc = timecodes.find(t => t.id === id);
+  const timecodeMap = React.useMemo(() => new Map(timecodes.map(t => [t.id, t])), [timecodes]);
+
+  const getTimecodeName = React.useCallback((id: string) => {
+    const tc = timecodeMap.get(id);
     return tc ? tc.name : 'Unknown';
-  };
+  }, [timecodeMap]);
 
-  const getTimecodeColor = (id: string) => {
-    const tc = timecodes.find(t => t.id === id);
+  const getTimecodeColor = React.useCallback((id: string) => {
+    const tc = timecodeMap.get(id);
     return tc?.color || '#3b82f6';
-  };
+  }, [timecodeMap]);
 
-  const filteredEntries = entries.filter((entry) => {
-    const matchesSearch = searchTerm === '' ||
-      (entry.note?.toLowerCase().includes(searchTerm.toLowerCase())) ||
-      (getTimecodeName(entry.timecodeId).toLowerCase().includes(searchTerm.toLowerCase()));
+  const filteredEntries = React.useMemo(() => {
+    const searchLower = searchTerm.toLowerCase();
+    return entries.filter((entry) => {
+      const tc = timecodeMap.get(entry.timecodeId);
+      const tcName = tc ? tc.name : 'Unknown';
 
-    let matchesFilter = true;
-    if (selectedFilter.startsWith('group:')) {
-      const groupId = selectedFilter.slice(6);
-      const tc = timecodes.find(t => t.id === entry.timecodeId);
-      matchesFilter = tc?.groupId === groupId;
-    } else if (selectedFilter.startsWith('timecode:')) {
-      const timecodeId = selectedFilter.slice(9);
-      matchesFilter = entry.timecodeId === timecodeId;
-    }
+      const matchesSearch = searchTerm === '' ||
+        (entry.note?.toLowerCase().includes(searchLower)) ||
+        (tcName.toLowerCase().includes(searchLower));
 
-    const entryDate = format(parseISO(entry.startTime), 'yyyy-MM-dd');
-    const matchesFrom = !dateFrom || entryDate >= dateFrom;
-    const matchesTo = !dateTo || entryDate <= dateTo;
+      let matchesFilter = true;
+      if (selectedFilter.startsWith('group:')) {
+        const groupId = selectedFilter.slice(6);
+        matchesFilter = tc?.groupId === groupId;
+      } else if (selectedFilter.startsWith('timecode:')) {
+        const timecodeId = selectedFilter.slice(9);
+        matchesFilter = entry.timecodeId === timecodeId;
+      }
 
-    return matchesSearch && matchesFilter && matchesFrom && matchesTo;
-  });
+      const entryDate = calendarDayKey(parseISO(entry.startTime));
+      const matchesFrom = !dateFrom || entryDate >= dateFrom;
+      const matchesTo = !dateTo || entryDate <= dateTo;
+
+      return matchesSearch && matchesFilter && matchesFrom && matchesTo;
+    });
+  }, [entries, timecodeMap, searchTerm, selectedFilter, dateFrom, dateTo]);
+
+  const nonDeletedEntries = React.useMemo(() => entries.filter(e => !e.deletedAt), [entries]);
+
+  // A running timer's stored `duration` is 0 until it stops, so the list used
+  // to leave it out of both the row and the total. Measuring to `now` counts it,
+  // and refreshing that on a tick keeps it current while it runs.
+  const hasRunningEntry = nonDeletedEntries.some(e => !e.endTime);
+  const nowMs = useNowTick(hasRunningEntry);
+
+  // The same lines the report and the timesheet are built from, so an entry
+  // cannot show one duration here and another there. `dateRange` is null: this
+  // list files each entry under the day it started rather than clipping to a
+  // window. Computed over all non-deleted entries so filtering/search does not
+  // alter bucket rounding.
+  // scopeWindow is explicitly null: this list has no reporting period, it shows
+  // all time. At 'timecode' or 'invoice' scope that would make the bucket the
+  // user's entire history, so an entry's billable minutes would shift whenever
+  // an unrelated entry was recorded months later. buildScreenLines
+  // degrades those two scopes to 'day' here — see `effectiveRoundingScope`.
+  const billableLines = React.useMemo(
+    () => buildScreenLines(nonDeletedEntries, settings, { now: new Date(nowMs) }),
+    [nonDeletedEntries, settings, nowMs]
+  );
 
   const handleClearFilters = () => {
     setSearchTerm('');
@@ -121,7 +153,30 @@ export const EntryList: React.FC = () => {
 
   const hasActiveFilters = searchTerm !== '' || selectedFilter !== 'all' || dateFrom !== '' || dateTo !== '';
 
-  const totalFilteredSeconds = filteredEntries.reduce((acc, e) => acc + applyRounding(e.duration, settings?.roundingRule || 'none'), 0);
+  // Billable seconds and time on the clock, kept apart. The rows above print
+  // each entry's own duration with `displaySecondsFor`, which falls back to the
+  // worked time for a fee entry, so a total built from `secondsFor` alone can
+  // legitimately be smaller than the rows that make it up — a $150 fee carrying
+  // 40 minutes used to read "totaling 0m". `workedVsBilledNote` says which is
+  // which, in the same words the report uses.
+  const { totalFilteredSeconds, totalFilteredWorkedSeconds, totalFilteredHasFee } = React.useMemo(() => {
+    let billed = 0;
+    let worked = 0;
+    let hasFee = false;
+    for (const e of filteredEntries) {
+      billed += secondsFor(billableLines, e.id);
+      worked += workedSecondsFor(billableLines, e.id);
+      // The presence of a fee, not its total: a fee attributed to an earlier
+      // period bills 0 here and its time would otherwise be called rounding.
+      if (billableLines.get(e.id)?.isFixedCost) hasFee = true;
+    }
+    return { totalFilteredSeconds: billed, totalFilteredWorkedSeconds: worked, totalFilteredHasFee: hasFee };
+  }, [filteredEntries, billableLines]);
+
+  const totalFilteredNote = React.useMemo(
+    () => workedVsBilledNote(totalFilteredWorkedSeconds, totalFilteredSeconds, totalFilteredHasFee),
+    [totalFilteredWorkedSeconds, totalFilteredSeconds, totalFilteredHasFee]
+  );
 
   const formatTotalDurationShort = (seconds: number) => {
     const h = Math.floor(seconds / 3600);
@@ -134,27 +189,38 @@ export const EntryList: React.FC = () => {
     return '0m';
   };
 
-  // Group entries by date
-  const groupedEntries = filteredEntries.reduce((acc, entry) => {
-    const dateStr = format(parseISO(entry.startTime), 'yyyy-MM-dd');
-    if (!acc[dateStr]) {
-      acc[dateStr] = [];
-    }
-    acc[dateStr].push(entry);
-    return acc;
-  }, {} as Record<string, Entry[]>);
+  // Grouping by date walks and re-sorts the whole filtered list, so it is
+  // memoised alongside the filter rather than redone on every render — the
+  // running-timer tick alone would otherwise repeat it once a minute.
+  const { groupedEntries, sortedDates, groupCounts, flatEntries } = React.useMemo(() => {
+    const grouped = filteredEntries.reduce((acc, entry) => {
+      const dateStr = calendarDayKey(parseISO(entry.startTime));
+      if (!acc[dateStr]) {
+        acc[dateStr] = [];
+      }
+      acc[dateStr].push(entry);
+      return acc;
+    }, {} as Record<string, Entry[]>);
 
-  const sortedDates = Object.keys(groupedEntries).sort((a, b) => b.localeCompare(a));
+    const dates = Object.keys(grouped).sort((a, b) => b.localeCompare(a));
 
-  const groupCounts = sortedDates.map(date => groupedEntries[date].length);
+    return {
+      groupedEntries: grouped,
+      sortedDates: dates,
+      groupCounts: dates.map(date => grouped[date].length),
+      // Flat, group-ordered view of the rows, so each virtualised row can be
+      // keyed by its entry id rather than by position.
+      flatEntries: dates.flatMap(date => grouped[date]),
+    };
+  }, [filteredEntries]);
 
   const formatDateHeader = (dateStr: string) => {
     const date = parseISO(dateStr + 'T00:00:00'); // Ensure local timezone
     const today = new Date();
     const yesterday = subDays(today, 1);
 
-    if (format(date, 'yyyy-MM-dd') === format(today, 'yyyy-MM-dd')) return 'Today';
-    if (format(date, 'yyyy-MM-dd') === format(yesterday, 'yyyy-MM-dd')) return 'Yesterday';
+    if (calendarDayKey(date) === calendarDayKey(today)) return 'Today';
+    if (calendarDayKey(date) === calendarDayKey(yesterday)) return 'Yesterday';
     return format(date, 'MMMM d, yyyy');
   };
 
@@ -186,21 +252,36 @@ export const EntryList: React.FC = () => {
             className="block w-full sm:w-64 pl-3 pr-10 py-2 text-base border-graphite/20 dark:border-white/20 shadow-inner focus:outline-none focus:ring-signal focus:border-signal sm:text-sm rounded-panel bg-white dark:bg-graphite text-graphite dark:text-stone focus-visible:ring-2 focus-visible:ring-offset-2 ring-offset-stone dark:ring-offset-graphite focus-visible:ring-signal"
           >
             <option value="all">All Groups & Timecodes</option>
-            {groups.filter(g => !g.archived).map((g) => (
-              <optgroup key={g.id} label={g.name}>
-                <option value={`group:${g.id}`}>All {g.name}</option>
-                {timecodes.filter(t => !t.archived && t.groupId === g.id).map((t) => (
-                  <option key={t.id} value={`timecode:${t.id}`}>{t.name}</option>
-                ))}
-              </optgroup>
-            ))}
-            {timecodes.filter(t => !t.archived && !t.groupId).length > 0 && (
-              <optgroup label="Ungrouped">
-                {timecodes.filter(t => !t.archived && !t.groupId).map((t) => (
-                  <option key={t.id} value={`timecode:${t.id}`}>{t.name}</option>
-                ))}
-              </optgroup>
-            )}
+            {(() => {
+              const timecodeIdsInEntries = new Set(entries.filter(e => !e.deletedAt).map(e => e.timecodeId));
+              const availableTimecodes = timecodes.filter(t => !t.archived || timecodeIdsInEntries.has(t.id));
+              const availableGroupIds = new Set(availableTimecodes.map(t => t.groupId).filter(Boolean) as string[]);
+              const availableGroups = groups.filter(g => !g.archived || availableGroupIds.has(g.id));
+              const ungrouped = availableTimecodes.filter(t => !t.groupId);
+
+              return (
+                <>
+                  {availableGroups.map((g) => {
+                    const groupTcs = availableTimecodes.filter(t => t.groupId === g.id);
+                    return (
+                      <optgroup key={g.id} label={`${g.name}${g.archived ? ' (archived)' : ''}`}>
+                        <option value={`group:${g.id}`}>All {g.name}</option>
+                        {groupTcs.map((t) => (
+                          <option key={t.id} value={`timecode:${t.id}`}>{t.name}{t.archived ? ' (archived)' : ''}</option>
+                        ))}
+                      </optgroup>
+                    );
+                  })}
+                  {ungrouped.length > 0 && (
+                    <optgroup label="Ungrouped">
+                      {ungrouped.map((t) => (
+                        <option key={t.id} value={`timecode:${t.id}`}>{t.name}{t.archived ? ' (archived)' : ''}</option>
+                      ))}
+                    </optgroup>
+                  )}
+                </>
+              );
+            })()}
           </select>
         </div>
         <div className="flex flex-col sm:flex-row gap-4 items-start sm:items-center">
@@ -263,6 +344,7 @@ export const EntryList: React.FC = () => {
           <GroupedVirtuoso
             style={{ height: '70vh', minHeight: '400px' }}
             groupCounts={groupCounts}
+            computeItemKey={(index) => flatEntries[index]?.id ?? `row-${index}`}
             className="divide-y divide-graphite/20 dark:divide-white/20"
             groupContent={(index) => {
               const dateStr = sortedDates[index];
@@ -341,14 +423,14 @@ export const EntryList: React.FC = () => {
                         <div className="flex flex-col items-end">
                           <span className="text-lg font-mono tabular font-medium text-graphite dark:text-stone">
                             {entry.isRunning
-                              ? <LiveEntryDuration entry={entry} settings={settings} formatDuration={formatDuration} />
-                              : formatDuration(applyRounding(entry.duration, settings?.roundingRule || 'none'))}
+                              ? <LiveEntryDuration entry={entry} formatDuration={formatDuration} />
+                              : formatDuration(displaySecondsFor(billableLines, entry.id))}
                           </span>
                           {entry.expectedDurationMinutes ? (
                             <span className="text-xs font-mono tabular whitespace-nowrap">
                               {entry.isRunning
                                 ? <LiveEstimateComparison entry={entry} expectedSeconds={entry.expectedDurationMinutes * 60} />
-                                : <EstimateComparison entry={entry} expectedSeconds={entry.expectedDurationMinutes * 60} actualSeconds={applyRounding(entry.duration, settings?.roundingRule || 'none')} />}
+                                : <EstimateComparison entry={entry} expectedSeconds={entry.expectedDurationMinutes * 60} actualSeconds={workedSecondsFor(billableLines, entry.id)} />}
                             </span>
                           ) : null}
                         </div>
@@ -375,7 +457,7 @@ export const EntryList: React.FC = () => {
                         <button
                           onClick={() => {
                             if (window.confirm('Delete this entry? This can be undone from the toast or Trash.')) {
-                              deleteEntry(entry.id);
+                              void deleteEntry(entry.id);
                             }
                           }}
                           className="text-gray-500 dark:text-gray-400 hover:text-rust dark:hover:text-rust focus:outline-none focus-visible:ring-2 focus-visible:ring-signal focus-visible:ring-offset-2 ring-offset-stone dark:ring-offset-graphite rounded transition-colors"
@@ -400,6 +482,7 @@ export const EntryList: React.FC = () => {
 
       {editingEntry && (
         <EntryEditModal
+          key={editingEntry.id}
           entry={editingEntry}
           onClose={() => setEditingEntry(null)}
         />
@@ -417,9 +500,19 @@ export const EntryList: React.FC = () => {
             <h3 className="text-lg font-semibold text-graphite dark:text-stone mb-2">
               Confirm Bulk Delete
             </h3>
+            {/* The headline figure stays the billable one, which is the number
+                the report, the timesheet grid and the calendar all print for
+                the same entries. The note beside it carries the time on the
+                clock, so a fee entry no longer reads as "totaling 0m" with
+                nothing to say where its two hours went. */}
             <p className="text-sm text-gray-700 dark:text-gray-300 mb-3">
-              Delete {filteredEntries.length} {filteredEntries.length === 1 ? 'entry' : 'entries'} totaling {formatTotalDurationShort(totalFilteredSeconds)}? They'll move to Trash and can be restored for 30 days.
+              Delete {filteredEntries.length} {filteredEntries.length === 1 ? 'entry' : 'entries'} totaling {formatTotalDurationShort(totalFilteredSeconds)} billable? They'll move to Trash and can be restored for 30 days.
             </p>
+            {totalFilteredNote && (
+              <p className="text-xs font-mono tabular text-signal-dim dark:text-signal mb-3">
+                {totalFilteredNote}
+              </p>
+            )}
             <div className="bg-stone dark:bg-gray-800/40 p-3 rounded-panel text-xs text-gray-600 dark:text-gray-300 space-y-1 mb-4">
               <div className="font-semibold text-graphite dark:text-stone">Applied Filters:</div>
               {selectedFilter.startsWith('group:') && (

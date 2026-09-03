@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
-import { useTimeTracker } from '../context/TimeTrackerContext';
+import { useTimeTracker, type FeeAllocation } from '../context/TimeTrackerContext';
+import { useToast } from '../context/ToastContext';
 import { format, parseISO } from 'date-fns';
 import { X, AlertCircle } from 'lucide-react';
 import type { Entry } from '../types';
@@ -12,10 +13,16 @@ interface EntrySplitModalProps {
 }
 
 export const EntrySplitModal: React.FC<EntrySplitModalProps> = ({ entry, onClose }) => {
-  const { splitEntry } = useTimeTracker();
+  const { splitEntry, settings } = useTimeTracker();
+  const { addToast } = useToast();
   const [splitTime, setSplitTime] = useState('');
   const [newTimecodeId, setNewTimecodeId] = useState(entry.timecodeId);
   const [error, setError] = useState<string | null>(null);
+  const [feeAllocation, setFeeAllocation] = useState<FeeAllocation>('first');
+  const [isSaving, setIsSaving] = useState(false);
+
+  const hasFee = entry.manualAmount != null;
+  const currencySymbol = settings?.currencySymbol || '$';
 
   const start = new Date(entry.startTime).getTime();
   const end = entry.endTime ? new Date(entry.endTime).getTime() : start;
@@ -25,24 +32,49 @@ export const EntrySplitModal: React.FC<EntrySplitModalProps> = ({ entry, onClose
   const isDirty = splitTime !== initialSplitTime || newTimecodeId !== entry.timecodeId;
 
   useEffect(() => {
-    if (!entry.endTime) return;
-    setSplitTime(initialSplitTime);
-  }, [entry, initialSplitTime]);
+    // Reset unconditionally: with no else branch, switching the modal to a
+    // running entry without unmounting left the previous entry's split time in
+    // state.
+    setSplitTime(entry.endTime ? initialSplitTime : '');
+    setNewTimecodeId(entry.timecodeId);
+    setFeeAllocation('first');
+    setError(null);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [entry.id]);
 
   const handleSave = async () => {
-    if (!entry.endTime) return;
+    if (!entry.endTime || isSaving) return;
 
     const split = new Date(splitTime);
     const start = new Date(entry.startTime);
     const end = new Date(entry.endTime);
 
+    if (!Number.isFinite(split.getTime())) {
+      setError('Enter a valid split time.');
+      return;
+    }
     if (split <= start || split >= end) {
       setError('Split time must be strictly between start and end times.');
       return;
     }
 
-    await splitEntry(entry.id, split.toISOString(), newTimecodeId);
-    onClose();
+    setIsSaving(true);
+    try {
+      // splitEntry can decline for reasons this modal cannot see — the entry
+      // was trashed or stopped in another tab meanwhile. Closing regardless
+      // reported success for a split that never happened.
+      const result = await splitEntry(entry.id, split.toISOString(), newTimecodeId, { feeAllocation });
+      if (!result.ok) {
+        setError(result.reason);
+        return;
+      }
+      addToast('Entry split into two.', 'success');
+      onClose();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Could not split this entry.');
+    } finally {
+      setIsSaving(false);
+    }
   };
 
   return (
@@ -81,6 +113,32 @@ export const EntrySplitModal: React.FC<EntrySplitModalProps> = ({ entry, onClose
             </div>
           </div>
 
+          {hasFee && (
+            <div>
+              <label className="block text-sm font-medium text-graphite dark:text-stone mb-1">
+                Fixed amount ({currencySymbol}{entry.manualAmount!.toFixed(2)})
+              </label>
+              <p className="text-xs text-gray-600 dark:text-gray-400 mb-2">
+                A fixed amount is not charged by the hour, so it cannot be divided between the two halves. Choose where it goes.
+              </p>
+              <select
+                value={feeAllocation}
+                onChange={(e) => setFeeAllocation(e.target.value as FeeAllocation)}
+                className="w-full px-3 py-2 border border-graphite/20 dark:border-white/20 rounded-md shadow-sm focus:outline-none focus:border-signal focus-visible:ring-2 focus-visible:ring-signal sm:text-sm bg-white dark:bg-graphite text-graphite dark:text-stone"
+              >
+                <option value="first">Keep it on the first part</option>
+                <option value="second">Move it to the second part</option>
+                <option value="discard">Remove it from both</option>
+              </select>
+            </div>
+          )}
+
+          {entry.expectedDurationMinutes != null && (
+            <p className="text-xs text-gray-600 dark:text-gray-400">
+              The {entry.expectedDurationMinutes}-minute estimate will be divided between the two parts in proportion to their tracked time.
+            </p>
+          )}
+
           {error && (
             <div className="flex items-center text-rust dark:text-orange-300 text-sm mt-2">
               <AlertCircle className="w-4 h-4 mr-1" />
@@ -92,9 +150,10 @@ export const EntrySplitModal: React.FC<EntrySplitModalProps> = ({ entry, onClose
         <div className="bg-stone dark:bg-gray-800/30 px-4 py-3 sm:px-6 flex flex-wrap flex-row-reverse gap-2 border-t border-graphite/20 dark:border-white/20">
           <button
             onClick={handleSave}
-            className="w-full inline-flex justify-center rounded-panel border border-transparent shadow-sm px-4 py-2 bg-graphite hover:bg-ink dark:bg-stone dark:hover:bg-gray-300 text-stone dark:text-ink text-base font-medium focus:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-signal sm:w-auto sm:text-sm transition-colors"
+            disabled={isSaving}
+            className="w-full inline-flex justify-center rounded-panel border border-transparent shadow-sm px-4 py-2 bg-graphite hover:bg-ink dark:bg-stone dark:hover:bg-gray-300 text-stone dark:text-ink text-base font-medium focus:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-signal sm:w-auto sm:text-sm transition-colors disabled:opacity-60"
           >
-            Split Entry
+            {isSaving ? 'Splitting…' : 'Split Entry'}
           </button>
           <button
             onClick={onClose}

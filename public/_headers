@@ -1,5 +1,36 @@
+# `style-src` carries 'unsafe-inline' deliberately, and it cannot currently be
+# dropped. The colour badges throughout the app render user-chosen colours as
+# React `style={{ backgroundColor: group.color }}`, which the browser sees as a
+# style *attribute*; Recharts styles its SVG the same way. A nonce is no help
+# here — nonces apply to <style> and <link> elements, never to attributes — and
+# the colours are arbitrary user input, not a fixed palette that could become
+# Tailwind classes. Tightening this means `style-src-elem 'self'` plus
+# `style-src-attr 'unsafe-inline'`, which needs testing against a real deploy,
+# because a local preview never applies this file.
+#
+# The prerequisite is now in place: `importValidation` checks `color` against a
+# hex allowlist, so the value behind this exception is no longer arbitrary. That
+# ordering was backwards before — the exception was widened for a field the
+# importer never validated. It is defence in depth either way: React sets style
+# objects through the CSSOM, so an arbitrary string there was never a property-
+# injection break-out. What remains before `style-src-elem 'self'` can land is
+# confirming against a real deploy that no dependency injects a <style> element
+# at runtime — Recharts is the one to check — since a local preview cannot.
+#
+# Cache-Control revalidates by default. A bare `public, no-transform` replaced
+# Pages' own `max-age=0, must-revalidate` and left every HTML document — and
+# every unhashed file, `theme-init.js` and the service worker among them — to
+# heuristic freshness, so a deploy could stay invisible to an open tab for as
+# long as the browser felt like. That is the exact failure the stale-chunk
+# recovery exists to clean up after.
 /*
-  Content-Security-Policy: default-src 'self'; script-src 'self' https://static.cloudflareinsights.com; style-src 'self'; img-src 'self' data:; font-src 'self'; connect-src 'self' https://cloudflareinsights.com; object-src 'none'; base-uri 'self'; frame-ancestors 'none';
+  Content-Security-Policy: default-src 'self'; script-src 'self' https://static.cloudflareinsights.com; style-src 'self' 'unsafe-inline'; img-src 'self' data:; font-src 'self'; connect-src 'self' https://cloudflareinsights.com; object-src 'none'; base-uri 'self'; frame-ancestors 'none';
   X-Content-Type-Options: nosniff
   Referrer-Policy: strict-origin-when-cross-origin
-  Cache-Control: public, no-transform
+  Cache-Control: public, max-age=0, must-revalidate, no-transform
+
+# Content-hashed by the build, so a new build is a new URL: these can be held
+# indefinitely and never revalidated. Overrides the Cache-Control above; the
+# security headers still apply.
+/assets/*
+  Cache-Control: public, max-age=31536000, immutable, no-transform

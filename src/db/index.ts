@@ -16,6 +16,7 @@ interface TimeTrackerDB extends DBSchema {
     value: Entry;
     indexes: {
       'by-timecode': string;
+      'by-start-time': string;
     };
   };
   settings: {
@@ -25,10 +26,12 @@ interface TimeTrackerDB extends DBSchema {
 }
 
 const DB_NAME = 'time-tracker-db';
-const DB_VERSION = 2;
+const DB_VERSION = 3;
 
 let dbPromise: Promise<IDBPDatabase<TimeTrackerDB>> | null = null;
 let isFallbackMode = false;
+
+export const getIsFallbackMode = (): boolean => isFallbackMode;
 
 // In-memory fallback storage
 const fallbackMemoryDB = {
@@ -46,12 +49,47 @@ const triggerFallbackMode = (error: any) => {
   }
 };
 
+const clearFallbackMemory = () => {
+  fallbackMemoryDB.groups.clear();
+  fallbackMemoryDB.timecodes.clear();
+  fallbackMemoryDB.entries.clear();
+  fallbackMemoryDB.settings.clear();
+};
+
+/**
+ * Close the connection and clear the degraded state, keeping whatever the
+ * in-memory store holds.
+ *
+ * The memory is not scratch space: when IndexedDB could not be opened it is the
+ * user's data, and the only copy of it. Clearing it here — in a function whose
+ * name promises to close a connection — discarded a session's work outright,
+ * and left a reopen that fails again looking at an empty app. Resetting just
+ * the flag is what the reopen actually needs; `resetDBForTests` is the wipe.
+ */
 export const closeDB = async () => {
   if (dbPromise) {
-    const db = await dbPromise;
-    db.close();
+    try {
+      const db = await dbPromise;
+      db.close();
+    } catch {
+      // The connection never opened; nothing to close.
+    }
     dbPromise = null;
   }
+  // Reset the degraded state with the connection. Leaving it set made fallback
+  // mode permanent for the life of the page even after a successful reopen.
+  isFallbackMode = false;
+};
+
+/**
+ * `closeDB`, plus the wipe of the in-memory store that a fresh test needs.
+ *
+ * Separate from `closeDB` because discarding the fallback data is only ever
+ * right when there is no user whose data it is.
+ */
+export const resetDBForTests = async () => {
+  await closeDB();
+  clearFallbackMemory();
 };
 
 export const initDB = () => {
@@ -68,11 +106,22 @@ export const initDB = () => {
         if (!db.objectStoreNames.contains('entries')) {
           const entryStore = db.createObjectStore('entries', { keyPath: 'id' });
           entryStore.createIndex('by-timecode', 'timecodeId');
-        } else if (oldVersion < 2) {
-          // Remove the invalid boolean index from v1
+          entryStore.createIndex('by-start-time', 'startTime');
+        } else {
           const entryStore = transaction.objectStore('entries');
-          if (entryStore.indexNames.contains('is-running' as any)) {
-            entryStore.deleteIndex('is-running' as any);
+          if (oldVersion < 2) {
+            // Remove the invalid boolean index from v1
+            if (entryStore.indexNames.contains('is-running' as any)) {
+              entryStore.deleteIndex('is-running' as any);
+            }
+          }
+          if (oldVersion < 3 && !entryStore.indexNames.contains('by-start-time')) {
+            // Declared but deliberately not read: see `getEntries`, which sorts
+            // in JS because an IndexedDB index compares `startTime` as a string
+            // and ISO strings with different offsets do not sort by instant.
+            // Kept so the schema matches v3 databases already in the wild —
+            // dropping it is a v4 migration, for no gain a reader would see.
+            entryStore.createIndex('by-start-time', 'startTime');
           }
         }
         if (!db.objectStoreNames.contains('settings')) {
@@ -88,246 +137,274 @@ export const getDB = async () => {
   try {
     return await initDB();
   } catch (error) {
+    // Only a failure to open the database puts the app into fallback mode.
     triggerFallbackMode(error);
     throw error;
   }
 };
 
+/**
+ * Run one operation against IndexedDB, with the in-memory store used only when
+ * the database cannot be opened at all.
+ *
+ * An error raised by a single operation — a rejected put, an aborted
+ * transaction, one unreadable record — is rethrown rather than flipping the
+ * whole app into an empty in-memory store. Treating those as connection
+ * failures meant one bad record silently emptied the app's view of its own
+ * data, which to the user is indistinguishable from total data loss.
+ */
+async function withDB<T>(
+  operation: (db: IDBPDatabase<TimeTrackerDB>) => Promise<T>,
+  whenUnavailable: () => T,
+): Promise<T> {
+  if (isFallbackMode) return whenUnavailable();
+
+  let db: IDBPDatabase<TimeTrackerDB>;
+  try {
+    db = await getDB();
+  } catch {
+    // getDB has already entered fallback mode and logged the cause.
+    return whenUnavailable();
+  }
+
+  return await operation(db);
+}
+
+/** Oldest-first by start time, treating an unparseable timestamp as the epoch. */
+const byStartTimeAsc = (a: Entry, b: Entry) => {
+  const tA = a.startTime ? new Date(a.startTime).getTime() : NaN;
+  const tB = b.startTime ? new Date(b.startTime).getTime() : NaN;
+  const validA = Number.isNaN(tA) ? 0 : tA;
+  const validB = Number.isNaN(tB) ? 0 : tB;
+  return validA - validB;
+};
+
+/** Running entries, most recent first, matching GlobalActiveTimerBar and document title. */
+const selectActive = (entries: Entry[]): Entry[] =>
+  entries
+    .filter((e) => e.isRunning === true && !e.deletedAt)
+    // Sorted through the same NaN-safe comparator `getEntries` uses. A raw
+    // `getTime()` difference on an unparseable start time is NaN, which is
+    // neither negative, zero nor positive, so the sort order became arbitrary
+    // — and this list decides which timer the app calls the primary one.
+    .sort((a, b) => byStartTimeAsc(b, a));
+
 // --- Groups ---
-export const getGroups = async (): Promise<Group[]> => {
-  if (isFallbackMode) return Array.from(fallbackMemoryDB.groups.values());
-  try {
-    const db = await getDB();
-    return await db.getAll('groups');
-  } catch (error) {
-    triggerFallbackMode(error);
-    return Array.from(fallbackMemoryDB.groups.values());
-  }
-};
+export const getGroups = async (): Promise<Group[]> =>
+  withDB((db) => db.getAll('groups'), () => Array.from(fallbackMemoryDB.groups.values()));
 
-export const getGroup = async (id: string): Promise<Group | undefined> => {
-  if (isFallbackMode) return fallbackMemoryDB.groups.get(id);
-  try {
-    const db = await getDB();
-    return await db.get('groups', id);
-  } catch (error) {
-    triggerFallbackMode(error);
-    return fallbackMemoryDB.groups.get(id);
-  }
-};
+export const getGroup = async (id: string): Promise<Group | undefined> =>
+  withDB((db) => db.get('groups', id), () => fallbackMemoryDB.groups.get(id));
 
-export const putGroup = async (group: Group): Promise<string> => {
-  if (isFallbackMode) {
+export const putGroup = async (group: Group): Promise<string> =>
+  withDB((db) => db.put('groups', group), () => {
     fallbackMemoryDB.groups.set(group.id, group);
     return group.id;
-  }
-  try {
-    const db = await getDB();
-    return await db.put('groups', group);
-  } catch (error) {
-    triggerFallbackMode(error);
-    fallbackMemoryDB.groups.set(group.id, group);
-    return group.id;
-  }
-};
+  });
 
-export const deleteGroup = async (id: string): Promise<void> => {
-  if (isFallbackMode) {
+export const deleteGroup = async (id: string): Promise<void> =>
+  withDB((db) => db.delete('groups', id), () => {
     fallbackMemoryDB.groups.delete(id);
-    return;
-  }
-  try {
-    const db = await getDB();
-    return await db.delete('groups', id);
-  } catch (error) {
-    triggerFallbackMode(error);
-    fallbackMemoryDB.groups.delete(id);
-  }
-};
+  });
 
 // --- Timecodes ---
-export const getTimecodes = async (): Promise<Timecode[]> => {
-  if (isFallbackMode) return Array.from(fallbackMemoryDB.timecodes.values());
-  try {
-    const db = await getDB();
-    return await db.getAll('timecodes');
-  } catch (error) {
-    triggerFallbackMode(error);
-    return Array.from(fallbackMemoryDB.timecodes.values());
-  }
-};
+export const getTimecodes = async (): Promise<Timecode[]> =>
+  withDB((db) => db.getAll('timecodes'), () => Array.from(fallbackMemoryDB.timecodes.values()));
 
-export const getTimecode = async (id: string): Promise<Timecode | undefined> => {
-  if (isFallbackMode) return fallbackMemoryDB.timecodes.get(id);
-  try {
-    const db = await getDB();
-    return await db.get('timecodes', id);
-  } catch (error) {
-    triggerFallbackMode(error);
-    return fallbackMemoryDB.timecodes.get(id);
-  }
-};
+export const getTimecode = async (id: string): Promise<Timecode | undefined> =>
+  withDB((db) => db.get('timecodes', id), () => fallbackMemoryDB.timecodes.get(id));
 
-export const putTimecode = async (timecode: Timecode): Promise<string> => {
-  if (isFallbackMode) {
+export const putTimecode = async (timecode: Timecode): Promise<string> =>
+  withDB((db) => db.put('timecodes', timecode), () => {
     fallbackMemoryDB.timecodes.set(timecode.id, timecode);
     return timecode.id;
-  }
-  try {
-    const db = await getDB();
-    return await db.put('timecodes', timecode);
-  } catch (error) {
-    triggerFallbackMode(error);
-    fallbackMemoryDB.timecodes.set(timecode.id, timecode);
-    return timecode.id;
-  }
-};
+  });
 
-export const deleteTimecode = async (id: string): Promise<void> => {
-  if (isFallbackMode) {
+export const deleteTimecode = async (id: string): Promise<void> =>
+  withDB((db) => db.delete('timecodes', id), () => {
     fallbackMemoryDB.timecodes.delete(id);
-    return;
-  }
-  try {
-    const db = await getDB();
-    return await db.delete('timecodes', id);
-  } catch (error) {
-    triggerFallbackMode(error);
-    fallbackMemoryDB.timecodes.delete(id);
-  }
-};
+  });
 
 // --- Entries ---
-export const getEntries = async (): Promise<Entry[]> => {
-  if (isFallbackMode) return Array.from(fallbackMemoryDB.entries.values());
-  try {
-    const db = await getDB();
-    return await db.getAll('entries');
-  } catch (error) {
-    triggerFallbackMode(error);
-    return Array.from(fallbackMemoryDB.entries.values());
-  }
-};
+/**
+ * Entries ordered oldest-first by start time, sorted explicitly by timestamp.
+ *
+ * Sorting in JavaScript by parsed Date timestamp ensures ISO strings with
+ * varying timezone offsets (e.g. +13:00 vs Z) sort correctly according to
+ * actual epoch time, avoiding IndexedDB string index comparison pitfalls.
+ */
+export const getEntries = async (): Promise<Entry[]> =>
+  withDB(
+    async (db) => (await db.getAll('entries')).sort(byStartTimeAsc),
+    () => Array.from(fallbackMemoryDB.entries.values()).sort(byStartTimeAsc),
+  );
 
-export const getEntry = async (id: string): Promise<Entry | undefined> => {
-  if (isFallbackMode) return fallbackMemoryDB.entries.get(id);
-  try {
-    const db = await getDB();
-    return await db.get('entries', id);
-  } catch (error) {
-    triggerFallbackMode(error);
-    return fallbackMemoryDB.entries.get(id);
-  }
-};
+export const getEntry = async (id: string): Promise<Entry | undefined> =>
+  withDB((db) => db.get('entries', id), () => fallbackMemoryDB.entries.get(id));
 
-export const putEntry = async (entry: Entry): Promise<string> => {
-  if (isFallbackMode) {
+export const putEntry = async (entry: Entry): Promise<string> =>
+  withDB((db) => db.put('entries', entry), () => {
     fallbackMemoryDB.entries.set(entry.id, entry);
     return entry.id;
-  }
-  try {
-    const db = await getDB();
-    return await db.put('entries', entry);
-  } catch (error) {
-    triggerFallbackMode(error);
-    fallbackMemoryDB.entries.set(entry.id, entry);
-    return entry.id;
-  }
-};
+  });
 
-export const deleteEntry = async (id: string): Promise<void> => {
-  if (isFallbackMode) {
+export const deleteEntry = async (id: string): Promise<void> =>
+  withDB((db) => db.delete('entries', id), () => {
     fallbackMemoryDB.entries.delete(id);
-    return;
-  }
-  try {
-    const db = await getDB();
-    return await db.delete('entries', id);
-  } catch (error) {
-    triggerFallbackMode(error);
-    fallbackMemoryDB.entries.delete(id);
-  }
+  });
+
+/**
+ * Write several entries as one unit: either every record lands or none does.
+ *
+ * Splitting an entry rewrites the original as the first half and creates the
+ * second half as a new record. Two sequential `putEntry` calls are two
+ * transactions, so a failure on the second — quota, an aborted transaction,
+ * Safari's private mode — leaves the original truncated and the remainder
+ * nowhere, which destroys time the user actually worked. One transaction makes
+ * that impossible: an error aborts it and the original stays as it was.
+ */
+export const putEntries = async (entries: Entry[]): Promise<void> => {
+  if (entries.length === 0) return;
+  return withDB(
+    async (db) => {
+      const tx = db.transaction('entries', 'readwrite');
+      const store = tx.objectStore('entries');
+      await Promise.all(entries.map((entry) => store.put(entry)));
+      await tx.done;
+    },
+    () => {
+      // The in-memory store has no transactions, but a Map write cannot fail
+      // partway either, so the same all-or-nothing holds without one.
+      entries.forEach((entry) => fallbackMemoryDB.entries.set(entry.id, entry));
+    },
+  );
 };
 
-export const getActiveEntry = async (): Promise<Entry | undefined> => {
-  if (isFallbackMode) {
-    return Array.from(fallbackMemoryDB.entries.values()).find((e) => e.isRunning === true && !e.deletedAt);
-  }
-  try {
-    const db = await getDB();
-    const allEntries = await db.getAll('entries');
-    return allEntries.find((e) => e.isRunning === true && !e.deletedAt);
-  } catch (error) {
-    triggerFallbackMode(error);
-    return Array.from(fallbackMemoryDB.entries.values()).find((e) => e.isRunning === true && !e.deletedAt);
-  }
+/**
+ * Put a group/timecode/entry set back as one unit: all of it lands, or none.
+ *
+ * A restore from the trash is one user action over three stores — a group, the
+ * timecodes under it, and their entries. Written as three sequential loops of
+ * single-record puts it is as many transactions as there are records, so a
+ * failure part-way leaves the group and its timecodes live with half their
+ * entries still in the trash: a state the user never asked for and cannot see
+ * without going back to the trash to look. One transaction across the three
+ * stores makes that impossible — an error aborts it and nothing moved.
+ *
+ * Ordered group → timecode → entry so the parent of every restored record is
+ * already in the transaction, matching what `planRestore` builds.
+ */
+export const putRestorePlan = async (
+  groups: Group[],
+  timecodes: Timecode[],
+  entries: Entry[],
+): Promise<void> => {
+  if (groups.length === 0 && timecodes.length === 0 && entries.length === 0) return;
+  return withDB(
+    async (db) => {
+      const tx = db.transaction(['groups', 'timecodes', 'entries'], 'readwrite');
+      await Promise.all([
+        ...groups.map((group) => tx.objectStore('groups').put(group)),
+        ...timecodes.map((timecode) => tx.objectStore('timecodes').put(timecode)),
+        ...entries.map((entry) => tx.objectStore('entries').put(entry)),
+      ]);
+      await tx.done;
+    },
+    () => {
+      // The in-memory store has no transactions, but a Map write cannot fail
+      // partway either, so the same all-or-nothing holds without one.
+      groups.forEach((group) => fallbackMemoryDB.groups.set(group.id, group));
+      timecodes.forEach((timecode) => fallbackMemoryDB.timecodes.set(timecode.id, timecode));
+      entries.forEach((entry) => fallbackMemoryDB.entries.set(entry.id, entry));
+    },
+  );
 };
 
-export const getActiveEntries = async (): Promise<Entry[]> => {
-  if (isFallbackMode) {
-    return Array.from(fallbackMemoryDB.entries.values()).filter((e) => e.isRunning === true && !e.deletedAt);
-  }
-  try {
-    const db = await getDB();
-    const allEntries = await db.getAll('entries');
-    return allEntries.filter((e) => e.isRunning === true && !e.deletedAt);
-  } catch (error) {
-    triggerFallbackMode(error);
-    return Array.from(fallbackMemoryDB.entries.values()).filter((e) => e.isRunning === true && !e.deletedAt);
-  }
-};
+/**
+ * The primary running timer: the most recently started active timer,
+ * matching GlobalActiveTimerBar and document title.
+ */
+export const getActiveEntry = async (): Promise<Entry | undefined> =>
+  withDB(
+    async (db) => selectActive(await db.getAll('entries'))[0],
+    () => selectActive(Array.from(fallbackMemoryDB.entries.values()))[0],
+  );
+
+export const getActiveEntries = async (): Promise<Entry[]> =>
+  withDB(
+    async (db) => selectActive(await db.getAll('entries')),
+    () => selectActive(Array.from(fallbackMemoryDB.entries.values())),
+  );
+
+/** Same selection as getActiveEntries, for a caller that already holds the list. */
+export const selectActiveEntries = (entries: Entry[]): Entry[] => selectActive(entries);
 
 // --- Settings ---
-export const getSettings = async (): Promise<Settings | undefined> => {
-  if (isFallbackMode) return fallbackMemoryDB.settings.get('user-settings');
-  try {
-    const db = await getDB();
-    return await db.get('settings', 'user-settings');
-  } catch (error) {
-    triggerFallbackMode(error);
-    return fallbackMemoryDB.settings.get('user-settings');
+/** The single settings record's key. Only ever one row in this store. */
+const SETTINGS_KEY = 'user-settings';
+
+export const getSettings = async (): Promise<Settings | undefined> =>
+  withDB((db) => db.get('settings', SETTINGS_KEY), () => fallbackMemoryDB.settings.get(SETTINGS_KEY));
+
+/**
+ * Merge-mode settings: the newer record wins, and templates are a union.
+ *
+ * Templates are genuinely additive — a merge should end up holding both sides'
+ * — while everything else is a single-valued preference, so the newer write
+ * wins, the same rule groups, timecodes and entries already follow. Spreading
+ * the file over the local settings unconditionally silently replaced the user's
+ * rounding rule, scope, currency, tax setup, preparer details, logo and footer
+ * with the file's. Settings written before `updatedAt` existed carry none, and
+ * count as older.
+ *
+ * Shared by the IndexedDB and the in-memory path: this rule was fixed on one
+ * and not the other, so the whole bug was intact for any user whose database
+ * failed to open. One function is what stops that happening again.
+ */
+export const mergeSettings = (existing: Settings, incoming: Settings): Settings => {
+  const mergedTemplates = [...(existing.templates || [])];
+  if (incoming.templates) {
+    incoming.templates.forEach((t) => {
+      if (!mergedTemplates.some((already) => already.id === t.id)) mergedTemplates.push(t);
+    });
   }
+
+  const incomingAt = incoming.updatedAt ? new Date(incoming.updatedAt).getTime() : NaN;
+  const existingAt = existing.updatedAt ? new Date(existing.updatedAt).getTime() : NaN;
+  const incomingIsNewer =
+    Number.isFinite(incomingAt) && (!Number.isFinite(existingAt) || incomingAt > existingAt);
+
+  return incomingIsNewer
+    ? { ...existing, ...incoming, templates: mergedTemplates }
+    : { ...existing, templates: mergedTemplates };
 };
 
+/**
+ * Stamps `updatedAt` on every settings write. Doing it here rather than at each
+ * of the ~a dozen call sites is what makes the field trustworthy enough for
+ * merge-mode import to compare against, the way it already compares groups,
+ * timecodes and entries.
+ */
 export const putSettings = async (settings: Settings): Promise<string> => {
-  if (isFallbackMode) {
-    fallbackMemoryDB.settings.set(settings.id, settings);
-    return settings.id;
-  }
-  try {
-    const db = await getDB();
-    return await db.put('settings', settings);
-  } catch (error) {
-    triggerFallbackMode(error);
-    fallbackMemoryDB.settings.set(settings.id, settings);
-    return settings.id;
-  }
+  const stamped: Settings = { ...settings, updatedAt: new Date().toISOString() };
+  return withDB((db) => db.put('settings', stamped), () => {
+    fallbackMemoryDB.settings.set(stamped.id, stamped);
+    return stamped.id;
+  });
 };
 
 export const wipeAllData = async (): Promise<void> => {
   if (isFallbackMode) {
-    fallbackMemoryDB.groups.clear();
-    fallbackMemoryDB.timecodes.clear();
-    fallbackMemoryDB.entries.clear();
-    fallbackMemoryDB.settings.clear();
+    clearFallbackMemory();
     return;
   }
-  try {
-    const db = await getDB();
-    const tx = db.transaction(['groups', 'timecodes', 'entries', 'settings'], 'readwrite');
-    await tx.objectStore('groups').clear();
-    await tx.objectStore('timecodes').clear();
-    await tx.objectStore('entries').clear();
-    await tx.objectStore('settings').clear();
-    await tx.done;
-  } catch (error) {
-    triggerFallbackMode(error);
-    fallbackMemoryDB.groups.clear();
-    fallbackMemoryDB.timecodes.clear();
-    fallbackMemoryDB.entries.clear();
-    fallbackMemoryDB.settings.clear();
-    throw error;
-  }
+  const db = await getDB();
+  const tx = db.transaction(['groups', 'timecodes', 'entries', 'settings'], 'readwrite');
+  await tx.objectStore('groups').clear();
+  await tx.objectStore('timecodes').clear();
+  await tx.objectStore('entries').clear();
+  await tx.objectStore('settings').clear();
+  await tx.done;
 };
 
 // --- Import / Backup ---
@@ -337,10 +414,7 @@ export const importBackup = async (
 ): Promise<void> => {
   if (isFallbackMode) {
     if (mode === 'replace') {
-      fallbackMemoryDB.groups.clear();
-      fallbackMemoryDB.timecodes.clear();
-      fallbackMemoryDB.entries.clear();
-      fallbackMemoryDB.settings.clear();
+      clearFallbackMemory();
     }
     data.groups.forEach(g => {
       if (mode === 'merge') {
@@ -368,107 +442,78 @@ export const importBackup = async (
     });
     if (data.settings) {
       if (mode === 'replace') {
-        fallbackMemoryDB.settings.set(data.settings.id, data.settings);
+        fallbackMemoryDB.settings.set(SETTINGS_KEY, { ...data.settings, id: SETTINGS_KEY });
       } else if (mode === 'merge') {
-        const existingSettings = fallbackMemoryDB.settings.get('user-settings');
-        if (existingSettings) {
-          const mergedTemplates = [...(existingSettings.templates || [])];
-          if (data.settings.templates) {
-            data.settings.templates.forEach(t => {
-              if (!mergedTemplates.some(existing => existing.id === t.id)) {
-                mergedTemplates.push(t);
-              }
-            });
-          }
-          fallbackMemoryDB.settings.set('user-settings', {
-            ...existingSettings,
-            ...data.settings,
-            templates: mergedTemplates
-          });
-        } else {
-          fallbackMemoryDB.settings.set('user-settings', data.settings);
-        }
+        const existingSettings = fallbackMemoryDB.settings.get(SETTINGS_KEY);
+        fallbackMemoryDB.settings.set(
+          SETTINGS_KEY,
+          existingSettings ? mergeSettings(existingSettings, data.settings) : data.settings,
+        );
       }
     }
     return;
   }
 
-  try {
-    const db = await getDB();
-    const tx = db.transaction(['groups', 'timecodes', 'entries', 'settings'], 'readwrite');
+  // An import that fails is an import that failed — it says nothing about
+  // whether the database is usable, so it must not degrade the whole app into
+  // fallback mode. The error propagates to the caller unchanged.
+  const db = await getDB();
+  const tx = db.transaction(['groups', 'timecodes', 'entries', 'settings'], 'readwrite');
 
-    if (mode === 'replace') {
-      await tx.objectStore('groups').clear();
-      await tx.objectStore('timecodes').clear();
-      await tx.objectStore('entries').clear();
-      await tx.objectStore('settings').clear();
-    }
+  if (mode === 'replace') {
+    await tx.objectStore('groups').clear();
+    await tx.objectStore('timecodes').clear();
+    await tx.objectStore('entries').clear();
+    await tx.objectStore('settings').clear();
+  }
 
-    const groupStore = tx.objectStore('groups');
-    for (const g of data.groups) {
-      if (mode === 'merge') {
-        const existing = await groupStore.get(g.id);
-        if (!existing || new Date(g.updatedAt) > new Date(existing.updatedAt)) {
-          await groupStore.put(g);
-        }
-      } else {
+  const groupStore = tx.objectStore('groups');
+  for (const g of data.groups) {
+    if (mode === 'merge') {
+      const existing = await groupStore.get(g.id);
+      if (!existing || new Date(g.updatedAt) > new Date(existing.updatedAt)) {
         await groupStore.put(g);
       }
+    } else {
+      await groupStore.put(g);
     }
+  }
 
-    const tcStore = tx.objectStore('timecodes');
-    for (const tc of data.timecodes) {
-      if (mode === 'merge') {
-        const existing = await tcStore.get(tc.id);
-        if (!existing || new Date(tc.updatedAt) > new Date(existing.updatedAt)) {
-          await tcStore.put(tc);
-        }
-      } else {
+  const tcStore = tx.objectStore('timecodes');
+  for (const tc of data.timecodes) {
+    if (mode === 'merge') {
+      const existing = await tcStore.get(tc.id);
+      if (!existing || new Date(tc.updatedAt) > new Date(existing.updatedAt)) {
         await tcStore.put(tc);
       }
+    } else {
+      await tcStore.put(tc);
     }
+  }
 
-    const entryStore = tx.objectStore('entries');
-    for (const e of data.entries) {
-      if (mode === 'merge') {
-        const existing = await entryStore.get(e.id);
-        if (!existing || new Date(e.updatedAt) > new Date(existing.updatedAt)) {
-          await entryStore.put(e);
-        }
-      } else {
+  const entryStore = tx.objectStore('entries');
+  for (const e of data.entries) {
+    if (mode === 'merge') {
+      const existing = await entryStore.get(e.id);
+      if (!existing || new Date(e.updatedAt) > new Date(existing.updatedAt)) {
         await entryStore.put(e);
       }
+    } else {
+      await entryStore.put(e);
     }
-
-    if (data.settings) {
-      const settingsStore = tx.objectStore('settings');
-      if (mode === 'replace') {
-        await settingsStore.put(data.settings);
-      } else if (mode === 'merge') {
-        const existingSettings = await settingsStore.get('user-settings');
-        if (existingSettings) {
-          const mergedTemplates = [...(existingSettings.templates || [])];
-          if (data.settings.templates) {
-            data.settings.templates.forEach(t => {
-              if (!mergedTemplates.some(existing => existing.id === t.id)) {
-                mergedTemplates.push(t);
-              }
-            });
-          }
-          await settingsStore.put({
-            ...existingSettings,
-            ...data.settings,
-            templates: mergedTemplates
-          });
-        } else {
-          await settingsStore.put(data.settings);
-        }
-      }
-    }
-
-    await tx.done;
-  } catch (error) {
-    triggerFallbackMode(error);
-    throw error;
   }
+
+  if (data.settings) {
+    const settingsStore = tx.objectStore('settings');
+    if (mode === 'replace') {
+      await settingsStore.put(data.settings);
+    } else if (mode === 'merge') {
+      const existingSettings = await settingsStore.get(SETTINGS_KEY);
+      await settingsStore.put(
+        existingSettings ? mergeSettings(existingSettings, data.settings) : data.settings
+      );
+    }
+  }
+
+  await tx.done;
 };
