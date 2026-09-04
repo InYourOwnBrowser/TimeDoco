@@ -2,7 +2,7 @@ import React, { useMemo } from 'react';
 import { useTimeTracker } from '../context/TimeTrackerContext';
 import { startOfWeek, endOfWeek, eachDayOfInterval, parseISO } from 'date-fns';
 import { Target, TrendingUp } from 'lucide-react';
-import { buildScreenLines, sumBillableLines, workedVsBilledNote } from '../utils/billing';
+import { billableSecondsByDay, buildScreenLines, workedVsBilledNote } from '../utils/billing';
 import { calendarDayKey } from '../utils/timeUtils';
 import { useNowTick } from '../hooks/useNowTick';
 
@@ -21,10 +21,7 @@ export const WeeklySummary: React.FC = () => {
     const weekDays = eachDayOfInterval({ start, end });
     const weekDateStrings = new Set(weekDays.map(calendarDayKey));
 
-    const inWeek = entries.filter(entry => {
-      if (entry.deletedAt) return false;
-      return weekDateStrings.has(calendarDayKey(parseISO(entry.startTime)));
-    });
+    const live = entries.filter(entry => !entry.deletedAt);
 
     // Shared with the report and the timesheet rather than re-derived here.
     // The hand-rolled version this replaces summed pause segments raw, so a
@@ -35,19 +32,57 @@ export const WeeklySummary: React.FC = () => {
     // user picked, so it is not a scope window: 'timecode' and 'invoice' scope
     // belong to the report and degrade to 'day' here, which is the bucket the
     // timesheet grid and the entry list build too.
-    const lines = buildScreenLines(inWeek, settings, {
+    const lines = buildScreenLines(live, settings, {
       now,
     });
 
-    const totals = sumBillableLines([...lines.values()]);
+    // The bar measures this week, and an entry running through midnight belongs
+    // to the week each of its hours was worked in — the same split the grid and
+    // the calendar draw, so a Sunday-night shift moves both bars by an hour
+    // rather than one by two. Selecting on the start day put the whole shift in
+    // whichever week it began.
+    //
+    // Worked time is split the same way, and for the same reason the note
+    // exists: comparing this week's billed hours against the *whole* entry's
+    // clock time would report the half that belongs to the next week as
+    // "rounding", which is the one thing `workedVsBilledNote` must never say.
+    // With the rule switched off, billable seconds are worked seconds, so one
+    // split serves both figures.
+    const sumWeek = (byEntry: Map<string, Map<string, number>>) => {
+      let total = 0;
+      for (const [, days] of byEntry) {
+        for (const [day, value] of days) {
+          if (weekDateStrings.has(day)) total += value;
+        }
+      }
+      return total;
+    };
+
+    const seconds = sumWeek(billableSecondsByDay(live, lines, now));
+    let workedSeconds = sumWeek(
+      billableSecondsByDay(live, buildScreenLines(live, { ...settings, roundingRule: 'none' }, { now }), now),
+    );
+
+    // A fee bills no hours at all, so it never reaches either split. Its time on
+    // the clock still has to be disclosed, and it is attributed to the day the
+    // entry began — the rule `buildBillableLines` already applies to the money.
+    let hasFixedCost = false;
+    for (const entry of live) {
+      const line = lines.get(entry.id);
+      if (!line?.isFixedCost) continue;
+      if (!weekDateStrings.has(calendarDayKey(parseISO(entry.startTime)))) continue;
+      hasFixedCost = true;
+      workedSeconds += line.workedSeconds;
+    }
+
     return {
-      hours: totals.seconds / 3600,
+      hours: seconds / 3600,
       // The bar measures billable hours, and a flat fee bills as a fee rather
       // than by the hour, so its time on the clock moves the bar not at all.
       // Without this the week's target could sit short of a full day and give
       // no clue why. Rounding is disclosed the same way, in the same words the
       // report uses.
-      note: workedVsBilledNote(totals.workedSeconds, totals.seconds, totals.hasFixedCost),
+      note: workedVsBilledNote(workedSeconds, seconds, hasFixedCost),
     };
   }, [entries, settings, nowMs]);
 

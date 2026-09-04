@@ -171,7 +171,23 @@ describe('report documents', () => {
       // Same rows in the same order, so one document cannot be read against the
       // other line by line and come out short.
       expect(body.map((row) => unguard(row[1]))).toEqual(out.detail.body.map((row) => row[1]));
-      expect(body.map((row) => row[3].slice(0, 5))).toEqual(out.detail.body.map((row) => row[2]));
+      // The CSV carries whole timestamps and the PDF a bare clock time, so the
+      // comparison takes the time off the CSV's. Both must still name the same
+      // instant for the same row.
+      const clockFromTimestamp = (cell: string) => cell.slice(11, 16);
+      expect(body.map((row) => clockFromTimestamp(row[3]))).toEqual(out.detail.body.map((row) => row[2]));
+
+      // And an end that is not on the entry's own day says so on both, rather
+      // than printing a clock time that reads as a duration running backwards.
+      const endCol = columnIndex(header, 'End');
+      body.forEach((row, index) => {
+        const csvEnd = row[endCol];
+        const pdfEnd = out.detail.body[index][3];
+        if (!csvEnd) return; // a running timer: the PDF prints "Running"
+        const crossesMidnight = csvEnd.slice(0, 10) !== row[0];
+        expect(pdfEnd.includes('(+')).toBe(crossesMidnight);
+        expect(pdfEnd.slice(0, 5)).toBe(csvEnd.slice(11, 16));
+      });
 
       const amountCol = columnIndex(header, 'Amount');
       const csvAmount = roundCurrency(body.reduce((sum, row) => sum + money(row[amountCol]), 0));
