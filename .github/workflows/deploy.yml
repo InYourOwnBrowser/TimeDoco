@@ -67,6 +67,15 @@ jobs:
         env:
           BLOCK_ON_AUDIT_OUTAGE: 'false'
         run: |
+          # Actions runs this as `bash -e {0}`, so a non-zero exit anywhere
+          # aborts the step immediately. This whole gate is built on *reading*
+          # npm's exit code rather than dying on it, so errexit has to go —
+          # `set -uo pipefail` alone does not clear it, and with it left on the
+          # shell died at the first `npm audit` and every branch below was
+          # unreachable: no retry, no warning, no listing, just exit 1. That is
+          # the shape of the original bug, reintroduced by the shell rather than
+          # by the logic, and it is why the local test now runs under `bash -e`.
+          set +e
           set -uo pipefail
           report="$RUNNER_TEMP/audit.json"
           errors="$RUNNER_TEMP/audit.err"
