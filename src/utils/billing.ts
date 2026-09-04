@@ -1,5 +1,5 @@
 import type { Entry, Settings, Timecode } from '../types';
-import { applyRounding, calendarDayBounds, calendarDayKey, calculateDuration, formatDurationShort, roundCurrency, roundHours } from './timeUtils';
+import { applyRounding, calendarDayKey, calculateDuration, formatDurationShort, roundCurrency, roundHours } from './timeUtils';
 
 export type RoundingRule = 'none' | '5min' | '10min' | '15min';
 
@@ -440,118 +440,6 @@ export const distributeAcrossBuckets = (
     for (let i = 0; i < totals.length; i++) totals[i] += allocated[i];
   }
 
-  return totals;
-};
-
-/**
- * An entry left running for this long is not a shift, and walking a day at a
- * time across it is not worth doing. Well past any forgotten timer a person
- * would still want split hour by hour, and short enough that a corrupt end
- * date cannot spin the loop below.
- */
-const MAX_SPLIT_DAYS = 400;
-
-/**
- * One entry's billable seconds, broken down by the calendar day they fell on.
- *
- * A shift from 23:00 to 01:00 is two hours of work on two dates, and every
- * screen used to file all of it under the date it started while the report
- * clipped it at the period boundary — so the timesheet said 2.00 h for a week
- * and the invoice built from the same data said 1.00 h. The report was right:
- * time bills to the period it was actually worked in. This is what lets the
- * screens say the same thing, by splitting the entry at midnight instead of
- * choosing a day for the whole of it.
- *
- * The split is proportional to time actually on the clock in each day — pauses
- * come out of the day they happened in — and it is an allocation of
- * `line.seconds` rather than a re-measurement, so the parts add back up to the
- * figure the rest of the app bills, whatever rounding rule produced it. An
- * entry inside one day yields that one day and is unchanged.
- *
- * `lines` must be built over every entry sharing a rounding bucket with these,
- * not over the slice on screen: the bucket total is what is being shared out,
- * and computing it from a week's worth of entries when the day also holds
- * others would hand each surface a different figure again. Callers pass the
- * whole list to `buildScreenLines` and narrow only here.
- */
-export const billableSecondsByDay = (
-  entries: Entry[],
-  lines: Map<string, BillableLine>,
-  now: Date = new Date(),
-): Map<string, Map<string, number>> => {
-  const byEntry = new Map<string, Map<string, number>>();
-
-  for (const entry of entries) {
-    const line = lines.get(entry.id);
-    if (!line || line.seconds <= 0) continue;
-
-    const start = new Date(entry.startTime);
-    const end = entry.endTime ? new Date(entry.endTime) : now;
-    if (Number.isNaN(start.getTime()) || Number.isNaN(end.getTime())) continue;
-
-    // The days the entry touches, as half-open [midnight, next midnight)
-    // intervals — `calendarDayBounds`, so a 23- or 25-hour DST day is exactly
-    // as long as the calendar says it is.
-    const days: Array<{ key: string; start: number; end: number }> = [];
-    let cursor = calendarDayBounds(start).start;
-    while (cursor.getTime() < end.getTime() && days.length < MAX_SPLIT_DAYS) {
-      const bounds = calendarDayBounds(cursor);
-      days.push({ key: calendarDayKey(cursor), start: bounds.start.getTime(), end: bounds.end.getTime() });
-      cursor = bounds.end;
-    }
-
-    // A zero-length entry touches no day interval, and one running past the cap
-    // is not a shift anyone is reconciling hour by hour. Both keep the old
-    // behaviour — all of it on the day it started — which is a defensible
-    // answer where splitting is not.
-    if (days.length === 0 || days.length >= MAX_SPLIT_DAYS) {
-      byEntry.set(entry.id, new Map([[calendarDayKey(start), line.seconds]]));
-      continue;
-    }
-
-    const workedPerDay = days.map(({ start: from, end: to }) => {
-      const effStart = Math.max(start.getTime(), from);
-      const effEnd = Math.min(end.getTime(), to);
-      if (effEnd <= effStart) return 0;
-      return calculateDuration(new Date(effStart), new Date(effEnd), entry.pausedSegments || []);
-    });
-
-    // Keyed on the date so the leftover second lands on the same day whichever
-    // order the caller happened to hold the days in.
-    const allocated = allocateProportionally(workedPerDay, line.seconds, days.map((d) => d.key));
-
-    const perDay = new Map<string, number>();
-    days.forEach((day, index) => {
-      if (allocated[index] !== 0) perDay.set(day.key, allocated[index]);
-    });
-    // Every day of the entry was pause, so nothing allocated anywhere. Its
-    // billable seconds still exist and have to be somewhere findable.
-    if (perDay.size === 0) perDay.set(calendarDayKey(start), line.seconds);
-    byEntry.set(entry.id, perDay);
-  }
-
-  return byEntry;
-};
-
-/**
- * `billableSecondsByDay`, summed per timecode per day — the shape the timesheet
- * grid reads a cell out of. Key is `${timecodeId}|${dayKey}`.
- */
-export const billableSecondsByTimecodeDay = (
-  entries: Entry[],
-  lines: Map<string, BillableLine>,
-  now?: Date,
-): Map<string, number> => {
-  const perEntry = billableSecondsByDay(entries, lines, now);
-  const totals = new Map<string, number>();
-  for (const entry of entries) {
-    const days = perEntry.get(entry.id);
-    if (!days) continue;
-    for (const [day, seconds] of days) {
-      const key = `${entry.timecodeId}|${day}`;
-      totals.set(key, (totals.get(key) ?? 0) + seconds);
-    }
-  }
   return totals;
 };
 

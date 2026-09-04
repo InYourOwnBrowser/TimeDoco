@@ -1,8 +1,8 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { useTimeTracker } from '../context/TimeTrackerContext';
 import { format, startOfWeek, endOfWeek, addWeeks, subWeeks, eachDayOfInterval, parseISO } from 'date-fns';
-import { billableSecondsByTimecodeDay, buildScreenLines } from '../utils/billing';
-import { applyRounding, calendarDayBounds, calendarDayKey, findFreeSlot, formatDurationShort, formatSignedAmount } from '../utils/timeUtils';
+import { buildScreenLines, secondsFor, workedSecondsFor } from '../utils/billing';
+import { applyRounding, calendarDayKey, findFreeSlot, formatDurationShort, formatSignedAmount } from '../utils/timeUtils';
 import { useNowTick } from '../hooks/useNowTick';
 import { useToast } from '../context/ToastContext';
 import { ChevronLeft, ChevronRight } from 'lucide-react';
@@ -48,30 +48,10 @@ export const TimesheetMatrixView: React.FC = () => {
 
   const weekDateStrings = useMemo(() => weekDays.map(calendarDayKey), [weekDays]);
 
-  const liveEntries = useMemo(() => entries.filter(e => !e.deletedAt), [entries]);
-
-  /**
-   * Entries with time *inside* the week, not merely starting in it.
-   *
-   * A shift from Sunday 23:00 to Monday 01:00 is an hour of this week's work
-   * even though it began in the last one. Selecting on the start day alone put
-   * all of it on Sunday and none of it on Monday, which is what made the grid
-   * disagree with the report built from the same entries.
-   *
-   * Compared as instants rather than day keys so an unreadable timestamp is
-   * excluded rather than throwing out of `calendarDayKey` — inside a `useMemo`
-   * on the one tab with no ErrorBoundary of its own.
-   */
   const weekEntries = useMemo(() => {
-    const weekStartMs = calendarDayBounds(weekDays[0]).start.getTime();
-    const weekEndMs = calendarDayBounds(weekDays[weekDays.length - 1]).end.getTime();
-    return liveEntries.filter(e => {
-      const start = parseISO(e.startTime).getTime();
-      const end = e.endTime ? parseISO(e.endTime).getTime() : nowMs;
-      if (!Number.isFinite(start) || !Number.isFinite(end)) return false;
-      return start < weekEndMs && end >= weekStartMs;
-    });
-  }, [liveEntries, weekDays, nowMs]);
+    const inWeek = new Set(weekDateStrings);
+    return entries.filter(e => !e.deletedAt && inWeek.has(calendarDayKey(parseISO(e.startTime))));
+  }, [entries, weekDateStrings]);
 
   const weekTimecodeIdsWithEntries = useMemo(() => {
     const set = new Set<string>();
@@ -91,31 +71,21 @@ export const TimesheetMatrixView: React.FC = () => {
     return groups.filter(g => activeGroupIds.has(g.id) || groupsInUse.has(g.id));
   }, [groups, gridTimecodes]);
 
-  // Built over every live entry, not the week's — the rounding bucket is a
-  // whole day per timecode, and a day at the edge of this week holds entries
-  // this week cannot see. Handing `buildScreenLines` only the visible slice
-  // rounded those buckets from part of their contents, so the same entry billed
-  // differently depending on which week was on screen. The narrowing happens
-  // below, once the figures are settled.
+  // One set of billable lines for the whole visible week, shared with the
+  // report and the entry list. Summing the stored `duration` and rounding each
+  // cell separately gave a grid that ignored the rounding scope and disagreed
+  // with every other view; sharing out one scope-aware figure keeps the cells,
+  // the row totals and the week total reconciling with each other.
   // scopeWindow is null: the grid is not a report, so it names no reporting
   // period. Naming the visible week made an entry's billable minutes depend on
   // how much time the screen happened to be showing, and the calendar tab
   // beside it — same days, a month-wide window — gave a different figure for
   // the same day. 'timecode' and 'invoice' scope degrade to 'day' here.
   const billableLines = useMemo(
-    () => buildScreenLines(liveEntries, settings, {
+    () => buildScreenLines(weekEntries, settings, {
       now: new Date(nowMs),
     }),
-    [liveEntries, settings, nowMs]
-  );
-
-  // Billable seconds per cell, splitting an entry that runs through midnight
-  // between the days it was actually worked on rather than filing all of it
-  // under the day it started. That is what the report has always done, and
-  // what the grid did not.
-  const cellSecondsMap = useMemo(
-    () => billableSecondsByTimecodeDay(weekEntries, billableLines, new Date(nowMs)),
-    [weekEntries, billableLines, nowMs]
+    [weekEntries, settings, nowMs]
   );
 
   const cellHoursMap = useMemo(() => {
@@ -123,11 +93,13 @@ export const TimesheetMatrixView: React.FC = () => {
     for (const tc of gridTimecodes) {
       for (const dateStr of weekDateStrings) {
         const key = `${tc.id}|${dateStr}`;
-        map.set(key, (cellSecondsMap.get(key) ?? 0) / 3600);
+        const cellEntries = entriesByTimecodeAndDate.get(key) || [];
+        const totalSeconds = cellEntries.reduce((sum, e) => sum + secondsFor(billableLines, e.id), 0);
+        map.set(key, totalSeconds / 3600);
       }
     }
     return map;
-  }, [gridTimecodes, weekDateStrings, cellSecondsMap]);
+  }, [gridTimecodes, weekDateStrings, entriesByTimecodeAndDate, billableLines]);
 
   // A flat fee bills as a fee, so it contributes no hours and a cell holding
   // only fee work reads as blank — the grid cannot print those hours without
@@ -184,6 +156,9 @@ export const TimesheetMatrixView: React.FC = () => {
     return map;
   }, [gridTimecodes, weekDays, cellHoursMap]);
 
+  const getCellEntries = (timecodeId: string, date: Date) =>
+    entriesByTimecodeAndDate.get(`${timecodeId}|${calendarDayKey(date)}`) || [];
+
   const getCellHours = (timecodeId: string, date: Date) =>
     cellHoursMap.get(`${timecodeId}|${calendarDayKey(date)}`) || 0;
 
@@ -222,42 +197,14 @@ export const TimesheetMatrixView: React.FC = () => {
   const CELL_DISPLAY_TOLERANCE_SECONDS = 18;
 
   const commitCell = async (timecodeId: string, day: Date, newHours: number) => {
-    const dayKey = calendarDayKey(day);
-    const cellKey = `${timecodeId}|${dayKey}`;
-    const now = new Date(nowMs);
-    // The figure the cell is showing, which is what the user is editing. Read
-    // from the same split the grid renders from: an entry running through
-    // midnight puts only its share of the day here, so "unchanged" and "below
-    // tracked time" below are judged against the number on screen rather than
-    // against the whole entry.
-    const cellSeconds = cellSecondsMap.get(cellKey) ?? 0;
-
-    // Entries touching this day, so a shift begun yesterday is still part of
-    // what this cell is made of.
-    const dayStart = calendarDayBounds(day).start.getTime();
-    const dayEnd = calendarDayBounds(day).end.getTime();
-    const existingEntriesForCell = liveEntries.filter(e => {
-      if (e.timecodeId !== timecodeId) return false;
-      const start = parseISO(e.startTime).getTime();
-      const end = e.endTime ? parseISO(e.endTime).getTime() : nowMs;
-      if (!Number.isFinite(start) || !Number.isFinite(end)) return false;
-      return start < dayEnd && end >= dayStart;
-    });
-
+    const existingEntriesForCell = getCellEntries(timecodeId, day);
+    const cellSeconds = existingEntriesForCell.reduce((sum, e) => sum + secondsFor(billableLines, e.id), 0);
     const rawEntries = existingEntriesForCell.filter(e => !e.tags?.includes(ADJUSTMENT_TAG));
-    // What this cell would bill with the adjustment taken out, and what was
-    // actually on the clock for it. Both are this day's share, not the whole
-    // entry's: `roundingRule: 'none'` makes billable seconds equal worked
-    // seconds, so the same split yields the tracked figure.
-    const rawBillableLines = buildScreenLines(rawEntries, settings, { now });
-    const rawBilledSeconds =
-      billableSecondsByTimecodeDay(rawEntries, rawBillableLines, now).get(cellKey) ?? 0;
-    const trackedSeconds =
-      billableSecondsByTimecodeDay(
-        rawEntries,
-        buildScreenLines(rawEntries, { ...settings, roundingRule: 'none' }, { now }),
-        now,
-      ).get(cellKey) ?? 0;
+    const rawBillableLines = buildScreenLines(rawEntries, settings, {
+      now: new Date(nowMs),
+    });
+    const rawBilledSeconds = rawEntries.reduce((sum, e) => sum + secondsFor(rawBillableLines, e.id), 0);
+    const trackedSeconds = rawEntries.reduce((sum, e) => sum + workedSecondsFor(rawBillableLines, e.id), 0);
 
     const targetSeconds = Math.round(newHours * 3600);
     if (Math.abs(targetSeconds - cellSeconds) < CELL_DISPLAY_TOLERANCE_SECONDS) return;
