@@ -8,14 +8,17 @@ import { useCallback, useEffect, useRef } from 'react';
  * screen silently cancels the write instead of performing it. Up to a debounce
  * of typing disappears, and nothing on screen says so.
  *
- * Unmount is the case this closes. The document going away is the other: React
- * runs no effect cleanup for that, so a pending write would go down with the
- * page. Two things cover it. A reload the *app itself* starts waits for
- * `settleDeferredWrites` first — the stale-chunk recovery and the service
- * worker update both do. Everything else the browser decides — closing the tab,
- * the user's own reload, switching away on a phone, the OS reclaiming the page
- * — is covered by the safety net below, which commits on the last events that
- * are guaranteed to run.
+ * Unmount is the case this closes. A page reload is *not*: React does not run
+ * effect cleanup when the document goes away, so a pending write is still lost
+ * there, and the flush below is void-ed rather than awaited because teardown
+ * cannot wait on a promise. A caller that must not lose a write across a
+ * reload has to `flush()` from something the browser does run first — a blur,
+ * an Enter, or the `beforeunload` guard the running timer already installs.
+ *
+ * A reload the *app itself* starts is the one case it can do better than that,
+ * which is what `flushDeferredWrites` below is for: the stale-chunk recovery
+ * calls it and waits before reloading, so the drafts this hook exists to
+ * protect are not lost to the very reload that fixes the page.
  *
  * Every part of that is in here rather than in each field: scheduling replaces
  * the pending write, `flush` performs it now for a blur or an Enter, and
@@ -43,19 +46,7 @@ const mountedFlushes = new Set<() => unknown>();
 export const flushDeferredWrites = (): unknown[] =>
   // Copied first: a write may unmount the field it belongs to, which would
   // otherwise mutate the set mid-iteration.
-  [...mountedFlushes].map((flush) => {
-    try {
-      return flush();
-    } catch (error) {
-      // One field throwing must not abandon the fields after it in the
-      // registry. Every caller of this is a last chance — a page going away, or
-      // a reload about to replace it — so the others still have to be written.
-      // Returned as a rejection so `settleDeferredWrites` accounts for it the
-      // same way it accounts for an asynchronous failure; a synchronous throw
-      // escaped `Promise.allSettled` entirely and took the whole flush with it.
-      return Promise.reject(error);
-    }
-  });
+  [...mountedFlushes].map((flush) => flush());
 
 /**
  * How long a reload will wait on pending writes before going ahead anyway. A
@@ -81,49 +72,6 @@ export const settleDeferredWrites = (budgetMs: number = FLUSH_BUDGET_MS): Promis
     Promise.allSettled(flushDeferredWrites()),
     new Promise((resolve) => window.setTimeout(resolve, budgetMs)),
   ]);
-
-/**
- * Commit every pending draft when the page stops being visible.
- *
- * The debounce is a second of typing on the tracker's note and half of one in
- * every `SettingField`, and until this it was a second of typing the user could
- * lose by doing nothing more unusual than closing the tab, hitting reload, or
- * switching apps on a phone. Nothing said so, and the note simply read as it
- * had before the last sentence.
- *
- * `visibilitychange` to hidden is the event to hang this on: it is the last one
- * a mobile browser reliably fires before the OS reclaims the page, where
- * `beforeunload` and `unload` often never run at all. It also fires on an
- * ordinary tab switch, which is a natural commit point anyway — the same answer
- * blur already gives. `pagehide` is the backstop for a desktop close where the
- * page was never hidden first.
- *
- * Best-effort by construction: the writes are asynchronous and nothing can wait
- * on them here. Starting them is what matters — an IndexedDB write issued
- * before the page goes is normally allowed to finish, and one never issued
- * certainly is not.
- *
- * Registered on the module, not in the hook: one listener however many fields
- * are mounted, and no component has to remember to opt in. That is the whole
- * point of the registry above.
- */
-const commitPendingDrafts = () => {
-  for (const result of flushDeferredWrites()) {
-    // Nothing here can wait on these — the page is on its way out. Marked as
-    // handled so a write that fails on the way does not leave an unhandled
-    // rejection behind it.
-    void Promise.resolve(result).catch(() => {});
-  }
-};
-
-if (typeof window !== 'undefined') {
-  window.addEventListener('pagehide', commitPendingDrafts);
-  if (typeof document !== 'undefined') {
-    document.addEventListener('visibilitychange', () => {
-      if (document.visibilityState === 'hidden') commitPendingDrafts();
-    });
-  }
-}
 
 export const useDeferredWrite = (debounceMs: number) => {
   const pendingRef = useRef<(() => unknown) | null>(null);

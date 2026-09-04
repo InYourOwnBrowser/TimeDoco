@@ -3,7 +3,6 @@ import type { Group, Timecode, Entry, Settings, PauseSegment, EditHistory, Entry
 import * as db from '../db';
 import { differenceInSeconds, isSameDay } from 'date-fns';
 import { calculateDuration, findOverlappingCandidates } from '../utils/timeUtils';
-import { withCrossTabLock } from '../utils/crossTabLock';
 import { clearErrorLog, logError } from '../utils/errorLog';
 import { describeUserFacingError } from '../utils/errorMessage';
 import { PartialImportError } from '../utils/importErrors';
@@ -116,18 +115,11 @@ const TimeTrackerContext = createContext<TimeTrackerContextType | undefined>(und
 /**
  * A serial queue. Each task runs after the one before it has settled, whether
  * that resolved or threw — so one failed mutation cannot wedge every later one.
- *
- * Serialised across tabs as well as within one. The chain below orders this
- * tab's work; `withCrossTabLock` orders it against the other tabs sharing the
- * database, which the chain cannot see. Without that, two tabs editing the same
- * entry interleaved their read-modify-writes and one edit was lost — while both
- * reported success. See `utils/crossTabLock`.
  */
 const useSerialQueue = () => {
   const queueRef = useRef<Promise<unknown>>(Promise.resolve());
   return useCallback(<T,>(task: () => Promise<T>): Promise<T> => {
-    const run = () => withCrossTabLock(task);
-    const result = queueRef.current.then(run, run);
+    const result = queueRef.current.then(task, task);
     // The queue itself must never hold a rejection, or the next `.then` would
     // skip straight to its rejection handler and surface as unhandled.
     queueRef.current = result.then(() => undefined, () => undefined);
@@ -601,7 +593,6 @@ export const TimeTrackerProvider: React.FC<{ children: ReactNode }> = ({ childre
       let purged = false;
       const purgedTimecodeIds = new Set<string>();
       let purgedEntryCount = 0;
-      let purgedGroupCount = 0;
 
       // Identify items deleted > 30 days ago
       const groupsToDelete = loadedGroups.filter(g => g.deletedAt && now - new Date(g.deletedAt).getTime() > THIRTY_DAYS_MS);
@@ -610,29 +601,11 @@ export const TimeTrackerProvider: React.FC<{ children: ReactNode }> = ({ childre
 
       // We perform the deletion safely like emptyTrash does
       for (const group of groupsToDelete) {
-        // A group still holding live timecodes is still in use, whatever its
-        // own `deletedAt` says, and purging it strips the group from every one
-        // of them — permanently, unprompted, thirty days after a deletion the
-        // user has no reason to connect to the timecodes they are still
-        // billing against. The timecodes and their entries survive; the
-        // grouping is what is destroyed, and it cannot be undone.
-        //
-        // The same rule the timecode loop below already applies to live
-        // entries, for the same reason. Reachable through a merge-mode backup
-        // import, which happily writes a live timecode whose `groupId` names a
-        // group trashed on this device — `validateBackupPayload` does not tie
-        // the two together. Skipping is safe: the group stays in the trash and
-        // is purged by a later run once nothing live points at it, and Empty
-        // Trash still clears it on demand, which is a choice the user made.
-        const liveTimecodesInGroup = loadedTimecodes.filter((tc) => tc.groupId === group.id && !tc.deletedAt);
-        if (liveTimecodesInGroup.length > 0) continue;
-
         const timecodesToUpdate = [...loadedTimecodes].filter((tc) => tc.groupId === group.id);
         if (timecodesToUpdate.length > 0) {
           await Promise.all(timecodesToUpdate.map((tc) => db.putTimecode(touch({ ...tc, groupId: null }))));
         }
         await db.deleteGroup(group.id);
-        purgedGroupCount += 1;
         purged = true;
       }
 
@@ -683,10 +656,7 @@ export const TimeTrackerProvider: React.FC<{ children: ReactNode }> = ({ childre
         const parts: string[] = [];
         if (purgedEntryCount > 0) parts.push(`${purgedEntryCount} ${purgedEntryCount === 1 ? 'entry' : 'entries'}`);
         if (purgedTimecodeIds.size > 0) parts.push(`${purgedTimecodeIds.size} ${purgedTimecodeIds.size === 1 ? 'timecode' : 'timecodes'}`);
-        // What was actually removed, not what was considered: a group skipped
-        // for still holding live timecodes is still in the trash, and counting
-        // it here would report a deletion that did not happen.
-        if (purgedGroupCount > 0) parts.push(`${purgedGroupCount} ${purgedGroupCount === 1 ? 'group' : 'groups'}`);
+        if (groupsToDelete.length > 0) parts.push(`${groupsToDelete.length} ${groupsToDelete.length === 1 ? 'group' : 'groups'}`);
         if (parts.length > 0) {
           addToast(`Trash auto-cleanup removed ${parts.join(', ')} deleted over 30 days ago.`, 'info');
         }
