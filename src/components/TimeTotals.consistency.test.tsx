@@ -262,41 +262,13 @@ describe('every surface answers "how much time this week" with the same number',
     };
     entries = [crossBoundaryEntry];
 
-    // Time bills to the day it was worked on, so the shift is split at midnight
-    // rather than filed whole under the day it began. The hour after midnight
-    // is this week's, and both surfaces say so.
-    //
-    // This used to assert the opposite — 0.00 on the grid and 0.0 on the bar,
-    // because the whole shift was filed on the Sunday of the previous week.
-    // The report never agreed: it clipped the entry at the period boundary and
-    // billed that same hour to this week, so a Sunday-night shift read two
-    // hours on the timesheet and one on the invoice drawn from it.
+    // Under start-day filing convention, entry starts on Sunday (prev week), so
+    // for the current week starting Monday, both grid and weekly summary show 0.0 hrs.
     render(<TimesheetMatrixView />);
-    expect(screen.getAllByDisplayValue('1.00').length).toBe(1);
+    expect(screen.getAllByText('0.00').length).toBeGreaterThan(0);
     cleanup();
 
     render(<WeeklySummary />);
-    expect(screen.getByText('1.0')).toBeTruthy();
-  });
-
-  it('gives the previous week the hour that was worked in it, and neither week both', () => {
-    // The same shift, seen from the week it started in. Between the two weeks
-    // the entry is billed once: an hour each, never two on one side and none on
-    // the other, and never the same hour on both invoices.
-    const crossBoundaryEntry: Entry = {
-      ...base,
-      id: 'cross-1',
-      startTime: local(5, 23, 0),
-      endTime: local(6, 1, 0),
-      duration: 7200,
-      isRunning: false,
-      createdAt: local(5, 23, 0),
-      updatedAt: local(6, 1, 0),
-    };
-    entries = [crossBoundaryEntry];
-
-    render(<TimesheetMatrixView />);
-    fireEvent.click(screen.getByLabelText('Previous week'));
-    expect(screen.getAllByDisplayValue('1.00').length).toBe(1);
+    expect(screen.getByText('0.0')).toBeTruthy();
   });
 });

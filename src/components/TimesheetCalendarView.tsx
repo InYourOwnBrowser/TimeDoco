@@ -1,7 +1,7 @@
 import React, { useMemo, useState } from 'react';
 import { useTimeTracker } from '../context/TimeTrackerContext';
 import { format, startOfMonth, endOfMonth, eachDayOfInterval, startOfWeek, endOfWeek, addMonths, subMonths, isSameMonth, isToday, parseISO } from 'date-fns';
-import { billableSecondsByDay, buildScreenLines, displaySecondsFor } from '../utils/billing';
+import { buildScreenLines, displaySecondsFor, secondsFor } from '../utils/billing';
 import { calendarDayKey, formatDurationShort, formatSignedAmount } from '../utils/timeUtils';
 import { useNowTick } from '../hooks/useNowTick';
 import { ChevronLeft, ChevronRight } from 'lucide-react';
@@ -30,42 +30,22 @@ export const TimesheetCalendarView: React.FC = () => {
   // entry list and the timesheet grid use, rather than re-rounding a sum of the
   // stored `duration` per square.
   const { billableLines, hoursByDay, feesByDay } = useMemo(() => {
-    const live = entries.filter((e) => !e.deletedAt);
-
-    // Built over every live entry, not the visible grid: the rounding bucket is
-    // a whole day per timecode, and a day at the edge of this month holds
-    // entries the month cannot see. Rounding a bucket from part of its contents
-    // made the same entry bill differently depending on the month on screen.
-    // scopeWindow is null: the calendar is not a report, so it names no
-    // reporting period. Rounding a month-wide bucket here gave a different
-    // figure for a day than the week grid on the tab beside it. 'timecode' and
-    // 'invoice' scope degrade to 'day'.
-    const lines = buildScreenLines(live, settings, {
-      now: new Date(nowMs),
-    });
-
-    // A square gets the hours actually worked on its date. An entry running
-    // through midnight is split between the two squares it crosses, which is
-    // what the report has always billed and what the calendar did not show.
-    const perEntryDays = billableSecondsByDay(live, lines, new Date(nowMs));
-
-    // Still keyed on the start day: this is the disclosure that fee time sits
-    // in a square, and a fee is attributed once, to the day the entry began —
-    // the rule `buildBillableLines` already applies to the money.
     const visible: typeof entries = [];
-    for (const e of live) {
+    for (const e of entries) {
+      if (e.deletedAt) continue;
       const dayStr = calendarDayKey(parseISO(e.startTime));
       if (dayStr >= gridStartStr && dayStr <= gridEndStr) visible.push(e);
     }
 
-    const byDay = new Map<string, number>();
-    for (const [, days] of perEntryDays) {
-      for (const [dayStr, seconds] of days) {
-        if (dayStr < gridStartStr || dayStr > gridEndStr) continue;
-        byDay.set(dayStr, (byDay.get(dayStr) || 0) + seconds);
-      }
-    }
+    // scopeWindow is null: the calendar is not a report, so it names no
+    // reporting period. Rounding a month-wide bucket here gave a different
+    // figure for a day than the week grid on the tab beside it. 'timecode' and
+    // 'invoice' scope degrade to 'day'.
+    const lines = buildScreenLines(visible, settings, {
+      now: new Date(nowMs),
+    });
 
+    const byDay = new Map<string, number>();
     // A flat fee bills as a fee, so its time on the clock adds nothing to the
     // square's total — a day of fee work reads as empty. The square cannot show
     // that time without disagreeing with every other total, so it carries a
@@ -73,6 +53,8 @@ export const TimesheetCalendarView: React.FC = () => {
     const fees = new Map<string, { seconds: number; amount: number; count: number }>();
     for (const e of visible) {
       const dayStr = calendarDayKey(parseISO(e.startTime));
+      byDay.set(dayStr, (byDay.get(dayStr) || 0) + secondsFor(lines, e.id));
+
       const line = lines.get(e.id);
       if (!line?.isFixedCost) continue;
       const running = fees.get(dayStr) || { seconds: 0, amount: 0, count: 0 };

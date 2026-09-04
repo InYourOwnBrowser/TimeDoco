@@ -10,7 +10,6 @@ import {
   type RoundingScope,
 } from './billing';
 import {
-  calendarDayBounds,
   calendarDayKey,
   calculateTaxBreakdown,
   calculateTotalPausedSeconds,
@@ -410,32 +409,6 @@ export const sortEntriesForDocument = (entries: Entry[]): Entry[] =>
  * Same row set and same order as the detailed CSV, so the document and the
  * spreadsheet a client checks it against cannot list different work.
  */
-/**
- * How many whole calendar days later an entry ended than it started.
- *
- * An overnight shift is ordinary work, and a row reading `Mar 8 · 23:00 · 01:00`
- * reads as a typo or a negative duration next to `Hours 2.00` — on a document a
- * client is invited to check. It is the same ambiguity that made the raw CSV
- * un-importable: nothing in the row said the end was the following morning.
- */
-const daysSpanned = (start: Date, end: Date): number => {
-  if (!isValid(start) || !isValid(end)) return 0;
-  const from = calendarDayBounds(start).start.getTime();
-  const to = calendarDayBounds(end).start.getTime();
-  if (to <= from) return 0;
-  // Counted in calendar days rather than 24-hour blocks, so a DST night is one
-  // day over, not zero or two.
-  return Math.round((to - from) / 86_400_000);
-};
-
-/** An end time, carrying `(+1d)` when it is not on the day the entry started. */
-const formatEndTime = (start: Date, end: Date, fmt: string): string => {
-  const text = safeFormatDate(end, fmt, '—');
-  if (text === '—') return text;
-  const over = daysSpanned(start, end);
-  return over > 0 ? `${text} (+${over}d)` : text;
-};
-
 export const buildDetailTable = (
   entries: Entry[],
   lines: Map<string, BillableLine>,
@@ -464,7 +437,7 @@ export const buildDetailTable = (
       safeFormatDate(start, 'MMM d', '—'),
       tc?.name ?? 'Unknown',
       safeFormatDate(start, 'HH:mm', '—'),
-      end ? formatEndTime(start, end, 'HH:mm') : 'Running',
+      end ? safeFormatDate(end, 'HH:mm', '—') : 'Running',
       paused,
       hrs,
       formatAmount(line?.amount ?? 0, currencySymbol),
@@ -502,7 +475,7 @@ export const buildDetailedRawCSV = (
   // it out of line with the data beneath.
   const headers = [
     'Date', 'Timecode', 'Group', 'Start', 'End',
-    'Duration (h, worked)', 'Duration (h, billed)', 'Amount', 'Tags', 'Note',
+    'Duration (h, worked)', 'Duration (h, billed)', 'Amount', 'Note',
   ].map(escapeCSV);
 
   const rows = sortEntriesForDocument(entries).map((e) => {
@@ -520,26 +493,14 @@ export const buildDetailedRawCSV = (
       escapeCSV(isValid(start) ? calendarDayKey(start) : ''),
       escapeCSV(tc?.name ?? 'Unknown'),
       escapeCSV(grp?.name ?? 'Ungrouped'),
-      // Whole timestamps, not bare clock times. A shift finishing at 01:00 the
-      // next morning printed `23:00:00` and `01:00:00` under one `Date`, which
-      // reads as a negative duration and — because the CSV importer glues
-      // `Date` onto a bare time — re-imported as an end before its own start
-      // and was dropped without ever appearing in the file it came from. The
-      // importer takes a cell containing a date as it stands, so this round
-      // trips. `Date` stays: it is the day the entry is billed under, which is
-      // the column a pivot groups on.
-      escapeCSV(safeFormatDate(start, 'yyyy-MM-dd HH:mm:ss')),
-      escapeCSV(end ? safeFormatDate(end, 'yyyy-MM-dd HH:mm:ss') : ''),
+      escapeCSV(safeFormatDate(start, 'HH:mm:ss')),
+      escapeCSV(end ? safeFormatDate(end, 'HH:mm:ss') : ''),
       formatWorkedHours(line?.workedSeconds ?? 0),
       // A fee bills no hours; an empty cell says so, where 0.00 would read as a
       // duration that was measured and came out at zero. The worked column
       // beside it still carries its time on the clock.
       line?.isFixedCost ? '' : (line?.hours ?? 0).toFixed(2),
       amount !== 0 ? amount.toFixed(2) : '',
-      // Carried so the file round trips: the importer reads a `Tags` column and
-      // splits it on commas, and without one every tag was dropped on the way
-      // back in.
-      escapeCSV((e.tags ?? []).join(', ')),
       escapeCSV(e.note),
     ].join(',');
   });

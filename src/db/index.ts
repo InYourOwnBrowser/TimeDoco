@@ -55,48 +55,26 @@ export const getIsFallbackMode = (): boolean => isFallbackMode;
  *  - 'superseded-by-newer-tab' is the old build, asked to get out of the way.
  *    It closes its connection so the upgrade proceeds, which leaves this tab
  *    running against a database it can no longer open at its own version.
- *  - 'database-from-newer-build' is the same predicament reached without any
- *    second tab: this build asks for a version older than the one already on
- *    disk, and IndexedDB refuses with `VersionError`. A rolled-back deploy is
- *    how that happens — the user loaded the newer build once, so their store
- *    is ahead of the code now being served, and every load stays that way
- *    until the newer build returns. There is no downgrade migration and there
- *    cannot cheaply be one; what matters is that the refusal is not mistaken
- *    for a broken database.
  *
  * `blocking` is the half that only pays off next time: on the deploy that
  * introduces it, the tab that has to yield is running the *previous* build,
  * which has no such handler. It is here so the version after this one does not
  * repeat the whole problem.
  */
-export type ConnectionBlock =
-  | 'blocked-by-older-tab'
-  | 'superseded-by-newer-tab'
-  | 'database-from-newer-build';
+export type ConnectionBlock = 'blocked-by-older-tab' | 'superseded-by-newer-tab';
 
 let connectionBlock: ConnectionBlock | null = null;
 
 export const getConnectionBlock = (): ConnectionBlock | null => connectionBlock;
 
-/**
- * What each state tells the user, written to be shown verbatim.
- *
- * Exported because the banner shows the same sentence the refused write
- * reports, and a third state was added to this union while the banner was
- * still choosing between two with a ternary — so the new case silently
- * rendered the wrong explanation. One source, and adding a state to the union
- * is a type error until every consumer handles it.
- */
-export const BLOCK_MESSAGES: Record<ConnectionBlock, string> = {
+/** What each state tells the user, written to be shown verbatim. */
+const BLOCK_MESSAGES: Record<ConnectionBlock, string> = {
   'blocked-by-older-tab':
     'Another TimeDoco tab is open on an older version and is holding your database. ' +
     'Close the other tab, then reload this one. Nothing has been lost.',
   'superseded-by-newer-tab':
     'TimeDoco was updated in another tab, which now owns your database. ' +
     'Reload this tab to catch up. Nothing has been lost.',
-  'database-from-newer-build':
-    'Your saved data was last used with a newer version of TimeDoco than the one loaded here, ' +
-    'so this version cannot open it. Reload to pick up the current version. Nothing has been lost.',
 };
 
 const setConnectionBlock = (state: ConnectionBlock) => {
@@ -260,31 +238,11 @@ export const initDB = () => {
   return dbPromise;
 };
 
-/**
- * Whether an open failed because the store on disk is newer than this build.
- *
- * A rolled-back deploy is the ordinary way to reach it: the user loaded the
- * newer build once, their database was upgraded, and the code now being served
- * asks for the older version. IndexedDB reports that as `VersionError`.
- */
-const isVersionRefusal = (error: unknown): boolean =>
-  (error as { name?: string } | null)?.name === 'VersionError';
-
 export const getDB = async () => {
   try {
     return await initDB();
   } catch (error) {
-    // A version refusal is not a database this app cannot use — it is a
-    // database this *build* cannot use, and the data in it is untouched.
-    // Falling back to memory here rendered a complete, empty tracker: the user
-    // is shown every entry gone, and anything they retype into it is discarded
-    // when the tab closes. It belongs with the two-tab standoffs above, which
-    // is the same predicament arrived at a different way.
-    if (isVersionRefusal(error)) {
-      setConnectionBlock('database-from-newer-build');
-      throw new UserFacingError(BLOCK_MESSAGES['database-from-newer-build']);
-    }
-    // Every other failure to open really is a database this app cannot use.
+    // Only a failure to open the database puts the app into fallback mode.
     triggerFallbackMode(error);
     throw error;
   }
@@ -314,13 +272,7 @@ async function withDB<T>(
   try {
     db = await getDB();
   } catch {
-    // Re-asked, because the open that just failed may have been a version
-    // refusal — which `getDB` records as a block rather than as fallback mode.
-    // Answering that from the in-memory store is the thing this whole file is
-    // written to avoid: an empty app, taking writes it will throw away, over a
-    // database that is intact and one reload from being readable.
-    assertConnectionUsable();
-    // Otherwise getDB has entered fallback mode and logged the cause.
+    // getDB has already entered fallback mode and logged the cause.
     return whenUnavailable();
   }
 

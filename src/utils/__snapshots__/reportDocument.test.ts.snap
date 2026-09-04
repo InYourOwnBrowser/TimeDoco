@@ -36,8 +36,8 @@ exports[`report documents > a fee-only report > assembles the summary table, bot
       "Note",
     ],
   ],
-  "detailedCsv": ""Date","Timecode","Group","Start","End","Duration (h, worked)","Duration (h, billed)","Amount","Tags","Note"
-"2026-01-07","Retainer","Internal","2026-01-07 09:00:00","2026-01-07 10:00:00",1,,500.00,"","Monthly retainer"",
+  "detailedCsv": ""Date","Timecode","Group","Start","End","Duration (h, worked)","Duration (h, billed)","Amount","Note"
+"2026-01-07","Retainer","Internal","09:00:00","10:00:00",1,,500.00,"Monthly retainer"",
   "foot": [
     [
       "",
@@ -162,11 +162,11 @@ exports[`report documents > a running timer > assembles the summary table, both 
       "Note",
     ],
   ],
-  "detailedCsv": ""Date","Timecode","Group","Start","End","Duration (h, worked)","Duration (h, billed)","Amount","Tags","Note"
-"2026-01-05","Development","Acme Corp","2026-01-05 09:00:00","2026-01-05 12:30:00",3.5,3.50,420.00,"","Auth flow"
-"2026-01-06","Design","Acme Corp","2026-01-06 09:00:00","2026-01-06 11:00:00",2,2.00,170.00,"","Wireframes"
-"2026-01-06","Development","Acme Corp","2026-01-06 13:00:00","2026-01-06 15:45:00",2.75,2.75,330.00,"","Review"
-"2026-01-08","Development","Acme Corp","2026-01-08 15:00:00","",2,2.00,240.00,"","Still going"",
+  "detailedCsv": ""Date","Timecode","Group","Start","End","Duration (h, worked)","Duration (h, billed)","Amount","Note"
+"2026-01-05","Development","Acme Corp","09:00:00","12:30:00",3.5,3.50,420.00,"Auth flow"
+"2026-01-06","Design","Acme Corp","09:00:00","11:00:00",2,2.00,170.00,"Wireframes"
+"2026-01-06","Development","Acme Corp","13:00:00","15:45:00",2.75,2.75,330.00,"Review"
+"2026-01-08","Development","Acme Corp","15:00:00","",2,2.00,240.00,"Still going"",
   "foot": [
     [
       "",
@@ -293,11 +293,11 @@ exports[`report documents > a timecode with no rate > assembles the summary tabl
       "Note",
     ],
   ],
-  "detailedCsv": ""Date","Timecode","Group","Start","End","Duration (h, worked)","Duration (h, billed)","Amount","Tags","Note"
-"2026-01-05","Development","Acme Corp","2026-01-05 09:00:00","2026-01-05 12:30:00",3.5,3.50,420.00,"","Auth flow"
-"2026-01-06","Design","Acme Corp","2026-01-06 09:00:00","2026-01-06 11:00:00",2,2.00,170.00,"","Wireframes"
-"2026-01-06","Development","Acme Corp","2026-01-06 13:00:00","2026-01-06 15:45:00",2.75,2.75,330.00,"","Review"
-"2026-01-08","Admin","Ungrouped","2026-01-08 09:00:00","2026-01-08 10:30:00",1.5,1.50,,"","Invoicing"",
+  "detailedCsv": ""Date","Timecode","Group","Start","End","Duration (h, worked)","Duration (h, billed)","Amount","Note"
+"2026-01-05","Development","Acme Corp","09:00:00","12:30:00",3.5,3.50,420.00,"Auth flow"
+"2026-01-06","Design","Acme Corp","09:00:00","11:00:00",2,2.00,170.00,"Wireframes"
+"2026-01-06","Development","Acme Corp","13:00:00","15:45:00",2.75,2.75,330.00,"Review"
+"2026-01-08","Admin","Ungrouped","09:00:00","10:30:00",1.5,1.50,,"Invoicing"",
   "foot": [
     [
       "",
@@ -362,7 +362,7 @@ exports[`report documents > an empty report > assembles the summary table, both 
       "Note",
     ],
   ],
-  "detailedCsv": ""Date","Timecode","Group","Start","End","Duration (h, worked)","Duration (h, billed)","Amount","Tags","Note"",
+  "detailedCsv": ""Date","Timecode","Group","Start","End","Duration (h, worked)","Duration (h, billed)","Amount","Note"",
   "foot": [
     [
       "",
@@ -480,11 +480,11 @@ exports[`report documents > an entry rounded away to nothing > assembles the sum
       "Note",
     ],
   ],
-  "detailedCsv": ""Date","Timecode","Group","Start","End","Duration (h, worked)","Duration (h, billed)","Amount","Tags","Note"
-"2026-01-05","Development","Acme Corp","2026-01-05 09:00:00","2026-01-05 12:30:00",3.5,3.50,420.00,"","Auth flow"
-"2026-01-06","Design","Acme Corp","2026-01-06 09:00:00","2026-01-06 11:00:00",2,2.00,170.00,"","Wireframes"
-"2026-01-06","Development","Acme Corp","2026-01-06 13:00:00","2026-01-06 15:45:00",2.75,2.75,330.00,"","Review"
-"2026-01-09","Design","Acme Corp","2026-01-09 09:00:00","2026-01-09 09:03:00",0.05,0.00,,"","Three minutes"",
+  "detailedCsv": ""Date","Timecode","Group","Start","End","Duration (h, worked)","Duration (h, billed)","Amount","Note"
+"2026-01-05","Development","Acme Corp","09:00:00","12:30:00",3.5,3.50,420.00,"Auth flow"
+"2026-01-06","Design","Acme Corp","09:00:00","11:00:00",2,2.00,170.00,"Wireframes"
+"2026-01-06","Development","Acme Corp","13:00:00","15:45:00",2.75,2.75,330.00,"Review"
+"2026-01-09","Design","Acme Corp","09:00:00","09:03:00",0.05,0.00,,"Three minutes"",
   "foot": [
     [
       "",
@@ -561,7 +561,7 @@ exports[`report documents > entries clipped by the window > assembles the summar
       "Jan 4",
       "Development",
       "22:00",
-      "02:00 (+1d)",
+      "02:00",
       "—",
       "2.00",
       "$240.00",
@@ -601,7 +601,7 @@ exports[`report documents > entries clipped by the window > assembles the summar
       "Jan 11",
       "Design",
       "22:00",
-      "03:00 (+1d)",
+      "03:00",
       "—",
       "2.00",
       "$169.99",
@@ -620,12 +620,12 @@ exports[`report documents > entries clipped by the window > assembles the summar
       "Note",
     ],
   ],
-  "detailedCsv": ""Date","Timecode","Group","Start","End","Duration (h, worked)","Duration (h, billed)","Amount","Tags","Note"
-"2026-01-04","Development","Acme Corp","2026-01-04 22:00:00","2026-01-05 02:00:00",2,2.00,240.00,"","Overnight into the window"
-"2026-01-05","Development","Acme Corp","2026-01-05 09:00:00","2026-01-05 12:30:00",3.5,3.50,420.00,"","Auth flow"
-"2026-01-06","Design","Acme Corp","2026-01-06 09:00:00","2026-01-06 11:00:00",2,2.00,170.01,"","Wireframes"
-"2026-01-06","Development","Acme Corp","2026-01-06 13:00:00","2026-01-06 15:45:00",2.75,2.75,330.00,"","Review"
-"2026-01-11","Design","Acme Corp","2026-01-11 22:00:00","2026-01-12 03:00:00",1.999722,2.00,169.99,"","Overnight out of the window"",
+  "detailedCsv": ""Date","Timecode","Group","Start","End","Duration (h, worked)","Duration (h, billed)","Amount","Note"
+"2026-01-04","Development","Acme Corp","22:00:00","02:00:00",2,2.00,240.00,"Overnight into the window"
+"2026-01-05","Development","Acme Corp","09:00:00","12:30:00",3.5,3.50,420.00,"Auth flow"
+"2026-01-06","Design","Acme Corp","09:00:00","11:00:00",2,2.00,170.01,"Wireframes"
+"2026-01-06","Development","Acme Corp","13:00:00","15:45:00",2.75,2.75,330.00,"Review"
+"2026-01-11","Design","Acme Corp","22:00:00","03:00:00",1.999722,2.00,169.99,"Overnight out of the window"",
   "foot": [
     [
       "",
@@ -755,11 +755,11 @@ exports[`report documents > fees alongside hourly work > assembles the summary t
       "Note",
     ],
   ],
-  "detailedCsv": ""Date","Timecode","Group","Start","End","Duration (h, worked)","Duration (h, billed)","Amount","Tags","Note"
-"2026-01-05","Development","Acme Corp","2026-01-05 09:00:00","2026-01-05 12:30:00",3.5,3.50,420.00,"","Auth flow"
-"2026-01-06","Design","Acme Corp","2026-01-06 09:00:00","2026-01-06 11:00:00",2,2.00,170.00,"","Wireframes"
-"2026-01-06","Development","Acme Corp","2026-01-06 13:00:00","2026-01-06 15:45:00",2.75,2.75,330.00,"","Review"
-"2026-01-07","Retainer","Internal","2026-01-07 09:00:00","2026-01-07 10:00:00",1,,500.00,"","Monthly retainer"",
+  "detailedCsv": ""Date","Timecode","Group","Start","End","Duration (h, worked)","Duration (h, billed)","Amount","Note"
+"2026-01-05","Development","Acme Corp","09:00:00","12:30:00",3.5,3.50,420.00,"Auth flow"
+"2026-01-06","Design","Acme Corp","09:00:00","11:00:00",2,2.00,170.00,"Wireframes"
+"2026-01-06","Development","Acme Corp","13:00:00","15:45:00",2.75,2.75,330.00,"Review"
+"2026-01-07","Retainer","Internal","09:00:00","10:00:00",1,,500.00,"Monthly retainer"",
   "foot": [
     [
       "",
@@ -893,11 +893,11 @@ exports[`report documents > names and notes that need escaping > assembles the s
       "Note",
     ],
   ],
-  "detailedCsv": ""Date","Timecode","Group","Start","End","Duration (h, worked)","Duration (h, billed)","Amount","Tags","Note"
-"2026-01-05","Development","Acme Corp","2026-01-05 09:00:00","2026-01-05 12:30:00",3.5,3.50,420.00,"","Auth flow"
-"2026-01-06","Design","Acme Corp","2026-01-06 09:00:00","2026-01-06 11:00:00",2,2.00,170.00,"","Wireframes"
-"2026-01-06","Development","Acme Corp","2026-01-06 13:00:00","2026-01-06 15:45:00",2.75,2.75,330.00,"","Review"
-"2026-01-07","'-Ops, Support & ""Misc""","Internal","2026-01-07 09:00:00","2026-01-07 11:00:00",2,2.00,80.00,"","'=SUM(A1:A2), ""quoted"", and a very long remark that runs on past any sensible column width to see how it lands"",
+  "detailedCsv": ""Date","Timecode","Group","Start","End","Duration (h, worked)","Duration (h, billed)","Amount","Note"
+"2026-01-05","Development","Acme Corp","09:00:00","12:30:00",3.5,3.50,420.00,"Auth flow"
+"2026-01-06","Design","Acme Corp","09:00:00","11:00:00",2,2.00,170.00,"Wireframes"
+"2026-01-06","Development","Acme Corp","13:00:00","15:45:00",2.75,2.75,330.00,"Review"
+"2026-01-07","'-Ops, Support & ""Misc""","Internal","09:00:00","11:00:00",2,2.00,80.00,"'=SUM(A1:A2), ""quoted"", and a very long remark that runs on past any sensible column width to see how it lands"",
   "foot": [
     [
       "",
@@ -1008,10 +1008,10 @@ exports[`report documents > plain hourly report > assembles the summary table, b
       "Note",
     ],
   ],
-  "detailedCsv": ""Date","Timecode","Group","Start","End","Duration (h, worked)","Duration (h, billed)","Amount","Tags","Note"
-"2026-01-05","Development","Acme Corp","2026-01-05 09:00:00","2026-01-05 12:30:00",3.5,3.50,420.00,"","Auth flow"
-"2026-01-06","Design","Acme Corp","2026-01-06 09:00:00","2026-01-06 11:00:00",2,2.00,170.00,"","Wireframes"
-"2026-01-06","Development","Acme Corp","2026-01-06 13:00:00","2026-01-06 15:45:00",2.75,2.75,330.00,"","Review"",
+  "detailedCsv": ""Date","Timecode","Group","Start","End","Duration (h, worked)","Duration (h, billed)","Amount","Note"
+"2026-01-05","Development","Acme Corp","09:00:00","12:30:00",3.5,3.50,420.00,"Auth flow"
+"2026-01-06","Design","Acme Corp","09:00:00","11:00:00",2,2.00,170.00,"Wireframes"
+"2026-01-06","Development","Acme Corp","13:00:00","15:45:00",2.75,2.75,330.00,"Review"",
   "foot": [
     [
       "",
@@ -1141,12 +1141,12 @@ exports[`report documents > rounding at day scope > assembles the summary table,
       "Note",
     ],
   ],
-  "detailedCsv": ""Date","Timecode","Group","Start","End","Duration (h, worked)","Duration (h, billed)","Amount","Tags","Note"
-"2026-01-05","Development","Acme Corp","2026-01-05 09:00:00","2026-01-05 12:30:00",3.5,3.50,420.00,"","Auth flow"
-"2026-01-05","Development","Acme Corp","2026-01-05 14:00:00","2026-01-05 14:22:00",0.366667,0.37,44.00,"",""
-"2026-01-05","Development","Acme Corp","2026-01-05 15:00:00","2026-01-05 15:08:00",0.133333,0.13,16.00,"",""
-"2026-01-06","Design","Acme Corp","2026-01-06 09:00:00","2026-01-06 11:00:00",2,2.00,170.00,"","Wireframes"
-"2026-01-06","Development","Acme Corp","2026-01-06 13:00:00","2026-01-06 15:45:00",2.75,2.75,330.00,"","Review"",
+  "detailedCsv": ""Date","Timecode","Group","Start","End","Duration (h, worked)","Duration (h, billed)","Amount","Note"
+"2026-01-05","Development","Acme Corp","09:00:00","12:30:00",3.5,3.50,420.00,"Auth flow"
+"2026-01-05","Development","Acme Corp","14:00:00","14:22:00",0.366667,0.37,44.00,""
+"2026-01-05","Development","Acme Corp","15:00:00","15:08:00",0.133333,0.13,16.00,""
+"2026-01-06","Design","Acme Corp","09:00:00","11:00:00",2,2.00,170.00,"Wireframes"
+"2026-01-06","Development","Acme Corp","13:00:00","15:45:00",2.75,2.75,330.00,"Review"",
   "foot": [
     [
       "",
@@ -1251,9 +1251,9 @@ exports[`report documents > rows that round up where their own total would not >
       "Note",
     ],
   ],
-  "detailedCsv": ""Date","Timecode","Group","Start","End","Duration (h, worked)","Duration (h, billed)","Amount","Tags","Note"
-"2026-01-05","Development","Acme Corp","2026-01-05 09:00:00","2026-01-05 10:00:18",1.005,1.01,121.20,"",""
-"2026-01-06","Design","Acme Corp","2026-01-06 09:00:00","2026-01-06 10:00:18",1.005,1.01,85.85,"",""",
+  "detailedCsv": ""Date","Timecode","Group","Start","End","Duration (h, worked)","Duration (h, billed)","Amount","Note"
+"2026-01-05","Development","Acme Corp","09:00:00","10:00:18",1.005,1.01,121.20,""
+"2026-01-06","Design","Acme Corp","09:00:00","10:00:18",1.005,1.01,85.85,""",
   "foot": [
     [
       "",
@@ -1363,10 +1363,10 @@ exports[`report documents > tax enabled at a zero rate, so there is no breakdown
       "Note",
     ],
   ],
-  "detailedCsv": ""Date","Timecode","Group","Start","End","Duration (h, worked)","Duration (h, billed)","Amount","Tags","Note"
-"2026-01-05","Development","Acme Corp","2026-01-05 09:00:00","2026-01-05 12:30:00",3.5,3.50,420.00,"","Auth flow"
-"2026-01-06","Design","Acme Corp","2026-01-06 09:00:00","2026-01-06 11:00:00",2,2.00,170.00,"","Wireframes"
-"2026-01-06","Development","Acme Corp","2026-01-06 13:00:00","2026-01-06 15:45:00",2.75,2.75,330.00,"","Review"",
+  "detailedCsv": ""Date","Timecode","Group","Start","End","Duration (h, worked)","Duration (h, billed)","Amount","Note"
+"2026-01-05","Development","Acme Corp","09:00:00","12:30:00",3.5,3.50,420.00,"Auth flow"
+"2026-01-06","Design","Acme Corp","09:00:00","11:00:00",2,2.00,170.00,"Wireframes"
+"2026-01-06","Development","Acme Corp","13:00:00","15:45:00",2.75,2.75,330.00,"Review"",
   "foot": [
     [
       "",
@@ -1476,10 +1476,10 @@ exports[`report documents > tax, exclusive > assembles the summary table, both C
       "Note",
     ],
   ],
-  "detailedCsv": ""Date","Timecode","Group","Start","End","Duration (h, worked)","Duration (h, billed)","Amount","Tags","Note"
-"2026-01-05","Development","Acme Corp","2026-01-05 09:00:00","2026-01-05 12:30:00",3.5,3.50,420.00,"","Auth flow"
-"2026-01-06","Design","Acme Corp","2026-01-06 09:00:00","2026-01-06 11:00:00",2,2.00,170.00,"","Wireframes"
-"2026-01-06","Development","Acme Corp","2026-01-06 13:00:00","2026-01-06 15:45:00",2.75,2.75,330.00,"","Review"",
+  "detailedCsv": ""Date","Timecode","Group","Start","End","Duration (h, worked)","Duration (h, billed)","Amount","Note"
+"2026-01-05","Development","Acme Corp","09:00:00","12:30:00",3.5,3.50,420.00,"Auth flow"
+"2026-01-06","Design","Acme Corp","09:00:00","11:00:00",2,2.00,170.00,"Wireframes"
+"2026-01-06","Development","Acme Corp","13:00:00","15:45:00",2.75,2.75,330.00,"Review"",
   "foot": [
     [
       "",
@@ -1609,10 +1609,10 @@ exports[`report documents > tax, inclusive > assembles the summary table, both C
       "Note",
     ],
   ],
-  "detailedCsv": ""Date","Timecode","Group","Start","End","Duration (h, worked)","Duration (h, billed)","Amount","Tags","Note"
-"2026-01-05","Development","Acme Corp","2026-01-05 09:00:00","2026-01-05 12:30:00",3.5,3.50,420.00,"","Auth flow"
-"2026-01-06","Design","Acme Corp","2026-01-06 09:00:00","2026-01-06 11:00:00",2,2.00,170.00,"","Wireframes"
-"2026-01-06","Development","Acme Corp","2026-01-06 13:00:00","2026-01-06 15:45:00",2.75,2.75,330.00,"","Review"",
+  "detailedCsv": ""Date","Timecode","Group","Start","End","Duration (h, worked)","Duration (h, billed)","Amount","Note"
+"2026-01-05","Development","Acme Corp","09:00:00","12:30:00",3.5,3.50,420.00,"Auth flow"
+"2026-01-06","Design","Acme Corp","09:00:00","11:00:00",2,2.00,170.00,"Wireframes"
+"2026-01-06","Development","Acme Corp","13:00:00","15:45:00",2.75,2.75,330.00,"Review"",
   "foot": [
     [
       "",
