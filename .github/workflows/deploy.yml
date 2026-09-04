@@ -47,7 +47,79 @@ jobs:
         # gate on what may ship into the bundle could change without a commit.
         run: npx --yes license-checker@25.0.1 --production --failOn "GPL;AGPL;LGPL;SSPL;CC-BY-NC"
       - name: Dependency vulnerability check
-        run: npm audit --omit=dev --audit-level=high
+        # `npm audit` exits 1 for two unrelated reasons: it found advisories, or
+        # it could not reach the advisory service at all. Gating on the exit code
+        # alone conflates them, and an npm outage — `503 ... /-/npm/v1/security/
+        # audits/quick`, which is a separate service from the package registry
+        # `npm ci` just used successfully — failed the build and blocked a deploy
+        # over nothing to do with this repository.
+        #
+        # The two are told apart by the report: a completed audit always carries
+        # `metadata.vulnerabilities`, whatever it found, and a service failure
+        # never does — it returns `{ message, error }` instead. So a real
+        # advisory still fails the build exactly as before, and an audit that
+        # could not run is retried and then, if the service is still down,
+        # reported as a warning rather than treated as a clean bill of health.
+        #
+        # Set BLOCK_ON_AUDIT_OUTAGE to 'true' to make an unreachable service fail
+        # the build instead — strictly fail-closed, at the cost of releases
+        # depending on npm's uptime.
+        env:
+          BLOCK_ON_AUDIT_OUTAGE: 'false'
+        run: |
+          set -uo pipefail
+          report="$RUNNER_TEMP/audit.json"
+          errors="$RUNNER_TEMP/audit.err"
+          attempt=1
+          max_attempts=5
+          delay=10
+
+          # True only when the audit actually completed, whatever it found.
+          completed() {
+            node -e 'const r=require(process.argv[1]); process.exit(r && r.metadata && r.metadata.vulnerabilities ? 0 : 1)' "$report" 2>/dev/null
+          }
+
+          while : ; do
+            npm audit --omit=dev --audit-level=high --json > "$report" 2> "$errors"
+            status=$?
+
+            if completed; then
+              if [ "$status" -eq 0 ]; then
+                echo "No high or critical advisories in production dependencies."
+                exit 0
+              fi
+              echo "::error::High or critical advisories in production dependencies."
+              node -e '
+                const r = require(process.argv[1]);
+                const counts = r.metadata.vulnerabilities;
+                console.log(`high: ${counts.high}  critical: ${counts.critical}`);
+                for (const [name, v] of Object.entries(r.vulnerabilities || {})) {
+                  if (v.severity === "high" || v.severity === "critical") {
+                    console.log(`  ${v.severity.padEnd(8)} ${name}  (via ${(v.effects || []).join(", ") || "direct"})`);
+                  }
+                }
+              ' "$report"
+              exit 1
+            fi
+
+            if [ "$attempt" -ge "$max_attempts" ]; then
+              echo "--- last error from npm ---"
+              cat "$errors"
+              note="npm's advisory service was unreachable after $max_attempts attempts, so production dependencies were NOT audited for this build."
+              if [ "$BLOCK_ON_AUDIT_OUTAGE" = "true" ]; then
+                echo "::error::$note"
+                exit 1
+              fi
+              echo "::warning::$note"
+              echo "⚠️ $note" >> "$GITHUB_STEP_SUMMARY"
+              exit 0
+            fi
+
+            echo "Advisory service did not answer (attempt $attempt/$max_attempts); retrying in ${delay}s."
+            sleep "$delay"
+            delay=$(( delay * 2 ))
+            attempt=$(( attempt + 1 ))
+          done
       - name: Typecheck
         run: npm run typecheck
       - name: Lint
