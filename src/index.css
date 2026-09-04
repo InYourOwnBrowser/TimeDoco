@@ -1,5 +1,18 @@
 @import './fonts.css';
 
+/*
+ * Stacking order, so that things rendered later in the tree do not quietly
+ * paint over things that should be above them:
+ *
+ *   z-40  the floating active-timer bar
+ *   z-50  dialog overlays (ui/Modal)
+ *   z-60  the click catcher under an anchored layer, and z-61 the layer
+ *         itself — menus, dropdowns and tooltips (ui/AnchoredLayer), which are
+ *         opened from inside dialogs and so must sit above them
+ *   z-70  the "new version is ready" prompt
+ *   z-80  toasts, which report the result of whatever is on top
+ */
+
 html {
   scrollbar-gutter: stable;
 }

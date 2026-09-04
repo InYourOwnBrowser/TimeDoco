@@ -38,7 +38,12 @@ export const GlobalActiveTimerBar: React.FC = () => {
   const tcColor = activeTimecode?.color || '#cbd5e1';
 
   return (
-    <div className="fixed bottom-6 right-6 z-50 animate-in fade-in slide-in-from-bottom-4 duration-300">
+    <div
+      // Below a dialog (z-50). This bar is rendered after the dialogs in the
+      // tree, so at the same z-index it painted on top of whichever one was
+      // open.
+      className="fixed bottom-6 right-6 z-40 animate-in fade-in slide-in-from-bottom-4 duration-300"
+    >
       <div className="bg-white dark:bg-graphite rounded-panel shadow-sm border border-graphite/20 dark:border-white/20 p-2 pr-4 flex items-center gap-4 transition-colors">
 
         {/* Play/Pause control for this timer */}

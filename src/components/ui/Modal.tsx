@@ -5,6 +5,12 @@ interface ModalProps {
   children: React.ReactNode;
   className?: string; // Optional class for the overlay container if needed
   isDirty?: boolean;
+  /**
+   * What the dialog is called. A `role="dialog"` with no name is announced as
+   * just "dialog", so a screen reader user arriving in one is told they are in
+   * something without being told what.
+   */
+  label?: string;
 }
 
 const modalStack: string[] = [];
@@ -55,7 +61,7 @@ const unlockBodyScroll = () => {
   overflowBeforeLock = null;
 };
 
-export const Modal: React.FC<ModalProps> = ({ onClose, children, className = '', isDirty = false }) => {
+export const Modal: React.FC<ModalProps> = ({ onClose, children, className = '', isDirty = false, label }) => {
   const modalRef = useRef<HTMLDivElement>(null);
   // `useId` rather than a random string written during render: identity is
   // exactly what this hook is for, and generating it in the render body is a
@@ -182,9 +188,12 @@ export const Modal: React.FC<ModalProps> = ({ onClose, children, className = '',
       // child taller than the scroll container pushes its top above the scrollable
       // area, where nothing can reach it. `my-auto` still centres anything short
       // enough to fit, and collapses when it is not.
-      className={`fixed inset-0 bg-ink/50 dark:bg-black/75 backdrop-blur-sm flex items-start justify-center p-4 z-50 overflow-y-auto ${className}`}
+      // `overscroll-contain` so reaching the end of a long dialog does not
+      // carry on scrolling the page behind it.
+      className={`fixed inset-0 bg-ink/50 dark:bg-black/75 backdrop-blur-sm flex items-start justify-center p-4 z-50 overflow-y-auto overscroll-contain ${className}`}
       role="dialog"
       aria-modal="true"
+      aria-label={label}
       onClick={handleBackdropClick}
     >
       <div

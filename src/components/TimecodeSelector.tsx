@@ -1,18 +1,32 @@
-import React, { useState, useMemo, useEffect } from 'react';
+import React, { useState, useMemo, useEffect, useRef, useCallback } from 'react';
 import { useTimeTracker } from '../context/TimeTrackerContext';
 import { Plus, Check, ChevronDown, X } from 'lucide-react';
+import { useDropdownFit } from '../hooks/useDropdownFit';
+import { useOutsideDismiss } from '../hooks/useOutsideDismiss';
 
 const COLORS = ['#ef4444', '#f97316', '#f59e0b', '#10b981', '#0a0a0a', '#8b5cf6', '#ec4899', '#64748b'];
+
+/** As tall as the option list ever gets, when there is room for it. */
+const MAX_LIST_HEIGHT = 384;
 
 interface TimecodeSelectorProps {
   onSelect: (timecodeId: string) => void;
   selectedId?: string | null;
+  /**
+   * Ties the field to the caller's visible label. Every screen this appears on
+   * already prints one next to it; without the association the field was
+   * announced by its placeholder, and clicking the label did nothing.
+   */
+  inputId?: string;
 }
 
-export const TimecodeSelector: React.FC<TimecodeSelectorProps> = ({ onSelect, selectedId }) => {
+export const TimecodeSelector: React.FC<TimecodeSelectorProps> = ({ onSelect, selectedId, inputId }) => {
   const { timecodes, groups, addTimecode, addGroup, entries, settings } = useTimeTracker();
   const currencySymbol = settings?.currencySymbol || '$';
   const selectedTimecode = selectedId ? timecodes.find(t => t.id === selectedId) : null;
+  const containerRef = useRef<HTMLDivElement>(null);
+  const anchorRef = useRef<HTMLDivElement>(null);
+  const listRef = useRef<HTMLDivElement>(null);
   const [isOpen, setIsOpen] = useState(false);
   const [search, setSearch] = useState('');
   const [activeIndex, setActiveIndex] = useState(-1);
@@ -35,31 +49,48 @@ export const TimecodeSelector: React.FC<TimecodeSelectorProps> = ({ onSelect, se
     setNewGroupName('');
   };
 
+  // One lookup table instead of a linear scan per row: the list is rebuilt on
+  // every keystroke, and every row asked `groups.find` for its own group.
+  const groupsById = useMemo(() => new Map(groups.map(g => [g.id, g])), [groups]);
+
   const unarchivedTimecodes = useMemo(() => {
     return timecodes.filter(t => {
       if (t.archived) return false;
       if (t.groupId) {
-        const group = groups.find(g => g.id === t.groupId);
+        const group = groupsById.get(t.groupId);
         if (group?.archived) return false;
       }
       return true;
     });
-  }, [timecodes, groups]);
+  }, [timecodes, groupsById]);
 
   const filteredTimecodes = useMemo(() => {
     if (!search) return unarchivedTimecodes;
-    return unarchivedTimecodes.filter(t => t.name.toLowerCase().includes(search.toLowerCase()));
+    const needle = search.toLowerCase();
+    return unarchivedTimecodes.filter(t => t.name.toLowerCase().includes(needle));
   }, [unarchivedTimecodes, search]);
 
 
   const recentTimecodes = useMemo(() => {
     if (search) return [];
 
-    const sortedEntries = [...entries].sort((a, b) => new Date(b.startTime).getTime() - new Date(a.startTime).getTime());
-    const recentIds = Array.from(new Set(sortedEntries.map(e => e.timecodeId)));
+    // Three timecodes, from one pass over the entries. Sorting the whole list
+    // and parsing every start time twice per comparison is a lot of work to
+    // repeat every time this list re-renders, and all but the first three
+    // results of it were thrown away.
+    const lastUsed = new Map<string, number>();
+    for (const entry of entries) {
+      const at = new Date(entry.startTime).getTime();
+      if (!Number.isFinite(at)) continue;
+      const previous = lastUsed.get(entry.timecodeId);
+      if (previous === undefined || at > previous) lastUsed.set(entry.timecodeId, at);
+    }
 
-    return recentIds
-      .map(id => unarchivedTimecodes.find(t => t.id === id))
+    const byId = new Map(unarchivedTimecodes.map(t => [t.id, t]));
+
+    return Array.from(lastUsed.entries())
+      .sort((a, b) => b[1] - a[1])
+      .map(([id]) => byId.get(id))
       .filter((t): t is typeof timecodes[0] => t !== undefined)
       .slice(0, 3);
   }, [entries, unarchivedTimecodes, search]);
@@ -115,6 +146,14 @@ export const TimecodeSelector: React.FC<TimecodeSelectorProps> = ({ onSelect, se
   }, [activeId]);
 
 
+  const closeDropdown = useCallback(() => {
+    setIsOpen(false);
+    setSearch('');
+    setShowAddForm(false);
+  }, []);
+
+  useOutsideDismiss(isOpen, containerRef, closeDropdown);
+
   const handleSelect = (id: string) => {
     onSelect(id);
     setIsOpen(false);
@@ -124,9 +163,7 @@ export const TimecodeSelector: React.FC<TimecodeSelectorProps> = ({ onSelect, se
   const handleKeyDown = (e: React.KeyboardEvent) => {
     if (e.key === 'Escape') {
       if (isOpen) {
-        setIsOpen(false);
-        setSearch('');
-        setShowAddForm(false);
+        closeDropdown();
         e.preventDefault();
         e.stopPropagation();
       }
@@ -182,14 +219,24 @@ export const TimecodeSelector: React.FC<TimecodeSelectorProps> = ({ onSelect, se
     setShowAddForm(false);
   };
 
+  // The list is sized against the space it actually has — inside a dialog body
+  // that is a few hundred pixels, not the 24rem the class alone would ask for —
+  // and opens upwards when there is more room there.
+  const fit = useDropdownFit(isOpen, anchorRef, listRef, {
+    maxHeight: MAX_LIST_HEIGHT,
+    contentKey: showAddForm ? 'form' : flattenedOptions.length,
+  });
+
   return (
-    <div className="relative w-full max-w-sm" onKeyDown={handleKeyDown}>
+    <div ref={containerRef} className="relative w-full max-w-sm" onKeyDown={handleKeyDown}>
       <div
+        ref={anchorRef}
         className="flex items-center justify-between px-3 py-2 bg-white dark:bg-graphite border border-graphite/20 dark:border-white/20 rounded-md shadow-sm cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-800/50 focus-within:ring-2 focus-within:ring-signal focus-within:ring-offset-2 transition-colors"
         onClick={() => !isOpen && setIsOpen(true)}
       >
         <input
           type="text"
+          id={inputId}
           role="combobox"
           aria-expanded={isOpen}
           aria-controls="timecode-listbox"
@@ -226,15 +273,15 @@ export const TimecodeSelector: React.FC<TimecodeSelectorProps> = ({ onSelect, se
       </div>
 
       {isOpen && (
-        <div id="timecode-listbox" role="listbox" className="absolute z-10 w-full mt-1 bg-white dark:bg-graphite border border-graphite/20 dark:border-white/20 rounded-md shadow-lg max-h-96 overflow-y-auto">
-
-          {/* Backdrop for click outside */}
-          <div className="fixed inset-0 z-[-1]" onClick={() => {
-            setIsOpen(false);
-            setSearch('');
-            setShowAddForm(false);
-          }}></div>
-
+        <div
+          id="timecode-listbox"
+          role="listbox"
+          ref={listRef}
+          className={`absolute z-10 w-full bg-white dark:bg-graphite border border-graphite/20 dark:border-white/20 rounded-md shadow-lg max-h-96 overflow-y-auto overscroll-contain ${
+            fit.placement === 'top' ? 'bottom-full mb-1' : 'mt-1'
+          }`}
+          style={fit.maxHeight === null ? undefined : { maxHeight: fit.maxHeight }}
+        >
           {showAddForm ? (
             <div className="p-4 bg-stone dark:bg-gray-800/30 border-b border-graphite/20 dark:border-white/20">
               <h4 className="text-sm font-medium text-graphite dark:text-stone mb-2">Create New Timecode</h4>
@@ -361,7 +408,7 @@ export const TimecodeSelector: React.FC<TimecodeSelectorProps> = ({ onSelect, se
                     Recently Used
                   </div>
                   {recentTimecodes.map(tc => {
-                    const group = groups.find(g => g.id === tc.groupId);
+                    const group = tc.groupId ? groupsById.get(tc.groupId) : undefined;
                     const color = tc.color || group?.color || '#9ca3af';
                     return (
                       <button
@@ -384,7 +431,7 @@ export const TimecodeSelector: React.FC<TimecodeSelectorProps> = ({ onSelect, se
                 </div>
               )}
               {Array.from(groupedTimecodes.entries()).map(([gId, tcs]) => {
-                const group = groups.find(g => g.id === gId);
+                const group = gId ? groupsById.get(gId) : undefined;
                 return (
                   <div key={gId || 'ungrouped'} className="py-1">
                     {group && (

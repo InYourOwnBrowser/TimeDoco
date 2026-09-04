@@ -97,7 +97,7 @@ export const OverrunDetector: React.FC<OverrunDetectorProps> = ({ onPromptStateC
   };
 
   return (
-    <Modal onClose={handleKeepGoing}>
+    <Modal onClose={handleKeepGoing} label="Past your estimate">
       <div className="bg-white dark:bg-graphite rounded-panel shadow-xl border border-graphite/20 dark:border-white/20 max-w-md w-full p-6 animate-in fade-in zoom-in-95 duration-200">
         <h2 className="text-xl font-semibold text-graphite dark:text-stone mb-2">Past your estimate</h2>
         <p className="text-gray-600 dark:text-gray-400 mb-6">

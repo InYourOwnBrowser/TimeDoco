@@ -90,7 +90,9 @@ export const ToastProvider: React.FC<{ children: ReactNode }> = ({ children }) =
     <ToastContext.Provider value={{ addToast }}>
       {children}
       <div
-        className="fixed top-4 right-4 z-50 flex flex-col gap-2"
+        // Above every other layer: a toast reports what just happened, and
+        // several of them are raised from inside a dialog.
+        className="fixed top-4 right-4 z-[80] flex flex-col gap-2"
         role="status"
         aria-live="polite"
       >

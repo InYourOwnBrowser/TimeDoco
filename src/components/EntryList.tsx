@@ -123,6 +123,33 @@ export const EntryList: React.FC = () => {
 
   const nonDeletedEntries = React.useMemo(() => entries.filter(e => !e.deletedAt), [entries]);
 
+  // The options for the group/timecode filter. This was an IIFE in the middle
+  // of the `<select>`, so every keystroke in the search box above it walked the
+  // whole entry list again and re-scanned the timecodes once per group.
+  const filterOptions = React.useMemo(() => {
+    const timecodeIdsInEntries = new Set(nonDeletedEntries.map(e => e.timecodeId));
+    const availableTimecodes = timecodes.filter(t => !t.archived || timecodeIdsInEntries.has(t.id));
+
+    const byGroup = new Map<string, typeof timecodes>();
+    const ungrouped: typeof timecodes = [];
+    for (const t of availableTimecodes) {
+      if (!t.groupId) {
+        ungrouped.push(t);
+        continue;
+      }
+      const bucket = byGroup.get(t.groupId);
+      if (bucket) bucket.push(t);
+      else byGroup.set(t.groupId, [t]);
+    }
+
+    return {
+      groups: groups
+        .filter(g => !g.archived || byGroup.has(g.id))
+        .map(g => ({ group: g, timecodes: byGroup.get(g.id) ?? [] })),
+      ungrouped,
+    };
+  }, [nonDeletedEntries, timecodes, groups]);
+
   // A running timer's stored `duration` is 0 until it stops, so the list used
   // to leave it out of both the row and the total. Measuring to `now` counts it,
   // and refreshing that on a tick keeps it current while it runs.
@@ -252,36 +279,21 @@ export const EntryList: React.FC = () => {
             className="block w-full sm:w-64 pl-3 pr-10 py-2 text-base border-graphite/20 dark:border-white/20 shadow-inner focus:outline-none focus:ring-signal focus:border-signal sm:text-sm rounded-panel bg-white dark:bg-graphite text-graphite dark:text-stone focus-visible:ring-2 focus-visible:ring-offset-2 ring-offset-stone dark:ring-offset-graphite focus-visible:ring-signal"
           >
             <option value="all">All Groups & Timecodes</option>
-            {(() => {
-              const timecodeIdsInEntries = new Set(entries.filter(e => !e.deletedAt).map(e => e.timecodeId));
-              const availableTimecodes = timecodes.filter(t => !t.archived || timecodeIdsInEntries.has(t.id));
-              const availableGroupIds = new Set(availableTimecodes.map(t => t.groupId).filter(Boolean) as string[]);
-              const availableGroups = groups.filter(g => !g.archived || availableGroupIds.has(g.id));
-              const ungrouped = availableTimecodes.filter(t => !t.groupId);
-
-              return (
-                <>
-                  {availableGroups.map((g) => {
-                    const groupTcs = availableTimecodes.filter(t => t.groupId === g.id);
-                    return (
-                      <optgroup key={g.id} label={`${g.name}${g.archived ? ' (archived)' : ''}`}>
-                        <option value={`group:${g.id}`}>All {g.name}</option>
-                        {groupTcs.map((t) => (
-                          <option key={t.id} value={`timecode:${t.id}`}>{t.name}{t.archived ? ' (archived)' : ''}</option>
-                        ))}
-                      </optgroup>
-                    );
-                  })}
-                  {ungrouped.length > 0 && (
-                    <optgroup label="Ungrouped">
-                      {ungrouped.map((t) => (
-                        <option key={t.id} value={`timecode:${t.id}`}>{t.name}{t.archived ? ' (archived)' : ''}</option>
-                      ))}
-                    </optgroup>
-                  )}
-                </>
-              );
-            })()}
+            {filterOptions.groups.map(({ group: g, timecodes: groupTcs }) => (
+              <optgroup key={g.id} label={`${g.name}${g.archived ? ' (archived)' : ''}`}>
+                <option value={`group:${g.id}`}>All {g.name}</option>
+                {groupTcs.map((t) => (
+                  <option key={t.id} value={`timecode:${t.id}`}>{t.name}{t.archived ? ' (archived)' : ''}</option>
+                ))}
+              </optgroup>
+            ))}
+            {filterOptions.ungrouped.length > 0 && (
+              <optgroup label="Ungrouped">
+                {filterOptions.ungrouped.map((t) => (
+                  <option key={t.id} value={`timecode:${t.id}`}>{t.name}{t.archived ? ' (archived)' : ''}</option>
+                ))}
+              </optgroup>
+            )}
           </select>
         </div>
         <div className="flex flex-col sm:flex-row gap-4 items-start sm:items-center">
@@ -495,7 +507,7 @@ export const EntryList: React.FC = () => {
       )}
 
       {showBulkDeleteConfirm && (
-        <Modal onClose={() => setShowBulkDeleteConfirm(false)}>
+        <Modal onClose={() => setShowBulkDeleteConfirm(false)} label="Delete filtered entries">
           <div className="bg-white dark:bg-graphite rounded-panel shadow-xl border border-graphite/20 dark:border-white/20 p-6 w-full max-w-md">
             <h3 className="text-lg font-semibold text-graphite dark:text-stone mb-2">
               Confirm Bulk Delete

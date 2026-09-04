@@ -329,7 +329,7 @@ export const EntryEditModal: React.FC<EntryEditModalProps> = ({ entry, onClose }
   };
 
   return (
-    <Modal onClose={onClose} isDirty={isDirty}>
+    <Modal onClose={onClose} isDirty={isDirty} label="Edit time entry">
       <div className="bg-white dark:bg-graphite rounded-panel shadow-xl w-full max-w-md max-h-[90vh] overflow-hidden flex flex-col border border-graphite/20 dark:border-white/20">
         <div className="flex justify-between items-center p-4 border-b border-graphite/20 dark:border-white/20">
           <h2 className="text-lg font-semibold text-graphite dark:text-stone">Edit Time Entry</h2>
@@ -340,9 +340,9 @@ export const EntryEditModal: React.FC<EntryEditModalProps> = ({ entry, onClose }
 
         <div className="p-4 space-y-4 overflow-y-auto">
           <div>
-            <label className="block text-sm font-medium text-graphite dark:text-stone mb-1">Timecode</label>
+            <label htmlFor="entry-edit-timecode" className="block text-sm font-medium text-graphite dark:text-stone mb-1">Timecode</label>
             <div className="w-full z-10 relative">
-              <TimecodeSelector selectedId={timecodeId} onSelect={setTimecodeId} />
+              <TimecodeSelector inputId="entry-edit-timecode" selectedId={timecodeId} onSelect={setTimecodeId} />
             </div>
           </div>
 

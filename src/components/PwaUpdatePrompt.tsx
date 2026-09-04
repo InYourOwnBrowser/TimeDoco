@@ -60,7 +60,7 @@ export const PwaUpdatePrompt = () => {
   return (
     <div
       role="status"
-      className="fixed bottom-4 left-1/2 -translate-x-1/2 z-[60] w-[min(28rem,calc(100vw-2rem))] bg-white dark:bg-graphite border border-graphite/20 dark:border-white/20 rounded-panel shadow-lg p-4 flex items-start gap-3"
+      className="fixed bottom-4 left-1/2 -translate-x-1/2 z-[70] w-[min(28rem,calc(100vw-2rem))] bg-white dark:bg-graphite border border-graphite/20 dark:border-white/20 rounded-panel shadow-lg p-4 flex items-start gap-3"
     >
       <div className="flex-1 text-sm text-graphite dark:text-stone">
         <p className="font-semibold">A new version of TimeDoco is ready.</p>

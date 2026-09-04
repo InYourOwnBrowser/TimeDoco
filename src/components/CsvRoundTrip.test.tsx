@@ -92,7 +92,7 @@ const exportDetailedCsv = () => {
 
 const importCsv = (content: string) => {
   const { container } = render(<SettingsModal onClose={vi.fn()} />);
-  fireEvent.click(screen.getByRole('button', { name: 'Data' }));
+  fireEvent.click(screen.getByRole('tab', { name: 'Data' }));
   const input = container.querySelector('input[type="file"][accept=".csv"]') as HTMLInputElement;
   fireEvent.change(input, { target: { files: [new File([content], 'entries.csv', { type: 'text/csv' })] } });
   fireEvent.click(screen.getByRole('button', { name: /import csv/i }));

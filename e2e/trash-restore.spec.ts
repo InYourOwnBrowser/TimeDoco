@@ -26,7 +26,7 @@ test('a deleted entry comes back, and is refused when its slot is taken', async 
 
   const openTrash = async () => {
     await page.getByRole('button', { name: 'Settings' }).click();
-    await page.getByRole('button', { name: 'Trash' }).click();
+    await page.getByRole('tab', { name: 'Trash' }).click();
     return page.getByRole('dialog');
   };
   const closeSettings = async () => {

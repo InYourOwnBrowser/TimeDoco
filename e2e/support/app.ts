@@ -9,7 +9,7 @@ export const todayIso = (page: Page): Promise<string> =>
 
 /** Create a timecode through the picker on the tracker, and select it. */
 export const createTimecode = async (page: Page, name: string, hourlyRate?: string) => {
-  const picker = page.getByRole('combobox', { name: 'Select or type to create...' }).first();
+  const picker = page.getByRole('combobox', { name: 'What are you working on?' }).first();
   await picker.click();
   await picker.fill(name);
   await page.getByRole('option', { name: `Create "${name}"` }).click();
@@ -67,7 +67,7 @@ export const addManualEntry = async (
 ) => {
   await page.getByRole('button', { name: 'Add Manual Entry' }).click();
   const dialog = page.getByRole('dialog');
-  const picker = dialog.getByRole('combobox', { name: 'Select or type to create...' });
+  const picker = dialog.getByRole('combobox', { name: 'Timecode' });
   await picker.click();
   await picker.fill(timecode);
   await dialog.getByRole('option', { name: timecode, exact: true }).first().click();
@@ -86,7 +86,7 @@ export const addManualEntry = async (
 export const importCsv = async (page: Page, csv: string) => {
   await page.getByRole('button', { name: 'Settings' }).click();
   const dialog = page.getByRole('dialog');
-  await dialog.getByRole('button', { name: 'Data', exact: true }).click();
+  await dialog.getByRole('tab', { name: 'Data', exact: true }).click();
   await page.locator('input[type="file"][accept=".csv"]').setInputFiles({
     name: 'entries.csv',
     mimeType: 'text/csv',

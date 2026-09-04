@@ -13,10 +13,10 @@ import {
   X,
   Trash2,
   Merge,
-  MoreVertical,
 } from 'lucide-react';
 import type { Group, Timecode } from '../types';
 import { HelpTooltip } from './ui/HelpTooltip';
+import { ActionMenu } from './ui/ActionMenu';
 import { describeUserFacingError } from '../utils/errorMessage';
 
 export const GroupingManagement: React.FC = () => {
@@ -518,35 +518,32 @@ export const GroupingManagement: React.FC = () => {
                 </div>
 
                 {/* Group Action Menu (Mobile Overflow) */}
-                <div className="sm:hidden relative shrink-0">
-                  <button
-                    onClick={() => setMobileMenuId(mobileMenuId === group.id ? null : group.id)}
-                    className="p-2 text-gray-600 dark:text-gray-400 hover:bg-stone dark:hover:bg-graphite/80 rounded-md transition-colors"
-                    aria-label="Group Actions Menu"
-                  >
-                    <MoreVertical size={18} />
-                  </button>
-                  {mobileMenuId === group.id && (
-                    <div className="absolute right-0 top-full mt-1 z-20 w-36 bg-white dark:bg-graphite border border-graphite/20 dark:border-white/20 rounded-md shadow-lg p-1 flex flex-col gap-0.5 text-xs">
+                <ActionMenu
+                  label="Group Actions Menu"
+                  open={mobileMenuId === group.id}
+                  onOpenChange={(next) => setMobileMenuId(next ? group.id : null)}
+                  wrapperClassName="sm:hidden relative shrink-0"
+                  buttonClassName="p-2 text-gray-600 dark:text-gray-400 hover:bg-stone dark:hover:bg-graphite/80 rounded-md transition-colors"
+                >
                       <button
+                        role="menuitem"
                         onClick={() => handleEditGroupStart(group)}
                         className="w-full text-left px-2 py-1.5 text-graphite dark:text-stone hover:bg-stone/50 dark:hover:bg-ink/50 rounded flex items-center gap-2"
                       >
                         <Edit2 size={14} /> Edit
                       </button>
                       <button
+                        role="menuitem"
                         onClick={async () => {
-                          if (await updateGroup(group.id, { archived: true })) {
-                            setMobileMenuId(null);
-                          }
+                          await updateGroup(group.id, { archived: true });
                         }}
                         className="w-full text-left px-2 py-1.5 text-graphite dark:text-stone hover:bg-stone/50 dark:hover:bg-ink/50 rounded flex items-center gap-2"
                       >
                         <Archive size={14} /> Archive
                       </button>
                       <button
+                        role="menuitem"
                         onClick={async () => {
-                          setMobileMenuId(null);
                           if (
                             window.confirm(
                               `Delete "${group.name}" and all its timecodes/entries? This can be undone from the toast or Trash.`
@@ -559,9 +556,7 @@ export const GroupingManagement: React.FC = () => {
                       >
                         <Trash2 size={14} /> Delete
                       </button>
-                    </div>
-                  )}
-                </div>
+                </ActionMenu>
               </div>
 
               {/* Group Edit Panel */}
@@ -1057,47 +1052,45 @@ function renderTimecodeRow({
             </div>
 
             {/* Mobile Row Actions Menu */}
-            <div className="sm:hidden relative">
-              <button
-                onClick={() => setMobileMenuId(mobileMenuId === tc.id ? null : tc.id)}
-                className="p-1.5 text-gray-600 dark:text-gray-400 hover:bg-stone dark:hover:bg-graphite rounded transition-colors"
-                aria-label="Timecode Actions Menu"
-              >
-                <MoreVertical size={16} />
-              </button>
-              {mobileMenuId === tc.id && (
-                <div className="absolute right-0 top-full mt-1 z-20 w-36 bg-white dark:bg-graphite border border-graphite/20 dark:border-white/20 rounded-md shadow-lg p-1 flex flex-col gap-0.5 text-xs">
+            <ActionMenu
+              label="Timecode Actions Menu"
+              open={mobileMenuId === tc.id}
+              onOpenChange={(next) => setMobileMenuId(next ? tc.id : null)}
+              iconSize={16}
+              wrapperClassName="sm:hidden relative"
+              buttonClassName="p-1.5 text-gray-600 dark:text-gray-400 hover:bg-stone dark:hover:bg-graphite rounded transition-colors"
+            >
                   <button
+                    role="menuitem"
                     onClick={() => handleEditTimecodeStart(tc)}
                     className="w-full text-left px-2 py-1.5 text-graphite dark:text-stone hover:bg-stone/50 dark:hover:bg-ink/50 rounded flex items-center gap-2"
                   >
                     <Edit2 size={14} /> Edit
                   </button>
                   <button
+                    role="menuitem"
                     onClick={() => {
                       setMergingTimecodeId(tc.id);
                       setMergeDestId('');
                       setEditingTimecodeId(null);
-                      setMobileMenuId(null);
                     }}
                     className="w-full text-left px-2 py-1.5 text-graphite dark:text-stone hover:bg-stone/50 dark:hover:bg-ink/50 rounded flex items-center gap-2"
                   >
                     <Merge size={14} /> Merge
                   </button>
                   <button
+                    role="menuitem"
                     onClick={async () => {
-                        if (await updateTimecode(tc.id, { archived: !tc.archived })) {
-                          setMobileMenuId(null);
-                        }
-                      }}
+                      await updateTimecode(tc.id, { archived: !tc.archived });
+                    }}
                     className="w-full text-left px-2 py-1.5 text-graphite dark:text-stone hover:bg-stone/50 dark:hover:bg-ink/50 rounded flex items-center gap-2"
                   >
                     {tc.archived ? <ArchiveRestore size={14} /> : <Archive size={14} />}
                     {tc.archived ? 'Restore' : 'Archive'}
                   </button>
                   <button
+                    role="menuitem"
                     onClick={async () => {
-                      setMobileMenuId(null);
                       if (
                         window.confirm(`Delete "${tc.name}" and all its entries? This can be undone from the toast or Trash.`)
                       ) {
@@ -1108,9 +1101,7 @@ function renderTimecodeRow({
                   >
                     <Trash2 size={14} /> Delete
                   </button>
-                </div>
-              )}
-            </div>
+            </ActionMenu>
           </div>
         </div>
       )}

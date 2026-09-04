@@ -62,7 +62,7 @@ const CSV = 'Start Time,End Time,Timecode,Note\n2024-01-01T12:00:00Z,2024-01-01T
 
 const importCsv = (content = CSV) => {
   const { container } = render(<SettingsModal onClose={vi.fn()} />);
-  fireEvent.click(screen.getByRole('button', { name: 'Data' }));
+  fireEvent.click(screen.getByRole('tab', { name: 'Data' }));
   const input = container.querySelector('input[type="file"][accept=".csv"]') as HTMLInputElement;
   fireEvent.change(input, { target: { files: [new File([content], 'rows.csv', { type: 'text/csv' })] } });
   fireEvent.click(screen.getByRole('button', { name: /import csv/i }));

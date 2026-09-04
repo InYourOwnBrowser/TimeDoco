@@ -63,7 +63,7 @@ export const SaveAsModal: React.FC<SaveAsModalProps> = ({
   const cleanExtension = extension.startsWith('.') ? extension.slice(1) : extension;
 
   return (
-    <Modal onClose={onCancel}>
+    <Modal onClose={onCancel} label="Save file as">
       <div className="bg-white dark:bg-graphite rounded-panel shadow-xl w-full max-w-md overflow-hidden flex flex-col border border-graphite/20 dark:border-white/20">
         <div className="flex justify-between items-center p-4 border-b border-graphite/20 dark:border-white/20">
           <div className="flex items-center gap-2">

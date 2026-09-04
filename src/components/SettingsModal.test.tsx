@@ -234,7 +234,7 @@ describe('SettingsModal Logo Upload Validation', () => {
     const { getByRole, container } = renderComponent();
 
     // Switch to Data tab
-    fireEvent.click(getByRole('button', { name: 'Data' }));
+    fireEvent.click(getByRole('tab', { name: 'Data' }));
 
     const csvFileInput = container.querySelector('input[type="file"][accept=".csv"]') as HTMLInputElement;
     expect(csvFileInput).not.toBeNull();
@@ -264,7 +264,7 @@ describe('SettingsModal Logo Upload Validation', () => {
     ];
 
     const { getByRole, container } = renderComponent();
-    fireEvent.click(getByRole('button', { name: 'Data' }));
+    fireEvent.click(getByRole('tab', { name: 'Data' }));
 
     const csvFileInput = container.querySelector('input[type="file"][accept=".csv"]') as HTMLInputElement;
     const overlappingCsv = 'Start Time,End Time,Timecode,Note\n2024-01-01T10:30:00Z,2024-01-01T11:30:00Z,NewCollidingTimecode,Test\n';
@@ -284,7 +284,7 @@ describe('SettingsModal Logo Upload Validation', () => {
     mockAddTimecode.mockResolvedValueOnce({ id: 'tc-new', name: 'ValidCode' });
 
     const { getByRole, container } = renderComponent();
-    fireEvent.click(getByRole('button', { name: 'Data' }));
+    fireEvent.click(getByRole('tab', { name: 'Data' }));
 
     const csvFileInput = container.querySelector('input[type="file"][accept=".csv"]') as HTMLInputElement;
     const validCsv = 'Start Time,End Time,Timecode,Note\n2024-01-01T12:00:00Z,2024-01-01T13:00:00Z,ValidCode,Test\n';
@@ -302,7 +302,7 @@ describe('SettingsModal Logo Upload Validation', () => {
   it('correctly uses DMY date format selection (M3)', async () => {
     mockAddTimecode.mockResolvedValueOnce({ id: 'tc-dmy', name: 'DMYCode' });
     const { getByRole, container } = renderComponent();
-    fireEvent.click(getByRole('button', { name: 'Data' }));
+    fireEvent.click(getByRole('tab', { name: 'Data' }));
 
     // Select DMY date format
     const select = container.querySelector('select[class*="border"]') as HTMLSelectElement;
@@ -332,7 +332,7 @@ describe('SettingsModal Logo Upload Validation', () => {
   it('imports 12-hour times and names the reason for the rows it skips', async () => {
     mockAddTimecode.mockResolvedValue({ id: 'tc-ampm', name: 'AmPmCode' });
     const { getByRole, container, findByText } = renderComponent();
-    fireEvent.click(getByRole('button', { name: 'Data' }));
+    fireEvent.click(getByRole('tab', { name: 'Data' }));
 
     const select = container.querySelector('select[class*="border"]') as HTMLSelectElement;
     fireEvent.change(select, { target: { value: 'dmy' } });

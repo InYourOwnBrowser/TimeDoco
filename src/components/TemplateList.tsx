@@ -261,6 +261,7 @@ export const TemplateList: React.FC = () => {
       <Modal
         onClose={handleCloseModal}
         isDirty={isDirty}
+        label={editingTemplate ? 'Edit template' : 'New template'}
       >
         <div className="bg-white dark:bg-graphite rounded-panel shadow-xl w-full max-w-md mx-4 max-h-[90vh] flex flex-col pointer-events-auto border border-graphite/20 dark:border-white/20">
           <div className="flex justify-between items-center p-4 border-b border-graphite/20 dark:border-white/20">
@@ -286,8 +287,9 @@ export const TemplateList: React.FC = () => {
             />
           </div>
           <div>
-            <label className="block text-sm font-medium text-graphite dark:text-stone mb-1">Timecode</label>
+            <label htmlFor="template-timecode" className="block text-sm font-medium text-graphite dark:text-stone mb-1">Timecode</label>
             <TimecodeSelector
+              inputId="template-timecode"
               selectedId={timecodeId}
               onSelect={setTimecodeId}
             />

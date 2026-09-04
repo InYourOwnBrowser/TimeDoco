@@ -141,8 +141,8 @@ export const ActiveTimer: React.FC<{ activeEntry: Entry | null }> = ({ activeEnt
           </div>
 
           <div className="w-full relative z-20">
-            <label className="block text-xs font-semibold uppercase tracking-wider text-gray-500 dark:text-gray-400 mb-2 text-center">What are you working on?</label>
-            <TimecodeSelector onSelect={setSelectedTimecodeId} selectedId={selectedTimecodeId} />
+            <label htmlFor="tracker-timecode" className="block text-xs font-semibold uppercase tracking-wider text-gray-500 dark:text-gray-400 mb-2 text-center">What are you working on?</label>
+            <TimecodeSelector inputId="tracker-timecode" onSelect={setSelectedTimecodeId} selectedId={selectedTimecodeId} />
           </div>
 
           <div className="w-full space-y-2">

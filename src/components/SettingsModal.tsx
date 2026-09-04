@@ -813,7 +813,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ onClose }) => {
   };
 
   return (
-    <Modal onClose={onClose}>
+    <Modal onClose={onClose} label="Settings and data management">
       <div className="bg-white dark:bg-graphite rounded-panel shadow-xl border border-graphite/20 dark:border-white/20 w-full max-w-md max-h-[90vh] overflow-hidden flex flex-col">
         <div className="px-6 py-4 border-b border-graphite/20 dark:border-white/20 flex justify-between items-center bg-white dark:bg-graphite">
           <div className="flex items-center gap-3">
@@ -825,21 +825,27 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ onClose }) => {
           </button>
         </div>
 
-        <div className="flex border-b border-graphite/20 dark:border-white/20 shrink-0 bg-white dark:bg-graphite">
+        <div className="flex border-b border-graphite/20 dark:border-white/20 shrink-0 bg-white dark:bg-graphite" role="tablist">
           <button
             onClick={() => setActiveTab('general')}
+            role="tab"
+            aria-selected={activeTab === 'general'}
             className={`flex-1 py-2 text-sm font-medium text-center transition-colors focus-visible:ring-2 focus-visible:ring-signal focus-visible:ring-offset-2 ring-offset-stone dark:ring-offset-graphite ${activeTab === 'general' ? 'border-b-2 border-signal text-signal-dim dark:text-signal font-semibold' : 'border-b-2 border-transparent text-gray-600 dark:text-gray-400 hover:text-graphite dark:hover:text-stone'}`}
           >
             General
           </button>
           <button
             onClick={() => setActiveTab('data')}
+            role="tab"
+            aria-selected={activeTab === 'data'}
             className={`flex-1 py-2 text-sm font-medium text-center transition-colors focus-visible:ring-2 focus-visible:ring-signal focus-visible:ring-offset-2 ring-offset-stone dark:ring-offset-graphite ${activeTab === 'data' ? 'border-b-2 border-signal text-signal-dim dark:text-signal font-semibold' : 'border-b-2 border-transparent text-gray-600 dark:text-gray-400 hover:text-graphite dark:hover:text-stone'}`}
           >
             Data
           </button>
           <button
             onClick={() => setActiveTab('trash')}
+            role="tab"
+            aria-selected={activeTab === 'trash'}
             className={`flex-1 py-2 text-sm font-medium text-center transition-colors focus-visible:ring-2 focus-visible:ring-signal focus-visible:ring-offset-2 ring-offset-stone dark:ring-offset-graphite ${activeTab === 'trash' ? 'border-b-2 border-signal text-signal-dim dark:text-signal font-semibold' : 'border-b-2 border-transparent text-gray-600 dark:text-gray-400 hover:text-graphite dark:hover:text-stone'}`}
           >
             Trash
