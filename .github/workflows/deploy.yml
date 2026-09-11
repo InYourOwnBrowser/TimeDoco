@@ -1,5 +1,10 @@
 name: Deploy
 
+# A push runs `verify` only. Deployment is deliberately manual — the `deploy`
+# job is gated on `workflow_dispatch` *and* on the ref it was dispatched from —
+# so landing on main or staging checks the code without shipping it. Removing
+# the push trigger would leave both branches unverified, which is worse than the
+# asymmetry.
 on:
   push:
     branches: [main, staging]
@@ -14,6 +19,19 @@ on:
           - preview
           - production
 
+# Read-only by default, so a compromised dependency in a build step cannot push
+# commits or move tags. The one job that needs more asks for it.
+permissions:
+  contents: read
+
+# Supersede an in-flight verification when a newer commit lands on the same
+# branch. The event name is part of the group so a push can never cancel a
+# manual deploy that is part-way through publishing, and one deploy never
+# cancels another.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event_name }}-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name != 'workflow_dispatch' }}
+
 jobs:
   verify:
     runs-on: ubuntu-latest
@@ -25,28 +43,152 @@ jobs:
           cache: 'npm'
       - run: npm ci
       - name: License compliance check
-        run: npx license-checker --production --failOn "GPL;AGPL;LGPL;SSPL;CC-BY-NC"
+        # Pinned: an unpinned `npx` fetches whatever is latest at run time, so a
+        # gate on what may ship into the bundle could change without a commit.
+        run: npx --yes license-checker@25.0.1 --production --failOn "GPL;AGPL;LGPL;SSPL;CC-BY-NC"
       - name: Dependency vulnerability check
-        run: npm audit --omit=dev --audit-level=high
+        # `npm audit` exits 1 for two unrelated reasons: it found advisories, or
+        # it could not reach the advisory service at all. Gating on the exit code
+        # alone conflates them, and an npm outage — `503 ... /-/npm/v1/security/
+        # audits/quick`, which is a separate service from the package registry
+        # `npm ci` just used successfully — failed the build and blocked a deploy
+        # over nothing to do with this repository.
+        #
+        # The two are told apart by the report: a completed audit always carries
+        # `metadata.vulnerabilities`, whatever it found, and a service failure
+        # never does — it returns `{ message, error }` instead. So a real
+        # advisory still fails the build exactly as before, and an audit that
+        # could not run is retried and then, if the service is still down,
+        # reported as a warning rather than treated as a clean bill of health.
+        #
+        # Set BLOCK_ON_AUDIT_OUTAGE to 'true' to make an unreachable service fail
+        # the build instead — strictly fail-closed, at the cost of releases
+        # depending on npm's uptime.
+        env:
+          BLOCK_ON_AUDIT_OUTAGE: 'false'
+        run: |
+          # Actions runs this as `bash -e {0}`, so a non-zero exit anywhere
+          # aborts the step immediately. This whole gate is built on *reading*
+          # npm's exit code rather than dying on it, so errexit has to go —
+          # `set -uo pipefail` alone does not clear it, and with it left on the
+          # shell died at the first `npm audit` and every branch below was
+          # unreachable: no retry, no warning, no listing, just exit 1. That is
+          # the shape of the original bug, reintroduced by the shell rather than
+          # by the logic, and it is why the local test now runs under `bash -e`.
+          set +e
+          set -uo pipefail
+          report="$RUNNER_TEMP/audit.json"
+          errors="$RUNNER_TEMP/audit.err"
+          attempt=1
+          max_attempts=5
+          delay=10
+
+          # True only when the audit actually completed, whatever it found.
+          completed() {
+            node -e 'const r=require(process.argv[1]); process.exit(r && r.metadata && r.metadata.vulnerabilities ? 0 : 1)' "$report" 2>/dev/null
+          }
+
+          while : ; do
+            npm audit --omit=dev --audit-level=high --json > "$report" 2> "$errors"
+            status=$?
+
+            if completed; then
+              if [ "$status" -eq 0 ]; then
+                echo "No high or critical advisories in production dependencies."
+                exit 0
+              fi
+              echo "::error::High or critical advisories in production dependencies."
+              node -e '
+                const r = require(process.argv[1]);
+                const counts = r.metadata.vulnerabilities;
+                console.log(`high: ${counts.high}  critical: ${counts.critical}`);
+                for (const [name, v] of Object.entries(r.vulnerabilities || {})) {
+                  if (v.severity === "high" || v.severity === "critical") {
+                    console.log(`  ${v.severity.padEnd(8)} ${name}  (via ${(v.effects || []).join(", ") || "direct"})`);
+                  }
+                }
+              ' "$report"
+              exit 1
+            fi
+
+            if [ "$attempt" -ge "$max_attempts" ]; then
+              echo "--- last error from npm ---"
+              cat "$errors"
+              note="npm's advisory service was unreachable after $max_attempts attempts, so production dependencies were NOT audited for this build."
+              if [ "$BLOCK_ON_AUDIT_OUTAGE" = "true" ]; then
+                echo "::error::$note"
+                exit 1
+              fi
+              echo "::warning::$note"
+              echo "⚠️ $note" >> "$GITHUB_STEP_SUMMARY"
+              exit 0
+            fi
+
+            echo "Advisory service did not answer (attempt $attempt/$max_attempts); retrying in ${delay}s."
+            sleep "$delay"
+            delay=$(( delay * 2 ))
+            attempt=$(( attempt + 1 ))
+          done
+      - name: Typecheck
+        run: npm run typecheck
       - name: Lint
         run: npm run lint
       - name: Test
         run: npm test
       - name: Build
         run: npm run build
+      - name: Install Playwright browser
+        run: npx playwright install --with-deps chromium
+      - name: End-to-end tests
+        # Drives the `dist/` the step above produced. These are the checks that
+        # only exist in sequence — a deploy landing on an open tab, above all —
+        # and no unit test can stand in for them.
+        run: npx playwright test
+      - name: Upload the verified bundle
+        # The exact bundle every check above ran against. `deploy` publishes
+        # this rather than building again: two builds from one commit are two
+        # artifacts, and only one of them was ever tested.
+        uses: actions/upload-artifact@v4
+        with:
+          name: verified-dist
+          path: dist
+          retention-days: 1
+          if-no-files-found: error
 
   deploy:
     needs: verify
-    if: github.event_name == 'workflow_dispatch'
+    # `workflow_dispatch` can be fired from *any* ref, so the event name alone
+    # is not a gate: without the ref test below, anyone with write access could
+    # push a branch and ship it straight to production, and `verify` would go
+    # green against that same branch and vouch for it. Production ships from
+    # `main` only; a preview from `main` or `staging` — the two branches the
+    # push trigger already verifies.
+    if: >-
+      github.event_name == 'workflow_dispatch' &&
+      (
+        (inputs.target == 'production' && github.ref == 'refs/heads/main') ||
+        (inputs.target == 'preview' &&
+          (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/staging'))
+      )
+    # Names the environment the publish belongs to so branch policy and required
+    # reviewers can be attached to it. NOTE: this is inert until those rules are
+    # configured in the repository's Settings -> Environments; the `if:` above is
+    # what actually enforces the branch today.
+    environment: ${{ inputs.target == 'production' && 'production' || 'preview' }}
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      # wrangler-action records a GitHub deployment for the published site.
+      deployments: write
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - name: Download the verified bundle
+        # No checkout, no reinstall, no rebuild: publishing anything other than
+        # the artifact `verify` tested would make the checks vouch for a bundle
+        # that is not the one going out.
+        uses: actions/download-artifact@v4
         with:
-          node-version: 20
-          cache: 'npm'
-      - run: npm ci
-      - run: npm run build
+          name: verified-dist
+          path: dist
       - name: Deploy to Cloudflare Pages
         uses: cloudflare/wrangler-action@v3
         with:

@@ -11,7 +11,7 @@ interface IOSInstallModalProps {
 // user through the manual Share -> "Add to Home Screen" flow instead.
 export const IOSInstallModal: React.FC<IOSInstallModalProps> = ({ onClose }) => {
   return (
-    <Modal onClose={onClose}>
+    <Modal onClose={onClose} label="Install TimeDoco">
       <div className="bg-white dark:bg-graphite rounded-panel shadow-xl w-full max-w-sm overflow-hidden flex flex-col border border-graphite/20 dark:border-white/20">
         <div className="flex justify-between items-center p-4 border-b border-graphite/20 dark:border-white/20">
           <h2 className="text-lg font-semibold text-graphite dark:text-stone">Install TimeDoco</h2>

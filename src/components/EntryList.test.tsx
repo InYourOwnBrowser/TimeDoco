@@ -12,7 +12,8 @@ vi.mock('react-virtuoso', () => ({
           const groupHeader = groupContent(groupIndex);
           const items = [];
           for (let i = 0; i < count; i++) {
-            items.push(itemContent(globalIndex, groupIndex));
+            const itemKey = globalIndex;
+            items.push(<div key={itemKey}>{itemContent(globalIndex, groupIndex)}</div>);
             globalIndex++;
           }
           return (
@@ -99,7 +100,9 @@ describe('EntryList Date Headers & Row Striping', () => {
     cleanup();
     vi.clearAllMocks();
     vi.useFakeTimers();
-    vi.setSystemTime(new Date('2025-01-05T12:00:00Z'));
+    // Local, not UTC: 'Today' is a claim about the viewer's calendar, so a
+    // fixture pinned to a UTC instant only holds in a UTC-ish timezone.
+    vi.setSystemTime(new Date(2025, 0, 5, 12, 0, 0));
     mockEntries = [];
   });
 
@@ -113,8 +116,8 @@ describe('EntryList Date Headers & Row Striping', () => {
       {
         id: 'e1',
         timecodeId: 'tc1',
-        startTime: '2025-01-05T09:00:00Z',
-        endTime: '2025-01-05T10:00:00Z',
+        startTime: new Date(2025, 0, 5, 9, 0, 0).toISOString(),
+        endTime: new Date(2025, 0, 5, 10, 0, 0).toISOString(),
         duration: 3600,
         note: 'Header check entry',
         tags: [],
@@ -122,8 +125,8 @@ describe('EntryList Date Headers & Row Striping', () => {
         isPaused: false,
         pausedSegments: [],
         editHistory: [],
-        createdAt: '2025-01-05T09:00:00Z',
-        updatedAt: '2025-01-05T10:00:00Z',
+        createdAt: new Date(2025, 0, 5, 9, 0, 0).toISOString(),
+        updatedAt: new Date(2025, 0, 5, 10, 0, 0).toISOString(),
       },
     ];
 
@@ -139,8 +142,8 @@ describe('EntryList Date Headers & Row Striping', () => {
       {
         id: 'e1',
         timecodeId: 'tc1',
-        startTime: '2025-01-05T09:00:00Z',
-        endTime: '2025-01-05T10:00:00Z',
+        startTime: new Date(2025, 0, 5, 9, 0, 0).toISOString(),
+        endTime: new Date(2025, 0, 5, 10, 0, 0).toISOString(),
         duration: 3600,
         note: 'First item (even index 0)',
         tags: [],
@@ -148,8 +151,8 @@ describe('EntryList Date Headers & Row Striping', () => {
         isPaused: false,
         pausedSegments: [],
         editHistory: [],
-        createdAt: '2025-01-05T09:00:00Z',
-        updatedAt: '2025-01-05T10:00:00Z',
+        createdAt: new Date(2025, 0, 5, 9, 0, 0).toISOString(),
+        updatedAt: new Date(2025, 0, 5, 10, 0, 0).toISOString(),
       },
       {
         id: 'e2',
@@ -199,8 +202,8 @@ describe('EntryList Date Headers & Row Striping', () => {
       {
         id: 'e1',
         timecodeId: 'tc1',
-        startTime: '2025-01-05T09:00:00Z',
-        endTime: '2025-01-05T10:00:00Z',
+        startTime: new Date(2025, 0, 5, 9, 0, 0).toISOString(),
+        endTime: new Date(2025, 0, 5, 10, 0, 0).toISOString(),
         duration: 3600,
         note: 'Design Task',
         tags: [],
@@ -208,8 +211,8 @@ describe('EntryList Date Headers & Row Striping', () => {
         isPaused: false,
         pausedSegments: [],
         editHistory: [],
-        createdAt: '2025-01-05T09:00:00Z',
-        updatedAt: '2025-01-05T10:00:00Z',
+        createdAt: new Date(2025, 0, 5, 9, 0, 0).toISOString(),
+        updatedAt: new Date(2025, 0, 5, 10, 0, 0).toISOString(),
       },
       {
         id: 'e2',

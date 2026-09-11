@@ -2,8 +2,25 @@ import React, { useState, useEffect } from 'react';
 import { Modal } from './Modal';
 import { X, Download } from 'lucide-react';
 
+/** Windows refuses these as filenames whatever the extension. */
+const RESERVED_NAMES = /^(con|prn|aux|nul|com[1-9]|lpt[1-9])$/i;
+
 export const sanitizeFilename = (name: string): string => {
-  return name.replace(/[/\\:*?"<>|]/g, '').trim();
+  const stripped = name
+    .replace(/[/\\:*?"<>|]/g, '')
+    // Control characters are legal in some filesystems and confusing in all.
+    // eslint-disable-next-line no-control-regex
+    .replace(/[\x00-\x1f]/g, '')
+    // Leading dots hide the file on Unix; runs of dots read as a path segment
+    // even with the separators above already gone.
+    .replace(/^\.+/, '')
+    .replace(/\.{2,}/g, '.')
+    .trim()
+    // Windows silently drops a trailing dot or space, so two names that differ
+    // only there collide.
+    .replace(/[. ]+$/, '');
+
+  return RESERVED_NAMES.test(stripped) ? `${stripped}-file` : stripped;
 };
 
 export interface SaveAsModalProps {
@@ -46,7 +63,7 @@ export const SaveAsModal: React.FC<SaveAsModalProps> = ({
   const cleanExtension = extension.startsWith('.') ? extension.slice(1) : extension;
 
   return (
-    <Modal onClose={onCancel}>
+    <Modal onClose={onCancel} label="Save file as">
       <div className="bg-white dark:bg-graphite rounded-panel shadow-xl w-full max-w-md overflow-hidden flex flex-col border border-graphite/20 dark:border-white/20">
         <div className="flex justify-between items-center p-4 border-b border-graphite/20 dark:border-white/20">
           <div className="flex items-center gap-2">

@@ -9,6 +9,17 @@ export const IdleDetector: React.FC = () => {
 
   const lastActivityTimeRef = useRef<number>(Date.now());
 
+  /**
+   * When the idle period began, captured at the moment the prompt was raised.
+   *
+   * The activity listeners stay attached while the prompt is on screen, so by
+   * the time the user has moved the mouse over to "No, pause timers" the last
+   * activity time is ~now. Reading it there put the retroactive pause at the
+   * moment of the click and billed the whole idle period — the exact thing the
+   * feature exists to remove.
+   */
+  const idleStartedAtRef = useRef<number | null>(null);
+
   // Record activity
   const handleActivity = useCallback(() => {
     lastActivityTimeRef.current = Date.now();
@@ -56,6 +67,9 @@ export const IdleDetector: React.FC = () => {
         const now = Date.now();
         const idleMs = now - lastActivityTimeRef.current;
         if (idleMs >= thresholdMinutes * 60 * 1000) {
+          // Freeze the idle-start instant here, before the prompt goes up and
+          // the user's move towards it counts as activity.
+          idleStartedAtRef.current = lastActivityTimeRef.current;
           setShowPrompt(true);
         }
       }, 5000);
@@ -71,13 +85,16 @@ export const IdleDetector: React.FC = () => {
 
   const handleKeepRunning = () => {
     setShowPrompt(false);
+    idleStartedAtRef.current = null;
     handleActivity();
   };
 
   const handleStopWorking = async () => {
     setShowPrompt(false);
 
-    const idleStartTime = new Date(lastActivityTimeRef.current);
+    // The instant the idle period started, not the instant this was clicked.
+    const idleStartTime = new Date(idleStartedAtRef.current ?? lastActivityTimeRef.current);
+    idleStartedAtRef.current = null;
 
     for (const entry of activeEntries) {
       if (!entry.isPaused) {
@@ -97,7 +114,7 @@ export const IdleDetector: React.FC = () => {
   if (!showPrompt) return null;
 
   return (
-    <Modal onClose={handleKeepRunning}>
+    <Modal onClose={handleKeepRunning} label="Still working?">
       <div className="bg-white dark:bg-graphite rounded-panel shadow-xl border border-graphite/20 dark:border-white/20 max-w-md w-full p-6 animate-in fade-in zoom-in-95 duration-200">
         <h2 className="text-xl font-semibold text-graphite dark:text-stone mb-2">Still working?</h2>
         <p className="text-gray-600 dark:text-gray-400 mb-6">

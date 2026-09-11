@@ -13,15 +13,18 @@ import {
   X,
   Trash2,
   Merge,
-  MoreVertical,
 } from 'lucide-react';
 import type { Group, Timecode } from '../types';
 import { HelpTooltip } from './ui/HelpTooltip';
+import { ActionMenu } from './ui/ActionMenu';
+import { describeUserFacingError } from '../utils/errorMessage';
 
 export const GroupingManagement: React.FC = () => {
   const {
     groups,
     timecodes,
+    deletedGroups,
+    deletedTimecodes,
     entries,
     addGroup,
     updateGroup,
@@ -35,6 +38,30 @@ export const GroupingManagement: React.FC = () => {
 
   const currencySymbol = settings?.currencySymbol || '$';
   const { addToast } = useToast();
+
+  /**
+   * A name is taken if anything already carries it — including a record in the
+   * trash.
+   *
+   * CSV import resolves each row's timecode against live and trashed records
+   * alike, so a name that exists in both places makes every row naming it
+   * ambiguous and stops the whole import (see SettingsModal). Restoring a
+   * trashed timecode into a name that has since been reused produces the same
+   * pair from the other direction. Neither is something the user can see coming
+   * from this screen, so refuse the collision here and say where the other one
+   * is.
+   */
+  const takenBy = <T extends { id: string; name: string; deletedAt?: string }>(
+    candidates: T[],
+    name: string,
+    exceptId?: string,
+  ): T | undefined =>
+    candidates.find(c => c.id !== exceptId && c.name.trim().toLowerCase() === name.trim().toLowerCase());
+
+  const nameClashMessage = (clash: { deletedAt?: string }, kind: 'group' | 'timecode', where = '') =>
+    clash.deletedAt
+      ? `A ${kind} with this name is in the trash${where}. Restore it to use it, or empty the trash to free the name.`
+      : `A ${kind} with this name already exists${where}.`;
 
   // Search filter
   const [searchQuery, setSearchQuery] = useState('');
@@ -111,25 +138,35 @@ export const GroupingManagement: React.FC = () => {
     const trimmedName = editingGroupData.name.trim();
     if (!trimmedName) return;
 
-    if (groups.some((g) => g.id !== id && g.name.toLowerCase() === trimmedName.toLowerCase())) {
-      addToast('A group with this name already exists.', 'error');
+    const groupClash = takenBy([...groups, ...deletedGroups], trimmedName, id);
+    if (groupClash) {
+      addToast(nameClashMessage(groupClash, 'group'), 'error');
       return;
     }
 
-    await updateGroup(id, { name: trimmedName, color: editingGroupData.color });
-    setEditingGroupId(null);
+    if (await updateGroup(id, { name: trimmedName, color: editingGroupData.color })) {
+      setEditingGroupId(null);
+    }
   };
 
   const handleCreateGroup = async () => {
     const trimmedName = newGroupName.trim();
     if (!trimmedName) return;
 
-    if (groups.some((g) => g.name.toLowerCase() === trimmedName.toLowerCase())) {
-      addToast('A group with this name already exists.', 'error');
+    const groupClash = takenBy([...groups, ...deletedGroups], trimmedName);
+    if (groupClash) {
+      addToast(nameClashMessage(groupClash, 'group'), 'error');
       return;
     }
 
-    await addGroup(trimmedName, newGroupColor);
+    // addGroup reports a failed write and rethrows, so the record is never
+    // handed back unstored. Catching here keeps the add form open with what the
+    // user typed instead of clearing it as though the group had been created.
+    try {
+      await addGroup(trimmedName, newGroupColor);
+    } catch {
+      return;
+    }
     setNewGroupName('');
     setNewGroupColor('#3E7368');
     setIsAddingGroup(false);
@@ -154,26 +191,29 @@ export const GroupingManagement: React.FC = () => {
 
     const targetGroupId = editingTimecodeData.groupId || null;
 
-    if (
-      timecodes.some(
-        (t) =>
-          t.id !== id &&
-          t.name.toLowerCase() === trimmedName.toLowerCase() &&
-          (t.groupId || null) === targetGroupId
-      )
-    ) {
-      addToast('A timecode with this name already exists in the selected group.', 'error');
+    const timecodeClash = takenBy(
+      [...timecodes, ...deletedTimecodes].filter((t) => (t.groupId || null) === targetGroupId),
+      trimmedName,
+      id,
+    );
+    if (timecodeClash) {
+      addToast(nameClashMessage(timecodeClash, 'timecode', ' in the selected group'), 'error');
       return;
     }
 
     const parsedRate = parseFloat(editingTimecodeData.hourlyRate);
-    await updateTimecode(id, {
+    if (await updateTimecode(id, {
       name: trimmedName,
       color: editingTimecodeData.color || undefined,
       groupId: targetGroupId,
-      hourlyRate: isNaN(parsedRate) || parsedRate <= 0 ? null : parsedRate,
-    });
-    setEditingTimecodeId(null);
+      // `Number.isFinite` rather than `isNaN`: "1e999" parses to Infinity, which
+      // is not NaN and is not <= 0, so it was stored as a rate — and then every
+      // amount computed from it came out of `roundCurrency` as a silent 0. The
+      // backup importer has always applied this rule; the editor had not.
+      hourlyRate: Number.isFinite(parsedRate) && parsedRate > 0 ? parsedRate : null,
+    })) {
+      setEditingTimecodeId(null);
+    }
   };
 
   const handleStartAddingTimecode = (groupId: string | null) => {
@@ -190,24 +230,28 @@ export const GroupingManagement: React.FC = () => {
     const trimmedName = newTimecodeName.trim();
     if (!trimmedName) return;
 
-    if (
-      timecodes.some(
-        (t) =>
-          t.name.toLowerCase() === trimmedName.toLowerCase() &&
-          (t.groupId || null) === (groupId || null)
-      )
-    ) {
-      addToast('A timecode with this name already exists in the selected group.', 'error');
+    const timecodeClash = takenBy(
+      [...timecodes, ...deletedTimecodes].filter((t) => (t.groupId || null) === (groupId || null)),
+      trimmedName,
+    );
+    if (timecodeClash) {
+      addToast(nameClashMessage(timecodeClash, 'timecode', ' in the selected group'), 'error');
       return;
     }
 
     const parsedRate = parseFloat(newTimecodeRate);
-    await addTimecode(
-      trimmedName,
-      newTimecodeColor,
-      groupId || undefined,
-      isNaN(parsedRate) || parsedRate <= 0 ? undefined : parsedRate
-    );
+    // As with handleCreateGroup: a failed write is already reported, and the
+    // form keeps what was typed rather than resetting as though it had saved.
+    try {
+      await addTimecode(
+        trimmedName,
+        newTimecodeColor,
+        groupId || undefined,
+        isNaN(parsedRate) || parsedRate <= 0 ? undefined : parsedRate
+      );
+    } catch {
+      return;
+    }
     setNewTimecodeName('');
     setNewTimecodeRate('');
     setAddingTimecodeGroupId(null);
@@ -215,14 +259,42 @@ export const GroupingManagement: React.FC = () => {
 
   const handleMergeSave = async (sourceId: string) => {
     if (!mergeDestId || mergeDestId === sourceId) return;
-    if (
-      window.confirm(
-        'Are you sure you want to merge these timecodes? All entries from the source will be moved to the destination, and the source timecode will be deleted. This cannot be undone.'
-      )
-    ) {
-      await mergeTimecodes(sourceId, mergeDestId);
-      setMergingTimecodeId(null);
-      setMergeDestId('');
+
+    const sourceTc = timecodes.find((t) => t.id === sourceId);
+    const destTc = timecodes.find((t) => t.id === mergeDestId);
+    const sourceRate = sourceTc?.hourlyRate ?? null;
+    const destRate = destTc?.hourlyRate ?? null;
+
+    const ratesDiffer = (sourceRate ?? 0) !== (destRate ?? 0);
+    const movedEntriesCount = entries.filter((e) => e.timecodeId === sourceId && !e.deletedAt).length;
+
+    const sourceRateStr = `${currencySymbol}${(sourceRate ?? 0).toFixed(2)}/hr`;
+    const destRateStr = `${currencySymbol}${(destRate ?? 0).toFixed(2)}/hr`;
+    const rateNotice = ratesDiffer
+      ? `${movedEntriesCount} ${movedEntriesCount === 1 ? 'entry' : 'entries'} currently billed at ${sourceRateStr} will move to a timecode billed at ${destRateStr}. `
+      : '';
+
+    const confirmMsg = `Are you sure you want to merge these timecodes? All entries from the source will be moved to the destination. ${rateNotice}The source timecode moves to the trash; restoring it will not bring the entries back.`;
+
+    if (window.confirm(confirmMsg)) {
+      // mergeTimecodes rejects a merge that would leave two running timers or
+      // produce overlapping entries. Unhandled, that reached the user as an
+      // unhandled rejection and a panel stuck open, with nothing to say whether
+      // the merge had happened. Its messages are already written for the user.
+      try {
+        const ok = await mergeTimecodes(sourceId, mergeDestId);
+        if (ok) {
+          addToast('Timecodes merged.', 'success');
+        }
+      } catch (error) {
+        // Was `error.message` raw for any Error, so a TypeError thrown under
+        // `mergeTimecodes` reached the user verbatim. Its refusals are plain
+        // Errors written for the user and still come through unchanged.
+        addToast(describeUserFacingError(error, 'merge these timecodes'), 'error');
+      } finally {
+        setMergingTimecodeId(null);
+        setMergeDestId('');
+      }
     }
   };
 
@@ -420,7 +492,7 @@ export const GroupingManagement: React.FC = () => {
                     <Edit2 size={16} />
                   </button>
                   <button
-                    onClick={() => updateGroup(group.id, { archived: true })}
+                    onClick={async () => await updateGroup(group.id, { archived: true })}
                     className="p-2 text-gray-600 dark:text-gray-400 hover:text-signal-dim dark:hover:text-signal hover:bg-signal/10 rounded-md transition-colors"
                     title="Archive Group"
                     aria-label="Archive Group"
@@ -428,13 +500,13 @@ export const GroupingManagement: React.FC = () => {
                     <Archive size={16} />
                   </button>
                   <button
-                    onClick={() => {
+                    onClick={async () => {
                       if (
                         window.confirm(
                           `Delete "${group.name}" and all its timecodes/entries? This can be undone from the toast or Trash.`
                         )
                       ) {
-                        deleteGroup(group.id);
+                        await deleteGroup(group.id);
                       }
                     }}
                     className="p-2 text-gray-600 dark:text-gray-400 hover:text-rust dark:hover:text-rust hover:bg-rust/10 rounded-md transition-colors"
@@ -446,49 +518,45 @@ export const GroupingManagement: React.FC = () => {
                 </div>
 
                 {/* Group Action Menu (Mobile Overflow) */}
-                <div className="sm:hidden relative shrink-0">
-                  <button
-                    onClick={() => setMobileMenuId(mobileMenuId === group.id ? null : group.id)}
-                    className="p-2 text-gray-600 dark:text-gray-400 hover:bg-stone dark:hover:bg-graphite/80 rounded-md transition-colors"
-                    aria-label="Group Actions Menu"
-                  >
-                    <MoreVertical size={18} />
-                  </button>
-                  {mobileMenuId === group.id && (
-                    <div className="absolute right-0 top-full mt-1 z-20 w-36 bg-white dark:bg-graphite border border-graphite/20 dark:border-white/20 rounded-md shadow-lg p-1 flex flex-col gap-0.5 text-xs">
+                <ActionMenu
+                  label="Group Actions Menu"
+                  open={mobileMenuId === group.id}
+                  onOpenChange={(next) => setMobileMenuId(next ? group.id : null)}
+                  wrapperClassName="sm:hidden relative shrink-0"
+                  buttonClassName="p-2 text-gray-600 dark:text-gray-400 hover:bg-stone dark:hover:bg-graphite/80 rounded-md transition-colors"
+                >
                       <button
+                        role="menuitem"
                         onClick={() => handleEditGroupStart(group)}
                         className="w-full text-left px-2 py-1.5 text-graphite dark:text-stone hover:bg-stone/50 dark:hover:bg-ink/50 rounded flex items-center gap-2"
                       >
                         <Edit2 size={14} /> Edit
                       </button>
                       <button
-                        onClick={() => {
-                          updateGroup(group.id, { archived: true });
-                          setMobileMenuId(null);
+                        role="menuitem"
+                        onClick={async () => {
+                          await updateGroup(group.id, { archived: true });
                         }}
                         className="w-full text-left px-2 py-1.5 text-graphite dark:text-stone hover:bg-stone/50 dark:hover:bg-ink/50 rounded flex items-center gap-2"
                       >
                         <Archive size={14} /> Archive
                       </button>
                       <button
-                        onClick={() => {
-                          setMobileMenuId(null);
+                        role="menuitem"
+                        onClick={async () => {
                           if (
                             window.confirm(
                               `Delete "${group.name}" and all its timecodes/entries? This can be undone from the toast or Trash.`
                             )
                           ) {
-                            deleteGroup(group.id);
+                            await deleteGroup(group.id);
                           }
                         }}
                         className="w-full text-left px-2 py-1.5 text-rust dark:text-rust hover:bg-rust/10 rounded flex items-center gap-2"
                       >
                         <Trash2 size={14} /> Delete
                       </button>
-                    </div>
-                  )}
-                </div>
+                </ActionMenu>
               </div>
 
               {/* Group Edit Panel */}
@@ -764,7 +832,7 @@ export const GroupingManagement: React.FC = () => {
 
                     <div className="flex items-center gap-1">
                       <button
-                        onClick={() => updateGroup(group.id, { archived: false })}
+                        onClick={async () => await updateGroup(group.id, { archived: false })}
                         className="p-2 text-verdigris dark:text-emerald-400 hover:bg-verdigris/10 rounded-md transition-colors"
                         title="Restore Group"
                         aria-label="Restore Group"
@@ -772,13 +840,13 @@ export const GroupingManagement: React.FC = () => {
                         <ArchiveRestore size={16} />
                       </button>
                       <button
-                        onClick={() => {
+                        onClick={async () => {
                           if (
                             window.confirm(
                               `Delete "${group.name}" and all its timecodes/entries? This can be undone from the toast or Trash.`
                             )
                           ) {
-                            deleteGroup(group.id);
+                            await deleteGroup(group.id);
                           }
                         }}
                         className="p-2 text-gray-600 dark:text-gray-400 hover:text-rust dark:hover:text-rust hover:bg-rust/10 rounded-md transition-colors"
@@ -857,8 +925,8 @@ interface RenderTimecodeRowProps {
   mergeDestId: string;
   setMergeDestId: (id: string) => void;
   handleMergeSave: (sourceId: string) => void;
-  updateTimecode: (id: string, updates: Partial<Timecode>) => Promise<void>;
-  deleteTimecode: (id: string) => Promise<void>;
+  updateTimecode: (id: string, updates: Partial<Timecode>) => Promise<boolean>;
+  deleteTimecode: (id: string) => Promise<boolean>;
   mobileMenuId: string | null;
   setMobileMenuId: (id: string | null) => void;
   groups: Group[];
@@ -956,7 +1024,7 @@ function renderTimecodeRow({
                 <Merge size={15} />
               </button>
               <button
-                onClick={() => updateTimecode(tc.id, { archived: !tc.archived })}
+                onClick={async () => await updateTimecode(tc.id, { archived: !tc.archived })}
                 className={`p-1.5 rounded transition-colors ${
                   tc.archived
                     ? 'text-verdigris dark:text-emerald-400 hover:bg-verdigris/10'
@@ -968,11 +1036,11 @@ function renderTimecodeRow({
                 {tc.archived ? <ArchiveRestore size={15} /> : <Archive size={15} />}
               </button>
               <button
-                onClick={() => {
+                onClick={async () => {
                   if (
                     window.confirm(`Delete "${tc.name}" and all its entries? This can be undone from the toast or Trash.`)
                   ) {
-                    deleteTimecode(tc.id);
+                    await deleteTimecode(tc.id);
                   }
                 }}
                 className="p-1.5 text-gray-600 dark:text-gray-400 hover:text-rust dark:hover:text-rust hover:bg-rust/10 rounded transition-colors"
@@ -984,37 +1052,36 @@ function renderTimecodeRow({
             </div>
 
             {/* Mobile Row Actions Menu */}
-            <div className="sm:hidden relative">
-              <button
-                onClick={() => setMobileMenuId(mobileMenuId === tc.id ? null : tc.id)}
-                className="p-1.5 text-gray-600 dark:text-gray-400 hover:bg-stone dark:hover:bg-graphite rounded transition-colors"
-                aria-label="Timecode Actions Menu"
-              >
-                <MoreVertical size={16} />
-              </button>
-              {mobileMenuId === tc.id && (
-                <div className="absolute right-0 top-full mt-1 z-20 w-36 bg-white dark:bg-graphite border border-graphite/20 dark:border-white/20 rounded-md shadow-lg p-1 flex flex-col gap-0.5 text-xs">
+            <ActionMenu
+              label="Timecode Actions Menu"
+              open={mobileMenuId === tc.id}
+              onOpenChange={(next) => setMobileMenuId(next ? tc.id : null)}
+              iconSize={16}
+              wrapperClassName="sm:hidden relative"
+              buttonClassName="p-1.5 text-gray-600 dark:text-gray-400 hover:bg-stone dark:hover:bg-graphite rounded transition-colors"
+            >
                   <button
+                    role="menuitem"
                     onClick={() => handleEditTimecodeStart(tc)}
                     className="w-full text-left px-2 py-1.5 text-graphite dark:text-stone hover:bg-stone/50 dark:hover:bg-ink/50 rounded flex items-center gap-2"
                   >
                     <Edit2 size={14} /> Edit
                   </button>
                   <button
+                    role="menuitem"
                     onClick={() => {
                       setMergingTimecodeId(tc.id);
                       setMergeDestId('');
                       setEditingTimecodeId(null);
-                      setMobileMenuId(null);
                     }}
                     className="w-full text-left px-2 py-1.5 text-graphite dark:text-stone hover:bg-stone/50 dark:hover:bg-ink/50 rounded flex items-center gap-2"
                   >
                     <Merge size={14} /> Merge
                   </button>
                   <button
-                    onClick={() => {
-                      updateTimecode(tc.id, { archived: !tc.archived });
-                      setMobileMenuId(null);
+                    role="menuitem"
+                    onClick={async () => {
+                      await updateTimecode(tc.id, { archived: !tc.archived });
                     }}
                     className="w-full text-left px-2 py-1.5 text-graphite dark:text-stone hover:bg-stone/50 dark:hover:bg-ink/50 rounded flex items-center gap-2"
                   >
@@ -1022,21 +1089,19 @@ function renderTimecodeRow({
                     {tc.archived ? 'Restore' : 'Archive'}
                   </button>
                   <button
-                    onClick={() => {
-                      setMobileMenuId(null);
+                    role="menuitem"
+                    onClick={async () => {
                       if (
                         window.confirm(`Delete "${tc.name}" and all its entries? This can be undone from the toast or Trash.`)
                       ) {
-                        deleteTimecode(tc.id);
+                        await deleteTimecode(tc.id);
                       }
                     }}
                     className="w-full text-left px-2 py-1.5 text-rust dark:text-rust hover:bg-rust/10 rounded flex items-center gap-2"
                   >
                     <Trash2 size={14} /> Delete
                   </button>
-                </div>
-              )}
-            </div>
+            </ActionMenu>
           </div>
         </div>
       )}

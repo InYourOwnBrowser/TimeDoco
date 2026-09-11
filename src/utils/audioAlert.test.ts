@@ -30,6 +30,7 @@ describe('audioAlert utility', () => {
     class MockAudioContext {
       currentTime = 10;
       destination = {};
+      state = 'suspended';
       resume = mockResume;
       createOscillator = mockCreateOscillator;
       createGain = mockCreateGain;
@@ -48,8 +49,9 @@ describe('audioAlert utility', () => {
     expect(mockResume).toHaveBeenCalledTimes(1);
   });
 
-  it('playOverrunChime creates oscillator and gain nodes for chime beeps', () => {
+  it('playOverrunChime creates oscillator and gain nodes for chime beeps and resumes suspended context', () => {
     playOverrunChime();
+    expect(mockResume).toHaveBeenCalled();
     expect(mockCreateOscillator).toHaveBeenCalledTimes(6);
     expect(mockCreateGain).toHaveBeenCalledTimes(6);
     expect(mockOscillator.start).toHaveBeenCalledTimes(6);

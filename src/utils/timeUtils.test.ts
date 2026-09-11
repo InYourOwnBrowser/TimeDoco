@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { checkOverlap, calculateDuration, applyRounding, calculateTaxBreakdown, calculateTotalPausedSeconds, formatDurationShort, getElapsedTimeMs } from './timeUtils';
+import { checkOverlap, findFreeSlot, calculateDuration, applyRounding, calculateTaxBreakdown, calculateTotalPausedSeconds, formatDurationShort, getElapsedTimeMs, findOverlappingCandidates, calendarDayKey, calendarDayBounds, workedIntervals, roundCurrency, formatSignedAmount } from './timeUtils';
 import type { Entry, PauseSegment } from '../types';
 
 describe('timeUtils', () => {
@@ -80,6 +80,116 @@ describe('timeUtils', () => {
     });
   });
 
+  describe('findFreeSlot', () => {
+    const day = new Date(2025, 0, 8); // Wednesday Jan 8 2025
+    const createEntry = (id: string, startH: number, startM: number, endH: number, endM: number, timecodeId = 'tc1'): Entry => {
+      const startTime = new Date(2025, 0, 8, startH, startM, 0).toISOString();
+      const endTime = new Date(2025, 0, 8, endH, endM, 0).toISOString();
+      return {
+        id, timecodeId, startTime, endTime,
+        duration: ((endH * 60 + endM) - (startH * 60 + startM)) * 60,
+        note: '', isRunning: false, isPaused: false,
+        pausedSegments: [], editHistory: [],
+        createdAt: startTime, updatedAt: startTime,
+      };
+    };
+
+    it('returns 12:00 anchor if no entries overlap noon', () => {
+      const entries = [createEntry('e1', 9, 0, 11, 0)];
+      const slot = findFreeSlot(day, 1800, entries, undefined, 'tc1', false)!;
+      expect(slot.start.getHours()).toBe(12);
+      expect(slot.start.getMinutes()).toBe(0);
+      expect((slot.end.getTime() - slot.start.getTime()) / 1000).toBe(1800);
+    });
+
+    it('finds slot immediately after conflicting entry covering 12:00', () => {
+      const entries = [createEntry('e1', 11, 0, 13, 0)]; // 11:00 to 13:00
+      const slot = findFreeSlot(day, 1800, entries, undefined, 'tc1', false)!;
+      expect(slot.start.getHours()).toBe(13);
+      expect(slot.start.getMinutes()).toBe(0);
+    });
+
+    it('finds slot between two conflicting entries if wide enough', () => {
+      const entries = [
+        createEntry('e1', 11, 0, 13, 0), // 11:00 - 13:00
+        createEntry('e2', 14, 0, 16, 0), // 14:00 - 16:00
+      ];
+      // Looking for 30 min (1800s). Gap 13:00 - 14:00 is free.
+      const slot = findFreeSlot(day, 1800, entries, undefined, 'tc1', false)!;
+      expect(slot.start.getHours()).toBe(13);
+      expect(slot.start.getMinutes()).toBe(0);
+    });
+
+    it('skips tight gaps and lands after the last conflicting entry', () => {
+      const entries = [
+        createEntry('e1', 11, 0, 13, 0), // 11:00 - 13:00
+        createEntry('e2', 13, 0, 13, 15), // 13:00 - 13:15 (only 15m gap)
+      ];
+      // Looking for 30 min (1800s) slot.
+      const slot = findFreeSlot(day, 1800, entries, undefined, 'tc1', false)!;
+      expect(slot.start.getHours()).toBe(13);
+      expect(slot.start.getMinutes()).toBe(15);
+    });
+
+    // A timesheet adjustment belongs to the day whose cell was edited. A slot
+    // that runs past midnight silently moves the time onto the next day, where
+    // it lands in a different rounding bucket and a different week's total.
+    it('never returns a slot that runs past midnight', () => {
+      const slot = findFreeSlot(day, 14 * 3600, [], undefined, 'tc1', false);
+      expect(slot).not.toBeNull();
+      expect(slot!.end.getDate()).toBe(day.getDate());
+      expect(slot!.start.getTime()).toBeGreaterThanOrEqual(day.getTime());
+    });
+
+    it('uses the free morning when nothing after noon is long enough', () => {
+      // Busy 09:00-17:00, so 00:00-09:00 is the only stretch that fits 8 hours.
+      const entries = [createEntry('e1', 9, 0, 17, 0)];
+      const slot = findFreeSlot(day, 8 * 3600, entries, undefined, 'tc1', false);
+      expect(slot).not.toBeNull();
+      expect(slot!.start.getHours()).toBe(0);
+      expect(slot!.end.getHours()).toBe(8);
+    });
+
+    it('can use the last hour of the day', () => {
+      // Busy 09:00-23:00; 23:00 to midnight is exactly the hour requested.
+      const entries = [createEntry('e1', 9, 0, 23, 0)];
+      const slot = findFreeSlot(day, 3600, entries, undefined, 'tc1', false);
+      expect(slot).not.toBeNull();
+      expect(slot!.start.getHours()).toBe(23);
+      expect(slot!.end.getTime()).toBe(new Date(2025, 0, 9).getTime());
+    });
+
+    it('returns null only when the day genuinely has no room', () => {
+      const entries = [createEntry('e1', 0, 0, 23, 30)];
+      expect(findFreeSlot(day, 3600, entries, undefined, 'tc1', false)).toBeNull();
+      // ...but the half hour that is left is still reachable.
+      const slot = findFreeSlot(day, 1800, entries, undefined, 'tc1', false);
+      expect(slot!.start.getHours()).toBe(23);
+      expect(slot!.start.getMinutes()).toBe(30);
+    });
+
+    it('never returns a slot that overlaps an existing entry', () => {
+      const entries = [
+        createEntry('e1', 8, 0, 10, 0),
+        createEntry('e2', 11, 30, 12, 30),
+        createEntry('e3', 15, 0, 21, 0),
+      ];
+      for (const minutes of [15, 30, 45, 60, 90, 120, 180]) {
+        const slot = findFreeSlot(day, minutes * 60, entries, undefined, 'tc1', false);
+        if (!slot) continue;
+        expect(checkOverlap(slot.start, slot.end, entries, undefined, 'tc1', false)).toBe(false);
+        expect(slot.end.getTime() - slot.start.getTime()).toBe(minutes * 60 * 1000);
+      }
+    });
+
+    it('ignores a trashed entry when looking for room', () => {
+      const trashed = { ...createEntry('e1', 0, 0, 23, 59), deletedAt: new Date().toISOString() };
+      const slot = findFreeSlot(day, 3600, [trashed], undefined, 'tc1', false);
+      expect(slot).not.toBeNull();
+      expect(slot!.start.getHours()).toBe(12);
+    });
+  });
+
   describe('applyRounding', () => {
     it('returns original seconds if rounding rule is none', () => {
       expect(applyRounding(100, 'none')).toBe(100);
@@ -108,6 +218,60 @@ describe('timeUtils', () => {
       expect(applyRounding(450, '15min')).toBe(900); // 15 mins
       expect(applyRounding(1349, '15min')).toBe(900);
       expect(applyRounding(1350, '15min')).toBe(1800); // 30 mins
+    });
+  });
+
+  describe('roundCurrency', () => {
+    // `Math.round` breaks ties toward +Infinity, so -2.675 rounded to -2.67
+    // while 2.675 rounded to 2.68, and a credit did not cancel the charge it
+    // reversed — the pair summed to a cent instead of to nothing.
+    it('rounds a half away from zero, so a credit mirrors its charge', () => {
+      expect(roundCurrency(2.675)).toBe(2.68);
+      expect(roundCurrency(-2.675)).toBe(-2.68);
+      expect(roundCurrency(1.005)).toBe(1.01);
+      expect(roundCurrency(-1.005)).toBe(-1.01);
+      expect(roundCurrency(0.005)).toBe(0.01);
+      expect(roundCurrency(-0.005)).toBe(-0.01);
+    });
+
+    it('cancels exactly when a credit reverses a charge', () => {
+      for (const amount of [2.675, 1.005, 0.125, 8.045, 1234.565, 0.005]) {
+        expect(roundCurrency(amount) + roundCurrency(-amount)).toBe(0);
+      }
+    });
+
+    // 593.925 * 100 is 59392.499999999993. `Number.EPSILON` is the gap at 1.0,
+    // far too small to correct that once the value is above about 2, so the old
+    // guard was absorbed and the half fell the wrong way at ordinary invoice
+    // magnitudes rather than only at exotic ones.
+    it('rounds a half up where the scaled value lands just under it', () => {
+      expect(roundCurrency(593.925)).toBe(593.93);
+      expect(roundCurrency(4315.855)).toBe(4315.86);
+      expect(roundCurrency(186.945)).toBe(186.95);
+    });
+
+    it('returns 0, never -0, for a negative that rounds to nothing', () => {
+      expect(roundCurrency(-0.001)).toBe(0);
+      // -0 is numerically equal to 0 but prints as "-0.00".
+      expect(Object.is(roundCurrency(-0.001), -0)).toBe(false);
+    });
+
+    it('returns 0 for a value that is not finite', () => {
+      expect(roundCurrency(Infinity)).toBe(0);
+      expect(roundCurrency(-Infinity)).toBe(0);
+      expect(roundCurrency(NaN)).toBe(0);
+    });
+  });
+
+  describe('formatSignedAmount', () => {
+    it('puts the sign in front of the symbol', () => {
+      expect(formatSignedAmount(-75, '$')).toBe('-$75.00');
+      expect(formatSignedAmount(75, '$')).toBe('$75.00');
+      expect(formatSignedAmount(0, '$')).toBe('$0.00');
+    });
+
+    it('prints no sign for an amount that rounds to nothing', () => {
+      expect(formatSignedAmount(-0.001, '$')).toBe('$0.00');
     });
   });
 
@@ -251,4 +415,351 @@ describe('timeUtils', () => {
       expect(getElapsedTimeMs(startTime, [], endTimeOverride)).toBe(0);
     });
   });
+
+  describe('regression: pause segment merging', () => {
+    const start = new Date('2026-01-01T09:00:00.000Z');
+    const end = new Date('2026-01-01T10:00:00.000Z');
+
+    it('counts a duplicated pause segment once', () => {
+      const pause = { pauseStart: '2026-01-01T09:10:00.000Z', pauseEnd: '2026-01-01T09:50:00.000Z' };
+      const segments = [pause, { ...pause }];
+      expect(calculateDuration(start, end, segments)).toBe(1200);
+      expect(calculateTotalPausedSeconds(start, end, segments)).toBe(2400);
+    });
+
+    it('merges partially overlapping pause segments', () => {
+      const segments = [
+        { pauseStart: '2026-01-01T09:10:00.000Z', pauseEnd: '2026-01-01T09:40:00.000Z' },
+        { pauseStart: '2026-01-01T09:30:00.000Z', pauseEnd: '2026-01-01T09:50:00.000Z' },
+      ];
+      // 09:10-09:50 is 40 minutes of pause, not 30 + 20.
+      expect(calculateTotalPausedSeconds(start, end, segments)).toBe(2400);
+      expect(calculateDuration(start, end, segments)).toBe(1200);
+    });
+
+    it('keeps calculateDuration and getElapsedTimeMs in agreement', () => {
+      // A pause that starts before the entry, as happens after editing a start time later.
+      const segments = [{ pauseStart: '2026-01-01T08:00:00.000Z', pauseEnd: '2026-01-01T09:30:00.000Z' }];
+      const viaDuration = calculateDuration(start, end, segments);
+      const viaElapsed = getElapsedTimeMs(start.toISOString(), segments, end.toISOString()) / 1000;
+      expect(viaDuration).toBe(1800);
+      expect(viaElapsed).toBe(viaDuration);
+    });
+
+    it('skips unparseable pause segments rather than poisoning the maths', () => {
+      const segments = [{ pauseStart: 'not-a-date', pauseEnd: 'also-not-a-date' }] as any;
+      expect(calculateDuration(start, end, segments)).toBe(3600);
+    });
+  });
+
+  describe('regression: formatDurationShort never emits 60 minutes', () => {
+    it('rolls 3599 seconds up to a whole hour', () => expect(formatDurationShort(3599)).toBe('1h'));
+    it('rolls 7199 seconds up to two hours', () => expect(formatDurationShort(7199)).toBe('2h'));
+    it('rolls 86399 seconds up to 24 hours', () => expect(formatDurationShort(86399)).toBe('24h'));
+  });
+
+  describe('regression: checkOverlap safety', () => {
+    const start = new Date('2026-01-01T10:00:00.000Z');
+    const end = new Date('2026-01-01T10:30:00.000Z');
+    const existing = [{
+      id: 'e1', timecodeId: 'tc-A',
+      startTime: '2026-01-01T09:00:00.000Z',
+      endTime: '2026-01-01T11:00:00.000Z',
+    }] as any;
+
+    it('still detects an overlap when no timecode is supplied in concurrent mode', () => {
+      expect(checkOverlap(start, end, existing, undefined, undefined, true)).toBe(true);
+    });
+
+    it('does not let a soft-deleted entry block a new one', () => {
+      const trashed = [{ ...existing[0], deletedAt: '2026-01-01T12:00:00.000Z' }];
+      expect(checkOverlap(start, end, trashed, undefined, 'tc-A', false)).toBe(false);
+    });
+  });
+
+  describe('regression: tax breakdown', () => {
+    it('rounds to whole cents so lines sum to the total', () => {
+      const r = calculateTaxBreakdown(1234.56, 15, false);
+      expect(r.tax).toBe(185.18);
+      expect(r.total).toBe(1419.74);
+      expect(r.subtotal + r.tax).toBe(r.total);
+    });
+
+    it('does not divide by zero on an inclusive rate of -100%', () => {
+      const r = calculateTaxBreakdown(100, -100, true);
+      expect(Number.isFinite(r.subtotal)).toBe(true);
+      expect(Number.isFinite(r.tax)).toBe(true);
+      expect(r.total).toBe(100);
+    });
+  });
+
+  describe('findOverlappingCandidates', () => {
+    const mk = (id: string, startMin: number, endMin: number, timecodeId = 'tc-1'): any => ({
+      id, timecodeId,
+      startTime: new Date(Date.UTC(2026, 0, 1, 0, startMin)).toISOString(),
+      endTime: new Date(Date.UTC(2026, 0, 1, 0, endMin)).toISOString(),
+      pausedSegments: [],
+    });
+
+    it('rejects a candidate overlapping an existing entry', () => {
+      const existing = [mk('x', 60, 120)];
+      const candidates = [mk('c', 90, 150)];
+      expect([...findOverlappingCandidates(candidates, existing)]).toEqual([0]);
+    });
+
+    it('rejects a candidate an existing entry sits inside', () => {
+      // The candidate starts first, so a naive forward sweep would miss it.
+      const existing = [mk('x', 90, 100)];
+      const candidates = [mk('c', 60, 180)];
+      expect([...findOverlappingCandidates(candidates, existing)]).toEqual([0]);
+    });
+
+    it('keeps the earlier of two colliding candidates, as adding them one by one would', () => {
+      const candidates = [mk('a', 0, 60), mk('b', 30, 90)];
+      expect([...findOverlappingCandidates(candidates, [])]).toEqual([1]);
+    });
+
+    it('accepts touching intervals', () => {
+      expect(findOverlappingCandidates([mk('c', 60, 120)], [mk('x', 0, 60)]).size).toBe(0);
+    });
+
+    it('ignores soft-deleted existing entries', () => {
+      const trashed = [{ ...mk('x', 60, 120), deletedAt: '2026-02-01T00:00:00.000Z' }];
+      expect(findOverlappingCandidates([mk('c', 90, 150)], trashed).size).toBe(0);
+    });
+
+    it('only conflicts within a timecode when concurrent timers are allowed', () => {
+      const existing = [mk('x', 60, 120, 'tc-A')];
+      expect(findOverlappingCandidates([mk('c', 90, 150, 'tc-B')], existing, true).size).toBe(0);
+      expect(findOverlappingCandidates([mk('c', 90, 150, 'tc-A')], existing, true).size).toBe(1);
+      expect(findOverlappingCandidates([mk('c', 90, 150, 'tc-B')], existing, false).size).toBe(1);
+    });
+
+    it('agrees with sequential checkOverlap on randomised input', () => {
+      // The sweep exists only for speed, so it must decide exactly what adding
+      // the rows one at a time through checkOverlap would decide.
+      let seed = 12345;
+      const rand = (n: number) => {
+        seed = (seed * 1103515245 + 12345) & 0x7fffffff;
+        return seed % n;
+      };
+
+      for (let trial = 0; trial < 200; trial++) {
+        const codes = ['tc-A', 'tc-B'];
+        const existing = Array.from({ length: rand(5) }, (_, i) => {
+          const start = rand(200);
+          return mk(`x${i}`, start, start + 1 + rand(60), codes[rand(2)]);
+        });
+        const candidates = Array.from({ length: 1 + rand(6) }, (_, i) => {
+          const start = rand(200);
+          return mk(`c${i}`, start, start + 1 + rand(60), codes[rand(2)]);
+        });
+        const concurrent = rand(2) === 1;
+
+        // Reference: add the rows one at a time through checkOverlap, in the
+        // chronological order the sweep resolves them in.
+        const pool = [...existing];
+        const expected = new Set<number>();
+        candidates
+          .map((c, index) => ({ c, index }))
+          .sort((a, b) =>
+            new Date(a.c.startTime).getTime() - new Date(b.c.startTime).getTime() ||
+            new Date(a.c.endTime).getTime() - new Date(b.c.endTime).getTime())
+          .forEach(({ c, index }) => {
+            const clash = checkOverlap(
+              new Date(c.startTime), new Date(c.endTime), pool, undefined, c.timecodeId, concurrent
+            );
+            if (clash) expected.add(index);
+            else pool.push(c);
+          });
+
+        const actual = findOverlappingCandidates(candidates, existing, concurrent);
+        expect([...actual].sort()).toEqual([...expected].sort());
+      }
+    });
+  });
+
+  /**
+   * The calendar-day contract, which every day bucket in the app now shares.
+   *
+   * These run under both timezones the suite is configured for. The identities
+   * hold anywhere; the concrete 23- and 25-hour assertions only mean anything
+   * where there is a transition to observe, so they are gated on one.
+   */
+  describe('calendarDayKey / calendarDayBounds', () => {
+    const HOUR = 3600 * 1000;
+
+    // Auckland moves to NZDT on 27 September 2026 (a 23-hour day) and back on
+    // 5 April 2026 (a 25-hour day).
+    const SHORT_DAY = new Date(2026, 8, 27, 12, 0, 0);
+    const LONG_DAY = new Date(2026, 3, 5, 12, 0, 0);
+    const lengthOf = (d: Date) => {
+      const { start, end } = calendarDayBounds(d);
+      return (end.getTime() - start.getTime()) / HOUR;
+    };
+    const hasTransitions = lengthOf(SHORT_DAY) !== 24 || lengthOf(LONG_DAY) !== 24;
+
+    it('keys a moment by its local calendar date', () => {
+      expect(calendarDayKey(new Date(2026, 0, 5, 0, 0, 0))).toBe('2026-01-05');
+      expect(calendarDayKey(new Date(2026, 0, 5, 23, 59, 59))).toBe('2026-01-05');
+      expect(calendarDayKey(new Date(2026, 11, 31, 22, 0, 0))).toBe('2026-12-31');
+    });
+
+    it('pads every component, so keys sort lexicographically', () => {
+      const keys = [
+        calendarDayKey(new Date(2026, 8, 9, 12)),
+        calendarDayKey(new Date(2026, 8, 10, 12)),
+        calendarDayKey(new Date(2026, 9, 1, 12)),
+      ];
+      expect(keys).toEqual(['2026-09-09', '2026-09-10', '2026-10-01']);
+      expect([...keys].sort()).toEqual(keys);
+    });
+
+    it('refuses an invalid date rather than keying it as NaN', () => {
+      expect(() => calendarDayKey(new Date(NaN))).toThrow(RangeError);
+    });
+
+    it('bounds a day from its own midnight to the next one', () => {
+      const { start, end } = calendarDayBounds(new Date(2026, 8, 27, 17, 34, 12, 999));
+      expect(start.getHours()).toBe(0);
+      expect(start.getMinutes()).toBe(0);
+      expect(start.getSeconds()).toBe(0);
+      expect(start.getMilliseconds()).toBe(0);
+      expect(end.getHours()).toBe(0);
+      // Half-open: the day ends exactly where the next one begins.
+      expect(calendarDayKey(start)).toBe('2026-09-27');
+      expect(calendarDayKey(end)).toBe('2026-09-28');
+      expect(calendarDayBounds(end).start.getTime()).toBe(end.getTime());
+    });
+
+    it('is exactly as long as the local offset says, transition or not', () => {
+      for (const day of [SHORT_DAY, LONG_DAY, new Date(2026, 5, 15, 12)]) {
+        const { start, end } = calendarDayBounds(day);
+        // getTimezoneOffset is minutes *behind* UTC, so it grows as the clock
+        // goes back: a day that gains an hour has the larger offset at its end.
+        const offsetShiftMs = (end.getTimezoneOffset() - start.getTimezoneOffset()) * 60 * 1000;
+        expect(end.getTime() - start.getTime()).toBe(24 * HOUR + offsetShiftMs);
+      }
+    });
+
+    /**
+     * Consecutive days meet exactly, on every date of the year.
+     *
+     * This is the half-open contract stated as something a zone can break, and
+     * one does: America/Santiago springs forward *at* midnight, so 00:00 does
+     * not exist on the changeover date and `setHours(0, 0, 0, 0)` returns
+     * 01:00 — correctly, since that is the day's first instant. Advancing the
+     * date from there landed on 01:00 the next day, so the day ran an hour into
+     * its successor and the two buckets overlapped: an entry in that hour was
+     * counted under both dates, while `calendarDayKey` filed it under only the
+     * later one. Auckland transitions at 2am and UTC not at all, which is why
+     * the suite runs a third project in Santiago.
+     */
+    it('ends each day exactly where the next one begins, all year', () => {
+      for (let month = 0; month < 12; month++) {
+        for (const day of [1, 5, 6, 7, 27, 28]) {
+          const { start, end } = calendarDayBounds(new Date(2026, month, day, 12, 0, 0));
+          expect(end.getTime()).toBeGreaterThan(start.getTime());
+          // The next day's bucket starts on this one's last instant, so no
+          // moment belongs to two days and none belongs to none.
+          expect(calendarDayBounds(end).start.getTime()).toBe(end.getTime());
+          // ...and it really is the following calendar date.
+          expect(calendarDayKey(end)).not.toBe(calendarDayKey(start));
+        }
+      }
+    });
+
+    it.runIf(new Date(2026, 8, 6, 0, 0, 0).getHours() === 1)(
+      'starts a midnight-transition day at the first hour that exists',
+      () => {
+        const { start } = calendarDayBounds(new Date(2026, 8, 6, 12, 0, 0));
+        expect(start.getHours()).toBe(1);
+        expect(calendarDayKey(start)).toBe('2026-09-06');
+      },
+    );
+
+    it.runIf(hasTransitions)('gives a spring-forward day 23 hours and an autumn day 25', () => {
+      expect(lengthOf(SHORT_DAY)).toBe(23);
+      expect(lengthOf(LONG_DAY)).toBe(25);
+    });
+
+    it.runIf(hasTransitions)('will not place an adjustment longer than the short day holds', () => {
+      // 24 hours does not fit in a 23-hour day, however empty it is.
+      expect(findFreeSlot(SHORT_DAY, 24 * 3600, [])).toBeNull();
+      expect(findFreeSlot(SHORT_DAY, 23 * 3600, [])).not.toBeNull();
+      // The long day has room for a full 24 hours, and for its extra one.
+      expect(findFreeSlot(LONG_DAY, 24 * 3600, [])).not.toBeNull();
+      expect(findFreeSlot(LONG_DAY, 25 * 3600, [])).not.toBeNull();
+      expect(findFreeSlot(LONG_DAY, 25 * 3600 + 1, [])).toBeNull();
+    });
+
+    it('never lets a slot spill onto the following day', () => {
+      for (const day of [SHORT_DAY, LONG_DAY]) {
+        const { start, end } = calendarDayBounds(day);
+        const slot = findFreeSlot(day, lengthOf(day) * 3600, []);
+        expect(slot).not.toBeNull();
+        expect(slot!.start.getTime()).toBeGreaterThanOrEqual(start.getTime());
+        expect(slot!.end.getTime()).toBeLessThanOrEqual(end.getTime());
+        expect(calendarDayKey(new Date(slot!.end.getTime() - 1))).toBe(calendarDayKey(day));
+      }
+    });
+  });
+
+  describe('workedIntervals', () => {
+    const at = (hour: number, minute = 0) => new Date(Date.UTC(2024, 4, 6, hour, minute));
+    const pause = (from: number, to?: number): PauseSegment => ({
+      pauseStart: at(from).toISOString(),
+      ...(to === undefined ? {} : { pauseEnd: at(to).toISOString() }),
+    });
+    const spans = (intervals: Array<{ start: number; end: number }>) =>
+      intervals.map(i => [new Date(i.start).toISOString(), new Date(i.end).toISOString()]);
+
+    it('is the whole window when nothing was paused', () => {
+      expect(spans(workedIntervals(at(9), at(11), []))).toEqual([
+        [at(9).toISOString(), at(11).toISOString()],
+      ]);
+    });
+
+    it('splits around a pause', () => {
+      expect(spans(workedIntervals(at(9), at(12), [pause(10, 11)]))).toEqual([
+        [at(9).toISOString(), at(10).toISOString()],
+        [at(11).toISOString(), at(12).toISOString()],
+      ]);
+    });
+
+    it('treats overlapping pauses as one gap', () => {
+      // 10–12 and 11–13 are one stretch away from the desk, not two.
+      expect(spans(workedIntervals(at(9), at(14), [pause(11, 13), pause(10, 12)]))).toEqual([
+        [at(9).toISOString(), at(10).toISOString()],
+        [at(13).toISOString(), at(14).toISOString()],
+      ]);
+    });
+
+    it('runs an unfinished pause to the end of the window', () => {
+      expect(spans(workedIntervals(at(9), at(12), [pause(10)]))).toEqual([
+        [at(9).toISOString(), at(10).toISOString()],
+      ]);
+    });
+
+    it('is empty when the pause covers everything, and when the window does not exist', () => {
+      expect(workedIntervals(at(9), at(11), [pause(8, 12)])).toEqual([]);
+      expect(workedIntervals(at(11), at(9), [])).toEqual([]);
+      expect(workedIntervals(at(9), at(9), [])).toEqual([]);
+    });
+
+    it('ignores a pause that falls outside the window', () => {
+      expect(spans(workedIntervals(at(9), at(11), [pause(6, 7), pause(13, 14)]))).toEqual([
+        [at(9).toISOString(), at(11).toISOString()],
+      ]);
+    });
+
+    it('adds up to what calculateTotalPausedSeconds leaves behind', () => {
+      const segments = [pause(10, 10), pause(12, 13)];
+      const worked = workedIntervals(at(9), at(17), segments)
+        .reduce((total, i) => total + (i.end - i.start), 0) / 1000;
+      const window = (at(17).getTime() - at(9).getTime()) / 1000;
+      expect(worked).toBe(window - calculateTotalPausedSeconds(at(9), at(17), segments));
+    });
+  });
+
 });
